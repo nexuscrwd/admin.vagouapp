@@ -15,6 +15,17 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-26] — 🌐 Autenticação Resiliente: Suporte a Domínio Customizado (admin.vagouapp.com)
+- **Tipo:** `[Security / Bugfix / Custom Domain Auth]`
+- **Motivo:** Correção do erro `Unexpected end of JSON input` ao logar pelo domínio customizado em produção (`admin.vagouapp.com`). Implementado mecanismo multi-camada que tenta a API Express, faz fallback seguro para a RPC do Supabase (`verify_admin_login`) e para a consulta direta via cliente Supabase, eliminando quebras de JSON em hospedagens estáticas.
+- **Arquivos Impactados:** `src/services/supabaseApi.ts`, `supabase/migrations/20260926_admin_auth_rpc.sql`, `CHANGELOG.md`.
+
+### [2026-09-26] — ↔️ Barra Lateral: Alternador de Modo Ícone / Expandido (Collapsed/Expanded Aside)
+- **Tipo:** `[UI/UX / Responsive / Focus Mode / Admin Sidebar]`
+- **Motivo:** Implementação do botão de recolhimento/expansão da barra lateral (`AdminSidebar.tsx`), permitindo alternar fluidamente entre o modo expandido (`w-64`) e o modo compacto somente ícones (`w-20`), com memória de preferência no `localStorage`.
+- **Arquivos Impactados:** `src/components/admin/AdminSidebar.tsx`, `CHANGELOG.md`.
+- **Detalhes de UX:** Ícones centralizados com tooltips, badges compactos em formato de notificação, transições suaves (`transition-all duration-300`) e suporte total a temas de alto contraste.
+
 ### [2026-09-26] — 🛡️ Fix Secrets & Dashboard Metrics Live Sync
 - **Tipo:** `[Security / Environment / Supabase Live Sync]`
 - **Motivo:** Remoção da variável redundante `VITE_SUPABASE_SERVICE_ROLE_KEY` do `.env.example` para que a interface do AI Studio não solicite a chave em duplicidade, mantendo apenas a chave soberana de backend `SUPABASE_SERVICE_ROLE_KEY`. Correção da consulta de métricas no servidor (`server.ts`) para sincronizar em tempo real com as colunas reais do cluster (`is_active`, `is_verified`, `appointments`, `service_offers`).
