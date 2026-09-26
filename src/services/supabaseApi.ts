@@ -4,6 +4,7 @@ import {
   AdminDashboardMetrics,
   TechnicalBulletin,
   TriadeStatusResponse,
+  SystemAdminUser,
 } from '../types/admin';
 
 // Fallback seed data in case Supabase is empty or offline
@@ -749,4 +750,98 @@ export async function createTechnicalBulletin(
   } catch (err: any) {
     return { success: false, error: err.message };
   }
+}
+
+// ==============================================================================
+// 🔐 SERVIÇOS DE AUTENTICAÇÃO E GESTÃO DE ADMINISTRADORES
+// ==============================================================================
+
+const ADMIN_STORAGE_KEY = 'vagou_admin_session';
+
+export function getStoredAdmin(): SystemAdminUser | null {
+  try {
+    const raw = localStorage.getItem(ADMIN_STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return null;
+}
+
+export function setStoredAdmin(admin: SystemAdminUser | null): void {
+  try {
+    if (admin) {
+      localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(admin));
+    } else {
+      localStorage.removeItem(ADMIN_STORAGE_KEY);
+    }
+  } catch {}
+}
+
+export async function registerAdmin(payload: {
+  full_name: string;
+  username: string;
+  email: string;
+  email_confirmation: string;
+  phone_whatsapp: string;
+  password: string;
+}): Promise<{ success: boolean; admin?: SystemAdminUser; error?: string; message?: string }> {
+  try {
+    const resp = await fetch('/api/admin/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const json = await resp.json();
+    if (resp.ok && json.success) {
+      if (json.admin) setStoredAdmin(json.admin);
+      return json;
+    }
+    return { success: false, error: json.error || 'Erro ao realizar cadastro de administrador.' };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function loginAdmin(
+  identifier: string,
+  password: string
+): Promise<{ success: boolean; admin?: SystemAdminUser; error?: string }> {
+  try {
+    const resp = await fetch('/api/admin/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier, password }),
+    });
+    const json = await resp.json();
+    if (resp.ok && json.success) {
+      if (json.admin) setStoredAdmin(json.admin);
+      return json;
+    }
+    return { success: false, error: json.error || 'Credenciais inválidas.' };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+export async function recoverAdminAccess(
+  type: 'access_data' | 'password',
+  query: string
+): Promise<{ success: boolean; message?: string; hint?: string; error?: string }> {
+  try {
+    const resp = await fetch('/api/admin/auth/recovery', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, query }),
+    });
+    const json = await resp.json();
+    if (resp.ok && json.success) {
+      return json;
+    }
+    return { success: false, error: json.error || 'Erro ao processar recuperação.' };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
+export function logoutAdmin(): void {
+  setStoredAdmin(null);
 }

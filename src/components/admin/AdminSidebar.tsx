@@ -13,14 +13,18 @@ import {
   Layers,
   Sparkles,
   KeyRound,
+  User,
+  LogIn,
 } from 'lucide-react';
-import { AdminScreenId } from '../../types/admin';
+import { AdminScreenId, SystemAdminUser, AdminAuthTab } from '../../types/admin';
 
 interface AdminSidebarProps {
   currentScreen: AdminScreenId;
   onSelectScreen: (screen: AdminScreenId) => void;
   onCloseMobile?: () => void;
   pendingCount?: number;
+  adminUser?: SystemAdminUser | null;
+  onOpenAuthModal?: (tab?: AdminAuthTab) => void;
 }
 
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({
@@ -28,6 +32,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   onSelectScreen,
   onCloseMobile,
   pendingCount = 0,
+  adminUser,
+  onOpenAuthModal,
 }) => {
   const menuItems: {
     id: AdminScreenId;
@@ -165,16 +171,32 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           </a>
         </div>
 
-        {/* Admin Profile */}
-        <div className="pt-2 border-t border-slate-800 flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full bg-emerald-600/30 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold text-xs">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+        {/* Admin Profile / Auth Trigger */}
+        {adminUser ? (
+          <div
+            onClick={() => onOpenAuthModal && onOpenAuthModal('login')}
+            className="pt-2 border-t border-slate-800 flex items-center gap-2.5 cursor-pointer hover:bg-slate-900/50 p-1 rounded-lg transition"
+            title="Gerenciar Administrador"
+          >
+            <div className="w-8 h-8 rounded-full bg-emerald-600/30 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold text-xs shrink-0">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="text-xs font-bold text-white block truncate">{adminUser.full_name}</span>
+              <span className="text-[10px] text-emerald-400 font-mono block truncate">@{adminUser.username}</span>
+            </div>
           </div>
-          <div className="min-w-0 flex-1">
-            <span className="text-xs font-bold text-white block truncate">Super Administrador</span>
-            <span className="text-[10px] text-slate-400 font-mono block truncate">adm.vagouapp.com</span>
+        ) : (
+          <div className="pt-2 border-t border-slate-800">
+            <button
+              onClick={() => onOpenAuthModal && onOpenAuthModal('login')}
+              className="w-full py-2 px-3 rounded-lg bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs font-bold text-slate-200 hover:text-white transition flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <LogIn className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Acesso Administrativo</span>
+            </button>
           </div>
-        </div>
+        )}
       </div>
     </aside>
   );

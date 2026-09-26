@@ -15,6 +15,25 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-26] — 🔐 Sistema de Cadastro, Acesso e Recuperação de Administradores Master
+- **Tipo:** `[Feature / Security / Supabase Migration / Admin Auth]`
+- **Motivo:** Implementação dos modais executivos de Cadastro, Acesso (Login) e Recuperação (Dados de acesso / Senha) para controle soberano de administradores no `admvapp` (`adm.vagouapp.com`).
+- **Arquivos e Componentes Impactados:**
+  - `src/components/admin/AdminAuthModal.tsx`: Modal com abas de **Cadastro** (validação estrita de Username com 1 maiúscula + 1 caractere especial, e-mail + confirmação, cel/whats formatado, senha e botão "Concluir Cadastro"), **Acesso** (nome de usuário/e-mail, senha e botão "Acessar") e **Recuperar** (seletor "Dados de acesso" | "Senha").
+  - `supabase/migrations/20260926_system_admins.sql`: Script SQL completo com tabelas `system_admins` e `admin_access_logs`, índices, triggers de `updated_at`, RLS com bypass Service Role e seed inicial de superadministrador.
+  - `server.ts`: Rotas de backend `/api/admin/auth/register`, `/api/admin/auth/login` e `/api/admin/auth/recovery` com validação de credenciais e persistência segura no Supabase.
+  - `src/services/supabaseApi.ts`: Métodos client de autenticação, persistência de sessão em `localStorage` e tipagem TypeScript.
+  - `src/components/admin/AdminHeader.tsx` & `src/components/admin/AdminSidebar.tsx`: Exibição do perfil do administrador ativo, atalhos de autenticação e botão de encerramento de sessão (Logout).
+  - `src/types/admin.ts`: Tipos `SystemAdminUser`, `AdminAuthTab` e `AdminRecoveryType`.
+
+- **Tipo:** `[Supabase / Service Role / Security & Audit / Database Mapping]`
+- **Motivo:** Verificação e contraprova do funcionamento da chave Service Role no backend soberano do `admvapp`.
+- **Arquivos Impactados:** `server.ts`, `src/services/supabase.ts`, `CHANGELOG.md`.
+- **Resultado do Teste:**
+  - **Chave Service Role:** Presente, válida e com privilégio `service_role` (expiração: 2036).
+  - **Bypass de RLS:** 100% operacional. Leitura e escrita validadas em `salons` (5 salões), `appointments` (4 agendamentos), `professionals` (7 profissionais), `service_offers` (3 ofertas) e `clients` (4 clientes).
+  - **Mapeamento de Schema:** Ajustada compatibilidade com as colunas nativas do banco (`is_active` e `is_verified`).
+
 ### [2026-09-26] — 📌 Fix UI: Barra Lateral (`aside`) Fixa e Permanente no Sistema
 - **Tipo:** `[UI / Layout / AdminSidebar]`
 - **Motivo:** Tornar o elemento `aside` da barra lateral (`AdminSidebar`) fixo e permanente no sistema em todos os fluxos do Painel de Admin Master.

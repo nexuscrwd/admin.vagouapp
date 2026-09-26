@@ -1,6 +1,14 @@
 import React from 'react';
-import { Menu, Search, RefreshCw, Layers, ShieldCheck } from 'lucide-react';
-import { AdminScreenId } from '../../types/admin';
+import {
+  Menu,
+  Search,
+  RefreshCw,
+  ShieldCheck,
+  User,
+  LogOut,
+  UserPlus,
+} from 'lucide-react';
+import { AdminScreenId, SystemAdminUser, AdminAuthTab } from '../../types/admin';
 
 interface AdminHeaderProps {
   currentScreen: AdminScreenId;
@@ -9,6 +17,9 @@ interface AdminHeaderProps {
   onRefresh: () => void;
   isRefreshing: boolean;
   onOpenMobileSidebar?: () => void;
+  adminUser?: SystemAdminUser | null;
+  onOpenAuthModal?: (tab?: AdminAuthTab) => void;
+  onLogout?: () => void;
 }
 
 export const AdminHeader: React.FC<AdminHeaderProps> = ({
@@ -18,6 +29,9 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
   onRefresh,
   isRefreshing,
   onOpenMobileSidebar,
+  adminUser,
+  onOpenAuthModal,
+  onLogout,
 }) => {
   const getScreenTitle = (screen: AdminScreenId) => {
     switch (screen) {
@@ -36,6 +50,13 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
       default:
         return 'Painel de Controle';
     }
+  };
+
+  const getInitials = (name: string) => {
+    if (!name) return 'AD';
+    const parts = name.trim().split(' ');
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   };
 
   return (
@@ -64,8 +85,8 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
       </div>
 
       {/* Center/Right: Search bar & Quick actions */}
-      <div className="flex items-center gap-3">
-        <div className="hidden sm:flex items-center bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 w-60 lg:w-80 focus-within:border-emerald-500 transition">
+      <div className="flex items-center gap-2.5 sm:gap-3">
+        <div className="hidden sm:flex items-center bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 w-48 lg:w-72 focus-within:border-emerald-500 transition">
           <Search className="w-4 h-4 text-slate-400 mr-2 shrink-0" />
           <input
             type="text"
@@ -92,16 +113,54 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
           <span>Service Role</span>
         </div>
 
-        {/* Admin Badge */}
-        <div className="flex items-center gap-2 pl-2 border-l border-slate-800">
-          <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-xs shadow-md">
-            AD
+        {/* Admin Auth Area */}
+        {adminUser ? (
+          <div className="flex items-center gap-2 pl-2 border-l border-slate-800">
+            <button
+              onClick={() => onOpenAuthModal && onOpenAuthModal('login')}
+              className="flex items-center gap-2 hover:opacity-90 transition cursor-pointer text-left"
+              title="Gerenciar Sessão de Administrador"
+            >
+              <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-xs shadow-md shrink-0">
+                {getInitials(adminUser.full_name)}
+              </div>
+              <div className="hidden xl:block">
+                <span className="text-xs font-bold text-white block leading-tight truncate max-w-[120px]">
+                  {adminUser.full_name.split(' ')[0]}
+                </span>
+                <span className="text-[10px] text-emerald-400 block font-mono">@{adminUser.username}</span>
+              </div>
+            </button>
+
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                title="Encerrar Sessão"
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 transition cursor-pointer border border-slate-700/60 ml-1"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
-          <div className="hidden xl:block text-left">
-            <span className="text-xs font-bold text-white block leading-tight">Master Admin</span>
-            <span className="text-[10px] text-emerald-400 block font-medium">adm.vagouapp.com</span>
+        ) : (
+          <div className="flex items-center gap-1.5 pl-2 border-l border-slate-800">
+            <button
+              onClick={() => onOpenAuthModal && onOpenAuthModal('login')}
+              className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 border border-slate-700/80"
+            >
+              <User className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Acessar</span>
+            </button>
+
+            <button
+              onClick={() => onOpenAuthModal && onOpenAuthModal('register')}
+              className="px-2.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shadow-xs"
+            >
+              <UserPlus className="w-3.5 h-3.5 text-white" />
+              <span className="hidden sm:inline">Cadastrar</span>
+            </button>
           </div>
-        </div>
+        )}
       </div>
     </header>
   );

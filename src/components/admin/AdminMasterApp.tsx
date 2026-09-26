@@ -5,8 +5,16 @@ import {
   createAdminSalon,
   bulkUpdateSalons,
   fetchAdminDashboardMetrics,
+  getStoredAdmin,
+  logoutAdmin,
 } from '../../services/supabaseApi';
-import { AdminSalonItem, AdminDashboardMetrics, AdminScreenId } from '../../types/admin';
+import {
+  AdminSalonItem,
+  AdminDashboardMetrics,
+  AdminScreenId,
+  SystemAdminUser,
+  AdminAuthTab,
+} from '../../types/admin';
 import { AdminSidebar } from './AdminSidebar';
 import { AdminHeader } from './AdminHeader';
 import { AdminKpiCards } from './AdminKpiCards';
@@ -17,6 +25,7 @@ import { AdminCreateSalonModal } from './AdminCreateSalonModal';
 import { AdminTriadeGovernance } from './AdminTriadeGovernance';
 import { AdminAppointmentsMonitor } from './AdminAppointmentsMonitor';
 import { AdminSettingsPanel } from './AdminSettingsPanel';
+import { AdminAuthModal } from './AdminAuthModal';
 import { ArrowRight, Plus } from 'lucide-react';
 
 export const AdminMasterApp: React.FC = () => {
@@ -34,9 +43,13 @@ export const AdminMasterApp: React.FC = () => {
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-  // Modals
+  // Admin User & Auth State
+  const [adminUser, setAdminUser] = useState<SystemAdminUser | null>(() => getStoredAdmin());
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalInitialTab, setAuthModalInitialTab] = useState<AdminAuthTab>('login');
+
+  // Salon Modals
   const [selectedSalonToEdit, setSelectedSalonToEdit] = useState<AdminSalonItem | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -69,23 +82,17 @@ export const AdminMasterApp: React.FC = () => {
   const handleSaveSalonUpdates = async (salonId: string, updates: Partial<AdminSalonItem>) => {
     const res = await updateAdminSalon(salonId, updates);
     if (res.success) {
-      setSalons((prev) =>
-        prev.map((s) => (s.id === salonId ? { ...s, ...updates } : s))
-      );
+      setSalons((prev) => prev.map((s) => (s.id === salonId ? { ...s, ...updates } : s)));
       fetchAdminDashboardMetrics().then(setMetrics);
-      return true;
     }
-    return false;
   };
 
-  const handleCreateSalon = async (salonData: Partial<AdminSalonItem>) => {
-    const res = await createAdminSalon(salonData);
+  const handleCreateSalon = async (payload: Partial<AdminSalonItem>) => {
+    const res = await createAdminSalon(payload);
     if (res.success && res.salon) {
       setSalons((prev) => [res.salon!, ...prev]);
       fetchAdminDashboardMetrics().then(setMetrics);
-      return true;
     }
-    return false;
   };
 
   const handleUpdateStatus = async (salonId: string, status: AdminSalonItem['status']) => {
@@ -103,6 +110,16 @@ export const AdminMasterApp: React.FC = () => {
     }
   };
 
+  const handleOpenAuthModal = (tab: AdminAuthTab = 'login') => {
+    setAuthModalInitialTab(tab);
+    setIsAuthModalOpen(true);
+  };
+
+  const handleLogout = () => {
+    logoutAdmin();
+    setAdminUser(null);
+  };
+
   const pendingCount = metrics.pendingSalons + metrics.incompleteSalons;
 
   return (
@@ -113,6 +130,8 @@ export const AdminMasterApp: React.FC = () => {
           currentScreen={currentScreen}
           onSelectScreen={setCurrentScreen}
           pendingCount={pendingCount}
+          adminUser={adminUser}
+          onOpenAuthModal={handleOpenAuthModal}
         />
       </div>
 
@@ -125,52 +144,96 @@ export const AdminMasterApp: React.FC = () => {
           onSearchChange={setSearchQuery}
           onRefresh={loadData}
           isRefreshing={isRefreshing}
+          adminUser={adminUser}
+          onOpenAuthModal={handleOpenAuthModal}
+          onLogout={handleLogout}
         />
 
         {/* Scrollable View Container */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 lg:p-6 space-y-6">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
           {/* SCREEN: DASHBOARD */}
           {currentScreen === 'dashboard' && (
             <div className="space-y-6">
-              {/* KPIs */}
-              <AdminKpiCards
-                metrics={metrics}
-                onFilterStatus={() => {
-                  setCurrentScreen('salons');
-                }}
-              />
+              <AdminKpiCards metrics={metrics} onNavigateScreen={setCurrentScreen} />
 
-              {/* Salons Overview with Quick Action to Full List */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-sm lg:text-base font-bold text-white tracking-tight">
-                      Estabelecimentos Cadastrados
-                    </h2>
-                    <p className="text-xs text-slate-400">
-                      Gestão completa dos salões, barbearias e studios sincronizados no Supabase com Service Role.
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Moderation Fast Action */}
+                <div className="lg:col-span-2 p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-sm font-bold text-white tracking-tight">
+                        Fila Rápida de Moderação
+                      </h2>
+                      <p className="text-xs text-slate-400">
+                        {metrics.pendingSalons + metrics.incompleteSalons} salões aguardando liberação
+                      </p>
+                    </div>
                     <button
-                      onClick={() => setIsCreateModalOpen(true)}
-                      className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shadow-sm shadow-emerald-950/40"
+                      onClick={() => setCurrentScreen('moderation')}
+                      className="text-xs text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 transition cursor-pointer"
                     >
-                      <Plus className="w-3.5 h-3.5 text-white" />
-                      <span>Novo Salão</span>
-                    </button>
-
-                    <button
-                      onClick={() => setCurrentScreen('salons')}
-                      className="text-xs font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer ml-2"
-                    >
-                      <span>Ver todos</span>
+                      <span>Ver fila completa</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
+
+                  <AdminModerationPanel
+                    salons={salons}
+                    onEditSalon={handleEditSalon}
+                    onUpdateStatus={handleUpdateStatus}
+                    limit={3}
+                  />
                 </div>
 
+                {/* Direct Actions & Quick Links */}
+                <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 flex flex-col justify-between">
+                  <div>
+                    <h2 className="text-sm font-bold text-white tracking-tight">Ações Executivas</h2>
+                    <p className="text-xs text-slate-400">Gestão imediata do cluster</p>
+
+                    <div className="mt-4 space-y-2.5">
+                      <button
+                        onClick={() => setIsCreateModalOpen(true)}
+                        className="w-full py-2.5 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-emerald-950/40"
+                      >
+                        <Plus className="w-4 h-4 text-white" />
+                        <span>Cadastrar Estabelecimento</span>
+                      </button>
+
+                      <button
+                        onClick={() => setCurrentScreen('triade')}
+                        className="w-full py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition flex items-center justify-center gap-2 cursor-pointer border border-slate-700/60"
+                      >
+                        <span>Emitir Comunicado Tríade</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleOpenAuthModal('register')}
+                        className="w-full py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition flex items-center justify-center gap-2 cursor-pointer border border-slate-700/60"
+                      >
+                        <span>Cadastrar Novo Administrador</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-slate-400">
+                    <strong className="text-white block mb-1">Status do Cluster Supabase</strong>
+                    <span className="text-emerald-400 font-medium">Bypass RLS Soberano • 100% Operacional</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Salons Table Quick Preview */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-bold text-white">Todos os Estabelecimentos Cadastrados</h2>
+                  <button
+                    onClick={() => setCurrentScreen('salons')}
+                    className="text-xs text-emerald-400 font-bold hover:underline cursor-pointer"
+                  >
+                    Gerenciar todos ({salons.length})
+                  </button>
+                </div>
                 <AdminSalonsList
                   salons={salons}
                   onEditSalon={handleEditSalon}
@@ -184,7 +247,7 @@ export const AdminMasterApp: React.FC = () => {
             </div>
           )}
 
-          {/* SCREEN: SALONS (Full Management Table & Grid) */}
+          {/* SCREEN: SALONS */}
           {currentScreen === 'salons' && (
             <div className="space-y-4">
               <AdminSalonsList
@@ -218,6 +281,14 @@ export const AdminMasterApp: React.FC = () => {
           {currentScreen === 'settings' && <AdminSettingsPanel />}
         </main>
       </div>
+
+      {/* Admin Auth Modal (Cadastro, Acesso, Recuperar) */}
+      <AdminAuthModal
+        isOpen={isAuthModalOpen}
+        initialTab={authModalInitialTab}
+        onClose={() => setIsAuthModalOpen(false)}
+        onSuccess={(admin) => setAdminUser(admin)}
+      />
 
       {/* Edit Salon Modal */}
       <AdminEditSalonModal

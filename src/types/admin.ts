@@ -84,3 +84,19 @@ export interface TriadeStatusResponse {
     lastBulletin?: TechnicalBulletin | null;
   };
 }
+
+export interface SystemAdminUser {
+  id: string;
+  full_name: string;
+  username: string;
+  email: string;
+  phone_whatsapp: string;
+  role: 'superadmin' | 'moderator' | 'support';
+  is_active: boolean;
+  avatar_url?: string;
+  created_at?: string;
+  last_login_at?: string;
+}
+
+export type AdminAuthTab = 'login' | 'register' | 'recovery';
+export type AdminRecoveryType = 'access_data' | 'password';
