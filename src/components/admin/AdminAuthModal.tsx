@@ -29,8 +29,9 @@ import {
 interface AdminAuthModalProps {
   isOpen: boolean;
   initialTab?: AdminAuthTab;
-  onClose: () => void;
+  onClose?: () => void;
   onSuccess: (admin: SystemAdminUser) => void;
+  isGate?: boolean;
 }
 
 export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
@@ -38,9 +39,18 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
   initialTab = 'login',
   onClose,
   onSuccess,
+  isGate = false,
 }) => {
   const [activeTab, setActiveTab] = useState<AdminAuthTab>(initialTab);
   const [recoveryType, setRecoveryType] = useState<AdminRecoveryType>('password');
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setActiveTab(initialTab);
+      setErrorMessage(null);
+      setSuccessMessage(null);
+    }
+  }, [isOpen, initialTab]);
 
   // Form States - Login
   const [loginIdentifier, setLoginIdentifier] = useState('');
@@ -223,7 +233,11 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-fadeIn overflow-y-auto">
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto ${
+        isGate ? 'bg-slate-950' : 'bg-black/80 backdrop-blur-sm animate-fadeIn'
+      }`}
+    >
       <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-auto">
         {/* Top Header */}
         <div className="p-4 sm:p-5 border-b border-slate-800 bg-slate-950/80 flex items-center justify-between gap-3">
@@ -241,18 +255,22 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Gestão Soberana & Controle de Acesso de Administradores
+                {isGate
+                  ? 'Autenticação Obrigatória para Acesso Master'
+                  : 'Gestão Soberana & Controle de Acesso de Administradores'}
               </p>
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
-            title="Fechar Modal"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          {!isGate && onClose && (
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
+              title="Fechar Modal"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
         {/* Tab Navigation */}

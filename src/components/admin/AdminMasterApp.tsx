@@ -122,6 +122,23 @@ export const AdminMasterApp: React.FC = () => {
 
   const pendingCount = metrics.pendingSalons + metrics.incompleteSalons;
 
+  // 🔒 GATE DE ACESSO MASTER: Se não autenticado, bloqueia o sistema e exige Login/Cadastro
+  if (!adminUser) {
+    return (
+      <div className="flex h-screen w-screen bg-slate-950 text-slate-100 font-sans overflow-hidden items-center justify-center">
+        <AdminAuthModal
+          isOpen={true}
+          isGate={true}
+          initialTab={authModalInitialTab}
+          onSuccess={(admin) => {
+            setAdminUser(admin);
+            loadData();
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen w-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
       {/* 1. Permanent Fixed Sidebar */}

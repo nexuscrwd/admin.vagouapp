@@ -15,6 +15,17 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-26] — 🛡️ Fix Secrets & Dashboard Metrics Live Sync
+- **Tipo:** `[Security / Environment / Supabase Live Sync]`
+- **Motivo:** Remoção da variável redundante `VITE_SUPABASE_SERVICE_ROLE_KEY` do `.env.example` para que a interface do AI Studio não solicite a chave em duplicidade, mantendo apenas a chave soberana de backend `SUPABASE_SERVICE_ROLE_KEY`. Correção da consulta de métricas no servidor (`server.ts`) para sincronizar em tempo real com as colunas reais do cluster (`is_active`, `is_verified`, `appointments`, `service_offers`).
+- **Arquivos Impactados:** `.env.example`, `server.ts`, `CHANGELOG.md`.
+
+### [2026-09-26] — 🔒 Gate de Segurança: Bloqueio Total e Obrigatório do App para Administradores
+- **Tipo:** `[Security / Access Gate / Master Auth Enforcement]`
+- **Motivo:** O aplicativo `admvapp` (`adm.vagouapp.com`) agora inicia **100% trancado e fechado por padrão**. Qualquer usuário sem sessão autenticada é imediatamente barrado na tela de autenticação corporativa (Gate Mode sem possibilidade de fechamento), liberando o painel e os dados soberanos somente após o login com sucesso.
+- **Arquivos Impactados:** `src/components/admin/AdminMasterApp.tsx`, `src/components/admin/AdminAuthModal.tsx`.
+- **Resumo:** Implementado bloqueio condicional estrito de renderização quando `adminUser === null`, eliminando acessos anônimos aos dados do cluster.
+
 ### [2026-09-26] — 🔐 Sistema de Cadastro, Acesso e Recuperação de Administradores Master
 - **Tipo:** `[Feature / Security / Supabase Migration / Admin Auth]`
 - **Motivo:** Implementação dos modais executivos de Cadastro, Acesso (Login) e Recuperação (Dados de acesso / Senha) para controle soberano de administradores no `admvapp` (`adm.vagouapp.com`).

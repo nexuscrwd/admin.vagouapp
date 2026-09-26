@@ -573,23 +573,21 @@ async function startServer() {
       // Salons stats
       const { data: salonsData, error: salonsError } = await supabaseAdmin
         .from('salons')
-        .select('id, status');
+        .select('id, is_active, is_verified');
 
       const salons = salonsData || [];
       const totalSalons = salons.length;
-      const activeSalons = salons.filter((s: any) => s.status === 'active' || s.is_active).length;
-      const pendingSalons = salons.filter((s: any) => s.status === 'pending').length;
-      const incompleteSalons = salons.filter((s: any) => s.status === 'incomplete').length;
-      const suspendedSalons = salons.filter((s: any) => s.status === 'suspended').length;
+      const activeSalons = salons.filter((s: any) => s.is_active === true).length;
+      const pendingSalons = salons.filter((s: any) => s.is_active === false && s.is_verified === false).length;
+      const incompleteSalons = salons.filter((s: any) => s.is_active === false && s.is_verified === true).length;
+      const suspendedSalons = salons.filter((s: any) => s.is_active === false).length;
 
-      // Today appointments
-      const todayStr = new Date().toISOString().split('T')[0];
+      // Appointments
       let todayAppointments = 0;
       try {
         const { count } = await supabaseAdmin
           .from('appointments')
-          .select('*', { count: 'exact', head: true })
-          .gte('scheduled_date', todayStr);
+          .select('*', { count: 'exact', head: true });
         todayAppointments = count || 0;
       } catch {}
 
@@ -598,8 +596,7 @@ async function startServer() {
       try {
         const { count } = await supabaseAdmin
           .from('service_offers')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'AVAILABLE');
+          .select('*', { count: 'exact', head: true });
         activeFlashOffers = count || 0;
       } catch {}
 
