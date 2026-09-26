@@ -1,0 +1,10 @@
+{
+  "name": "Admin Master",
+  "description": "Painel de Admin Master corporativo do ecossistema VagouApp (adm.vagouapp.com), soberano na governança, moderação de estabelecimentos, auditoria cadastral e gestão de infraestrutura/DNS.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
