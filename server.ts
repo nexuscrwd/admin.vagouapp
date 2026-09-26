@@ -406,6 +406,47 @@ async function startServer() {
     }
   });
 
+  // 4. List System Admins
+  app.get('/api/admin/system-admins', async (req, res) => {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('system_admins')
+        .select('id, full_name, username, email, phone_whatsapp, role, is_active, avatar_url, last_login_at, created_at')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+
+      return res.json({ success: true, admins: data || [] });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 5. Toggle Admin Active Status
+  app.patch('/api/admin/system-admins/:id/status', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { is_active } = req.body;
+
+      const { data, error } = await supabaseAdmin
+        .from('system_admins')
+        .update({ is_active: !!is_active })
+        .eq('id', id)
+        .select('id, full_name, username, email, phone_whatsapp, role, is_active, avatar_url, created_at')
+        .single();
+
+      if (error) {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+
+      return res.json({ success: true, admin: data });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // ADMIN: List all Salons (bypasses RLS with service role)
   app.get('/api/admin/salons', async (req, res) => {
     try {

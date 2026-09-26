@@ -975,3 +975,74 @@ export async function recoverAdminAccess(
 export function logoutAdmin(): void {
   setStoredAdmin(null);
 }
+
+/**
+ * Busca a lista de administradores do sistema
+ */
+export async function fetchSystemAdmins(): Promise<SystemAdminUser[]> {
+  try {
+    const resp = await fetch('/api/admin/system-admins');
+    const text = await resp.text();
+    if (text && text.trim().startsWith('{')) {
+      const json = JSON.parse(text);
+      if (resp.ok && json.success && Array.isArray(json.admins)) {
+        return json.admins;
+      }
+    }
+  } catch {}
+
+  // Fallback direto via Supabase client
+  try {
+    const { data, error } = await supabase
+      .from('system_admins')
+      .select('id, full_name, username, email, phone_whatsapp, role, is_active, avatar_url, last_login_at, created_at')
+      .order('created_at', { ascending: false });
+
+    if (!error && Array.isArray(data)) {
+      return data as SystemAdminUser[];
+    }
+  } catch {}
+
+  const current = getStoredAdmin();
+  return current ? [current] : [];
+}
+
+/**
+ * Altera status ativo/inativo de um administrador
+ */
+export async function toggleAdminStatus(
+  adminId: string,
+  isActive: boolean
+): Promise<{ success: boolean; admin?: SystemAdminUser; error?: string }> {
+  try {
+    const resp = await fetch(`/api/admin/system-admins/${adminId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_active: isActive }),
+    });
+    const text = await resp.text();
+    if (text && text.trim().startsWith('{')) {
+      const json = JSON.parse(text);
+      if (resp.ok && json.success) {
+        return json;
+      }
+      return { success: false, error: json.error || 'Erro ao atualizar status.' };
+    }
+  } catch {}
+
+  try {
+    const { data, error } = await supabase
+      .from('system_admins')
+      .update({ is_active: isActive })
+      .eq('id', adminId)
+      .select()
+      .single();
+
+    if (!error && data) {
+      return { success: true, admin: data as SystemAdminUser };
+    }
+    return { success: false, error: error?.message || 'Erro ao atualizar status.' };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}

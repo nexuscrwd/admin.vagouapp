@@ -15,6 +15,31 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-26] — 🧹 Remoção da Div de Diagnóstico de Conexão (Clean UI)
+- **Tipo:** `[UI/UX / Focus Mode / Clean Design]`
+- **Motivo:** Remoção definitiva do toast/pop-up de diagnóstico de conexão com Supabase da raiz da aplicação (`App.tsx`), garantindo conformidade com a regra de Clean UI sem poluição visual ou telemetrias expostas na tela principal.
+- **Arquivos Impactados:** `src/App.tsx`, `CHANGELOG.md`.
+
+### [2026-09-26] — 📐 Compactação do Modal de Autenticação & Remoção de Textos
+- **Tipo:** `[UI/UX / Modal Styling / Layout Refinement]`
+- **Motivo:** Redução de 1/3 na largura do modal de autenticação (`max-w-[375px]`), remoção do texto de rodapé explicativo e eliminação de ícones SVG nos botões de submissão, tornando a experiência de login ultracompacta, veloz e minimalista.
+- **Arquivos Impactados:** `src/components/admin/AdminAuthModal.tsx`, `CHANGELOG.md`.
+
+### [2026-09-26] — 🧹 Refinamento Visual Focus Mode: Remoção de Elementos Redundantes
+- **Tipo:** `[UI/UX / Focus Mode / Clean Design]`
+- **Motivo:** Remoção pontual e cirúrgica do selo de identificador `admvapp` no cabeçalho do modal de autenticação e da seta `ArrowRight` no botão "Acessar", deixando o layout mais limpo, minimalista e direto.
+- **Arquivos Impactados:** `src/components/admin/AdminAuthModal.tsx`, `CHANGELOG.md`.
+
+### [2026-09-26] — 🛡️ Cadastro Restrito & Gestão Soberana de Administradores em Configurações
+- **Tipo:** `[Security / Access Control / Settings / Modal]`
+- **Motivo:** O cadastro de novos administradores corporativos foi **completamente removido da tela pública** e isolado como privilégio interno restrito.
+- **Implementações:**
+  - **Tela de Bloqueio Pública (`AdminAuthModal.tsx`):** Apenas abas de **Acesso** e **Recuperar** estão disponíveis para o público. O formulário público de auto-cadastro foi eliminado.
+  - **Painel de Configurações (`AdminSettingsPanel.tsx`):** Adicionada a seção soberana *Administradores Corporativos do Sistema*, listando todos os gestores com avatar, nome, e-mail, telefone/WhatsApp, nível de acesso (`superadmin` / `moderator` / `support`), status e botão de ativação/desativação em tempo real.
+  - **Modal Dedicado (`AdminCreateAdminModal.tsx`):** Modal executivo próprio para criação de novos administradores com validações estritas de usuário (1 maiúscula + 1 caractere especial), confirmação de e-mail e senha com máscara e visibilidade.
+  - **Rotas Backend & Supabase (`server.ts` & `supabaseApi.ts`):** `/api/admin/system-admins` para listagem e `/api/admin/system-admins/:id/status` para alteração de status.
+- **Arquivos Impactados:** `src/components/admin/AdminAuthModal.tsx`, `src/components/admin/AdminSettingsPanel.tsx`, `src/components/admin/AdminCreateAdminModal.tsx`, `src/components/admin/AdminMasterApp.tsx`, `src/services/supabaseApi.ts`, `server.ts`, `CHANGELOG.md`.
+
 ### [2026-09-26] — 🌐 Autenticação Resiliente: Suporte a Domínio Customizado (admin.vagouapp.com)
 - **Tipo:** `[Security / Bugfix / Custom Domain Auth]`
 - **Motivo:** Correção do erro `Unexpected end of JSON input` ao logar pelo domínio customizado em produção (`admin.vagouapp.com`). Implementado mecanismo multi-camada que tenta a API Express, faz fallback seguro para a RPC do Supabase (`verify_admin_login`) e para a consulta direta via cliente Supabase, eliminando quebras de JSON em hospedagens estáticas.

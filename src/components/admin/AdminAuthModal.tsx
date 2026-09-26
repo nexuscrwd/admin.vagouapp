@@ -12,8 +12,6 @@ import {
   AlertCircle,
   KeyRound,
   ArrowRight,
-  HelpCircle,
-  Sparkles,
 } from 'lucide-react';
 import {
   AdminAuthTab,
@@ -238,26 +236,21 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
         isGate ? 'bg-slate-950' : 'bg-black/80 backdrop-blur-sm animate-fadeIn'
       }`}
     >
-      <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-auto">
+      <div className="relative w-full max-w-[375px] bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-auto">
         {/* Top Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-800 bg-slate-950/80 flex items-center justify-between gap-3">
+        <div className="p-4 border-b border-slate-800 bg-slate-950/80 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
               <ShieldCheck className="w-5 h-5 text-emerald-400" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-white tracking-tight">
-                  Painel de Acesso Corporativo
-                </h2>
-                <span className="text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">
-                  admvapp
-                </span>
-              </div>
-              <p className="text-xs text-slate-400">
+              <h2 className="text-sm font-bold text-white tracking-tight">
+                Painel de Acesso Corporativo
+              </h2>
+              <p className="text-[11px] text-slate-400">
                 {isGate
-                  ? 'Autenticação Obrigatória para Acesso Master'
-                  : 'Gestão Soberana & Controle de Acesso de Administradores'}
+                  ? 'Autenticação Master'
+                  : 'Gestão Soberana de Administradores'}
               </p>
             </div>
           </div>
@@ -268,13 +261,17 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
               className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
               title="Fechar Modal"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           )}
         </div>
 
         {/* Tab Navigation */}
-        <div className="grid grid-cols-3 p-1.5 bg-slate-950 border-b border-slate-800 gap-1">
+        <div
+          className={`grid p-1.5 bg-slate-950 border-b border-slate-800 gap-1 ${
+            isGate ? 'grid-cols-2' : 'grid-cols-3'
+          }`}
+        >
           <button
             type="button"
             onClick={() => {
@@ -291,21 +288,23 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
             <span>Acesso</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('register');
-              clearFeedback();
-            }}
-            className={`py-2 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-              activeTab === 'register'
-                ? 'bg-emerald-500 text-white shadow-xs'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <User className="w-3.5 h-3.5" />
-            <span>Cadastro</span>
-          </button>
+          {!isGate && (
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('register');
+                clearFeedback();
+              }}
+              className={`py-2 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                activeTab === 'register'
+                  ? 'bg-emerald-500 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <User className="w-3.5 h-3.5" />
+              <span>Cadastro</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -405,27 +404,26 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
                 {isLoading ? (
                   <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
-                  <>
-                    <span>Acessar</span>
-                    <ArrowRight className="w-4 h-4 text-white" />
-                  </>
+                  <span>Acessar</span>
                 )}
               </button>
             </div>
 
-            <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
-              <span>Novo administrador corporativo?</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab('register');
-                  clearFeedback();
-                }}
-                className="text-emerald-400 font-bold hover:underline cursor-pointer"
-              >
-                Cadastre-se aqui
-              </button>
-            </div>
+            {!isGate && (
+              <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+                <span>Novo administrador corporativo?</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('register');
+                    clearFeedback();
+                  }}
+                  className="text-emerald-400 font-bold hover:underline cursor-pointer"
+                >
+                  Cadastre-se aqui
+                </button>
+              </div>
+            )}
           </form>
         )}
 
@@ -729,14 +727,11 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
                 {isLoading ? (
                   <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 text-white" />
-                    <span>
-                      {recoveryType === 'access_data'
-                        ? 'Recuperar Dados de Acesso'
-                        : 'Enviar Link de Redefinição'}
-                    </span>
-                  </>
+                  <span>
+                    {recoveryType === 'access_data'
+                      ? 'Recuperar Dados de Acesso'
+                      : 'Enviar Link de Redefinição'}
+                  </span>
                 )}
               </button>
             </div>

@@ -26,7 +26,8 @@ import { AdminTriadeGovernance } from './AdminTriadeGovernance';
 import { AdminAppointmentsMonitor } from './AdminAppointmentsMonitor';
 import { AdminSettingsPanel } from './AdminSettingsPanel';
 import { AdminAuthModal } from './AdminAuthModal';
-import { ArrowRight, Plus } from 'lucide-react';
+import { AdminCreateAdminModal } from './AdminCreateAdminModal';
+import { ArrowRight, Plus, UserPlus } from 'lucide-react';
 
 export const AdminMasterApp: React.FC = () => {
   const [currentScreen, setCurrentScreen] = useState<AdminScreenId>('dashboard');
@@ -48,6 +49,7 @@ export const AdminMasterApp: React.FC = () => {
   const [adminUser, setAdminUser] = useState<SystemAdminUser | null>(() => getStoredAdmin());
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalInitialTab, setAuthModalInitialTab] = useState<AdminAuthTab>('login');
+  const [isCreateAdminModalOpen, setIsCreateAdminModalOpen] = useState(false);
 
   // Salon Modals
   const [selectedSalonToEdit, setSelectedSalonToEdit] = useState<AdminSalonItem | null>(null);
@@ -225,9 +227,10 @@ export const AdminMasterApp: React.FC = () => {
                       </button>
 
                       <button
-                        onClick={() => handleOpenAuthModal('register')}
+                        onClick={() => setIsCreateAdminModalOpen(true)}
                         className="w-full py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition flex items-center justify-center gap-2 cursor-pointer border border-slate-700/60"
                       >
+                        <UserPlus className="w-3.5 h-3.5 text-emerald-400" />
                         <span>Cadastrar Novo Administrador</span>
                       </button>
                     </div>
@@ -299,12 +302,19 @@ export const AdminMasterApp: React.FC = () => {
         </main>
       </div>
 
-      {/* Admin Auth Modal (Cadastro, Acesso, Recuperar) */}
+      {/* Admin Auth Modal (Acesso, Recuperar) */}
       <AdminAuthModal
         isOpen={isAuthModalOpen}
         initialTab={authModalInitialTab}
         onClose={() => setIsAuthModalOpen(false)}
         onSuccess={(admin) => setAdminUser(admin)}
+      />
+
+      {/* Dedicated Create Admin Modal (Only for Authenticated Admins) */}
+      <AdminCreateAdminModal
+        isOpen={isCreateAdminModalOpen}
+        onClose={() => setIsCreateAdminModalOpen(false)}
+        onSuccess={() => {}}
       />
 
       {/* Edit Salon Modal */}
