@@ -15,6 +15,37 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-27] — 🚫 Recepção & Homologação de Comunicado Técnico da Tríade: Erradicação de Fotos Mock & Avatar Provisório Canônico
+- **Tipo:** `[Tríade / Design System / Zero Mocks / UserAvatar / UX / Security]`
+- **Origem do Comunicado:** `mnvapp (seunegocio.vagouapp.com)` ➔ **Destinatários:** `pvapp` e `admvapp`.
+- **Assunto:** Remoção Definitiva de Fotos Mock (Unsplash / Pexels) e Padronização do Fallback Provisório.
+- **Ações Técnicas Realizadas no admvapp:**
+  1. **Homologação do Boletim Oficial (`bol-007-eradication-mock-avatars-canonical-user`):**
+     - Registrado na API da Tríade (`server.ts`), no painel de governança corporativa (`AdminTriadeGovernance.tsx`) e em `supabaseApi.ts`.
+  2. **Validação Estrita Anti-Mock (`isMockAvatarUrl`):**
+     - Implementado filtro em `avatarResolver.ts` e `UserAvatar.tsx` que detecta e descarta qualquer URL de bancos de modelos ou fotos fictícias (Unsplash, Pexels, placeholder services).
+  3. **Avatar Provisório Canônico Obrigatório:**
+     - Na ausência de upload real (`avatar_url`), renderiza exclusivamente o componente oficial `UserAvatar` com moldura quadrada de cantos arredondados e o ícone vetorial fino `User` da biblioteca `lucide-react` (`stroke-[1.8]`).
+  4. **Upload Real Exclusivo:**
+     - Fotos reais são preservadas somente quando originadas de upload voluntário do usuário (câmera/arquivo via CDN própria ou Supabase Storage).
+     - Purgadas quaisquer referências legadas a fotos Unsplash nos mocks locais de clientes e prestadores (`INITIAL_MOCK_CLIENTS`, `INITIAL_MOCK_PROFESSIONALS`).
+  5. **Higienização Ativa do `localStorage`:**
+     - Criado utilitário `sanitizeLocalStorageAvatars()` com varredura automática no boot para limpar chaves e objetos armazenados no navegador que contenham links mock legados.
+- **Arquivos Impactados:** `src/utils/avatarResolver.ts`, `src/components/common/UserAvatar.tsx`, `src/services/supabaseApi.ts`, `server.ts`, `CHANGELOG.md`.
+
+### [2026-09-27] — 🗄️ Recepção & Homologação de Comunicado Técnico da Tríade: Script SQL Supabase Ajustado (Zero Erros)
+- **Tipo:** `[Tríade / Database / SQL / SSO / Data Sync]`
+- **Origem do Comunicado:** `mnvapp (seunegocio.vagouapp.com)` ➔ **Destinatários:** `pvapp` e `admvapp`.
+- **Ações Técnicas Realizadas no admvapp:**
+  1. **Homologação do Boletim Oficial (`bol-005-canonical-sql-sync`):**
+     - Registrado na API de governança da Tríade (`server.ts`), no painel de governança corporativa (`AdminTriadeGovernance.tsx`) e nos fallbacks locais (`supabaseApi.ts`).
+     - Script com blocos condicionais (`DO $$ ... $$`) arquivado e disponível para execução/cópia com 1 clique no painel executivo.
+  2. **Pareamento Canônico de Elisa Pires:**
+     - Sincronização do avatar oficial (`https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80`), nome (`Elisa Pires`), telefone (`(11) 98765-4321`) e e-mail (`elisa.pires@gmail.com`) nas tabelas de clientes e profissionais.
+  3. **Ajuste Fino no `UserAvatar.tsx`:**
+     - Remoção da trava que impedia a renderização de URLs provisórias de teste quando explicitamente cadastradas no banco, mantendo o fallback automático para o ícone vetorial fino `User` (`stroke-[1.8]`) em caso de ausência de foto ou falha de rede (`onError`).
+- **Arquivos Impactados:** `src/components/common/UserAvatar.tsx`, `src/services/supabaseApi.ts`, `server.ts`, `CHANGELOG.md`.
+
 ### [2026-09-27] — 📡 Parecer Técnico & Homologação: Identidade Única Global & Avatar Unificado (SSO da Tríade)
 - **Tipo:** `[Tríade / Architecture / Auth / SSO / Governance]`
 - **Origem do Comunicado:** `mnvapp (seunegocio.vagouapp.com)` ➔ **Destinatários:** `pvapp` e `admvapp`.

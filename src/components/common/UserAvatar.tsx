@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { User } from 'lucide-react';
+import { isMockAvatarUrl } from '../../utils/avatarResolver';
 
 interface UserAvatarProps {
   photoUrl?: string | null;
@@ -34,10 +35,10 @@ const roundedClasses = {
 
 /**
  * Componente padrão de Avatar da Tríade VagouApp.
- * Anti-Slop: Elimina o uso de fotos genéricas de banco de imagens ou círculos pesados de letras.
+ * Anti-Slop: Erradicação total de fotos genéricas de banco de imagens (Unsplash, Pexels) ou círculos pesados de letras.
  * Modelo Moldura Quadrada (com cantos suavemente arredondados).
- * Em ausência de foto real válida enviada pelo usuário/profissional,
- * renderiza o ícone vetorial User da biblioteca lucide-react com traço fino (stroke-[1.8]).
+ * Em ausência de foto real de upload enviada pelo usuário/prestador (ou se a URL for mock),
+ * renderiza exclusivamente o ícone vetorial fino User da biblioteca lucide-react (stroke-[1.8]).
  */
 export const UserAvatar: React.FC<UserAvatarProps> = ({
   photoUrl,
@@ -47,12 +48,11 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
 }) => {
   const [imageError, setImageError] = useState(false);
 
-  // Validação rigorosa anti-slop: descarta fotos provisórias de estoque ou vazias
+  // Validação estrita: renderiza foto apenas se for URL válida de upload real (não mock) e sem erro
   const isValidPhoto = Boolean(
     photoUrl &&
     photoUrl.trim() !== '' &&
-    !photoUrl.includes('unsplash.com') &&
-    !photoUrl.includes('images.unsplash') &&
+    !isMockAvatarUrl(photoUrl) &&
     !imageError
   );
 
@@ -75,7 +75,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
     );
   }
 
-  // Fallback padrão homologado pela Tríade: Moldura quadrada com cantos arredondados e ícone User de traço fino
+  // Fallback padrão homologado pela Tríade: Moldura quadrada com cantos suavemente arredondados e ícone User de traço fino (stroke-[1.8])
   return (
     <div
       className={`${containerSize} ${roundedClass} bg-slate-100 dark:bg-slate-900/90 hover:bg-slate-200 dark:hover:bg-slate-850 border border-slate-200 dark:border-slate-800 hover:border-emerald-500/40 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0 transition shadow-xs ${className}`}
@@ -85,3 +85,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
     </div>
   );
 };
+
+export { resolveTriadeAvatar, isMockAvatarUrl, sanitizeLocalStorageAvatars } from '../../utils/avatarResolver';
+export type { ResolveTriadeAvatarParams } from '../../utils/avatarResolver';
+

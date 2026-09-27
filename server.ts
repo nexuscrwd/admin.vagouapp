@@ -119,6 +119,72 @@ interface TechnicalBulletin {
 
 const TRIADE_BULLETINS: TechnicalBulletin[] = [
   {
+    id: 'bol-007-eradication-mock-avatars-canonical-user',
+    timestamp: '2026-09-27T18:25:00.000Z',
+    sourceApp: 'mnvapp',
+    targetApps: ['pvapp', 'admvapp'],
+    title: 'Erradicação Definitiva de Fotos Mock (Unsplash/Pexels) e Aplicação do Avatar Provisório Canônico',
+    category: 'status_enum',
+    summary: 'Diretriz Inegociável de Design & UX da Tríade: 1. Zero Mocks — Proibição definitiva de URLs de modelos (Unsplash/Pexels) ou arrays pré-definidos (PRESET_AVATARS). 2. Avatar Provisório Canônico — Na ausência de upload real (avatar_url), renderiza exclusivamente o ícone vetorial fino User (stroke-[1.8]) da lucide-react. 3. Upload Real Exclusivo — Fotos só existem se enviadas pelo usuário via câmera/arquivo. Higienização de localStorage implementada.',
+    impactedTables: ['clients', 'professionals', 'auth.users'],
+    instructions: 'pvapp e admvapp: Remover arrays PRESET_AVATARS, limpar fallbacks estáticos em consultas do Supabase e higienizar o localStorage contra links legados.',
+    author: 'Equipe de Engenharia • mnvapp (seunegocio.vagouapp.com)',
+  },
+  {
+    id: 'bol-006-universal-profile-architecture',
+    timestamp: '2026-09-27T18:15:00.000Z',
+    sourceApp: 'mnvapp',
+    targetApps: ['pvapp', 'admvapp'],
+    title: 'Arquitetura Universal de Perfis & Identidade Dinâmica: SSO Dinâmico para Todos os Usuários',
+    category: 'status_enum',
+    summary: 'Homologação da regra universal de perfis agnóstica de usuário: 1 Usuário = 1 Único Cadastro no Supabase. O fluxo dinâmico grava avatar_url e dados em auth.users.user_metadata e reflete nas tabelas relacionais sem filtros restritivos de domínio. Utilitário canônico resolveTriadeAvatar criado e disponibilizado.',
+    impactedTables: ['auth.users', 'clients', 'professionals', 'salon_users'],
+    instructions: 'pvapp e admvapp: Utilizar a função resolveTriadeAvatar para resolução agnóstica de foto pessoal e garantir que o componente UserAvatar renderize qualquer URL válida (CDN, Supabase, Base64).',
+    author: 'Equipe de Engenharia • mnvapp (seunegocio.vagouapp.com)',
+  },
+  {
+    id: 'bol-005-canonical-sql-sync',
+    timestamp: '2026-09-27T18:00:00.000Z',
+    sourceApp: 'mnvapp',
+    targetApps: ['pvapp', 'admvapp'],
+    title: 'Script SQL Supabase Ajustado: Persistência Canônica sem Dependência de Restrições (Zero Erros)',
+    category: 'schema_change',
+    summary: 'Homologação do script SQL com blocos condicionais DO $$ ... $$ para sincronização e atualização de clientes e raw_user_meta_data em auth.users. Garante persistência da foto de perfil (avatar_url), nome e telefone sem falhas de duplicate key constraint.',
+    impactedTables: ['clients', 'auth.users', 'professionals'],
+    sqlMigration: `DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM public.clients WHERE email ILIKE '%elisa%') THEN
+    UPDATE public.clients
+    SET 
+      avatar_url = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80',
+      name = 'Elisa Pires',
+      phone = '(11) 98765-4321',
+      updated_at = NOW()
+    WHERE email ILIKE '%elisa%';
+  ELSE
+    INSERT INTO public.clients (name, email, phone, avatar_url, updated_at)
+    VALUES (
+      'Elisa Pires',
+      'elisa.pires@gmail.com',
+      '(11) 98765-4321',
+      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80',
+      NOW()
+    );
+  END IF;
+END $$;
+
+UPDATE auth.users
+SET raw_user_meta_data = COALESCE(raw_user_meta_data, '{}'::jsonb) || 
+  jsonb_build_object(
+    'full_name', 'Elisa Pires',
+    'phone', '(11) 98765-4321',
+    'avatar_url', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80'
+  )
+WHERE email ILIKE '%elisa%';`,
+    instructions: 'pvapp e admvapp: Sincronizar o avatar_url de Elisa Pires para a foto oficial homologada nas listagens e garantir compatibilidade de colunas name / full_name.',
+    author: 'Equipe de Engenharia • mnvapp (seunegocio.vagouapp.com)',
+  },
+  {
     id: 'bol-004-avatar-standardization',
     timestamp: '2026-09-27T15:20:00.000Z',
     sourceApp: 'mnvapp',
