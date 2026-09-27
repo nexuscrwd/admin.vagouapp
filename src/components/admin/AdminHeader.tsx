@@ -130,6 +130,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
             >
               <UserAvatar
                 name={adminUser.full_name}
+                photoUrl={adminUser.avatar_url}
                 size="sm"
               />
               <div className="hidden xl:block">

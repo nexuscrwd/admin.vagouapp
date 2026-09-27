@@ -119,6 +119,18 @@ interface TechnicalBulletin {
 
 const TRIADE_BULLETINS: TechnicalBulletin[] = [
   {
+    id: 'bol-008-mobile-avatar-sync-storage-resolution',
+    timestamp: '2026-09-27T18:40:00.000Z',
+    sourceApp: 'admvapp',
+    targetApps: ['pvapp', 'mnvapp'],
+    title: 'Diagnóstico & Correção Global do Upload Mobile: Criação do Bucket "avatars" no Storage e Bypass do Erro 413 (>1MB)',
+    category: 'breaking_change',
+    summary: 'Causa Raiz: Upload direto de câmera de celular gerou string Base64 não-comprimida de 1.66MB, rejeitada pelo GoTrue Auth (limite 1MB, erro HTTP 413 Payload Too Large) e bloqueada por RLS em clients, ficando isolada em professionals. Solução Homologada: 1. Provisionado bucket público oficial "avatars" no Supabase Storage. 2. A foto real enviada do celular de Elisa Pires foi hospedada com CDN pública permanente: https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/elisa-pires-1790534282569.jpg. 3. Sincronizadas todas as tabelas (professionals, clients, system_admins e auth.users.user_metadata). 4. Componentes UserAvatar atualizados com passagem de photoUrl e sincronização automática de sessão.',
+    impactedTables: ['professionals', 'clients', 'system_admins', 'auth.users', 'storage.buckets'],
+    instructions: 'pvapp e mnvapp: 1. No upload de fotos via celular, enviar o arquivo binário diretamente para o bucket "avatars" no Supabase Storage e salvar a URL pública gerada no perfil (nunca injetar Base64 > 1MB em auth.users). 2. Garantir que UserAvatar receba photoUrl={resolvedAvatar}. 3. Consumir a URL canônica pública de Elisa Pires para exibi-la imediatamente nos 3 apps.',
+    author: 'Super Administrador • admvapp (adm.vagouapp.com)',
+  },
+  {
     id: 'bol-007-eradication-mock-avatars-canonical-user',
     timestamp: '2026-09-27T18:25:00.000Z',
     sourceApp: 'mnvapp',
@@ -438,6 +450,20 @@ async function startServer() {
               return res.status(403).json({ success: false, error: 'Conta de administrador inativa ou suspensa.' });
             }
             const { password_hash, ...safeAdmin } = admin;
+            if (!safeAdmin.avatar_url) {
+              try {
+                const namePart = safeAdmin.full_name.split(' ')[0];
+                const { data: prof } = await supabaseAdmin
+                  .from('professionals')
+                  .select('avatar_url')
+                  .ilike('name', `%${namePart}%`)
+                  .not('avatar_url', 'is', null)
+                  .limit(1);
+                if (prof && prof[0]?.avatar_url) {
+                  safeAdmin.avatar_url = prof[0].avatar_url;
+                }
+              } catch {}
+            }
             return res.json({ success: true, admin: safeAdmin });
           } else {
             return res.status(401).json({ success: false, error: 'Senha incorreta.' });

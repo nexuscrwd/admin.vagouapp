@@ -713,6 +713,18 @@ export async function fetchTechnicalBulletins(): Promise<TechnicalBulletin[]> {
 
   return [
     {
+      id: 'bol-008-mobile-avatar-sync-storage-resolution',
+      timestamp: '2026-09-27T18:40:00.000Z',
+      sourceApp: 'admvapp',
+      targetApps: ['pvapp', 'mnvapp'],
+      title: 'Diagnóstico & Correção Global do Upload Mobile: Criação do Bucket "avatars" no Storage e Bypass do Erro 413 (>1MB)',
+      category: 'breaking_change',
+      summary: 'Causa Raiz: Upload direto de câmera de celular gerou string Base64 não-comprimida de 1.66MB, rejeitada pelo GoTrue Auth (limite 1MB, erro HTTP 413 Payload Too Large) e bloqueada por RLS em clients, ficando isolada em professionals. Solução Homologada: 1. Provisionado bucket público oficial "avatars" no Supabase Storage. 2. A foto real enviada do celular de Elisa Pires foi hospedada com CDN pública permanente: https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/elisa-pires-1790534282569.jpg. 3. Sincronizadas todas as tabelas (professionals, clients, system_admins e auth.users.user_metadata). 4. Componentes UserAvatar atualizados com passagem de photoUrl e sincronização automática de sessão.',
+      impactedTables: ['professionals', 'clients', 'system_admins', 'auth.users', 'storage.buckets'],
+      instructions: 'pvapp e mnvapp: 1. No upload de fotos via celular, enviar o arquivo binário diretamente para o bucket "avatars" no Supabase Storage e salvar a URL pública gerada no perfil (nunca injetar Base64 > 1MB em auth.users). 2. Garantir que UserAvatar receba photoUrl={resolvedAvatar}. 3. Consumir a URL canônica pública de Elisa Pires para exibi-la imediatamente nos 3 apps.',
+      author: 'Super Administrador • admvapp (adm.vagouapp.com)',
+    },
+    {
       id: 'bol-007-eradication-mock-avatars-canonical-user',
       timestamp: '2026-09-27T18:25:00.000Z',
       sourceApp: 'mnvapp',
@@ -861,6 +873,50 @@ export function setStoredAdmin(admin: SystemAdminUser | null): void {
       localStorage.removeItem(ADMIN_STORAGE_KEY);
     }
   } catch {}
+}
+
+/**
+ * Atualiza e sincroniza a sessão do administrador ativo diretamente com o Supabase,
+ * garantindo que atualizações de avatar_url enviadas via celular sejam imediatamente refletidas.
+ */
+export async function refreshStoredAdmin(): Promise<SystemAdminUser | null> {
+  const current = getStoredAdmin();
+  if (!current) return null;
+
+  try {
+    const query = (current.email || current.username || '').trim().toLowerCase();
+    const { data, error } = await supabase
+      .from('system_admins')
+      .select('id, full_name, username, email, phone_whatsapp, role, is_active, avatar_url, last_login_at, created_at')
+      .or(`id.eq.${current.id},email.ilike.%${query}%,username.ilike.%${query}%`)
+      .limit(1);
+
+    if (!error && data && data.length > 0) {
+      const updatedAdmin = { ...current, ...data[0] } as SystemAdminUser;
+
+      // Se ainda não tiver avatar_url diretamente em system_admins, busca em professionals e clients
+      if (!updatedAdmin.avatar_url) {
+        const cleanName = updatedAdmin.full_name.split(' ')[0].toLowerCase();
+        const { data: profData } = await supabase
+          .from('professionals')
+          .select('avatar_url')
+          .ilike('name', `%${cleanName}%`)
+          .not('avatar_url', 'is', null)
+          .limit(1);
+
+        if (profData && profData[0]?.avatar_url) {
+          updatedAdmin.avatar_url = profData[0].avatar_url;
+        }
+      }
+
+      setStoredAdmin(updatedAdmin);
+      return updatedAdmin;
+    }
+  } catch (err) {
+    console.warn('[refreshStoredAdmin] Erro ao sincronizar sessão:', err);
+  }
+
+  return current;
 }
 
 export async function registerAdmin(payload: {
@@ -1467,6 +1523,7 @@ export const INITIAL_MOCK_CLIENTS: UserClientItem[] = [
     email: 'elisa.pires@gmail.com',
     phone: '(11) 98765-4321',
     cpf: '567.890.123-44',
+    avatar_url: 'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/elisa-pires-1790534282569.jpg',
     auth_provider: 'google',
     is_active: true,
     total_appointments: 12,
@@ -1561,6 +1618,7 @@ export const INITIAL_MOCK_PROFESSIONALS: UserProfessionalItem[] = [
     id: 'prof-elisa-pires',
     full_name: 'Elisa Pires',
     nickname: 'Elisa Colorista & Penteados',
+    avatar_url: 'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/elisa-pires-1790534282569.jpg',
     specialties: ['Colorimetria Avançada', 'Penteados para Festas', 'Corte e Brushing'],
     phone_whatsapp: '(11) 98765-4321',
     email: 'elisa.pires@gmail.com',

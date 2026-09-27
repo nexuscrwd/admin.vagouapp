@@ -383,6 +383,7 @@ export const AdminUsersManager: React.FC = () => {
                         <div className="flex items-center gap-2.5">
                           <UserAvatar
                             name={admin.full_name}
+                            photoUrl={admin.avatar_url}
                             size="sm"
                           />
                           <div>

@@ -7,6 +7,7 @@ import {
   bulkUpdateSalons,
   fetchAdminDashboardMetrics,
   getStoredAdmin,
+  refreshStoredAdmin,
   logoutAdmin,
 } from '../../services/supabaseApi';
 import {
@@ -75,6 +76,9 @@ export const AdminMasterApp: React.FC = () => {
 
   useEffect(() => {
     loadData();
+    refreshStoredAdmin().then((fresh) => {
+      if (fresh) setAdminUser(fresh);
+    });
   }, []);
 
   const handleEditSalon = (salon: AdminSalonItem) => {

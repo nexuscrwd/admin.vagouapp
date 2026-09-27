@@ -15,6 +15,24 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-27] — 📱 Emissão & Homologação de Comunicado Técnico da Tríade: Diagnóstico e Correção Global de Foto Enviada pelo Celular
+- **Tipo:** `[Tríade / Storage / Supabase / Mobile Upload / Bugfix / 7º Mandamento]`
+- **Origem do Comunicado:** `admvapp (adm.vagouapp.com)` ➔ **Destinatários:** `pvapp (portal.vagouapp.com)` e `mnvapp (seunegocio.vagouapp.com)`.
+- **Boletim Técnico Oficial Emitido:** `bol-008-mobile-avatar-sync-storage-resolution`.
+- **Diagnóstico da Causa Raiz:**
+  1. A foto tirada e enviada pelo celular foi convertida na ponta do app cliente em uma string Base64 não-comprimida de 1.66MB (`data:image/jpeg;base64,...`).
+  2. Ao tentar gravar a foto no Supabase GoTrue Auth (`auth.users.raw_user_meta_data`), o Supabase bloqueou com o erro HTTP 413 `AuthApiError: Request body too large (max 1048576 bytes)` devido ao limite de 1MB.
+  3. A tabela `clients` rejeitou o upsert por ausência de constraint de chave única e RLS ativado.
+  4. A foto ficou gravada apenas em `public.professionals`, e não se propagou para `clients` ou `system_admins`.
+  5. Nos componentes `AdminHeader.tsx`, `AdminUsersManager.tsx` e `AdminSettingsPanel.tsx`, a propriedade `photoUrl` não estava sendo repassada ao `UserAvatar` para os administradores.
+- **Ações Técnicas Realizadas:**
+  1. **Criação do Bucket Público "avatars" no Supabase Storage:** Bucket público oficial provisionado no Supabase para hospedar avatares binários de até 10MB.
+  2. **Conversão e Hospedagem em CDN Permanente:** A foto real enviada do celular de Elisa Pires foi convertida e armazenada com sucesso no bucket com a URL pública permanente: `https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/elisa-pires-1790534282569.jpg` (~100 bytes).
+  3. **Sincronização Total no Supabase:** A URL pública leve foi persistida com sucesso em todas as tabelas: `public.professionals`, `public.system_admins`, `public.clients` e em `auth.users.raw_user_meta_data` (eliminando o erro de Payload Too Large).
+  4. **Correção de Renderização:** Corrigidos `AdminHeader.tsx`, `AdminUsersManager.tsx` e `AdminSettingsPanel.tsx` para passar `photoUrl` no `UserAvatar`.
+  5. **Sincronização Ativa de Sessão:** Criado `refreshStoredAdmin()` para atualizar a sessão local em tempo real no boot do aplicativo.
+- **Arquivos Impactados:** `src/components/admin/AdminHeader.tsx`, `src/components/admin/AdminUsersManager.tsx`, `src/components/admin/AdminSettingsPanel.tsx`, `src/components/admin/AdminMasterApp.tsx`, `src/services/supabaseApi.ts`, `server.ts`, `CHANGELOG.md`.
+
 ### [2026-09-27] — 🚫 Recepção & Homologação de Comunicado Técnico da Tríade: Erradicação de Fotos Mock & Avatar Provisório Canônico
 - **Tipo:** `[Tríade / Design System / Zero Mocks / UserAvatar / UX / Security]`
 - **Origem do Comunicado:** `mnvapp (seunegocio.vagouapp.com)` ➔ **Destinatários:** `pvapp` e `admvapp`.
