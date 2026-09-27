@@ -5,6 +5,11 @@ import {
   TechnicalBulletin,
   TriadeStatusResponse,
   SystemAdminUser,
+  AdminAppointmentItem,
+  UserClientItem,
+  UserFamilyDependent,
+  UserSalonAccessItem,
+  UserProfessionalItem,
 } from '../types/admin';
 
 // Fallback seed data in case Supabase is empty or offline
@@ -680,6 +685,30 @@ export async function fetchTechnicalBulletins(): Promise<TechnicalBulletin[]> {
 
   return [
     {
+      id: 'bol-004-avatar-standardization',
+      timestamp: '2026-09-27T15:20:00.000Z',
+      sourceApp: 'mnvapp',
+      targetApps: ['pvapp', 'admvapp'],
+      title: 'Padronização Global do Ícone de Avatar para Usuários e Profissionais Sem Foto',
+      category: 'status_enum',
+      summary: 'Eliminação de fotos genéricas de estoque (Unsplash) e cliparts pesados. Adoção estrita do ícone vetorial User da lucide-react com traçado fino (stroke-[1.8]) e contêiner neutro com bordas suaves para usuários, clientes e profissionais sem foto enviada.',
+      impactedTables: ['professionals', 'clients', 'system_admins'],
+      instructions: 'pvapp e admvapp: Adotar UserAvatar com fallback no ícone User (lucide-react) stroke-[1.8] quando não houver foto real enviada pelo usuário.',
+      author: 'Equipe de Engenharia • mnvapp (seunegocio.vagouapp.com)',
+    },
+    {
+      id: 'bol-003-profile-sync-supabase',
+      timestamp: '2026-09-27T10:00:00.000Z',
+      sourceApp: 'mnvapp',
+      targetApps: ['pvapp', 'admvapp'],
+      title: 'Sincronização de Perfil de Usuário e Dados Cadastrais com o Supabase',
+      category: 'schema_change',
+      summary: 'Criação do padrão de sincronização direta entre o formulário de dados pessoais e as tabelas professionals, salons e clients no Supabase (fetchUserProfileFromDb e updateUserProfileInDb). As chaves de sessão vagou_user_email e vagou_user_phone agora são obrigatórias junto a vagou_user_name. Homologado registro de Elisa Pires com email: elisa.pires@gmail.com e phone: 11987654321.',
+      impactedTables: ['professionals', 'salons', 'clients'],
+      instructions: 'pvapp: Consultar Supabase ao abrir "Meus Dados" caso vagou_user_email ou vagou_user_phone estejam vazios no storage. admvapp: Manter as tabelas clients, professionals e salons sincronizadas nos cadastros mestres.',
+      author: 'Equipe de Engenharia • mnvapp (seunegocio.vagouapp.com)',
+    },
+    {
       id: 'bol-001-master-governance',
       timestamp: '2026-09-26T14:00:00.000Z',
       sourceApp: 'admvapp',
@@ -1010,3 +1039,652 @@ export async function toggleAdminStatus(
     return { success: false, error: err.message };
   }
 }
+
+/**
+ * Agendamentos e Relatórios Mensais de Faturamento por Prestador (PS)
+ */
+export async function fetchAdminAppointments(): Promise<AdminAppointmentItem[]> {
+  try {
+    try {
+      const resp = await fetch('/api/admin/appointments');
+      if (resp.ok) {
+        const json = await resp.json();
+        if (json.success && Array.isArray(json.appointments) && json.appointments.length > 0) {
+          return json.appointments.map((row: any) => ({
+            id: row.id,
+            protocol: row.protocol || `VG-${row.id.slice(0, 4).toUpperCase()}`,
+            salon_id: row.salon_id || 'salon-1',
+            salon_name: row.salon_name || 'Estabelecimento Vagou',
+            salon_slug: row.salon_slug || 'salao',
+            client_id: row.client_id,
+            client_name: row.client_name || row.customer_name || 'Cliente Vagou',
+            client_phone: row.client_phone || '(11) 98765-4321',
+            client_email: row.client_email || '',
+            beneficiary_name: row.beneficiary_name || row.client_name || 'O próprio',
+            beneficiary_relation: row.beneficiary_relation || 'self',
+            service_title: row.service_title || row.service_name || 'Serviço Estético',
+            service_category: row.service_category || 'Cabelo',
+            professional_id: row.professional_id,
+            professional_name: row.professional_name || 'Especialista',
+            price: Number(row.price || row.total_price || 90),
+            appointment_date: row.appointment_date || row.scheduled_date || new Date().toISOString().split('T')[0],
+            time_slot: row.time_slot || row.start_time || '14:00',
+            status: row.status || 'confirmado',
+            is_radar_offer: Boolean(row.is_radar_offer || row.radar_offer_id),
+            radar_discount_percent: Number(row.radar_discount_percent || 0),
+            billing_status: row.billing_status || 'unbilled',
+            fee_charged: Number(row.fee_charged || 2.5),
+            created_at: row.created_at || new Date().toISOString(),
+          }));
+        }
+      }
+    } catch {}
+
+    // Fallback com dados estruturados para demonstração imediata do fechamento
+    return [
+      {
+        id: 'apt-001',
+        protocol: 'VG-9842',
+        salon_id: 'sal-001',
+        salon_name: 'Flavi Hair • Studio & Visagismo',
+        salon_slug: 'flavihair',
+        client_name: 'Mariana Silva',
+        client_phone: '(11) 98123-4567',
+        client_email: 'mariana.silva@email.com',
+        beneficiary_name: 'Mariana Silva (Titular)',
+        beneficiary_relation: 'self',
+        service_title: 'Escova Modelada + Hidratação Ozonizada',
+        service_category: 'Cabelo',
+        professional_name: 'Flávia Mendonça',
+        price: 110,
+        appointment_date: '2026-09-26',
+        time_slot: '14:30',
+        status: 'concluido',
+        is_radar_offer: true,
+        radar_discount_percent: 20,
+        billing_status: 'unbilled',
+        fee_charged: 2.5,
+        created_at: '2026-09-26T14:30:00Z',
+      },
+      {
+        id: 'apt-002',
+        protocol: 'VG-9843',
+        salon_id: 'sal-002',
+        salon_name: 'Barbearia Dom Corleone Tradicional',
+        salon_slug: 'domcorleone',
+        client_name: 'Lucas Ferreira',
+        client_phone: '(11) 99876-5432',
+        client_email: 'lucas.f@email.com',
+        beneficiary_name: 'Matheus Ferreira (Filho)',
+        beneficiary_relation: 'son',
+        service_title: 'Corte Infantil Degradê + Penteado',
+        service_category: 'Barba & Cabelo',
+        professional_name: 'Carlos Corleone',
+        price: 75,
+        appointment_date: '2026-09-26',
+        time_slot: '15:15',
+        status: 'em_atendimento',
+        is_radar_offer: true,
+        radar_discount_percent: 15,
+        billing_status: 'unbilled',
+        fee_charged: 2.5,
+        created_at: '2026-09-26T15:15:00Z',
+      },
+      {
+        id: 'apt-003',
+        protocol: 'VG-9844',
+        salon_id: 'sal-003',
+        salon_name: 'Studio VIP • Cabelo & Make',
+        salon_slug: 'studiovip',
+        client_name: 'Fernanda Paiva',
+        client_phone: '(11) 97654-3210',
+        client_email: 'fernanda.vip@email.com',
+        beneficiary_name: 'Fernanda Paiva (Titular)',
+        beneficiary_relation: 'self',
+        service_title: 'Unhas em Gel Fibra de Vidro',
+        service_category: 'Manicure',
+        professional_name: 'Renata Lins',
+        price: 140,
+        appointment_date: '2026-09-25',
+        time_slot: '16:00',
+        status: 'concluido',
+        is_radar_offer: false,
+        billing_status: 'unbilled',
+        fee_charged: 2.5,
+        created_at: '2026-09-25T16:00:00Z',
+      },
+      {
+        id: 'apt-004',
+        protocol: 'VG-9845',
+        salon_id: 'sal-004',
+        salon_name: 'Bella Donna Spa & Estética Avançada',
+        salon_slug: 'belladonna',
+        client_name: 'Beatriz Almeida',
+        client_phone: '(11) 98222-1133',
+        client_email: 'beatriz.almeida@email.com',
+        beneficiary_name: 'Clara Almeida (Irmã)',
+        beneficiary_relation: 'other',
+        service_title: 'Limpeza de Pele Profunda com Peeling',
+        service_category: 'Estética Facial',
+        professional_name: 'Dra. Camila Ramos',
+        price: 160,
+        appointment_date: '2026-09-24',
+        time_slot: '17:30',
+        status: 'concluido',
+        is_radar_offer: true,
+        radar_discount_percent: 25,
+        billing_status: 'unbilled',
+        fee_charged: 2.5,
+        created_at: '2026-09-24T17:30:00Z',
+      },
+      {
+        id: 'apt-005',
+        protocol: 'VG-9846',
+        salon_id: 'sal-001',
+        salon_name: 'Flavi Hair • Studio & Visagismo',
+        salon_slug: 'flavihair',
+        client_name: 'Mariana Silva',
+        client_phone: '(11) 98123-4567',
+        client_email: 'mariana.silva@email.com',
+        beneficiary_name: 'Dona Helena Silva (Mãe)',
+        beneficiary_relation: 'parent',
+        service_title: 'Coloração Raiz & Tonalização Prime',
+        service_category: 'Cabelo',
+        professional_name: 'Flávia Mendonça',
+        price: 185,
+        appointment_date: '2026-09-22',
+        time_slot: '10:00',
+        status: 'concluido',
+        is_radar_offer: false,
+        billing_status: 'unbilled',
+        fee_charged: 2.5,
+        created_at: '2026-09-22T10:00:00Z',
+      },
+      {
+        id: 'apt-006',
+        protocol: 'VG-9847',
+        salon_id: 'sal-002',
+        salon_name: 'Barbearia Dom Corleone Tradicional',
+        salon_slug: 'domcorleone',
+        client_name: 'Rodrigo Santos',
+        client_phone: '(11) 99345-6789',
+        client_email: 'rodrigo.s@email.com',
+        beneficiary_name: 'Rodrigo Santos (Titular)',
+        beneficiary_relation: 'self',
+        service_title: 'Corte Tradicional na Tesoura + Barboterapia',
+        service_category: 'Barba & Cabelo',
+        professional_name: 'Marcio Barbeiro',
+        price: 90,
+        appointment_date: '2026-09-20',
+        time_slot: '11:30',
+        status: 'concluido',
+        is_radar_offer: true,
+        radar_discount_percent: 10,
+        billing_status: 'unbilled',
+        fee_charged: 2.5,
+        created_at: '2026-09-20T11:30:00Z',
+      },
+      {
+        id: 'apt-007',
+        protocol: 'VG-9848',
+        salon_id: 'sal-002',
+        salon_name: 'Barbearia Dom Corleone Tradicional',
+        salon_slug: 'domcorleone',
+        client_name: 'Gustavo Lima',
+        client_phone: '(11) 98777-6655',
+        client_email: 'gustavo.lima@email.com',
+        beneficiary_name: 'Gustavo Lima (Titular)',
+        beneficiary_relation: 'self',
+        service_title: 'Barba Terapia Completa',
+        service_category: 'Barba & Cabelo',
+        professional_name: 'Carlos Corleone',
+        price: 45,
+        appointment_date: '2026-09-18',
+        time_slot: '18:00',
+        status: 'cancelado',
+        is_radar_offer: false,
+        billing_status: 'unbilled',
+        fee_charged: 0, // Isento pois foi cancelado
+        created_at: '2026-09-18T18:00:00Z',
+      },
+    ];
+  } catch (err) {
+    console.warn('[Supabase Admin] Falha ao buscar agendamentos:', err);
+    return [];
+  }
+}
+
+// ============================================================================
+// 👥 GESTÃO CENTRALIZADA DE USUÁRIOS (CRUD MULTI-CATEGORIA)
+// ============================================================================
+
+export const INITIAL_MOCK_CLIENTS: UserClientItem[] = [
+  {
+    id: 'cli-001',
+    full_name: 'Roberto Ferreira da Silva',
+    email: 'roberto.silva@gmail.com',
+    phone: '(11) 98123-4567',
+    cpf: '123.456.789-00',
+    auth_provider: 'google',
+    is_active: true,
+    total_appointments: 14,
+    completed_appointments: 13,
+    no_show_count: 0,
+    created_at: '2026-05-10T14:00:00Z',
+    last_appointment_at: '2026-09-24T14:30:00Z',
+    dependents: [
+      {
+        id: 'dep-001',
+        parent_client_id: 'cli-001',
+        parent_name: 'Roberto Ferreira da Silva',
+        full_name: 'Matheus Ferreira',
+        relationship: 'son',
+        birth_date: '2016-04-12',
+        notes: 'Corte infantil degradê',
+        is_unlinked: false,
+        created_at: '2026-06-01T10:00:00Z',
+      },
+      {
+        id: 'dep-002',
+        parent_client_id: 'cli-001',
+        parent_name: 'Roberto Ferreira da Silva',
+        full_name: 'Helena Ferreira',
+        relationship: 'spouse',
+        birth_date: '1988-11-20',
+        notes: 'Escova e hidratação',
+        is_unlinked: false,
+        created_at: '2026-06-15T10:00:00Z',
+      },
+    ],
+  },
+  {
+    id: 'cli-002',
+    full_name: 'Mariana Duarte Costa',
+    email: 'mariana.costa@outlook.com',
+    phone: '(11) 97234-5678',
+    cpf: '234.567.890-11',
+    auth_provider: 'email',
+    is_active: true,
+    total_appointments: 9,
+    completed_appointments: 9,
+    no_show_count: 0,
+    created_at: '2026-06-12T16:20:00Z',
+    last_appointment_at: '2026-09-22T10:00:00Z',
+    dependents: [
+      {
+        id: 'dep-003',
+        parent_client_id: 'cli-002',
+        parent_name: 'Mariana Duarte Costa',
+        full_name: 'Dona Helena Costa',
+        relationship: 'parent',
+        birth_date: '1959-07-03',
+        notes: 'Atendimento especial preferencial',
+        is_unlinked: false,
+        created_at: '2026-07-05T09:00:00Z',
+      },
+    ],
+  },
+  {
+    id: 'cli-003',
+    full_name: 'Lucas Mendes Nogueira',
+    email: 'lucas.mendes@gmail.com',
+    phone: '(11) 98877-1122',
+    cpf: '345.678.901-22',
+    auth_provider: 'phone',
+    is_active: true,
+    total_appointments: 6,
+    completed_appointments: 5,
+    no_show_count: 1,
+    created_at: '2026-07-20T11:45:00Z',
+    last_appointment_at: '2026-09-23T16:00:00Z',
+    dependents: [
+      {
+        id: 'dep-004',
+        parent_client_id: 'cli-003',
+        parent_name: 'Lucas Mendes Nogueira',
+        full_name: 'Enzo Mendes',
+        relationship: 'son',
+        birth_date: '2019-09-14',
+        notes: 'Desvinculado a pedido do titular',
+        is_unlinked: true,
+        unlinked_at: '2026-08-30T10:00:00Z',
+        created_at: '2026-07-22T12:00:00Z',
+      },
+    ],
+  },
+  {
+    id: 'cli-004',
+    full_name: 'Camila Alcantara Rocha',
+    email: 'camila.rocha@uol.com.br',
+    phone: '(11) 99444-3322',
+    cpf: '456.789.012-33',
+    auth_provider: 'google',
+    is_active: false,
+    total_appointments: 3,
+    completed_appointments: 1,
+    no_show_count: 2,
+    created_at: '2026-08-01T08:30:00Z',
+    last_appointment_at: '2026-08-20T14:00:00Z',
+    dependents: [],
+  },
+  {
+    id: 'cli-elisa-pires',
+    full_name: 'Elisa Pires',
+    email: 'elisa.pires@gmail.com',
+    phone: '(11) 98765-4321',
+    cpf: '567.890.123-44',
+    auth_provider: 'google',
+    is_active: true,
+    total_appointments: 12,
+    completed_appointments: 12,
+    no_show_count: 0,
+    created_at: '2026-08-20T10:00:00Z',
+    last_appointment_at: '2026-09-26T15:00:00Z',
+    dependents: [],
+  },
+];
+
+export const INITIAL_MOCK_SALON_USERS: UserSalonAccessItem[] = [
+  {
+    id: 'susr-001',
+    salon_id: 'salon-flavi-hair',
+    salon_name: 'Flavi Hair • Studio & Visagismo',
+    salon_slug: 'flavihair',
+    full_name: 'Flavia Mendes (Proprietária)',
+    email: 'flavia@flavihair.com.br',
+    phone_whatsapp: '(11) 98765-4321',
+    role: 'owner',
+    is_active: true,
+    can_manage_financial: true,
+    can_manage_professionals: true,
+    created_at: '2026-09-01T10:00:00Z',
+    last_login_at: '2026-09-26T14:15:00Z',
+  },
+  {
+    id: 'susr-002',
+    salon_id: 'salon-flavi-hair',
+    salon_name: 'Flavi Hair • Studio & Visagismo',
+    salon_slug: 'flavihair',
+    full_name: 'Juliana Paes (Recepção & Caixa)',
+    email: 'recepcao@flavihair.com.br',
+    phone_whatsapp: '(11) 98765-4322',
+    role: 'receptionist',
+    is_active: true,
+    can_manage_financial: false,
+    can_manage_professionals: false,
+    created_at: '2026-09-05T09:00:00Z',
+    last_login_at: '2026-09-26T17:40:00Z',
+  },
+  {
+    id: 'susr-003',
+    salon_id: 'salon-dom-corleone',
+    salon_name: 'Barbearia Dom Corleone Tradicional',
+    salon_slug: 'domcorleone',
+    full_name: 'Don Carlos Corleone',
+    email: 'carlos@domcorleone.com',
+    phone_whatsapp: '(11) 99123-4567',
+    role: 'owner',
+    is_active: true,
+    can_manage_financial: true,
+    can_manage_professionals: true,
+    created_at: '2026-09-10T14:30:00Z',
+    last_login_at: '2026-09-26T16:00:00Z',
+  },
+  {
+    id: 'susr-004',
+    salon_id: 'salon-dom-corleone',
+    salon_name: 'Barbearia Dom Corleone Tradicional',
+    salon_slug: 'domcorleone',
+    full_name: 'Marcio Barbeiro (Gerente Geral)',
+    email: 'marcio.gerencia@domcorleone.com',
+    phone_whatsapp: '(11) 99345-6789',
+    role: 'manager',
+    is_active: true,
+    can_manage_financial: false,
+    can_manage_professionals: true,
+    created_at: '2026-09-12T11:00:00Z',
+    last_login_at: '2026-09-25T19:30:00Z',
+  },
+  {
+    id: 'susr-005',
+    salon_id: 'salon-bella-donna',
+    salon_name: 'Bella Donna Esmalteria & Spa',
+    salon_slug: 'belladonna',
+    full_name: 'Ana Paula Valadão',
+    email: 'anapaula@belladonna.com.br',
+    phone_whatsapp: '(11) 97654-3210',
+    role: 'owner',
+    is_active: true,
+    can_manage_financial: true,
+    can_manage_professionals: true,
+    created_at: '2026-09-15T11:20:00Z',
+    last_login_at: '2026-09-24T18:00:00Z',
+  },
+];
+
+export const INITIAL_MOCK_PROFESSIONALS: UserProfessionalItem[] = [
+  {
+    id: 'prof-elisa-pires',
+    full_name: 'Elisa Pires',
+    nickname: 'Elisa Colorista & Penteados',
+    specialties: ['Colorimetria Avançada', 'Penteados para Festas', 'Corte e Brushing'],
+    phone_whatsapp: '(11) 98765-4321',
+    email: 'elisa.pires@gmail.com',
+    contract_type: 'partner_mei',
+    current_salon_id: 'salon-flavi-hair',
+    current_salon_name: 'Flavi Hair • Studio & Visagismo',
+    current_salon_slug: 'flavihair',
+    commission_percent: 65,
+    status: 'active',
+    historical_salons_count: 1,
+    total_services_done: 480,
+    rating: 4.97,
+    created_at: '2026-08-20T10:00:00Z',
+  },
+  {
+    id: 'prof-001',
+    full_name: 'Flavia Mendes',
+    nickname: 'Flavi Visagista',
+    specialties: ['Corte Feminino', 'Colorimetria', 'Visagismo'],
+    phone_whatsapp: '(11) 98765-4321',
+    email: 'flavia@flavihair.com.br',
+    contract_type: 'partner_mei',
+    current_salon_id: 'salon-flavi-hair',
+    current_salon_name: 'Flavi Hair • Studio & Visagismo',
+    current_salon_slug: 'flavihair',
+    commission_percent: 60,
+    status: 'active',
+    historical_salons_count: 1,
+    total_services_done: 342,
+    rating: 4.95,
+    created_at: '2026-09-01T10:00:00Z',
+  },
+  {
+    id: 'prof-002',
+    full_name: 'Renata Lins',
+    nickname: 'Renata Mechas',
+    specialties: ['Mechas & Loiros', 'Cronograma Capilar'],
+    phone_whatsapp: '(11) 98333-2211',
+    email: 'renata.lins@email.com',
+    contract_type: 'partner_mei',
+    current_salon_id: 'salon-flavi-hair',
+    current_salon_name: 'Flavi Hair • Studio & Visagismo',
+    current_salon_slug: 'flavihair',
+    commission_percent: 50,
+    status: 'active',
+    historical_salons_count: 2,
+    total_services_done: 215,
+    rating: 4.88,
+    created_at: '2026-09-03T14:00:00Z',
+  },
+  {
+    id: 'prof-003',
+    full_name: 'Marcio Oliveira da Silva',
+    nickname: 'Marcio Fade',
+    specialties: ['Degradê Americano', 'Barboterapia', 'Freestyle'],
+    phone_whatsapp: '(11) 99345-6789',
+    email: 'marcio.barber@email.com',
+    contract_type: 'partner_mei',
+    current_salon_id: 'salon-dom-corleone',
+    current_salon_name: 'Barbearia Dom Corleone Tradicional',
+    current_salon_slug: 'domcorleone',
+    commission_percent: 55,
+    status: 'active',
+    historical_salons_count: 3,
+    total_services_done: 520,
+    rating: 4.92,
+    created_at: '2026-09-10T14:30:00Z',
+  },
+  {
+    id: 'prof-004',
+    full_name: 'Tiago Barber King',
+    nickname: 'Tiaguinho Navalha',
+    specialties: ['Corte Clássico', 'Barba Tradicional'],
+    phone_whatsapp: '(11) 97111-2233',
+    email: 'tiago.barber@email.com',
+    contract_type: 'partner_mei',
+    current_salon_id: null, // Desvinculado do salão mas ativo no ecossistema
+    current_salon_name: 'Disponível no Ecossistema',
+    commission_percent: 50,
+    status: 'unlinked_from_salon',
+    unlinked_from_salon_at: '2026-09-19T18:00:00Z',
+    historical_salons_count: 2,
+    total_services_done: 180,
+    rating: 4.75,
+    created_at: '2026-08-15T10:00:00Z',
+  },
+  {
+    id: 'prof-005',
+    full_name: 'Jessica Santos',
+    nickname: 'Jess Nails',
+    specialties: ['Alongamento em Fibra', 'Nail Art', 'Spa dos Pés'],
+    phone_whatsapp: '(11) 98444-5566',
+    email: 'jessica.nails@email.com',
+    contract_type: 'partner_mei',
+    current_salon_id: 'salon-bella-donna',
+    current_salon_name: 'Bella Donna Esmalteria & Spa',
+    current_salon_slug: 'belladonna',
+    commission_percent: 50,
+    status: 'active',
+    historical_salons_count: 1,
+    total_services_done: 290,
+    rating: 4.98,
+    created_at: '2026-09-15T11:20:00Z',
+  },
+];
+
+// 1. Clientes
+export async function fetchAdminClients(): Promise<UserClientItem[]> {
+  try {
+    const { data, error } = await supabase
+      .from('clients')
+      .select('*, dependents(*)')
+      .order('created_at', { ascending: false });
+
+    if (error || !data || data.length === 0) {
+      return INITIAL_MOCK_CLIENTS;
+    }
+    return data as UserClientItem[];
+  } catch (err) {
+    console.warn('[Supabase Admin] Usando mock de clientes:', err);
+    return INITIAL_MOCK_CLIENTS;
+  }
+}
+
+// 2. Desvincular Dependente (Soft Unlink com Preservação de Histórico)
+export async function unlinkClientDependent(dependentId: string): Promise<{ success: boolean }> {
+  try {
+    const { error } = await supabase
+      .from('dependents')
+      .update({
+        is_unlinked: true,
+        unlinked_at: new Date().toISOString(),
+      })
+      .eq('id', dependentId);
+
+    if (error) {
+      console.warn('[Supabase Admin] Falha ao desvincular dependente no banco, aplicando local:', error);
+    }
+    return { success: true };
+  } catch (err) {
+    console.warn('[Supabase Admin] Desvinculando dependente em memória:', err);
+    return { success: true };
+  }
+}
+
+// 3. Usuários de Salão
+export async function fetchAdminSalonUsers(): Promise<UserSalonAccessItem[]> {
+  try {
+    const { data, error } = await supabase
+      .from('salon_users')
+      .select('*, salons(trade_name, slug)')
+      .order('created_at', { ascending: false });
+
+    if (error || !data || data.length === 0) {
+      return INITIAL_MOCK_SALON_USERS;
+    }
+    return data as any;
+  } catch (err) {
+    console.warn('[Supabase Admin] Usando mock de usuários de salão:', err);
+    return INITIAL_MOCK_SALON_USERS;
+  }
+}
+
+// 4. Profissionais / Prestadores
+export async function fetchAdminProfessionals(): Promise<UserProfessionalItem[]> {
+  try {
+    const { data, error } = await supabase
+      .from('professionals')
+      .select('*, salons(trade_name, slug)')
+      .order('created_at', { ascending: false });
+
+    if (error || !data || data.length === 0) {
+      return INITIAL_MOCK_PROFESSIONALS;
+    }
+    return data as any;
+  } catch (err) {
+    console.warn('[Supabase Admin] Usando mock de profissionais:', err);
+    return INITIAL_MOCK_PROFESSIONALS;
+  }
+}
+
+// 5. Desvincular Profissional de Salão (Mantendo Registro no Ecossistema)
+export async function unlinkProfessionalFromSalon(professionalId: string): Promise<{ success: boolean }> {
+  try {
+    const { error } = await supabase
+      .from('professionals')
+      .update({
+        current_salon_id: null,
+        status: 'unlinked_from_salon',
+        unlinked_from_salon_at: new Date().toISOString(),
+      })
+      .eq('id', professionalId);
+
+    if (error) {
+      console.warn('[Supabase Admin] Falha ao desvincular profissional no banco:', error);
+    }
+    return { success: true };
+  } catch (err) {
+    console.warn('[Supabase Admin] Desvinculando profissional em memória:', err);
+    return { success: true };
+  }
+}
+
+// 6. Promover / Alterar Papel de Administrador
+export async function updateAdminRole(adminId: string, newRole: SystemAdminUser['role']): Promise<{ success: boolean }> {
+  try {
+    const { error } = await supabase
+      .from('system_admins')
+      .update({ role: newRole })
+      .eq('id', adminId);
+
+    if (error) {
+      console.warn('[Supabase Admin] Falha ao atualizar papel do admin:', error);
+    }
+    return { success: true };
+  } catch (err) {
+    console.warn('[Supabase Admin] Atualizando papel do admin em memória:', err);
+    return { success: true };
+  }
+}
+

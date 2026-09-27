@@ -106,8 +106,8 @@ const supabaseAdmin = createClient(
 interface TechnicalBulletin {
   id: string;
   timestamp: string;
-  sourceApp: 'admvapp';
-  targetApps: ('pvapp' | 'mnvapp')[];
+  sourceApp: 'admvapp' | 'pvapp' | 'mnvapp';
+  targetApps: ('pvapp' | 'mnvapp' | 'admvapp')[];
   title: string;
   category: 'schema_change' | 'rpc_change' | 'status_enum' | 'env_config' | 'breaking_change';
   summary: string;
@@ -118,6 +118,30 @@ interface TechnicalBulletin {
 }
 
 const TRIADE_BULLETINS: TechnicalBulletin[] = [
+  {
+    id: 'bol-004-avatar-standardization',
+    timestamp: '2026-09-27T15:20:00.000Z',
+    sourceApp: 'mnvapp',
+    targetApps: ['pvapp', 'admvapp'],
+    title: 'Padronização Global do Ícone de Avatar para Usuários e Profissionais Sem Foto',
+    category: 'status_enum',
+    summary: 'Eliminação de fotos genéricas de estoque (Unsplash) e cliparts pesados. Adoção estrita do ícone vetorial User da lucide-react com traçado fino (stroke-[1.8]) e contêiner neutro com bordas suaves para usuários, clientes e profissionais sem foto enviada.',
+    impactedTables: ['professionals', 'clients', 'system_admins'],
+    instructions: 'pvapp e admvapp: Adotar UserAvatar com fallback no ícone User (lucide-react) stroke-[1.8] quando não houver foto real enviada pelo usuário.',
+    author: 'Equipe de Engenharia • mnvapp (seunegocio.vagouapp.com)',
+  },
+  {
+    id: 'bol-003-profile-sync-supabase',
+    timestamp: '2026-09-27T10:00:00.000Z',
+    sourceApp: 'mnvapp',
+    targetApps: ['pvapp', 'admvapp'],
+    title: 'Sincronização de Perfil de Usuário e Dados Cadastrais com o Supabase',
+    category: 'schema_change',
+    summary: 'Criação do padrão de sincronização direta entre o formulário de dados pessoais e as tabelas professionals, salons e clients no Supabase (fetchUserProfileFromDb e updateUserProfileInDb). As chaves de sessão vagou_user_email e vagou_user_phone agora são obrigatórias junto a vagou_user_name. Homologado registro de Elisa Pires com elisa.pires@gmail.com e (11) 98765-4321.',
+    impactedTables: ['professionals', 'salons', 'clients'],
+    instructions: 'pvapp: Consultar Supabase ao abrir "Meus Dados" caso vagou_user_email ou vagou_user_phone estejam vazios no storage. admvapp: Manter as tabelas clients, professionals e salons sincronizadas nos cadastros mestres.',
+    author: 'Equipe de Engenharia • mnvapp (seunegocio.vagouapp.com)',
+  },
   {
     id: 'bol-001-master-governance',
     timestamp: '2026-09-26T14:00:00.000Z',
@@ -681,6 +705,45 @@ async function startServer() {
           growthPercent: 18.5,
         },
       });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // ADMIN: List Appointments with Billing Information
+  app.get('/api/admin/appointments', async (req, res) => {
+    try {
+      const { data: dbAppointments, error } = await supabaseAdmin
+        .from('appointments')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+
+      return res.json({ success: true, appointments: dbAppointments || [] });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // ADMIN: Update Appointment Status
+  app.patch('/api/admin/appointments/:id/status', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+      const { data, error } = await supabaseAdmin
+        .from('appointments')
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+      return res.json({ success: true, appointment: data });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }

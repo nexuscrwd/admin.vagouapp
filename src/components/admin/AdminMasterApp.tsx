@@ -23,8 +23,8 @@ import { AdminSalonsList } from './AdminSalonsList';
 import { AdminModerationPanel } from './AdminModerationPanel';
 import { AdminEditSalonModal } from './AdminEditSalonModal';
 import { AdminCreateSalonModal } from './AdminCreateSalonModal';
-import { AdminTriadeGovernance } from './AdminTriadeGovernance';
 import { AdminAppointmentsMonitor } from './AdminAppointmentsMonitor';
+import { AdminUsersManager } from './AdminUsersManager';
 import { AdminSettingsPanel } from './AdminSettingsPanel';
 import { AdminAuthModal } from './AdminAuthModal';
 import { AdminCreateAdminModal } from './AdminCreateAdminModal';
@@ -205,7 +205,7 @@ export const AdminMasterApp: React.FC = () => {
                       </p>
                     </div>
                     <button
-                      onClick={() => setCurrentScreen('moderation')}
+                      onClick={() => setCurrentScreen('salons')}
                       className="text-xs text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 transition cursor-pointer"
                     >
                       <span>Ver fila completa</span>
@@ -237,10 +237,10 @@ export const AdminMasterApp: React.FC = () => {
                       </button>
 
                       <button
-                        onClick={() => setCurrentScreen('triade')}
+                        onClick={() => setCurrentScreen('settings')}
                         className="w-full py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition flex items-center justify-center gap-2 cursor-pointer border border-slate-700/60"
                       >
-                        <span>Emitir Comunicado Tríade</span>
+                        <span>Painel de Configurações & Tríade</span>
                       </button>
 
                       <button
@@ -303,22 +303,13 @@ export const AdminMasterApp: React.FC = () => {
             </div>
           )}
 
-          {/* SCREEN: MODERATION */}
-          {currentScreen === 'moderation' && (
-            <AdminModerationPanel
-              salons={salons}
-              onEditSalon={handleEditSalon}
-              onUpdateStatus={handleUpdateStatus}
-            />
-          )}
+          {/* SCREEN: USERS CRUD */}
+          {currentScreen === 'users' && <AdminUsersManager />}
 
-          {/* SCREEN: APPOINTMENTS & RADAR */}
+          {/* SCREEN: APPOINTMENTS */}
           {currentScreen === 'appointments' && <AdminAppointmentsMonitor />}
 
-          {/* SCREEN: TRIADE GOVERNANCE & 7TH MANDAMENT */}
-          {currentScreen === 'triade' && <AdminTriadeGovernance />}
-
-          {/* SCREEN: SETTINGS & DNS */}
+          {/* SCREEN: SETTINGS (Includes Tríade Governance inside) */}
           {currentScreen === 'settings' && <AdminSettingsPanel />}
         </main>
       </div>

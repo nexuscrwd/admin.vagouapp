@@ -3,12 +3,12 @@ import {
   Menu,
   Search,
   RefreshCw,
-  ShieldCheck,
   User,
   LogOut,
   UserPlus,
 } from 'lucide-react';
 import { AdminScreenId, SystemAdminUser, AdminAuthTab } from '../../types/admin';
+import { UserAvatar } from '../common/UserAvatar';
 
 interface AdminHeaderProps {
   currentScreen: AdminScreenId;
@@ -39,14 +39,16 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
         return 'Visão Geral do Ecossistema';
       case 'salons':
         return 'Gestão de Estabelecimentos';
+      case 'users':
+        return 'Gestão Centralizada de Usuários';
       case 'moderation':
         return 'Moderação & Auditoria Cadastral';
       case 'appointments':
-        return 'Monitor Global de Agendamentos & Radar';
+        return 'Agendamentos & Faturamento';
       case 'triade':
         return 'Governança da Tríade & 7º Mandamento';
       case 'settings':
-        return 'Configurações de DNS, Cloudflare & RLS';
+        return 'Configurações do Sistema & DNS';
       default:
         return 'Painel de Controle';
     }
@@ -107,12 +109,6 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
           <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-400' : ''}`} />
         </button>
 
-        {/* Service Role Pill */}
-        <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold">
-          <ShieldCheck className="w-3.5 h-3.5" />
-          <span>Service Role</span>
-        </div>
-
         {/* Admin Auth Area */}
         {adminUser ? (
           <div className="flex items-center gap-2 pl-2 border-l border-slate-800">
@@ -121,9 +117,10 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
               className="flex items-center gap-2 hover:opacity-90 transition cursor-pointer text-left"
               title="Gerenciar Sessão de Administrador"
             >
-              <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-xs shadow-md shrink-0">
-                {getInitials(adminUser.full_name)}
-              </div>
+              <UserAvatar
+                name={adminUser.full_name}
+                size="sm"
+              />
               <div className="hidden xl:block">
                 <span className="text-xs font-bold text-white block leading-tight truncate max-w-[120px]">
                   {adminUser.full_name.split(' ')[0]}

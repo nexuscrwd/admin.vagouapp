@@ -61,8 +61,8 @@ export const AdminTriadeGovernance: React.FC = () => {
 
   const handleCopyBulletin = (bulletin: TechnicalBulletin) => {
     const formatted = `### 📡 COMUNICADO TÉCNICO OFICIAL — TRÍADE VAGOUAPP (7º MANDAMENTO)
-**Origem:** admvapp (adm.vagouapp.com)
-**Destino:** pvapp (portal.vagouapp.com) & mnvapp (seunegocio.vagouapp.com)
+**Origem:** ${bulletin.sourceApp}
+**Destino:** ${bulletin.targetApps.join(', ')}
 **Data:** ${new Date(bulletin.timestamp).toLocaleString('pt-BR')}
 **Título:** ${bulletin.title}
 **Categoria:** ${bulletin.category}
@@ -385,9 +385,18 @@ ${bulletin.instructions}
                 className="p-4 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition space-y-3 shadow-xs"
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                       {b.category.replace('_', ' ')}
+                    </span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                      b.sourceApp === 'mnvapp'
+                        ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                        : b.sourceApp === 'pvapp'
+                        ? 'bg-blue-500/10 text-blue-300 border-blue-500/30'
+                        : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                    }`}>
+                      Origem: {b.sourceApp} ➔ {b.targetApps.join(', ')}
                     </span>
                     <h4 className="text-sm font-bold text-white">{b.title}</h4>
                   </div>

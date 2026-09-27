@@ -74,10 +74,19 @@ export const AdminModerationPanel: React.FC<AdminModerationPanelProps> = ({
                   <div className="flex items-start justify-between gap-3 mb-2.5">
                     <div className="flex items-center gap-3">
                       <div
-                        className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-sm"
+                        className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-sm shrink-0"
                         style={{ backgroundColor: salon.primary_color || '#F59E0B' }}
                       >
-                        {salon.trade_name?.charAt(0) || 'V'}
+                        {salon.logo_url && !salon.logo_url.includes('unsplash') ? (
+                          <img
+                            src={salon.logo_url}
+                            alt={salon.trade_name}
+                            className="w-full h-full object-cover rounded-lg"
+                            onError={(e) => ((e.target as HTMLElement).style.display = 'none')}
+                          />
+                        ) : (
+                          <Building2 className="w-5 h-5 text-white" />
+                        )}
                       </div>
                       <div>
                         <h4 className="font-bold text-sm text-white">{salon.trade_name}</h4>

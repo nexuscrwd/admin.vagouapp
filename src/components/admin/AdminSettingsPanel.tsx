@@ -17,6 +17,8 @@ import {
 import { fetchTablesSummary, fetchSystemAdmins, toggleAdminStatus } from '../../services/supabaseApi';
 import { SystemAdminUser } from '../../types/admin';
 import { AdminCreateAdminModal } from './AdminCreateAdminModal';
+import { AdminTriadeGovernance } from './AdminTriadeGovernance';
+import { Settings, Layers } from 'lucide-react';
 
 export const AdminSettingsPanel: React.FC = () => {
   const [tables, setTables] = useState<Record<string, { count: number; accessible: boolean }>>({
@@ -33,6 +35,7 @@ export const AdminSettingsPanel: React.FC = () => {
   const [isLoadingAdmins, setIsLoadingAdmins] = useState(false);
   const [isCreateAdminModalOpen, setIsCreateAdminModalOpen] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+  const [activeSettingsTab, setActiveSettingsTab] = useState<'settings' | 'triade'>('settings');
 
   const loadTables = async () => {
     setIsLoadingTables(true);
@@ -92,29 +95,56 @@ export const AdminSettingsPanel: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Top Header */}
-      <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between gap-3 shadow-xs">
+      {/* Top Header com Alternador de Abas: Configurações & DNS vs Governança da Tríade */}
+      <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-xs">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center shrink-0">
-            <Globe className="w-5 h-5 text-blue-400" />
+            {activeSettingsTab === 'settings' ? <Globe className="w-5 h-5 text-blue-400" /> : <Layers className="w-5 h-5 text-emerald-400" />}
           </div>
           <div>
             <h2 className="text-sm font-bold text-white tracking-tight">
-              Infraestrutura, Gestão de Acessos & DNS Master
+              {activeSettingsTab === 'settings' ? 'Configurações, DNS & Acessos' : 'Governança da Tríade (7º Mandamento)'}
             </h2>
             <p className="text-xs text-slate-400">
-              Gestão restrita de administradores, roteamento wildcard e chaves soberanas.
+              {activeSettingsTab === 'settings'
+                ? 'Gestão restrita de administradores, infraestrutura DNS e chaves soberanas.'
+                : 'Sincronização de schema, RPCs e comunicados entre pvapp, mnvapp e admvapp.'}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
-            Cloudflare Proxied • TLS 1.3
-          </span>
+        <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 shrink-0 self-start sm:self-auto">
+          <button
+            onClick={() => setActiveSettingsTab('settings')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+              activeSettingsTab === 'settings'
+                ? 'bg-emerald-500 text-white shadow-xs'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Settings className="w-3.5 h-3.5" />
+            <span>Geral & DNS</span>
+          </button>
+
+          <button
+            onClick={() => setActiveSettingsTab('triade')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+              activeSettingsTab === 'triade'
+                ? 'bg-emerald-500 text-white shadow-xs'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Tríade & Mandamento 7</span>
+          </button>
         </div>
       </div>
 
+      {/* RENDER TRÍADE GOVERNANCE SELECIONADA */}
+      {activeSettingsTab === 'triade' ? (
+        <AdminTriadeGovernance />
+      ) : (
+        <>
       {/* 🔐 SEÇÃO: GESTÃO DE ADMINISTRADORES SOBERANOS (CADASTRO RESTRITO) */}
       <div className="p-5 rounded-xl bg-slate-900 border border-slate-800 space-y-4 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
@@ -435,6 +465,8 @@ export const AdminSettingsPanel: React.FC = () => {
           setTimeout(() => setActionFeedback(null), 3500);
         }}
       />
+        </>
+      )}
     </div>
   );
 };

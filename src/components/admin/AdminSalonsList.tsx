@@ -15,8 +15,10 @@ import {
   Building2,
   Trash2,
   AlertTriangle,
+  ShieldAlert,
 } from 'lucide-react';
 import { AdminSalonItem, SalonFilterStatus, SalonSegmentFilter } from '../../types/admin';
+import { AdminModerationPanel } from './AdminModerationPanel';
 
 interface AdminSalonsListProps {
   salons: AdminSalonItem[];
@@ -41,6 +43,7 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
   searchQuery = '',
   onSearchChange,
 }) => {
+  const [activeSection, setActiveSection] = useState<'all_salons' | 'moderation'>('all_salons');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [localSearch, setLocalSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<SalonFilterStatus>('all');
@@ -211,49 +214,104 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
     }
   };
 
+  const pendingCount = salons.filter((s) => s.status === 'pending').length;
+
   return (
     <div className="space-y-4">
-      {/* Control Bar: Filters, Search & View Mode Switcher */}
-      <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-xs">
-        {/* Search & Status Filters */}
-        <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0">
-          <div className="flex items-center bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 w-full sm:w-64 focus-within:border-emerald-500 transition">
-            <Search className="w-3.5 h-3.5 text-slate-400 mr-2 shrink-0" />
-            <input
-              type="text"
-              placeholder="Buscar estabelecimento..."
-              value={activeSearch}
-              onChange={(e) => {
-                if (onSearchChange) onSearchChange(e.target.value);
-                else setLocalSearch(e.target.value);
-              }}
-              className="w-full bg-transparent text-xs text-white placeholder-slate-500 outline-none"
-            />
+      {/* Top Section Switcher: Catálogo Geral vs Moderação */}
+      <div className="p-3 sm:p-4 rounded-xl bg-slate-900 border border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-xs">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
+            <Building2 className="w-5 h-5 text-emerald-400" />
           </div>
-
-          {/* Status Tabs */}
-          <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 overflow-x-auto max-w-full">
-            {[
-              { id: 'all', label: 'Todos' },
-              { id: 'active', label: 'Ativos' },
-              { id: 'pending', label: 'Pendentes' },
-              { id: 'incomplete', label: 'Incompletos' },
-              { id: 'suspended', label: 'Suspensos' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setStatusFilter(tab.id as any)}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition cursor-pointer whitespace-nowrap ${
-                  statusFilter === tab.id
-                    ? 'bg-emerald-500 text-white font-bold shadow-xs'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+          <div>
+            <h2 className="text-sm font-bold text-white tracking-tight">Gestão de Estabelecimentos</h2>
+            <p className="text-xs text-slate-400">Catálogo soberano e esteira de moderação e auditoria de parceiros.</p>
           </div>
         </div>
+
+        <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 shrink-0 self-start sm:self-auto">
+          <button
+            onClick={() => setActiveSection('all_salons')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-2 ${
+              activeSection === 'all_salons'
+                ? 'bg-emerald-500 text-white shadow-xs'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Building2 className="w-3.5 h-3.5" />
+            <span>Todos os Salões ({salons.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveSection('moderation')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-2 ${
+              activeSection === 'moderation'
+                ? 'bg-emerald-500 text-white shadow-xs'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+            <span>Moderação</span>
+            {pendingCount > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold">
+                {pendingCount}
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* RENDER MODERATION SUBSECTION */}
+      {activeSection === 'moderation' ? (
+        <AdminModerationPanel
+          salons={salons}
+          onEditSalon={onEditSalon}
+          onUpdateStatus={onUpdateStatus}
+        />
+      ) : (
+        <>
+          {/* Control Bar: Filters, Search & View Mode Switcher */}
+          <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-xs">
+            {/* Search & Status Filters */}
+            <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0">
+              <div className="flex items-center bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 w-full sm:w-64 focus-within:border-emerald-500 transition">
+                <Search className="w-3.5 h-3.5 text-slate-400 mr-2 shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Buscar estabelecimento..."
+                  value={activeSearch}
+                  onChange={(e) => {
+                    if (onSearchChange) onSearchChange(e.target.value);
+                    else setLocalSearch(e.target.value);
+                  }}
+                  className="w-full bg-transparent text-xs text-white placeholder-slate-500 outline-none"
+                />
+              </div>
+
+              {/* Status Tabs */}
+              <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 overflow-x-auto max-w-full">
+                {[
+                  { id: 'all', label: 'Todos' },
+                  { id: 'active', label: 'Ativos' },
+                  { id: 'pending', label: 'Pendentes' },
+                  { id: 'incomplete', label: 'Incompletos' },
+                  { id: 'suspended', label: 'Suspensos' },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setStatusFilter(tab.id as any)}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition cursor-pointer whitespace-nowrap ${
+                      statusFilter === tab.id
+                        ? 'bg-emerald-500 text-white font-bold shadow-xs'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
         {/* Right Side: Export, New Salon, View Switcher */}
         <div className="flex items-center justify-between md:justify-end gap-2 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-800">
@@ -410,7 +468,7 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                               className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-xs shrink-0"
                               style={{ backgroundColor: salon.primary_color || '#10B981' }}
                             >
-                              {salon.logo_url ? (
+                              {salon.logo_url && !salon.logo_url.includes('unsplash') ? (
                                 <img
                                   src={salon.logo_url}
                                   alt={salon.trade_name}
@@ -418,7 +476,7 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                                   onError={(e) => ((e.target as HTMLElement).style.display = 'none')}
                                 />
                               ) : (
-                                salon.trade_name?.charAt(0) || 'V'
+                                <Building2 className="w-4 h-4 text-white" />
                               )}
                             </div>
                             <div className="min-w-0">
@@ -549,7 +607,7 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                         className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-base shadow-md shrink-0"
                         style={{ backgroundColor: salon.primary_color || '#10B981' }}
                       >
-                        {salon.logo_url ? (
+                        {salon.logo_url && !salon.logo_url.includes('unsplash') ? (
                           <img
                             src={salon.logo_url}
                             alt={salon.trade_name}
@@ -557,7 +615,7 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                             onError={(e) => ((e.target as HTMLElement).style.display = 'none')}
                           />
                         ) : (
-                          salon.trade_name?.charAt(0) || 'V'
+                          <Building2 className="w-5 h-5 text-white" />
                         )}
                       </div>
                       {salon.is_verified && (
@@ -725,6 +783,8 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

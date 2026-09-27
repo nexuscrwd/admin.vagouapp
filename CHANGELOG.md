@@ -15,6 +15,93 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-27] — 🖼️ Refinamento Visual: Adoção Estrita do Modelo Moldura Quadrada para Avatares
+- **Tipo:** `[Design System / Visual Refinement / UI/UX]`
+- **Motivo:** Ajuste do contêiner de avatar do componente `UserAvatar.tsx` para o modelo oficial de **moldura quadrada com cantos suavemente arredondados** (`rounded-xl` / `rounded-lg`), em alinhamento exato com a captura de tela de referência do `mnvapp`.
+- **Ações:**
+  - Substituição de `rounded-full` por `rounded-xl` / `rounded-lg` na moldura do contêiner e na imagem.
+  - Preservação do traço fino vetorial do ícone `User` (`stroke-[1.8]`) com fundo `bg-slate-900/90` e borda `border-slate-800`.
+- **Arquivos Impactados:** `src/components/common/UserAvatar.tsx`, `CHANGELOG.md`.
+
+### [2026-09-27] — 🎨 Recepção & Homologação de Comunicado Técnico da Tríade: Padronização Global de Avatares (Anti-Slop)
+- **Tipo:** `[Tríade / Design System / Anti-Slop / UI/UX]`
+- **Origem do Comunicado:** `mnvapp (seunegocio.vagouapp.com)` ➔ **Destinatários:** `pvapp` e `admvapp`.
+- **Ações Executadas no admvapp:**
+  1. **Criação do Componente Universal `UserAvatar.tsx` (`src/components/common/UserAvatar.tsx`):**
+     - Eliminação de fotos genéricas de estoque (Unsplash) e cliparts pesados.
+     - Adoção estrita do ícone vetorial `User` da biblioteca `lucide-react` com traçado fino elegante (`stroke-[1.8]`).
+     - Contêiner neutro padronizado (`bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/40 text-slate-300`).
+     - Renderização de `<img />` condicional estritamente se houver upload real de foto válida.
+  2. **Refatoração dos Componentes no Painel Master:**
+     - `AdminUsersManager.tsx`: Atualizado para usar `UserAvatar` nas tabelas de Administradores, Clientes/Conta Família e Profissionais.
+     - `AdminHeader.tsx`: Avatar do perfil logado atualizado para `UserAvatar`.
+     - `AdminSalonsList.tsx` e `AdminModerationPanel.tsx`: Substituição de círculos genéricos com letras por ícone vetorial `Building2` em estabelecimentos sem logotipo homologado.
+  3. **Registro do Boletim Oficial na Governança da Tríade (`bol-004-avatar-standardization`):** Homologado no backend (`server.ts`), no painel de governança (`AdminTriadeGovernance.tsx`) e nos fallbacks (`supabaseApi.ts`).
+- **Arquivos Impactados:** `src/components/common/UserAvatar.tsx`, `src/components/admin/AdminUsersManager.tsx`, `src/components/admin/AdminHeader.tsx`, `src/components/admin/AdminSalonsList.tsx`, `src/components/admin/AdminModerationPanel.tsx`, `server.ts`, `src/services/supabaseApi.ts`, `CHANGELOG.md`.
+
+### [2026-09-27] — 📡 Recepção & Homologação de Comunicado Técnico da Tríade: Sincronização de Perfil com Supabase
+- **Tipo:** `[Tríade / Governance / Data Sync / Supabase]`
+- **Origem do Comunicado:** `mnvapp (seunegocio.vagouapp.com)` ➔ **Destinatários:** `pvapp` e `admvapp`.
+- **Ações Executadas no admvapp:**
+  1. **Registro na Governança da Tríade (`AdminTriadeGovernance.tsx` / `server.ts`):** Homologação do boletim oficial `bol-003-profile-sync-supabase`, permitindo agora comunicados bidirecionais entre qualquer aplicação da Tríade (`sourceApp: 'admvapp' | 'pvapp' | 'mnvapp'`).
+  2. **Pareamento das Tabelas Mestres (`clients` e `professionals`):** O cadastro de **Elisa Pires** foi devidamente homologado e registrado com os dados estritos do comunicado (`email: elisa.pires@gmail.com` e `phone: (11) 98765-4321`) tanto na lista de profissionais como na lista de clientes para sincronização completa.
+  3. **Identificador de Sincronização Ativa:** A tela de gestão centralizada de usuários (`AdminUsersManager.tsx`) exibe a confirmação visual de pareamento das chaves obrigatórias de sessão com o Supabase.
+- **Arquivos Impactados:** `server.ts`, `src/types/admin.ts`, `src/services/supabaseApi.ts`, `src/components/admin/AdminTriadeGovernance.tsx`, `src/components/admin/AdminUsersManager.tsx`, `CHANGELOG.md`.
+
+### [2026-09-26] — 👥 Implementação da Gestão Centralizada de Usuários (CRUD Global Multi-Categoria & Unlink Histórico)
+- **Tipo:** `[Feature / Security / Data Architecture / RBAC]`
+- **Motivo:** Implementação da tela soberana de usuários no `admin.vagouapp.com` para controle centralizado de 4 classes de atores:
+  1. **Administradores do Sistema (`adm-vagouapp`):** Controle granular de privilégios (`superadmin`, `moderator/gerenciador`, `support/limitado`) com alternador de status ativo/inativo e promoção direta na tabela.
+  2. **Usuários Clientes & Conta Família (`portal.vagouapp.com`):** Visualização completa do titular com seus dependentes vinculados. Implementação da regra de ouro: **Desvinculação (Unlink) com Preservação Histórica**. Quando o titular desvincula um dependente, os dados continuam 100% íntegros no banco de dados para auditoria e histórico de atendimentos passados.
+  3. **Usuários de Salão & Acessos Autorizados (`meunegocio.vagouapp.com`):** Gestão de credenciais de proprietários (`owner`), gerentes (`manager`) e operadores de recepção (`receptionist`).
+  4. **Prestadores de Serviço & Profissionais (Cadeiras/Especialistas):** Visualização de contratos MEI/CLT, percentuais de comissão e atendimentos. Possibilidade de dispensar o colaborador do salão (`unlinked_from_salon`), mantendo seu registro global ativo no ecossistema Vagou para contratação futura sem perda de histórico financeiro.
+- **Arquivos Impactados:** `src/types/admin.ts`, `src/services/supabaseApi.ts`, `src/components/admin/AdminUsersManager.tsx`, `src/components/admin/AdminSidebar.tsx`, `src/components/admin/AdminHeader.tsx`, `src/components/admin/AdminMasterApp.tsx`, `CHANGELOG.md`.
+
+### [2026-09-26] — 🧭 Reorganização Estrutural da Barra Lateral & Consolidação de Menus
+- **Tipo:** `[UI/UX / Navigation / Information Architecture]`
+- **Motivo:** Execução dos 4 ajustes de arquitetura solicitados para despoluir a navegação do painel Admin:
+  1. **Largura da Barra Lateral (`aside`):** Ajustada exatamente para **`190px`** (`w-[190px]` no modo expandido e `w-20` no modo recolhido), economizando espaço para a área de trabalho principal.
+  2. **Renomeação de Agendamentos:** O botão "Monitor de Agendamentos" foi simplificado e renomeado para **"Agendamentos"**.
+  3. **Consolidação de Moderação em Estabelecimentos:** A moderação de salões foi integrada como subseção dentro da tela **"Estabelecimentos"** (`AdminSalonsList.tsx`) com alternador de abas (*Todos os Salões* vs *Moderação* com badge de pendências).
+  4. **Novo Botão Unificado "Configurações":** Reuniu as opções técnicas de Configurações, DNS, Acessos e a tela de **Governança da Tríade (7º Mandamento)** como abas internas (`AdminSettingsPanel.tsx`), eliminando a fragmentação na barra lateral.
+- **Arquivos Impactados:** `src/components/admin/AdminSidebar.tsx`, `src/components/admin/AdminSalonsList.tsx`, `src/components/admin/AdminSettingsPanel.tsx`, `src/components/admin/AdminHeader.tsx`, `src/components/admin/AdminMasterApp.tsx`, `CHANGELOG.md`.
+
+### [2026-09-26] — 🚫 Cards de Agendamentos Cancelados & Ajuste Fino de Responsividade
+- **Tipo:** `[UI/UX / Metrics / Responsive Design]`
+- **Motivo:** Atendimento à solicitação de visualização dedicada de agendamentos cancelados/no-show e polimento responsivo em todas as resoluções:
+  - **Cards Globais de Resumo (Nível 1):** Inclusão do card de destaque **"Cancelados / No-Show"** com identificador de isenção de 100% de taxa (`bg-rose-950/10 border-rose-500/30 text-rose-400`).
+  - **Grid de Estabelecimentos (Nível 1):** Ajuste da grade de métricas de cada salão para 4 colunas responsivas (`Agendados`, `Concluídos`, `Cancelados`, `Fatura`) com tipografia adaptativa (`text-[9px] sm:text-[10px]`) e truncamento inteligente.
+  - **Mini Dashboard Exclusivo do Salão (Nível 2):** Inclusão do card dedicado **"Cancelados / Isentos"** (`grid-cols-2 sm:grid-cols-3 lg:grid-cols-5`) garantindo clareza na auditoria de isenção para o prestador.
+  - **Ajustes de Responsividade Mobile/Tablet:** Flex wrapping adaptativo na barra de busca, botões de ação e tabela com rolagem suave (`min-w-[700px] overflow-x-auto`).
+- **Arquivos Impactados:** `src/components/admin/AdminAppointmentsMonitor.tsx`, `CHANGELOG.md`.
+
+### [2026-09-26] — 🏢 Navegação Mestre-Detalhe de Estabelecimentos & Histórico Exclusivo de Agendamentos
+- **Tipo:** `[UX Refactor / Master-Detail / Appointments & Billing]`
+- **Motivo:** Implementação da navegação focada por estabelecimento:
+  - **Nível 1 (Mestre):** Grid de cartões de todos os estabelecimentos cadastrados exibindo total de agendamentos no mês selecionado, atendimentos concluídos, faturamento Vagou, volume transacionado no salão e modelo comercial.
+  - **Nível 2 (Detalhe Exclusivo):** Ao clicar em qualquer estabelecimento, abre uma seção exclusiva dedicada àquele salão com botão de retorno (`← Voltar para Todos os Estabelecimentos`), cabeçalho com dados de contato, WhatsApp e vencimento, mini dashboard de métricas e a tabela de histórico linha a linha com suporte a conta família (titular vs atendido), protocolo, serviço, profissional, horário, valor e taxa Vagou.
+  - **Ações de Fechamento por Salão:** Exportação do extrato exclusivo em CSV e botão direto de disparo da fatura com chave PIX para o WhatsApp do responsável pelo salão.
+- **Arquivos Impactados:** `src/components/admin/AdminAppointmentsMonitor.tsx`, `CHANGELOG.md`.
+
+### [2026-09-26] — 📊 Monitor Global de Agendamentos & Fechamento Mensal por Prestador (PS)
+- **Tipo:** `[Feature / Billing Engine / Appointments Monitor]`
+- **Motivo:** Implementação da arquitetura mitigada para controle financeiro e apuração mensal de faturas para prestadores de serviços (PS) do VagouApp:
+  - **Aba 1 (Monitor Global):** Visão cronológica com suporte a conta família (titular vs atendido), protocolo, serviço, profissional, horário, valor e taxa Vagou (com isenção automática em cancelamentos).
+  - **Aba 2 (Fechamento & Faturas PS):** Seletor de competência mensal, apuração agregada do volume dos salões vs faturamento Vagou, cálculo automático por modelo acordado (Pay-per-Booking ou Assinatura Mensal Fixa).
+  - **Ações Executivas de Faturamento:** Exportação de extrato detalhado em CSV e botão direto de disparo de fatura formatada via WhatsApp com chave PIX e vencimento.
+  - **Configuração no Cadastro do Salão:** Suporte no modal de edição (`AdminEditSalonModal.tsx`) para taxa por agendamento, mensalidade fixa, dia de fechamento e chave PIX.
+- **Arquivos Impactados:** `src/components/admin/AdminAppointmentsMonitor.tsx`, `src/components/admin/AdminEditSalonModal.tsx`, `src/types/admin.ts`, `src/services/supabaseApi.ts`, `server.ts`, `CHANGELOG.md`.
+
+### [2026-09-26] — 🧹 Remoção dos Elementos Selecionados (Focus Mode / Clean Design)
+- **Tipo:** `[UI/UX / Focus Mode / Clean UI]`
+- **Motivo:** Atendimento estrito aos 5 seletores CSS focados pelo usuário para limpeza e despoluição da interface:
+  1. Remoção do selo "Master" junto ao logotipo da barra lateral (`AdminSidebar.tsx`).
+  2. Remoção do card de status "Service Role Ativo" no rodapé da barra lateral (`AdminSidebar.tsx`).
+  3. Remoção do bloco de links externos "Ecossistema Tríade" no rodapé da barra lateral (`AdminSidebar.tsx`).
+  4. Remoção do card/área de perfil e autenticação no rodapé da barra lateral (`AdminSidebar.tsx`).
+  5. Remoção do badge "Service Role" no cabeçalho superior (`AdminHeader.tsx`).
+- **Arquivos Impactados:** `src/components/admin/AdminSidebar.tsx`, `src/components/admin/AdminHeader.tsx`, `CHANGELOG.md`.
+
 ### [2026-09-26] — ⚡ CRUD Soberano 100% Supabase para Gestão de Estabelecimentos
 - **Tipo:** `[Full CRUD / Supabase / Backend Proxy / Salons]`
 - **Motivo:** Reescrita completa da camada de dados da seção "Gestão de Estabelecimentos" para operar 100% vinculada à tabela `public.salons` do Supabase via Service Role no backend (`server.ts`).

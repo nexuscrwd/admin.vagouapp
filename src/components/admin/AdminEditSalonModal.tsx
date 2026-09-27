@@ -13,6 +13,7 @@ import {
   Palette,
   Image as ImageIcon,
   Loader2,
+  Receipt,
 } from 'lucide-react';
 import { AdminSalonItem } from '../../types/admin';
 
@@ -52,6 +53,11 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
         cep: salon.cep || '',
         logo_url: salon.logo_url || '',
         primary_color: salon.primary_color || '#10B981',
+        billing_plan: salon.billing_plan || 'per_booking',
+        fee_per_booking: salon.fee_per_booking ?? 2.5,
+        monthly_subscription_fee: salon.monthly_subscription_fee ?? 89.9,
+        billing_due_day: salon.billing_due_day ?? 10,
+        pix_key: salon.pix_key || '',
       });
       setStatusMessage(null);
     }
@@ -351,7 +357,79 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
             </div>
           </div>
 
-          {/* Section 4: Branding (Logo & Cor) */}
+          {/* Section 4: Configuração Comercial & Faturamento PS */}
+          <div className="space-y-3 pt-3 border-t border-slate-800">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+              <Receipt className="w-3.5 h-3.5" />
+              Modelo Comercial & Acordo de Faturamento
+            </span>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-slate-300 block mb-1">Modelo de Cobrança</label>
+                <select
+                  value={formData.billing_plan || 'per_booking'}
+                  onChange={(e) => setFormData({ ...formData, billing_plan: e.target.value as any })}
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-lg px-3 py-2 text-xs text-white outline-none transition"
+                >
+                  <option value="per_booking">Por Agendamento Realizado (Pay-per-Booking)</option>
+                  <option value="subscription">Assinatura Mensal Fixa (Recorrente)</option>
+                </select>
+              </div>
+
+              {formData.billing_plan === 'subscription' ? (
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 block mb-1">Mensalidade Fixa (R$)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.monthly_subscription_fee || 89.9}
+                    onChange={(e) => setFormData({ ...formData, monthly_subscription_fee: parseFloat(e.target.value) })}
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-lg px-3 py-2 text-xs text-white outline-none transition font-mono"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 block mb-1">Taxa por Agendamento (R$)</label>
+                  <input
+                    type="number"
+                    step="0.10"
+                    value={formData.fee_per_booking || 2.5}
+                    onChange={(e) => setFormData({ ...formData, fee_per_booking: parseFloat(e.target.value) })}
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-lg px-3 py-2 text-xs text-white outline-none transition font-mono"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-slate-300 block mb-1">Dia de Fechamento / Vencimento</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={31}
+                  value={formData.billing_due_day || 10}
+                  onChange={(e) => setFormData({ ...formData, billing_due_day: parseInt(e.target.value) || 10 })}
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-lg px-3 py-2 text-xs text-white outline-none transition font-mono"
+                  placeholder="Ex: 05, 10 ou 20"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-300 block mb-1">Chave PIX do Estabelecimento</label>
+                <input
+                  type="text"
+                  value={formData.pix_key || ''}
+                  onChange={(e) => setFormData({ ...formData, pix_key: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-lg px-3 py-2 text-xs text-white outline-none transition font-mono"
+                  placeholder="CNPJ, E-mail ou Telefone"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Section 5: Branding (Logo & Cor) */}
           <div className="space-y-3 pt-3 border-t border-slate-800">
             <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
               <Palette className="w-3.5 h-3.5" />

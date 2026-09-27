@@ -1,15 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   LayoutDashboard,
   Building2,
+  Users,
   CalendarCheck,
-  ShieldAlert,
   Settings,
-  ExternalLink,
-  ShieldCheck,
   X,
-  Layers,
-  LogIn,
   PanelLeftClose,
   PanelLeftOpen,
 } from 'lucide-react';
@@ -31,8 +27,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   onSelectScreen,
   onCloseMobile,
   pendingCount = 0,
-  adminUser,
-  onOpenAuthModal,
 }) => {
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
     try {
@@ -60,28 +54,15 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'salons', label: 'Estabelecimentos', icon: Building2 },
-    {
-      id: 'moderation',
-      label: 'Moderação de Salões',
-      icon: ShieldAlert,
-      badge: pendingCount > 0 ? pendingCount : undefined,
-    },
-    { id: 'appointments', label: 'Monitor de Agendamentos', icon: CalendarCheck },
-    { id: 'triade', label: 'Governança da Tríade', icon: Layers },
-    { id: 'settings', label: 'Configurações & DNS', icon: Settings },
+    { id: 'users', label: 'Usuários', icon: Users },
+    { id: 'appointments', label: 'Agendamentos', icon: CalendarCheck },
+    { id: 'settings', label: 'Configurações', icon: Settings },
   ];
-
-  const getInitials = (name: string) => {
-    if (!name) return 'AD';
-    const parts = name.trim().split(' ');
-    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  };
 
   return (
     <aside
       className={`bg-slate-900 border-r border-slate-800 flex flex-col justify-between h-full select-none shrink-0 z-30 transition-all duration-300 ease-in-out ${
-        isCollapsed ? 'w-20' : 'w-64'
+        isCollapsed ? 'w-20' : 'w-[190px]'
       }`}
     >
       {/* Top Brand & Nav */}
@@ -106,9 +87,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                 <div className="flex items-center gap-1.5">
                   <span className="font-bold text-sm tracking-tight text-white font-['Poppins'] truncate">
                     VagouApp
-                  </span>
-                  <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-500 text-white shadow-xs">
-                    Master
                   </span>
                 </div>
                 <span className="text-[10px] text-slate-400 block font-medium truncate">
@@ -195,123 +173,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             );
           })}
         </nav>
-      </div>
-
-      {/* Bottom Ecosystem Links & User Area */}
-      <div className={`border-t border-slate-800/80 space-y-3 ${isCollapsed ? 'p-2.5' : 'p-4'}`}>
-        {/* Service Role Status */}
-        {isCollapsed ? (
-          <div
-            className="w-full py-2 flex items-center justify-center rounded-lg bg-slate-950 border border-emerald-500/30 cursor-pointer"
-            title="Service Role Ativo (Bypass RLS Soberano)"
-          >
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-400/50" />
-          </div>
-        ) : (
-          <div className="p-2.5 rounded-lg bg-slate-950 border border-emerald-500/30 flex items-center justify-between text-[11px] animate-fadeIn">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span className="text-slate-200 font-medium">Service Role</span>
-            </div>
-            <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-              Ativo
-            </span>
-          </div>
-        )}
-
-        {/* Tríade Ecosystem External Links */}
-        {!isCollapsed ? (
-          <div className="space-y-1 animate-fadeIn">
-            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 px-1 block">
-              Ecossistema Tríade
-            </span>
-
-            <a
-              href="https://portal.vagouapp.com"
-              target="_blank"
-              rel="noreferrer"
-              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition cursor-pointer"
-            >
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                <span className="truncate">pvapp (Consumidor)</span>
-              </div>
-              <ExternalLink className="w-3 h-3 text-slate-500" />
-            </a>
-
-            <a
-              href="https://seunegocio.vagouapp.com"
-              target="_blank"
-              rel="noreferrer"
-              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition cursor-pointer"
-            >
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                <span className="truncate">mnvapp (Parceiro)</span>
-              </div>
-              <ExternalLink className="w-3 h-3 text-slate-500" />
-            </a>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-2 py-1">
-            <a
-              href="https://portal.vagouapp.com"
-              target="_blank"
-              rel="noreferrer"
-              title="pvapp - Portal do Consumidor"
-              className="w-8 h-8 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 flex items-center justify-center transition cursor-pointer"
-            >
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            </a>
-            <a
-              href="https://seunegocio.vagouapp.com"
-              target="_blank"
-              rel="noreferrer"
-              title="mnvapp - Meu Negócio Parceiro"
-              className="w-8 h-8 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 flex items-center justify-center transition cursor-pointer"
-            >
-              <span className="w-2 h-2 rounded-full bg-amber-400" />
-            </a>
-          </div>
-        )}
-
-        {/* Admin Profile / Auth Trigger */}
-        {adminUser ? (
-          <div
-            onClick={() => onOpenAuthModal && onOpenAuthModal('login')}
-            className={`pt-2 border-t border-slate-800 flex items-center cursor-pointer hover:bg-slate-800/60 rounded-xl transition ${
-              isCollapsed ? 'justify-center p-1.5' : 'gap-2.5 p-2'
-            }`}
-            title={`Administrador: ${adminUser.full_name} (@${adminUser.username})`}
-          >
-            <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-xs shrink-0 shadow-sm shadow-emerald-950/50">
-              {getInitials(adminUser.full_name)}
-            </div>
-            {!isCollapsed && (
-              <div className="min-w-0 flex-1 animate-fadeIn">
-                <span className="text-xs font-bold text-white block truncate">
-                  {adminUser.full_name}
-                </span>
-                <span className="text-[10px] text-emerald-400 font-mono block truncate">
-                  @{adminUser.username}
-                </span>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="pt-2 border-t border-slate-800">
-            <button
-              onClick={() => onOpenAuthModal && onOpenAuthModal('login')}
-              className={`w-full rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs font-bold text-slate-200 hover:text-white transition flex items-center justify-center gap-2 cursor-pointer ${
-                isCollapsed ? 'p-2.5' : 'py-2 px-3'
-              }`}
-              title="Acesso Administrativo"
-            >
-              <LogIn className="w-3.5 h-3.5 text-emerald-400" />
-              {!isCollapsed && <span>Acesso</span>}
-            </button>
-          </div>
-        )}
       </div>
     </aside>
   );
