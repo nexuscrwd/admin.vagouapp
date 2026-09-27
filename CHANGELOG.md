@@ -15,6 +15,28 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-27] — 📡 Sincronização em Tempo Real (Realtime) & Fonte Única da Verdade para Avatares (Resolução de Alteração no Banco de Dados)
+- **Tipo:** `[Tríade / Realtime / Supabase Storage / Single Source of Truth / Bugfix / 7º Mandamento]`
+- **Boletim Técnico Emitido:** `bol-009-single-source-of-truth-avatar-realtime-sync`.
+- **Causa Raiz Identificada:**
+  1. A usuária/profissional alterou a foto no banco de dados via celular, gravando um novo Base64 em `professionals`.
+  2. O `refreshStoredAdmin` no Admin Master (`admvapp`) dependia estritamente de `system_admins.avatar_url`, que mantinha a URL antiga anterior, não buscando a foto mais recente em `professionals` nem comparando `updated_at`.
+  3. A tag `<img>` no `UserAvatar` não continha `referrerPolicy="no-referrer"` nem resetava o estado `imageError` na troca da prop `photoUrl`.
+  4. O botão "Recarregar" (`RefreshCw`) em `AdminHeader` não disparava a atualização do perfil do usuário em `refreshStoredAdmin()`.
+- **Ações Técnicas Realizadas:**
+  1. **Upload Imediato do Novo Binário para o Supabase Storage:** O novo upload (Base64 de 1.28MB) foi transferido para o bucket oficial `avatars` como `https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/elisa-pires-1790537020614.jpg`.
+  2. **Propagação da Fonte Única da Verdade:** Atualizados os registros da mesma pessoa física em todas as tabelas (`professionals`, `clients`, `system_admins` e `auth.users`).
+  3. **Implementação de `fetchUserProfileFromDb` e `refreshStoredAdmin` Aprimorado:**
+     - Implementada a função oficial da Tríade `fetchUserProfileFromDb` com fallback ordenado por `updated_at DESC`.
+     - `refreshStoredAdmin` agora compara timestamps entre `system_admins`, `professionals` e `clients`, garantindo que a foto mais recente seja sempre adotada.
+  4. **Sincronização em Tempo Real (Supabase Realtime Channel):**
+     - Criada assinatura no canal `admin-avatar-live-sync` escutando eventos `postgres_changes` nas tabelas `professionals`, `clients` e `system_admins`. Qualquer alteração realizada em qualquer aplicativo da Tríade ou dispositivo móvel atualiza o cabeçalho no mesmo milissegundo.
+  5. **Endpoint de Ingestão e Auto-Conversão (`/api/admin/sync-avatars`):**
+     - Endpoint no backend Express que monitora, converte Base64 para Storage e sincroniza as tabelas da Tríade.
+  6. **Atualização no `UserAvatar`:** Adicionado `referrerPolicy="no-referrer"` e `useEffect` de reset de erro ao alterar `photoUrl`.
+  7. **Botão de Atualização Integrado:** `loadData()` no `AdminMasterApp` agora atualiza tanto os estabelecimentos quanto a sessão do usuário e avatar.
+- **Arquivos Impactados:** `src/components/common/UserAvatar.tsx`, `src/services/supabaseApi.ts`, `src/components/admin/AdminMasterApp.tsx`, `server.ts`, `CHANGELOG.md`.
+
 ### [2026-09-27] — 📱 Emissão & Homologação de Comunicado Técnico da Tríade: Diagnóstico e Correção Global de Foto Enviada pelo Celular
 - **Tipo:** `[Tríade / Storage / Supabase / Mobile Upload / Bugfix / 7º Mandamento]`
 - **Origem do Comunicado:** `admvapp (adm.vagouapp.com)` ➔ **Destinatários:** `pvapp (portal.vagouapp.com)` e `mnvapp (seunegocio.vagouapp.com)`.

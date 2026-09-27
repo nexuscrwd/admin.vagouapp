@@ -48,6 +48,11 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
 }) => {
   const [imageError, setImageError] = useState(false);
 
+  // Reseta estado de erro caso a URL do avatar seja atualizada no banco
+  React.useEffect(() => {
+    setImageError(false);
+  }, [photoUrl]);
+
   // Validação estrita: renderiza foto apenas se for URL válida de upload real (não mock) e sem erro
   const isValidPhoto = Boolean(
     photoUrl &&
@@ -69,6 +74,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
           src={photoUrl}
           alt={name || 'Avatar do Usuário'}
           className="w-full h-full object-cover"
+          referrerPolicy="no-referrer"
           onError={() => setImageError(true)}
         />
       </div>

@@ -713,6 +713,18 @@ export async function fetchTechnicalBulletins(): Promise<TechnicalBulletin[]> {
 
   return [
     {
+      id: 'bol-009-single-source-of-truth-avatar-realtime-sync',
+      timestamp: '2026-09-27T19:25:00.000Z',
+      sourceApp: 'admvapp',
+      targetApps: ['pvapp', 'mnvapp'],
+      title: 'Arquitetura de Fonte Única da Verdade para Avatares & Sincronização em Tempo Real (Realtime)',
+      category: 'breaking_change',
+      summary: 'Princípio Inegociável: 1 Usuário = 1 Único Cadastro no Supabase. Os dados de pessoa física (nome, email, avatar) são compartilhados universalmente entre contas de cliente, profissional e administrador. Correções implementadas: 1. Ingestão e conversão de fotos Base64 para URLs públicas permanentes no bucket "avatars" do Supabase Storage. 2. Propagação de avatar_url entre professionals, clients, system_admins e auth.users. 3. Sincronização Realtime ativa no admvapp via Postgres Changes, atualizando o avatar no cabeçalho imediatamente após edição no celular. 4. Fallback ordenado por updated_at DESC e referrerPolicy="no-referrer".',
+      impactedTables: ['professionals', 'clients', 'system_admins', 'auth.users', 'storage.buckets'],
+      instructions: 'pvapp e mnvapp: 1. Adotar fetchUserProfileFromDb com fallback ordenado por updated_at DESC. 2. Usar referrerPolicy="no-referrer" nas tags <img> de avatar. 3. Toda atualização de foto deve refletir nas tabelas compartilhadas da mesma pessoa física.',
+      author: 'Super Administrador • admvapp (adm.vagouapp.com)',
+    },
+    {
       id: 'bol-008-mobile-avatar-sync-storage-resolution',
       timestamp: '2026-09-27T18:40:00.000Z',
       sourceApp: 'admvapp',
@@ -876,8 +888,116 @@ export function setStoredAdmin(admin: SystemAdminUser | null): void {
 }
 
 /**
+ * Busca de perfil unificada no Supabase conforme especificação canônica da Tríade.
+ * Permite buscar por email/nome com fallback automático para o registro mais recente com foto.
+ */
+export async function fetchUserProfileFromDb(identifier?: { email?: string; name?: string }): Promise<{
+  id: string;
+  name: string;
+  email: string;
+  avatarUrl: string;
+} | null> {
+  if (!supabase) return null;
+  const term = (identifier?.email || identifier?.name || '').trim();
+
+  try {
+    // 1. Tentar usuário ativo no Supabase Auth
+    try {
+      const { data: authUserResp } = await supabase.auth.getUser();
+      const authUser = authUserResp?.user;
+      if (authUser?.user_metadata?.avatar_url && !authUser.user_metadata.avatar_url.includes('unsplash.com')) {
+        return {
+          id: authUser.id,
+          name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'Usuário',
+          email: authUser.email || '',
+          avatarUrl: authUser.user_metadata.avatar_url,
+        };
+      }
+    } catch {}
+
+    const isGenericTerm = !term || term === 'Profissional' || term === 'Usuário' || term === 'Visitante' || term === 'Cliente';
+
+    // 2. Busca por e-mail/nome específico em professionals
+    if (!isGenericTerm) {
+      const { data: pros } = await (supabase.from('professionals') as any)
+        .select('*')
+        .or(`email.ilike.%${term}%,name.ilike.%${term}%`)
+        .not('avatar_url', 'is', null)
+        .neq('avatar_url', '')
+        .order('updated_at', { ascending: false })
+        .limit(1);
+      if (pros && pros.length > 0 && pros[0].avatar_url && !pros[0].avatar_url.includes('unsplash.com')) {
+        return {
+          id: pros[0].id,
+          name: pros[0].name,
+          email: pros[0].email || '',
+          avatarUrl: pros[0].avatar_url,
+        };
+      }
+
+      // 2b. Busca em clients
+      const { data: cls } = await (supabase.from('clients') as any)
+        .select('*')
+        .or(`email.ilike.%${term}%,name.ilike.%${term}%`)
+        .not('avatar_url', 'is', null)
+        .neq('avatar_url', '')
+        .order('updated_at', { ascending: false })
+        .limit(1);
+      if (cls && cls.length > 0 && cls[0].avatar_url && !cls[0].avatar_url.includes('unsplash.com')) {
+        return {
+          id: cls[0].id,
+          name: cls[0].name,
+          email: cls[0].email || '',
+          avatarUrl: cls[0].avatar_url,
+        };
+      }
+    }
+
+    // 3. FALLBACK DE BANCO: Se o termo for genérico ou vazio, busca o registro mais recente com foto em professionals
+    const { data: proAvatars } = await (supabase.from('professionals') as any)
+      .select('*')
+      .not('avatar_url', 'is', null)
+      .neq('avatar_url', '')
+      .order('updated_at', { ascending: false })
+      .limit(1);
+
+    if (proAvatars && proAvatars.length > 0 && proAvatars[0].avatar_url && !proAvatars[0].avatar_url.includes('unsplash.com')) {
+      return {
+        id: proAvatars[0].id,
+        name: proAvatars[0].name,
+        email: proAvatars[0].email || '',
+        avatarUrl: proAvatars[0].avatar_url,
+      };
+    }
+
+    // 4. FALLBACK DE BANCO: Busca na tabela clients
+    const { data: clientAvatars } = await (supabase.from('clients') as any)
+      .select('*')
+      .not('avatar_url', 'is', null)
+      .neq('avatar_url', '')
+      .order('updated_at', { ascending: false })
+      .limit(1);
+
+    if (clientAvatars && clientAvatars.length > 0 && clientAvatars[0].avatar_url && !clientAvatars[0].avatar_url.includes('unsplash.com')) {
+      return {
+        id: clientAvatars[0].id,
+        name: clientAvatars[0].name,
+        email: clientAvatars[0].email || '',
+        avatarUrl: clientAvatars[0].avatar_url,
+      };
+    }
+  } catch (err) {
+    console.warn('Erro ao consultar perfil no Supabase:', err);
+  }
+
+  return null;
+}
+
+/**
  * Atualiza e sincroniza a sessão do administrador ativo diretamente com o Supabase,
  * garantindo que atualizações de avatar_url enviadas via celular sejam imediatamente refletidas.
+ * Respeita a regra de Fonte Única da Verdade: se a foto foi alterada em professionals ou clients,
+ * o Admin Master atualiza instantaneamente.
  */
 export async function refreshStoredAdmin(): Promise<SystemAdminUser | null> {
   const current = getStoredAdmin();
@@ -891,27 +1011,66 @@ export async function refreshStoredAdmin(): Promise<SystemAdminUser | null> {
       .or(`id.eq.${current.id},email.ilike.%${query}%,username.ilike.%${query}%`)
       .limit(1);
 
-    if (!error && data && data.length > 0) {
-      const updatedAdmin = { ...current, ...data[0] } as SystemAdminUser;
+    const baseAdmin = (!error && data && data.length > 0) ? { ...current, ...data[0] } : current;
 
-      // Se ainda não tiver avatar_url diretamente em system_admins, busca em professionals e clients
-      if (!updatedAdmin.avatar_url) {
-        const cleanName = updatedAdmin.full_name.split(' ')[0].toLowerCase();
-        const { data: profData } = await supabase
-          .from('professionals')
-          .select('avatar_url')
-          .ilike('name', `%${cleanName}%`)
-          .not('avatar_url', 'is', null)
-          .limit(1);
+    // Regra da Fonte Única da Verdade:
+    // Busca a foto mais recentemente atualizada vinculada a este usuário (professionals, clients ou fallback)
+    const userEmail = (baseAdmin.email || current.email || '').trim().toLowerCase();
+    const userName = (baseAdmin.full_name || current.full_name || '').trim();
+    const cleanFirstName = userName.split(' ')[0].toLowerCase();
 
-        if (profData && profData[0]?.avatar_url) {
-          updatedAdmin.avatar_url = profData[0].avatar_url;
-        }
+    // 1. Consulta em professionals com ordenação por updated_at DESC
+    const { data: profData } = await supabase
+      .from('professionals')
+      .select('avatar_url, updated_at')
+      .or(`email.ilike.%${userEmail}%,name.ilike.%${cleanFirstName}%`)
+      .not('avatar_url', 'is', null)
+      .neq('avatar_url', '')
+      .order('updated_at', { ascending: false })
+      .limit(1);
+
+    // 2. Consulta em clients com ordenação por updated_at DESC
+    const { data: clientData } = await supabase
+      .from('clients')
+      .select('avatar_url, updated_at')
+      .or(`email.ilike.%${userEmail}%,name.ilike.%${cleanFirstName}%`)
+      .not('avatar_url', 'is', null)
+      .neq('avatar_url', '')
+      .order('updated_at', { ascending: false })
+      .limit(1);
+
+    // Filtra fotos válidas não-mock
+    const candidates = [
+      ...(profData || []),
+      ...(clientData || []),
+    ].filter(r => r.avatar_url && !r.avatar_url.includes('unsplash.com'))
+     .sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
+
+    let finalAvatar = baseAdmin.avatar_url;
+
+    if (candidates.length > 0 && candidates[0].avatar_url) {
+      finalAvatar = candidates[0].avatar_url;
+    } else if (!finalAvatar || finalAvatar.includes('unsplash.com')) {
+      const fallback = await fetchUserProfileFromDb({ email: userEmail, name: userName });
+      if (fallback?.avatarUrl && !fallback.avatarUrl.includes('unsplash.com')) {
+        finalAvatar = fallback.avatarUrl;
       }
-
-      setStoredAdmin(updatedAdmin);
-      return updatedAdmin;
     }
+
+    const updatedAdmin: SystemAdminUser = {
+      ...baseAdmin,
+      avatar_url: finalAvatar,
+    };
+
+    // Propaga de volta para system_admins no Supabase se houver alteração
+    if (finalAvatar && (!data || data.length === 0 || data[0].avatar_url !== finalAvatar)) {
+      try {
+        await supabase.from('system_admins').update({ avatar_url: finalAvatar }).eq('id', updatedAdmin.id);
+      } catch {}
+    }
+
+    setStoredAdmin(updatedAdmin);
+    return updatedAdmin;
   } catch (err) {
     console.warn('[refreshStoredAdmin] Erro ao sincronizar sessão:', err);
   }

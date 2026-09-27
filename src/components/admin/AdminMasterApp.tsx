@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from '../../services/supabase';
 import {
   fetchAdminSalons,
   updateAdminSalon,
@@ -61,12 +62,16 @@ export const AdminMasterApp: React.FC = () => {
   const loadData = async () => {
     setIsRefreshing(true);
     try {
-      const [fetchedSalons, fetchedMetrics] = await Promise.all([
+      const [fetchedSalons, fetchedMetrics, freshAdmin] = await Promise.all([
         fetchAdminSalons(),
         fetchAdminDashboardMetrics(),
+        refreshStoredAdmin(),
       ]);
       setSalons(fetchedSalons);
       setMetrics(fetchedMetrics);
+      if (freshAdmin) {
+        setAdminUser(freshAdmin);
+      }
     } catch (err) {
       console.warn('[Admin Master] Erro ao carregar dados:', err);
     } finally {
@@ -76,9 +81,31 @@ export const AdminMasterApp: React.FC = () => {
 
   useEffect(() => {
     loadData();
-    refreshStoredAdmin().then((fresh) => {
-      if (fresh) setAdminUser(fresh);
-    });
+
+    // 📡 Sincronização em Tempo Real (Realtime) da Tríade:
+    // Qualquer alteração de avatar enviada via celular ou portal atualiza o cabeçalho imediatamente!
+    const channel = supabase
+      .channel('admin-avatar-live-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'professionals' }, () => {
+        refreshStoredAdmin().then((fresh) => {
+          if (fresh) setAdminUser(fresh);
+        });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, () => {
+        refreshStoredAdmin().then((fresh) => {
+          if (fresh) setAdminUser(fresh);
+        });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'system_admins' }, () => {
+        refreshStoredAdmin().then((fresh) => {
+          if (fresh) setAdminUser(fresh);
+        });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleEditSalon = (salon: AdminSalonItem) => {

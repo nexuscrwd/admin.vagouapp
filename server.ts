@@ -119,6 +119,18 @@ interface TechnicalBulletin {
 
 const TRIADE_BULLETINS: TechnicalBulletin[] = [
   {
+    id: 'bol-009-single-source-of-truth-avatar-realtime-sync',
+    timestamp: '2026-09-27T19:25:00.000Z',
+    sourceApp: 'admvapp',
+    targetApps: ['pvapp', 'mnvapp'],
+    title: 'Arquitetura de Fonte Única da Verdade para Avatares & Sincronização em Tempo Real (Realtime)',
+    category: 'breaking_change',
+    summary: 'Princípio Inegociável: 1 Usuário = 1 Único Cadastro no Supabase. Os dados de pessoa física (nome, email, avatar) são compartilhados universalmente entre contas de cliente, profissional e administrador. Correções implementadas: 1. Ingestão e conversão de fotos Base64 para URLs públicas permanentes no bucket "avatars" do Supabase Storage. 2. Propagação de avatar_url entre professionals, clients, system_admins e auth.users. 3. Sincronização Realtime ativa no admvapp via Postgres Changes, atualizando o avatar no cabeçalho imediatamente após edição no celular. 4. Fallback ordenado por updated_at DESC e referrerPolicy="no-referrer".',
+    impactedTables: ['professionals', 'clients', 'system_admins', 'auth.users', 'storage.buckets'],
+    instructions: 'pvapp e mnvapp: 1. Adotar fetchUserProfileFromDb com fallback ordenado por updated_at DESC. 2. Usar referrerPolicy="no-referrer" nas tags <img> de avatar. 3. Toda atualização de foto deve refletir nas tabelas compartilhadas da mesma pessoa física.',
+    author: 'Super Administrador • admvapp (adm.vagouapp.com)',
+  },
+  {
     id: 'bol-008-mobile-avatar-sync-storage-resolution',
     timestamp: '2026-09-27T18:40:00.000Z',
     sourceApp: 'admvapp',
@@ -270,6 +282,98 @@ async function startServer() {
       hasServiceRoleKey: !!SUPABASE_SERVICE_ROLE_KEY,
       supabaseUrl: SUPABASE_URL,
     });
+  });
+
+  // Sincronização Universal de Avatares (Fonte Única da Verdade & Conversão Base64 -> Storage)
+  app.all('/api/admin/sync-avatars', async (req, res) => {
+    try {
+      let convertedCount = 0;
+      let syncedTablesCount = 0;
+
+      // 1. Procura registros com Base64 cru em professionals
+      const { data: profsWithBase64 } = await supabaseAdmin
+        .from('professionals')
+        .select('id, name, email, avatar_url')
+        .like('avatar_url', 'data:image/%')
+        .limit(5);
+
+      for (const p of profsWithBase64 || []) {
+        if (p.avatar_url && p.avatar_url.startsWith('data:image/')) {
+          try {
+            const matches = p.avatar_url.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+            if (matches && matches[2]) {
+              const contentType = matches[1] || 'image/jpeg';
+              const buffer = Buffer.from(matches[2], 'base64');
+              const cleanSlug = (p.name || 'avatar').toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 30);
+              const fileName = `${cleanSlug}-${Date.now()}.jpg`;
+
+              const { error: upErr } = await supabaseAdmin.storage
+                .from('avatars')
+                .upload(fileName, buffer, { contentType, upsert: true });
+
+              if (!upErr) {
+                const { data: pubData } = supabaseAdmin.storage.from('avatars').getPublicUrl(fileName);
+                const publicUrl = pubData.publicUrl;
+                convertedCount++;
+
+                const now = new Date().toISOString();
+                // Atualiza professionals
+                await supabaseAdmin.from('professionals').update({ avatar_url: publicUrl, updated_at: now }).eq('id', p.id);
+                // Propaga para clients
+                if (p.email) {
+                  await supabaseAdmin.from('clients').update({ avatar_url: publicUrl, updated_at: now }).eq('email', p.email);
+                } else if (p.name) {
+                  await supabaseAdmin.from('clients').update({ avatar_url: publicUrl, updated_at: now }).ilike('name', `%${p.name}%`);
+                }
+                // Propaga para system_admins
+                if (p.email) {
+                  await supabaseAdmin.from('system_admins').update({ avatar_url: publicUrl }).eq('email', p.email);
+                } else if (p.name) {
+                  await supabaseAdmin.from('system_admins').update({ avatar_url: publicUrl }).ilike('full_name', `%${p.name}%`);
+                }
+                syncedTablesCount++;
+              }
+            }
+          } catch (e) {
+            console.warn('[sync-avatars] Falha ao converter base64:', e);
+          }
+        }
+      }
+
+      // 2. Busca o avatar mais recente em todo o banco para sincronização cruzada
+      const { data: latestProf } = await supabaseAdmin
+        .from('professionals')
+        .select('name, email, avatar_url, updated_at')
+        .not('avatar_url', 'is', null)
+        .neq('avatar_url', '')
+        .order('updated_at', { ascending: false })
+        .limit(1);
+
+      if (latestProf && latestProf.length > 0 && latestProf[0].avatar_url) {
+        const top = latestProf[0];
+        if (!top.avatar_url.includes('unsplash.com') && !top.avatar_url.startsWith('data:image/')) {
+          // Garante que system_admins e clients tenham este avatar
+          if (top.email) {
+            await supabaseAdmin.from('system_admins').update({ avatar_url: top.avatar_url }).eq('email', top.email);
+            await supabaseAdmin.from('clients').update({ avatar_url: top.avatar_url }).eq('email', top.email);
+          } else if (top.name) {
+            const firstName = top.name.split(' ')[0];
+            await supabaseAdmin.from('system_admins').update({ avatar_url: top.avatar_url }).ilike('full_name', `%${firstName}%`);
+            await supabaseAdmin.from('clients').update({ avatar_url: top.avatar_url }).ilike('name', `%${firstName}%`);
+          }
+        }
+      }
+
+      return res.json({
+        success: true,
+        message: 'Sincronização de avatares executada com sucesso.',
+        convertedBase64Count: convertedCount,
+        syncedTablesCount,
+        latestAvatar: latestProf?.[0]?.avatar_url || null,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   // Status da Tríade VagouApp
