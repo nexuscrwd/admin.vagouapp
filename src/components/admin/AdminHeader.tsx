@@ -6,9 +6,12 @@ import {
   User,
   LogOut,
   UserPlus,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { AdminScreenId, SystemAdminUser, AdminAuthTab } from '../../types/admin';
 import { UserAvatar } from '../common/UserAvatar';
+import { useTheme } from '../../context/ThemeContext';
 
 interface AdminHeaderProps {
   currentScreen: AdminScreenId;
@@ -33,6 +36,8 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
   onOpenAuthModal,
   onLogout,
 }) => {
+  const { isDark, toggleTheme } = useTheme();
+
   const getScreenTitle = (screen: AdminScreenId) => {
     switch (screen) {
       case 'dashboard':
@@ -54,64 +59,70 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
     }
   };
 
-  const getInitials = (name: string) => {
-    if (!name) return 'AD';
-    const parts = name.trim().split(' ');
-    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  };
-
   return (
-    <header className="h-16 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 lg:px-6 flex items-center justify-between gap-4 sticky top-0 z-20">
-      {/* Left: Mobile trigger (if any) & Breadcrumbs */}
+    <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 lg:px-6 flex items-center justify-between gap-4 sticky top-0 z-20 shadow-xs dark:shadow-none transition-colors">
+      {/* Left: Mobile trigger & Breadcrumbs */}
       <div className="flex items-center gap-3">
         {onOpenMobileSidebar && (
           <button
             onClick={onOpenMobileSidebar}
-            className="lg:hidden p-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white transition cursor-pointer"
+            className="lg:hidden p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition cursor-pointer"
           >
             <Menu className="w-5 h-5" />
           </button>
         )}
 
         <div>
-          <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
+          <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 font-medium">
             <span>Admin Master</span>
             <span>/</span>
-            <span className="text-emerald-400 capitalize">{currentScreen}</span>
+            <span className="text-emerald-600 dark:text-emerald-400 capitalize">{currentScreen}</span>
           </div>
-          <h1 className="text-sm lg:text-base font-bold text-white tracking-tight">
+          <h1 className="text-sm lg:text-base font-bold text-slate-900 dark:text-white tracking-tight">
             {getScreenTitle(currentScreen)}
           </h1>
         </div>
       </div>
 
-      {/* Center/Right: Search bar & Quick actions */}
-      <div className="flex items-center gap-2.5 sm:gap-3">
-        <div className="hidden sm:flex items-center bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 w-48 lg:w-72 focus-within:border-emerald-500 transition">
-          <Search className="w-4 h-4 text-slate-400 mr-2 shrink-0" />
+      {/* Center/Right: Search bar, Theme toggle & Quick actions */}
+      <div className="flex items-center gap-2 sm:gap-2.5">
+        <div className="hidden sm:flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 w-44 lg:w-64 focus-within:border-emerald-500 transition shadow-xs dark:shadow-none">
+          <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 mr-2 shrink-0" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Pesquisar salão, slug, responsável..."
-            className="w-full bg-transparent text-xs text-white placeholder-slate-500 outline-none"
+            className="w-full bg-transparent text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 outline-none"
           />
         </div>
+
+        {/* Theme Switcher Button */}
+        <button
+          onClick={toggleTheme}
+          title={isDark ? 'Alternar para Tema Claro' : 'Alternar para Tema Escuro'}
+          className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-amber-500 dark:text-amber-400 transition cursor-pointer shadow-xs dark:shadow-none"
+        >
+          {isDark ? (
+            <Sun className="w-4 h-4 text-amber-400" />
+          ) : (
+            <Moon className="w-4 h-4 text-slate-700" />
+          )}
+        </button>
 
         {/* Refresh Supabase Data */}
         <button
           onClick={onRefresh}
           disabled={isRefreshing}
           title="Recarregar dados do banco de dados"
-          className="p-2 rounded-lg bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white hover:bg-slate-700 transition cursor-pointer disabled:opacity-50"
+          className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer disabled:opacity-50 shadow-xs dark:shadow-none"
         >
-          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-400' : ''}`} />
+          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-500' : ''}`} />
         </button>
 
         {/* Admin Auth Area */}
         {adminUser ? (
-          <div className="flex items-center gap-2 pl-2 border-l border-slate-800">
+          <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-800">
             <button
               onClick={() => onOpenAuthModal && onOpenAuthModal('login')}
               className="flex items-center gap-2 hover:opacity-90 transition cursor-pointer text-left"
@@ -122,10 +133,10 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
                 size="sm"
               />
               <div className="hidden xl:block">
-                <span className="text-xs font-bold text-white block leading-tight truncate max-w-[120px]">
+                <span className="text-xs font-bold text-slate-900 dark:text-white block leading-tight truncate max-w-[120px]">
                   {adminUser.full_name.split(' ')[0]}
                 </span>
-                <span className="text-[10px] text-emerald-400 block font-mono">@{adminUser.username}</span>
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block font-mono">@{adminUser.username}</span>
               </div>
             </button>
 
@@ -133,25 +144,25 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
               <button
                 onClick={onLogout}
                 title="Encerrar Sessão"
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 transition cursor-pointer border border-slate-700/60 ml-1"
+                className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/80 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-300 transition cursor-pointer border border-slate-200 dark:border-slate-700/60 ml-1"
               >
                 <LogOut className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
         ) : (
-          <div className="flex items-center gap-1.5 pl-2 border-l border-slate-800">
+          <div className="flex items-center gap-1.5 pl-2 border-l border-slate-200 dark:border-slate-800">
             <button
               onClick={() => onOpenAuthModal && onOpenAuthModal('login')}
-              className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 border border-slate-700/80"
+              className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 border border-slate-200 dark:border-slate-700/80 shadow-xs dark:shadow-none"
             >
-              <User className="w-3.5 h-3.5 text-emerald-400" />
+              <User className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               <span>Acessar</span>
             </button>
 
             <button
               onClick={() => onOpenAuthModal && onOpenAuthModal('register')}
-              className="px-2.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shadow-xs"
+              className="px-2.5 py-1.5 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shadow-xs"
             >
               <UserPlus className="w-3.5 h-3.5 text-white" />
               <span className="hidden sm:inline">Cadastrar</span>

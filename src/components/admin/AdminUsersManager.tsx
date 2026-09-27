@@ -7,7 +7,6 @@ import {
   Search,
   Plus,
   RefreshCw,
-  Shield,
   CheckCircle2,
   XCircle,
   User,
@@ -100,54 +99,58 @@ export const AdminUsersManager: React.FC = () => {
       setAdmins((prev) =>
         prev.map((a) => (a.id === admin.id ? { ...a, role: newRole } : a))
       );
-      triggerFeedback(`Privilégios de @${admin.username} alterados para ${newRole.toUpperCase()}.`);
+      triggerFeedback(`Privilégios de @${admin.username} atualizados para ${newRole === 'superadmin' ? 'Superadmin' : newRole === 'moderator' ? 'Moderador' : 'Suporte'}.`);
     }
   };
 
-  // Handlers para Dependentes (Soft Unlink de Titularidade com Preservação de Histórico)
-  const handleUnlinkDependent = async (dependent: UserFamilyDependent) => {
-    if (window.confirm(`Tem certeza que deseja desvincular ${dependent.full_name} da titularidade de ${dependent.parent_name}? O histórico de atendimentos e a identidade global continuarão preservados no ecossistema Vagou.`)) {
-      await unlinkClientDependent(dependent.id);
+  // Handlers para Dependentes / Conta Família
+  const handleUnlinkDependent = async (dep: UserFamilyDependent) => {
+    if (
+      !confirm(
+        `Desvincular dependente "${dep.full_name}" do titular?\n\nO registro e histórico de agendamentos no banco continuarão preservados conforme a Lei da Tríade.`
+      )
+    ) {
+      return;
+    }
+
+    const res = await unlinkClientDependent(dep.id);
+    if (res.success) {
       setClients((prev) =>
-        prev.map((client) => {
-          if (client.id === dependent.parent_client_id) {
-            return {
-              ...client,
-              dependents: client.dependents.map((d) =>
-                d.id === dependent.id ? { ...d, is_unlinked: true, unlinked_at: new Date().toISOString() } : d
-              ),
-            };
-          }
-          return client;
-        })
+        prev.map((c) => ({
+          ...c,
+          dependents: c.dependents.map((d) => (d.id === dep.id ? { ...d, is_unlinked: true } : d)),
+        }))
       );
-      triggerFeedback(`Dependente ${dependent.full_name} desvinculado com sucesso! Dados históricos mantidos intactos.`);
+      triggerFeedback(`Dependente "${dep.full_name}" desvinculado com sucesso. Registro histórico preservado.`);
     }
   };
 
-  // Handlers para Profissionais (Soft Unlink de Salão)
+  // Handlers para Prestadores
   const handleUnlinkProfessional = async (prof: UserProfessionalItem) => {
-    if (window.confirm(`Desvincular o profissional ${prof.full_name} do estabelecimento "${prof.current_salon_name}"? Ele continuará no ecossistema com todo o histórico de faturamento e agendamentos preservado para contratação futura.`)) {
-      await unlinkProfessionalFromSalon(prof.id);
+    if (!prof.current_salon_id) return;
+    if (
+      !confirm(
+        `Desvincular o profissional "${prof.full_name}" do estabelecimento "${prof.current_salon_name}"?\n\nO profissional permanecerá registrado no banco para atuar em outros salões da rede.`
+      )
+    ) {
+      return;
+    }
+
+    const res = await unlinkProfessionalFromSalon(prof.id, prof.current_salon_id);
+    if (res.success) {
       setProfessionals((prev) =>
         prev.map((p) =>
           p.id === prof.id
-            ? {
-                ...p,
-                current_salon_id: null,
-                current_salon_name: 'Disponível no Ecossistema',
-                status: 'unlinked_from_salon',
-                unlinked_from_salon_at: new Date().toISOString(),
-              }
+            ? { ...p, current_salon_id: undefined, current_salon_name: undefined }
             : p
         )
       );
-      triggerFeedback(`Profissional ${prof.full_name} dispensado do salão. Registro global ativo no banco.`);
+      triggerFeedback(`Profissional "${prof.full_name}" desvinculado do salão. Registro global ativo.`);
     }
   };
 
-  // Filtros de busca
-  const q = search.toLowerCase().trim();
+  // Filtros em memória
+  const q = search.trim().toLowerCase();
 
   const filteredAdmins = useMemo(() => {
     if (!q) return admins;
@@ -198,16 +201,16 @@ export const AdminUsersManager: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Top Banner de Governança de Usuários */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 shadow-xs">
+      <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 shadow-xs dark:shadow-none">
         <div className="flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
-            <Users className="w-6 h-6 text-emerald-400" />
+          <div className="w-11 h-11 rounded-xl bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 flex items-center justify-center shrink-0">
+            <Users className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+            <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
               Gestão Centralizada de Usuários & Contas
             </h2>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               CRUD global com controle granular de privilégios e preservação histórica de titulares e colaboradores.
             </p>
           </div>
@@ -218,16 +221,16 @@ export const AdminUsersManager: React.FC = () => {
           <button
             onClick={loadAll}
             disabled={isLoading}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer border border-slate-700"
+            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition cursor-pointer border border-slate-200 dark:border-slate-700 shadow-xs dark:shadow-none"
             title="Recarregar Dados"
           >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-emerald-400' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-emerald-600 dark:text-emerald-400' : ''}`} />
           </button>
 
           {activeTab === 'admins' && (
             <button
               onClick={() => setIsCreateAdminModalOpen(true)}
-              className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-md shadow-emerald-950/40 cursor-pointer"
+              className="px-3.5 py-2 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center gap-1.5 shadow-md shadow-emerald-500/20 cursor-pointer active:scale-95"
             >
               <Plus className="w-4 h-4 text-white" />
               <span>Novo Administrador</span>
@@ -238,28 +241,28 @@ export const AdminUsersManager: React.FC = () => {
 
       {/* Alerta de Feedback de Ações */}
       {actionFeedback && (
-        <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-400 font-semibold animate-fadeIn flex items-center gap-2 shadow-xs">
-          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+        <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-xs text-emerald-700 dark:text-emerald-400 font-semibold animate-fadeIn flex items-center gap-2 shadow-xs">
+          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
           <span>{actionFeedback}</span>
         </div>
       )}
 
       {/* Caixa de Regra de Negócio: Preservação de Identidade & Unlink */}
-      <div className="p-3.5 rounded-xl bg-blue-950/20 border border-blue-500/30 flex items-start gap-3 text-xs text-slate-300">
-        <Info className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+      <div className="p-3.5 rounded-xl bg-blue-50/80 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-500/30 flex items-start gap-3 text-xs text-blue-900 dark:text-slate-300 shadow-xs">
+        <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
         <div className="space-y-1">
-          <strong className="text-blue-300 block">Regra de Ouro da Tríade: Desvinculação com Preservação Global</strong>
+          <strong className="text-blue-950 dark:text-blue-300 block">Regra de Ouro da Tríade: Desvinculação com Preservação Global</strong>
           <span>
             Ao desvincular um dependente de um titular ou dispensar um profissional de um salão, os registros <strong>jamais são deletados fisicamente do banco</strong>. O histórico de atendimentos, faturas e auditoria fiscal permanece 100% íntegro.
           </span>
-          <span className="block text-[11px] text-emerald-400 font-mono pt-0.5">
+          <span className="block text-[11px] text-emerald-700 dark:text-emerald-400 font-mono pt-0.5">
             ✓ Sincronização de Sessão Ativa: Dados cadastrais mestres (e-mail, telefone e nome) 100% pareados com o Supabase conforme Comunicado Técnico do mnvapp.
           </span>
         </div>
       </div>
 
       {/* Navegação por Abas (4 Categorias de Usuários) */}
-      <div className="p-1 rounded-xl bg-slate-900 border border-slate-800 flex flex-wrap items-center gap-1">
+      <div className="p-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-1 shadow-xs dark:shadow-none">
         <button
           onClick={() => {
             setActiveTab('admins');
@@ -267,8 +270,8 @@ export const AdminUsersManager: React.FC = () => {
           }}
           className={`flex-1 min-w-[140px] py-2 px-3 rounded-lg text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 ${
             activeTab === 'admins'
-              ? 'bg-emerald-500 text-white shadow-xs'
-              : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              ? 'bg-[#20C933] text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           <ShieldCheck className="w-4 h-4" />
@@ -282,8 +285,8 @@ export const AdminUsersManager: React.FC = () => {
           }}
           className={`flex-1 min-w-[140px] py-2 px-3 rounded-lg text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 ${
             activeTab === 'clients'
-              ? 'bg-emerald-500 text-white shadow-xs'
-              : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              ? 'bg-[#20C933] text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           <User className="w-4 h-4" />
@@ -297,8 +300,8 @@ export const AdminUsersManager: React.FC = () => {
           }}
           className={`flex-1 min-w-[140px] py-2 px-3 rounded-lg text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 ${
             activeTab === 'salon_users'
-              ? 'bg-emerald-500 text-white shadow-xs'
-              : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              ? 'bg-[#20C933] text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           <Building2 className="w-4 h-4" />
@@ -312,8 +315,8 @@ export const AdminUsersManager: React.FC = () => {
           }}
           className={`flex-1 min-w-[140px] py-2 px-3 rounded-lg text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 ${
             activeTab === 'professionals'
-              ? 'bg-emerald-500 text-white shadow-xs'
-              : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              ? 'bg-[#20C933] text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
           <Scissors className="w-4 h-4" />
@@ -322,9 +325,9 @@ export const AdminUsersManager: React.FC = () => {
       </div>
 
       {/* Barra de Busca Universal */}
-      <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between gap-3">
-        <div className="flex items-center bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 flex-1 max-w-md">
-          <Search className="w-4 h-4 text-slate-400 mr-2 shrink-0" />
+      <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 shadow-xs dark:shadow-none">
+        <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 flex-1 max-w-md shadow-xs dark:shadow-none">
+          <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 mr-2 shrink-0" />
           <input
             type="text"
             placeholder={
@@ -338,11 +341,11 @@ export const AdminUsersManager: React.FC = () => {
             }
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-transparent text-xs text-white placeholder-slate-500 outline-none"
+            className="w-full bg-transparent text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 outline-none"
           />
         </div>
 
-        <span className="text-xs text-slate-400 hidden sm:inline font-mono">
+        <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:inline font-mono">
           {activeTab === 'admins' && `${filteredAdmins.length} registros`}
           {activeTab === 'clients' && `${filteredClients.length} titulares`}
           {activeTab === 'salon_users' && `${filteredSalonUsers.length} credenciais`}
@@ -354,10 +357,10 @@ export const AdminUsersManager: React.FC = () => {
       {/* ABA 1: ADMINISTRADORES (PROMOÇÃO A GERENCIADOR / LIMITADO)*/}
       {/* ======================================================== */}
       {activeTab === 'admins' && (
-        <div className="rounded-xl bg-slate-900 border border-slate-800 overflow-hidden shadow-xs">
+        <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs dark:shadow-none">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs min-w-[700px]">
-              <thead className="bg-slate-950/80 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800 select-none">
+              <thead className="bg-slate-100 dark:bg-slate-950/80 text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 select-none">
                 <tr>
                   <th className="py-3 px-4 font-semibold">Administrador</th>
                   <th className="py-3 px-4 font-semibold">Contato</th>
@@ -366,16 +369,16 @@ export const AdminUsersManager: React.FC = () => {
                   <th className="py-3 px-4 font-semibold text-right">Ações & Promoção</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/80">
+              <tbody className="divide-y divide-slate-200/80 dark:divide-slate-800/80">
                 {filteredAdmins.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-slate-400">
+                    <td colSpan={5} className="py-8 text-center text-slate-500 dark:text-slate-400">
                       Nenhum administrador encontrado com o termo pesquisado.
                     </td>
                   </tr>
                 ) : (
                   filteredAdmins.map((admin) => (
-                    <tr key={admin.id} className="hover:bg-slate-850/50 transition">
+                    <tr key={admin.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition">
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2.5">
                           <UserAvatar
@@ -383,77 +386,70 @@ export const AdminUsersManager: React.FC = () => {
                             size="sm"
                           />
                           <div>
-                            <strong className="text-white block font-medium">{admin.full_name}</strong>
-                            <span className="text-[11px] text-emerald-400 font-mono">@{admin.username}</span>
+                            <strong className="text-slate-900 dark:text-white block font-medium">{admin.full_name}</strong>
+                            <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-mono">@{admin.username}</span>
                           </div>
                         </div>
                       </td>
 
                       <td className="py-3 px-4">
                         <div className="text-[11px] space-y-0.5">
-                          <span className="text-slate-200 block">{admin.email}</span>
-                          <span className="text-slate-400 font-mono block">{admin.phone_whatsapp}</span>
+                          <span className="text-slate-800 dark:text-slate-200 block">{admin.email}</span>
+                          <span className="text-slate-500 dark:text-slate-400 font-mono block">{admin.phone_whatsapp}</span>
                         </div>
                       </td>
 
                       <td className="py-3 px-4">
                         <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-bold border ${
                             admin.role === 'superadmin'
-                              ? 'bg-purple-500/10 text-purple-300 border-purple-500/20'
+                              ? 'bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-500/30'
                               : admin.role === 'moderator'
-                              ? 'bg-blue-500/10 text-blue-300 border-blue-500/20'
-                              : 'bg-slate-800 text-slate-300 border-slate-700'
+                              ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
                           }`}
                         >
-                          <Shield className="w-3 h-3" />
-                          {admin.role === 'superadmin'
-                            ? 'Super Admin (Irrestrito)'
-                            : admin.role === 'moderator'
-                            ? 'Gerenciador (Privilégios Amplos)'
-                            : 'Operador Limitado'}
+                          {admin.role === 'superadmin' ? 'Superadmin Master' : admin.role === 'moderator' ? 'Moderador de Salões' : 'Suporte Operacional'}
                         </span>
                       </td>
 
                       <td className="py-3 px-4">
-                        {admin.is_active ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] text-emerald-400 font-bold">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            Ativo
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[11px] text-rose-400 font-bold">
-                            <XCircle className="w-3.5 h-3.5" />
-                            Inativo
-                          </span>
-                        )}
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                            admin.is_active
+                              ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30'
+                              : 'bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-500/30'
+                          }`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${admin.is_active ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-rose-500 dark:bg-rose-400'}`} />
+                          {admin.is_active ? 'Ativo' : 'Inativo'}
+                        </span>
                       </td>
 
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {/* Botão de Promoção / Mudança de Privilégio */}
+                          {/* Botão de Toggle Ativo/Inativo */}
+                          <button
+                            onClick={() => handleToggleAdminStatus(admin)}
+                            className={`px-2 py-1 rounded text-[10px] font-bold transition cursor-pointer border ${
+                              admin.is_active
+                                ? 'bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-500/30'
+                                : 'bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30'
+                            }`}
+                          >
+                            {admin.is_active ? 'Suspender' : 'Reativar'}
+                          </button>
+
+                          {/* Seletor de Papel / Promoção */}
                           <select
                             value={admin.role}
                             onChange={(e) => handlePromoteAdmin(admin, e.target.value as any)}
-                            className="bg-slate-950 border border-slate-800 text-slate-300 text-[11px] rounded-lg px-2 py-1 outline-none focus:border-emerald-500 cursor-pointer"
-                            title="Alterar nível de privilégio"
+                            className="bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[10px] text-slate-800 dark:text-slate-300 rounded px-1.5 py-1 outline-none cursor-pointer"
                           >
                             <option value="superadmin">Superadmin</option>
-                            <option value="moderator">Gerenciador</option>
-                            <option value="support">Limitado</option>
+                            <option value="moderator">Moderador</option>
+                            <option value="support">Suporte</option>
                           </select>
-
-                          {/* Alternar Status Ativo / Inativo */}
-                          <button
-                            onClick={() => handleToggleAdminStatus(admin)}
-                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer border ${
-                              admin.is_active
-                                ? 'bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 border-slate-700'
-                                : 'bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-500'
-                            }`}
-                          >
-                            {admin.is_active ? 'Desativar' : 'Ativar'}
-                          </button>
                         </div>
                       </td>
                     </tr>
@@ -473,23 +469,24 @@ export const AdminUsersManager: React.FC = () => {
           {filteredClients.map((client) => (
             <div
               key={client.id}
-              className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3 hover:border-slate-700 transition"
+              className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3 hover:border-slate-300 dark:hover:border-slate-700 transition shadow-xs dark:shadow-none"
             >
               {/* Header do Titular */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2.5 border-b border-slate-800/80">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2.5 border-b border-slate-200 dark:border-slate-800/80">
                 <div className="flex items-center gap-3">
                   <UserAvatar
+                    photoUrl={client.avatar_url}
                     name={client.full_name}
                     size="lg"
                   />
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="font-bold text-white text-sm tracking-tight">{client.full_name}</h3>
-                      <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase">
+                      <h3 className="font-bold text-slate-900 dark:text-white text-sm tracking-tight">{client.full_name}</h3>
+                      <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 uppercase">
                         Titular
                       </span>
                     </div>
-                    <div className="flex flex-wrap items-center gap-x-2.5 text-xs text-slate-400 mt-0.5">
+                    <div className="flex flex-wrap items-center gap-x-2.5 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                       <span>{client.email}</span>
                       <span>•</span>
                       <span className="font-mono">{client.phone}</span>
@@ -500,11 +497,11 @@ export const AdminUsersManager: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-2 self-start sm:self-auto text-xs">
-                  <span className="text-slate-400">
-                    Agendamentos: <strong className="text-white">{client.total_appointments}</strong>
+                  <span className="text-slate-500 dark:text-slate-400">
+                    Agendamentos: <strong className="text-slate-900 dark:text-white">{client.total_appointments}</strong>
                   </span>
                   {client.no_show_count > 0 && (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30">
                       {client.no_show_count} no-shows
                     </span>
                   )}
@@ -512,13 +509,13 @@ export const AdminUsersManager: React.FC = () => {
               </div>
 
               {/* Lista de Dependentes Vinculados ao Titular */}
-              <div className="bg-slate-950/70 p-3 rounded-lg border border-slate-800/80 space-y-2">
-                <div className="flex items-center justify-between text-xs text-slate-400 font-medium pb-1 border-b border-slate-800/50">
-                  <span className="flex items-center gap-1.5 text-slate-300">
-                    <Users className="w-3.5 h-3.5 text-emerald-400" />
+              <div className="bg-slate-50 dark:bg-slate-950/70 p-3 rounded-lg border border-slate-200 dark:border-slate-800/80 space-y-2">
+                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-medium pb-1 border-b border-slate-200 dark:border-slate-800/50">
+                  <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                    <Users className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                     <span>Dependentes Cadastrados ({client.dependents.length})</span>
                   </span>
-                  <span className="text-[10px] text-slate-400">Conta Família</span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400">Conta Família</span>
                 </div>
 
                 {client.dependents.length === 0 ? (
@@ -528,25 +525,25 @@ export const AdminUsersManager: React.FC = () => {
                     {client.dependents.map((dep) => (
                       <div
                         key={dep.id}
-                        className={`p-2.5 rounded-lg border flex items-center justify-between gap-2 text-xs transition ${
+                        className={`p-2.5 rounded-lg border flex items-center justify-between gap-2 text-xs transition shadow-2xs ${
                           dep.is_unlinked
-                            ? 'bg-slate-900/60 border-slate-800 text-slate-400 opacity-70'
-                            : 'bg-slate-900 border-slate-800 text-slate-200'
+                            ? 'bg-slate-100 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-400 opacity-70'
+                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200'
                         }`}
                       >
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-white truncate">{dep.full_name}</span>
-                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 border border-slate-700 font-mono">
+                            <span className="font-bold text-slate-900 dark:text-white truncate">{dep.full_name}</span>
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-mono">
                               {dep.relationship === 'son' ? 'Filho' : dep.relationship === 'spouse' ? 'Cônjuge' : dep.relationship === 'parent' ? 'Mãe/Pai' : 'Dependente'}
                             </span>
                           </div>
                           {dep.is_unlinked ? (
-                            <span className="text-[10px] text-rose-400 block mt-0.5">
+                            <span className="text-[10px] text-rose-600 dark:text-rose-400 block mt-0.5">
                               Desvinculado pelo titular (Identidade preservada no banco)
                             </span>
                           ) : (
-                            <span className="text-[10px] text-slate-400 block mt-0.5 truncate">
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5 truncate">
                               {dep.notes || 'Atendido sob tutela do titular'}
                             </span>
                           )}
@@ -556,13 +553,13 @@ export const AdminUsersManager: React.FC = () => {
                         {!dep.is_unlinked ? (
                           <button
                             onClick={() => handleUnlinkDependent(dep)}
-                            className="px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[10px] font-bold transition cursor-pointer shrink-0"
+                            className="px-2 py-1 rounded bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30 text-[10px] font-bold transition cursor-pointer shrink-0"
                             title="Desvincular dependente desta conta familiar mantendo registro histórico"
                           >
                             Desvincular
                           </button>
                         ) : (
-                          <span className="text-[10px] font-mono text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800 shrink-0">
+                          <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-200 dark:bg-slate-950 px-2 py-0.5 rounded border border-slate-300 dark:border-slate-800 shrink-0">
                             Histórico
                           </span>
                         )}
@@ -580,10 +577,10 @@ export const AdminUsersManager: React.FC = () => {
       {/* ABA 3: USUÁRIOS DE SALÃO & ACESSOS AUTORIZADOS           */}
       {/* ======================================================== */}
       {activeTab === 'salon_users' && (
-        <div className="rounded-xl bg-slate-900 border border-slate-800 overflow-hidden shadow-xs">
+        <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs dark:shadow-none">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs min-w-[700px]">
-              <thead className="bg-slate-950/80 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800 select-none">
+              <thead className="bg-slate-100 dark:bg-slate-950/80 text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 select-none">
                 <tr>
                   <th className="py-3 px-4 font-semibold">Usuário Responsável</th>
                   <th className="py-3 px-4 font-semibold">Estabelecimento Vinculado</th>
@@ -592,35 +589,36 @@ export const AdminUsersManager: React.FC = () => {
                   <th className="py-3 px-4 font-semibold text-right">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/80">
+              <tbody className="divide-y divide-slate-200/80 dark:divide-slate-800/80">
                 {filteredSalonUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-slate-400">
+                    <td colSpan={5} className="py-8 text-center text-slate-500 dark:text-slate-400">
                       Nenhum usuário de salão encontrado.
                     </td>
                   </tr>
                 ) : (
                   filteredSalonUsers.map((su) => (
-                    <tr key={su.id} className="hover:bg-slate-850/50 transition">
+                    <tr key={su.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition">
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2.5">
                           <UserAvatar
+                            photoUrl={su.avatar_url}
                             name={su.full_name}
                             size="sm"
                           />
                           <div>
-                            <strong className="text-white block font-medium">{su.full_name}</strong>
-                            <span className="text-[11px] text-slate-400 font-mono">{su.email}</span>
+                            <strong className="text-slate-900 dark:text-white block font-medium">{su.full_name}</strong>
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">{su.email}</span>
                           </div>
                         </div>
                       </td>
 
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-1.5">
-                          <Building2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                          <span className="text-slate-200 font-semibold truncate max-w-[200px]">{su.salon_name}</span>
+                          <Building2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          <span className="text-slate-800 dark:text-slate-200 font-semibold truncate max-w-[200px]">{su.salon_name}</span>
                         </div>
-                        <span className="text-[10px] text-slate-400 font-mono block">
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono block">
                           {su.salon_slug}.vagouapp.com
                         </span>
                       </td>
@@ -629,10 +627,10 @@ export const AdminUsersManager: React.FC = () => {
                         <span
                           className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-bold border ${
                             su.role === 'owner'
-                              ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                              ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30'
                               : su.role === 'manager'
-                              ? 'bg-blue-500/10 text-blue-300 border-blue-500/30'
-                              : 'bg-slate-800 text-slate-300 border-slate-700'
+                              ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
                           }`}
                         >
                           {su.role === 'owner' ? 'Proprietário (Dono)' : su.role === 'manager' ? 'Gerente Geral' : 'Recepção / Caixa'}
@@ -640,11 +638,11 @@ export const AdminUsersManager: React.FC = () => {
                       </td>
 
                       <td className="py-3 px-4">
-                        <span className="text-slate-300 font-mono text-[11px]">{su.phone_whatsapp}</span>
+                        <span className="text-slate-800 dark:text-slate-300 font-mono text-[11px]">{su.phone_whatsapp}</span>
                       </td>
 
                       <td className="py-3 px-4 text-right">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20">
                           Autorizado
                         </span>
                       </td>
@@ -661,10 +659,10 @@ export const AdminUsersManager: React.FC = () => {
       {/* ABA 4: PRESTADORES DE SERVIÇO & PROFISSIONAIS            */}
       {/* ======================================================== */}
       {activeTab === 'professionals' && (
-        <div className="rounded-xl bg-slate-900 border border-slate-800 overflow-hidden shadow-xs">
+        <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs dark:shadow-none">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs min-w-[700px]">
-              <thead className="bg-slate-950/80 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800 select-none">
+              <thead className="bg-slate-100 dark:bg-slate-950/80 text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 select-none">
                 <tr>
                   <th className="py-3 px-4 font-semibold">Profissional & Especialidades</th>
                   <th className="py-3 px-4 font-semibold">Salão Vinculado</th>
@@ -673,16 +671,16 @@ export const AdminUsersManager: React.FC = () => {
                   <th className="py-3 px-4 font-semibold text-right">Ação / Desvincular</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/80">
+              <tbody className="divide-y divide-slate-200/80 dark:divide-slate-800/80">
                 {filteredProfessionals.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-slate-400">
+                    <td colSpan={5} className="py-8 text-center text-slate-500 dark:text-slate-400">
                       Nenhum profissional encontrado.
                     </td>
                   </tr>
                 ) : (
                   filteredProfessionals.map((prof) => (
-                    <tr key={prof.id} className="hover:bg-slate-850/50 transition">
+                    <tr key={prof.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition">
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2.5">
                           <UserAvatar
@@ -691,14 +689,14 @@ export const AdminUsersManager: React.FC = () => {
                             size="sm"
                           />
                           <div>
-                            <strong className="text-white block font-medium">
+                            <strong className="text-slate-900 dark:text-white block font-medium">
                               {prof.full_name} {prof.nickname && `(${prof.nickname})`}
                             </strong>
                             <div className="flex flex-wrap gap-1 mt-0.5">
                               {prof.specialties.map((s, idx) => (
                                 <span
                                   key={idx}
-                                  className="text-[9px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 border border-slate-700"
+                                  className="text-[9px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
                                 >
                                   {s}
                                 </span>
@@ -711,30 +709,30 @@ export const AdminUsersManager: React.FC = () => {
                       <td className="py-3 px-4">
                         {prof.current_salon_id ? (
                           <div className="space-y-0.5">
-                            <span className="text-emerald-400 font-bold block truncate max-w-[180px]">
+                            <span className="text-emerald-700 dark:text-emerald-400 font-bold block truncate max-w-[180px]">
                               {prof.current_salon_name}
                             </span>
-                            <span className="text-[10px] text-slate-400 font-mono block">Cadeira ativa</span>
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono block">Cadeira ativa</span>
                           </div>
                         ) : (
-                          <span className="text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 text-[10px]">
+                          <span className="text-amber-700 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-500/20 text-[10px]">
                             Disponível no Ecossistema
                           </span>
                         )}
                       </td>
 
                       <td className="py-3 px-4">
-                        <span className="text-slate-200 block font-medium">
+                        <span className="text-slate-800 dark:text-slate-200 block font-medium">
                           {prof.contract_type === 'partner_mei' ? 'MEI Parceiro' : 'CLT'}
                         </span>
-                        <span className="text-[10px] text-emerald-400 font-mono font-bold block">
+                        <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-mono font-bold block">
                           Comissão: {prof.commission_percent}%
                         </span>
                       </td>
 
                       <td className="py-3 px-4">
-                        <span className="text-slate-200 block font-bold">⭐ {prof.rating.toFixed(2)}</span>
-                        <span className="text-[10px] text-slate-400 block">
+                        <span className="text-slate-900 dark:text-white block font-bold">⭐ {prof.rating.toFixed(2)}</span>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
                           {prof.total_services_done} atendimentos realizados
                         </span>
                       </td>
@@ -743,13 +741,13 @@ export const AdminUsersManager: React.FC = () => {
                         {prof.current_salon_id ? (
                           <button
                             onClick={() => handleUnlinkProfessional(prof)}
-                            className="px-2.5 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[11px] font-bold transition cursor-pointer"
+                            className="px-2.5 py-1 rounded bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30 text-[11px] font-bold transition cursor-pointer"
                             title="Dispensar/desvincular profissional do salão mantendo registro global no Vagou"
                           >
                             Dispensar do Salão
                           </button>
                         ) : (
-                          <span className="text-[10px] text-slate-400 font-mono bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono bg-slate-100 dark:bg-slate-950 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-800">
                             Sem Salão Ativo
                           </span>
                         )}

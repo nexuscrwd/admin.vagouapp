@@ -26,7 +26,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   currentScreen,
   onSelectScreen,
   onCloseMobile,
-  pendingCount = 0,
 }) => {
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
     try {
@@ -61,7 +60,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
 
   return (
     <aside
-      className={`bg-slate-900 border-r border-slate-800 flex flex-col justify-between h-full select-none shrink-0 z-30 transition-all duration-300 ease-in-out ${
+      className={`bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col justify-between h-full select-none shrink-0 z-30 transition-all duration-300 ease-in-out shadow-xs dark:shadow-none ${
         isCollapsed ? 'w-20' : 'w-[190px]'
       }`}
     >
@@ -76,7 +75,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           <div className="flex items-center gap-2.5 min-w-0">
             <div
               onClick={toggleCollapsed}
-              className="w-9 h-9 rounded-xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-950/40 shrink-0 cursor-pointer hover:scale-105 transition active:scale-95"
+              className="w-9 h-9 rounded-xl bg-[#20C933] flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0 cursor-pointer hover:scale-105 transition active:scale-95"
               title={isCollapsed ? 'Expandir barra lateral' : 'Recolher para ícones'}
             >
               <span className="text-white font-black text-xl tracking-tighter">V</span>
@@ -85,11 +84,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             {!isCollapsed && (
               <div className="min-w-0 animate-fadeIn">
                 <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-sm tracking-tight text-white font-['Poppins'] truncate">
+                  <span className="font-bold text-sm tracking-tight text-slate-900 dark:text-white font-['Poppins'] truncate">
                     VagouApp
                   </span>
                 </div>
-                <span className="text-[10px] text-slate-400 block font-medium truncate">
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium truncate">
                   Painel de Admin
                 </span>
               </div>
@@ -100,20 +99,20 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           <div className="flex items-center gap-1">
             <button
               onClick={toggleCollapsed}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
               title={isCollapsed ? 'Expandir barra lateral' : 'Recolher para ícones'}
             >
               {isCollapsed ? (
-                <PanelLeftOpen className="w-4 h-4 text-emerald-400" />
+                <PanelLeftOpen className="w-4 h-4 text-emerald-500" />
               ) : (
-                <PanelLeftClose className="w-4 h-4 text-slate-400 hover:text-white" />
+                <PanelLeftClose className="w-4 h-4 text-slate-400 hover:text-slate-700 dark:hover:text-white" />
               )}
             </button>
 
             {onCloseMobile && (
               <button
                 onClick={onCloseMobile}
-                className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
                 title="Fechar Menu"
               >
                 <X className="w-4 h-4" />
@@ -125,7 +124,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         {/* Navigation Items */}
         <nav className="space-y-1">
           {!isCollapsed && (
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-3 block mb-2 animate-fadeIn">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-3 block mb-2 animate-fadeIn">
               Gestão Soberana
             </span>
           )}
@@ -145,30 +144,14 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                   isCollapsed ? 'justify-center p-3' : 'justify-between px-3 py-2.5'
                 } ${
                   isActive
-                    ? 'bg-emerald-500 text-white font-bold shadow-md shadow-emerald-950/50'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    ? 'bg-[#20C933] text-white font-bold shadow-md shadow-emerald-500/20'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-white'}`} />
+                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-700 dark:group-hover:text-white'}`} />
                   {!isCollapsed && <span className="truncate">{item.label}</span>}
                 </div>
-
-                {item.badge !== undefined && (
-                  <span
-                    className={`font-bold transition shrink-0 ${
-                      isCollapsed
-                        ? 'absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-amber-400 ring-2 ring-slate-900'
-                        : `text-[10px] px-1.5 py-0.2 rounded-full ${
-                            isActive
-                              ? 'bg-white text-emerald-800'
-                              : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                          }`
-                    }`}
-                  >
-                    {!isCollapsed && item.badge}
-                  </span>
-                )}
               </button>
             );
           })}

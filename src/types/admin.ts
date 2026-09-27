@@ -187,6 +187,7 @@ export interface UserClientItem {
   email: string;
   phone: string;
   cpf?: string;
+  avatar_url?: string;
   auth_provider: 'google' | 'email' | 'phone';
   is_active: boolean;
   total_appointments: number;
@@ -206,6 +207,7 @@ export interface UserSalonAccessItem {
   full_name: string;
   email: string;
   phone_whatsapp: string;
+  avatar_url?: string;
   role: 'owner' | 'manager' | 'receptionist';
   is_active: boolean;
   can_manage_financial: boolean;

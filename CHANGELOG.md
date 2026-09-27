@@ -15,6 +15,43 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-27] — 📡 Parecer Técnico & Homologação: Identidade Única Global & Avatar Unificado (SSO da Tríade)
+- **Tipo:** `[Tríade / Architecture / Auth / SSO / Governance]`
+- **Origem do Comunicado:** `mnvapp (seunegocio.vagouapp.com)` ➔ **Destinatários:** `pvapp` e `admvapp`.
+- **Ações Técnicas Realizadas no admvapp:**
+  1. **Tipagem Unificada de Avatar:** Adicionada a propriedade `avatar_url?: string` aos modelos `UserClientItem` e `UserSalonAccessItem` em `src/types/admin.ts`.
+  2. **Renderização de Foto Real no Gestor de Usuários:** Atualizado `AdminUsersManager.tsx` para passar `photoUrl` para o componente `UserAvatar` tanto na listagem de clientes quanto na de usuários de salão, mantendo a harmonia com a listagem de profissionais.
+  3. **Parecer Arquitetural Emitido para a Tríade:**
+     - Validação de `auth.users.user_metadata` como fonte global canônica para `full_name`, `phone` e `avatar_url`.
+     - Ajuste na cascata de resolução para evitar vazamento do logotipo comercial da empresa (`salonData.logo_url`) em contextos de pessoa física do consumidor.
+     - Recomendação de vinculação estrita por `auth_user_id` para transição sem atrito entre Consumidor, Profissional e Dono de Salão.
+- **Arquivos Impactados:** `src/types/admin.ts`, `src/components/admin/AdminUsersManager.tsx`, `CHANGELOG.md`.
+
+### [2026-09-27] — ☀️ Implementação Completa do Tema Claro (Light Mode) 100% Bidirecional no admvapp
+- **Tipo:** `[Design System / Theme / Visual Architecture / Accessibility]`
+- **Motivo:** Implementação do suporte nativo e bidirecional a **Tema Claro (Light Mode)** e **Tema Escuro (Dark Mode)** em 100% dos componentes, tabelas, modais, formulários e layouts do `admvapp`, espelhando com rigor o dicionário exaustivo de tokens validado no `mnvapp`.
+- **Ações Técnicas Realizadas:**
+  1. **Infraestrutura de Temas (`src/context/ThemeContext.tsx` e `src/index.css`):**
+     - Criação da variante customizada `@custom-variant dark (&:where(.dark, .dark *));` para compatibilidade total com Tailwind v4.
+     - Persistência e hidratação automática da preferência no `localStorage` (`vagou_theme: 'dark' | 'light'`) e sincronização imediata na tag `<html>` (`classList.add('dark')` / `classList.remove('dark')`).
+     - Alternador visual elegante Sol/Lua no cabeçalho superior (`AdminHeader.tsx`).
+  2. **Dicionário Exaustivo de Design Tokens Aplicado:**
+     - **Canvas Global:** `bg-slate-100 text-slate-900` (Light) vs `bg-slate-950 text-slate-100` (Dark).
+     - **Sidebar & Header:** `bg-white border-slate-200 text-slate-900 shadow-xs` (Light) vs `bg-slate-900 border-slate-800 text-white` (Dark).
+     - **Cards & DataGrids:** `bg-white border-slate-200 text-slate-900 shadow-xs` (Light) vs `bg-slate-900 border-slate-800 text-white shadow-md` (Dark).
+     - **Inputs & Formulários:** `bg-white border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 shadow-xs` (Light) vs `bg-slate-950 border-slate-800 text-white placeholder:text-slate-500` (Dark).
+     - **Modais Corporativos:** `bg-white border-slate-200 text-slate-900 shadow-2xl` com headers em `bg-slate-50` (Light) vs `bg-slate-900 border-slate-800 text-white` (Dark).
+  3. **Componentes 100% Adaptados:**
+     - Layout Master (`AdminMasterApp.tsx`), Cabeçalho (`AdminHeader.tsx`), Barra Lateral (`AdminSidebar.tsx`).
+     - KPIs (`AdminKpiCards.tsx`), Estabelecimentos (`AdminSalonsList.tsx`), Moderação (`AdminModerationPanel.tsx`).
+     - Gestão de Usuários (`AdminUsersManager.tsx`), Agendamentos & Faturamento (`AdminAppointmentsMonitor.tsx`).
+     - Governança da Tríade (`AdminTriadeGovernance.tsx`), Configurações do Sistema (`AdminSettingsPanel.tsx`).
+     - Modais de Criação & Edição: `AdminAuthModal.tsx`, `AdminCreateAdminModal.tsx`, `AdminCreateSalonModal.tsx`, `AdminEditSalonModal.tsx`.
+     - Avatares: `UserAvatar.tsx` com moldura quadrada suavizada e tokens adaptativos para claro e escuro.
+  4. **Preservação Rígida da Regra de Ouro de Contraste:**
+     - Fundo Verde Sólido (`bg-[#20C933]`, `bg-emerald-500`) = OBRIGATORIAMENTE texto e ícones brancos (`text-white`).
+- **Arquivos Impactados:** `src/context/ThemeContext.tsx`, `src/index.css`, `src/components/common/UserAvatar.tsx`, `src/components/admin/AdminMasterApp.tsx`, `src/components/admin/AdminHeader.tsx`, `src/components/admin/AdminSidebar.tsx`, `src/components/admin/AdminKpiCards.tsx`, `src/components/admin/AdminSalonsList.tsx`, `src/components/admin/AdminModerationPanel.tsx`, `src/components/admin/AdminUsersManager.tsx`, `src/components/admin/AdminAppointmentsMonitor.tsx`, `src/components/admin/AdminTriadeGovernance.tsx`, `src/components/admin/AdminSettingsPanel.tsx`, `src/components/admin/AdminAuthModal.tsx`, `src/components/admin/AdminCreateAdminModal.tsx`, `src/components/admin/AdminCreateSalonModal.tsx`, `src/components/admin/AdminEditSalonModal.tsx`, `src/services/supabaseApi.ts`, `CHANGELOG.md`.
+
 ### [2026-09-27] — 🖼️ Refinamento Visual: Adoção Estrita do Modelo Moldura Quadrada para Avatares
 - **Tipo:** `[Design System / Visual Refinement / UI/UX]`
 - **Motivo:** Ajuste do contêiner de avatar do componente `UserAvatar.tsx` para o modelo oficial de **moldura quadrada com cantos suavemente arredondados** (`rounded-xl` / `rounded-lg`), em alinhamento exato com a captura de tela de referência do `mnvapp`.

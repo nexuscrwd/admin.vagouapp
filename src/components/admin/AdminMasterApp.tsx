@@ -172,7 +172,7 @@ export const AdminMasterApp: React.FC = () => {
       </div>
 
       {/* 2. Main Content Area */}
-      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden bg-slate-950">
+      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden bg-slate-100/70 dark:bg-slate-950 transition-colors">
         {/* Header */}
         <AdminHeader
           currentScreen={currentScreen}
@@ -194,19 +194,19 @@ export const AdminMasterApp: React.FC = () => {
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Moderation Fast Action */}
-                <div className="lg:col-span-2 p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+                <div className="lg:col-span-2 p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 shadow-xs dark:shadow-md">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h2 className="text-sm font-bold text-white tracking-tight">
+                      <h2 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">
                         Fila Rápida de Moderação
                       </h2>
-                      <p className="text-xs text-slate-400">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
                         {metrics.pendingSalons + metrics.incompleteSalons} salões aguardando liberação
                       </p>
                     </div>
                     <button
                       onClick={() => setCurrentScreen('salons')}
-                      className="text-xs text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 transition cursor-pointer"
+                      className="text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 font-bold flex items-center gap-1 transition cursor-pointer"
                     >
                       <span>Ver fila completa</span>
                       <ArrowRight className="w-3.5 h-3.5" />
@@ -222,15 +222,15 @@ export const AdminMasterApp: React.FC = () => {
                 </div>
 
                 {/* Direct Actions & Quick Links */}
-                <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 flex flex-col justify-between">
+                <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 flex flex-col justify-between shadow-xs dark:shadow-md">
                   <div>
-                    <h2 className="text-sm font-bold text-white tracking-tight">Ações Executivas</h2>
-                    <p className="text-xs text-slate-400">Gestão imediata do cluster</p>
+                    <h2 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Ações Executivas</h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Gestão imediata do cluster</p>
 
                     <div className="mt-4 space-y-2.5">
                       <button
                         onClick={() => setIsCreateModalOpen(true)}
-                        className="w-full py-2.5 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-emerald-950/40"
+                        className="w-full py-2.5 px-3 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-emerald-500/20 active:scale-95"
                       >
                         <Plus className="w-4 h-4 text-white" />
                         <span>Cadastrar Estabelecimento</span>
@@ -238,24 +238,24 @@ export const AdminMasterApp: React.FC = () => {
 
                       <button
                         onClick={() => setCurrentScreen('settings')}
-                        className="w-full py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition flex items-center justify-center gap-2 cursor-pointer border border-slate-700/60"
+                        className="w-full py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-xs transition flex items-center justify-center gap-2 cursor-pointer border border-slate-200 dark:border-slate-700/60 shadow-xs dark:shadow-none"
                       >
                         <span>Painel de Configurações & Tríade</span>
                       </button>
 
                       <button
                         onClick={() => setIsCreateAdminModalOpen(true)}
-                        className="w-full py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition flex items-center justify-center gap-2 cursor-pointer border border-slate-700/60"
+                        className="w-full py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-xs transition flex items-center justify-center gap-2 cursor-pointer border border-slate-200 dark:border-slate-700/60 shadow-xs dark:shadow-none"
                       >
-                        <UserPlus className="w-3.5 h-3.5 text-emerald-400" />
+                        <UserPlus className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                         <span>Cadastrar Novo Administrador</span>
                       </button>
                     </div>
                   </div>
 
-                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-slate-400">
-                    <strong className="text-white block mb-1">Status do Cluster Supabase</strong>
-                    <span className="text-emerald-400 font-medium">Bypass RLS Soberano • 100% Operacional</span>
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
+                    <strong className="text-slate-900 dark:text-white block mb-1">Status do Cluster Supabase</strong>
+                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">Bypass RLS Soberano • 100% Operacional</span>
                   </div>
                 </div>
               </div>
@@ -263,10 +263,10 @@ export const AdminMasterApp: React.FC = () => {
               {/* Salons Table Quick Preview */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-bold text-white">Todos os Estabelecimentos Cadastrados</h2>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-white">Todos os Estabelecimentos Cadastrados</h2>
                   <button
                     onClick={() => setCurrentScreen('salons')}
-                    className="text-xs text-emerald-400 font-bold hover:underline cursor-pointer"
+                    className="text-xs text-emerald-600 dark:text-emerald-400 font-bold hover:underline cursor-pointer"
                   >
                     Gerenciar todos ({salons.length})
                   </button>

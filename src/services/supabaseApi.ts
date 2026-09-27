@@ -1649,7 +1649,7 @@ export async function fetchAdminProfessionals(): Promise<UserProfessionalItem[]>
 }
 
 // 5. Desvincular Profissional de Salão (Mantendo Registro no Ecossistema)
-export async function unlinkProfessionalFromSalon(professionalId: string): Promise<{ success: boolean }> {
+export async function unlinkProfessionalFromSalon(professionalId: string, _salonId?: string): Promise<{ success: boolean }> {
   try {
     const { error } = await supabase
       .from('professionals')

@@ -63,7 +63,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   if (isValidPhoto && photoUrl) {
     return (
       <div
-        className={`${containerSize} ${roundedClass} overflow-hidden bg-slate-900 border border-slate-800 shrink-0 ${className}`}
+        className={`${containerSize} ${roundedClass} overflow-hidden bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shrink-0 ${className}`}
       >
         <img
           src={photoUrl}
@@ -78,7 +78,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   // Fallback padrão homologado pela Tríade: Moldura quadrada com cantos arredondados e ícone User de traço fino
   return (
     <div
-      className={`${containerSize} ${roundedClass} bg-slate-900/90 hover:bg-slate-850 border border-slate-800 hover:border-emerald-500/40 text-slate-300 flex items-center justify-center shrink-0 transition shadow-xs ${className}`}
+      className={`${containerSize} ${roundedClass} bg-slate-100 dark:bg-slate-900/90 hover:bg-slate-200 dark:hover:bg-slate-850 border border-slate-200 dark:border-slate-800 hover:border-emerald-500/40 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0 transition shadow-xs ${className}`}
       title={name || 'Usuário'}
     >
       <User className={`${iconSize} stroke-[1.8]`} />

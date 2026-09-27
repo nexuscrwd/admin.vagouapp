@@ -5,7 +5,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   Zap,
-  TrendingUp,
   ArrowUpRight,
 } from 'lucide-react';
 import { AdminDashboardMetrics } from '../../types/admin';
@@ -13,9 +12,10 @@ import { AdminDashboardMetrics } from '../../types/admin';
 interface AdminKpiCardsProps {
   metrics: AdminDashboardMetrics;
   onFilterStatus?: (status: any) => void;
+  onNavigateScreen?: (screen: any) => void;
 }
 
-export const AdminKpiCards: React.FC<AdminKpiCardsProps> = ({ metrics, onFilterStatus }) => {
+export const AdminKpiCards: React.FC<AdminKpiCardsProps> = ({ metrics, onFilterStatus, onNavigateScreen }) => {
   const cards = [
     {
       id: 'total',
@@ -24,8 +24,9 @@ export const AdminKpiCards: React.FC<AdminKpiCardsProps> = ({ metrics, onFilterS
       subtext: '+16.2% este mês',
       trend: 'positive',
       icon: Building2,
-      iconBg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+      iconBg: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20',
       actionStatus: 'all',
+      targetScreen: 'salons',
     },
     {
       id: 'today_appts',
@@ -34,8 +35,9 @@ export const AdminKpiCards: React.FC<AdminKpiCardsProps> = ({ metrics, onFilterS
       subtext: '+8.4% vs ontem',
       trend: 'positive',
       icon: CalendarCheck,
-      iconBg: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+      iconBg: 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-500/20',
       actionStatus: null,
+      targetScreen: 'appointments',
     },
     {
       id: 'active',
@@ -44,8 +46,9 @@ export const AdminKpiCards: React.FC<AdminKpiCardsProps> = ({ metrics, onFilterS
       subtext: 'Operando normalmente',
       trend: 'neutral',
       icon: CheckCircle2,
-      iconBg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+      iconBg: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20',
       actionStatus: 'active',
+      targetScreen: 'salons',
     },
     {
       id: 'pending',
@@ -54,8 +57,9 @@ export const AdminKpiCards: React.FC<AdminKpiCardsProps> = ({ metrics, onFilterS
       subtext: `${metrics.pendingSalons} pendentes • ${metrics.incompleteSalons} incompletos`,
       trend: metrics.pendingSalons > 0 ? 'warning' : 'neutral',
       icon: AlertTriangle,
-      iconBg: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+      iconBg: 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/20',
       actionStatus: 'pending',
+      targetScreen: 'salons',
     },
     {
       id: 'radar',
@@ -64,10 +68,20 @@ export const AdminKpiCards: React.FC<AdminKpiCardsProps> = ({ metrics, onFilterS
       subtext: 'Ofertas com desconto ativas',
       trend: 'positive',
       icon: Zap,
-      iconBg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+      iconBg: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20',
       actionStatus: null,
+      targetScreen: 'appointments',
     },
   ];
+
+  const handleClick = (card: typeof cards[0]) => {
+    if (card.targetScreen && onNavigateScreen) {
+      onNavigateScreen(card.targetScreen);
+    }
+    if (card.actionStatus && onFilterStatus) {
+      onFilterStatus(card.actionStatus);
+    }
+  };
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3.5">
@@ -76,32 +90,30 @@ export const AdminKpiCards: React.FC<AdminKpiCardsProps> = ({ metrics, onFilterS
         return (
           <div
             key={card.id}
-            onClick={() => card.actionStatus && onFilterStatus?.(card.actionStatus)}
-            className={`p-4 rounded-xl bg-slate-900 border border-slate-800 transition shadow-sm hover:border-slate-700 ${
-              card.actionStatus ? 'cursor-pointer hover:bg-slate-850 active:scale-[0.99]' : ''
-            }`}
+            onClick={() => handleClick(card)}
+            className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 transition shadow-xs dark:shadow-md hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-850 cursor-pointer active:scale-[0.99]"
           >
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium text-slate-400 tracking-tight">{card.title}</span>
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400 tracking-tight">{card.title}</span>
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${card.iconBg}`}>
                 <Icon className="w-4 h-4" />
               </div>
             </div>
 
             <div className="flex items-baseline justify-between">
-              <span className="text-2xl font-black text-white font-mono tracking-tight">
+              <span className="text-2xl font-black text-slate-900 dark:text-white font-mono tracking-tight">
                 {card.value}
               </span>
 
               {card.trend === 'positive' && (
-                <div className="flex items-center gap-0.5 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                  <ArrowUpRight className="w-3 h-3 text-emerald-400" />
+                <div className="flex items-center gap-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20">
+                  <ArrowUpRight className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                   <span>{card.subtext.split(' ')[0]}</span>
                 </div>
               )}
             </div>
 
-            <div className="mt-2 text-[11px] text-slate-400 truncate">
+            <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400 truncate">
               {card.subtext}
             </div>
           </div>
