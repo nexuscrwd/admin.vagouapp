@@ -20,8 +20,14 @@ export interface AdminSalonItem {
   is_verified?: boolean;
   phone_whatsapp?: string;
   email?: string;
+  document_type?: 'CNPJ' | 'CPF' | string;
   document_number?: string;
+  operating_model?: 'physical' | 'home_service' | 'hybrid' | string;
+  commission_rate?: number;
+  billing_plan?: string;
   address?: string;
+  street_number?: string;
+  complement?: string;
   neighborhood?: string;
   city?: string;
   state?: string;

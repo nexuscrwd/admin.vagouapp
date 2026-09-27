@@ -181,19 +181,10 @@ export async function fetchAdminSalons(): Promise<AdminSalonItem[]> {
             created_at: row.created_at || new Date().toISOString(),
             professionals_count: row.professionals_count || 2,
             active_offers_count: row.active_offers_count || 1,
-            rating: row.rating || 4.8,
+            rating: row.rating_avg || row.rating || 5.0,
           }));
 
-          // Merge com mocks para enriquecer visualização se o banco tiver poucos registros
-          const existingIds = new Set(mappedSalons.map((s) => s.id));
-          const combined = [...mappedSalons];
-          for (const mock of INITIAL_MOCK_ADMIN_SALONS) {
-            if (!existingIds.has(mock.id) && !existingIds.has(mock.slug)) {
-              combined.push(mock);
-              existingIds.add(mock.id);
-            }
-          }
-          return combined;
+          return mappedSalons;
         }
       }
     } catch {
@@ -205,13 +196,6 @@ export async function fetchAdminSalons(): Promise<AdminSalonItem[]> {
       .from('salons')
       .select('*')
       .order('created_at', { ascending: false });
-
-    // Salva ou carrega customizações locais
-    let localCustoms: AdminSalonItem[] = [];
-    try {
-      const saved = localStorage.getItem('vagou_admin_custom_salons');
-      if (saved) localCustoms = JSON.parse(saved);
-    } catch {}
 
     if (!error && dbSalons && dbSalons.length > 0) {
       const mappedDbSalons: AdminSalonItem[] = dbSalons.map((row: any) => ({
@@ -235,34 +219,14 @@ export async function fetchAdminSalons(): Promise<AdminSalonItem[]> {
         created_at: row.created_at || new Date().toISOString(),
         professionals_count: row.professionals_count || 2,
         active_offers_count: row.active_offers_count || 1,
-        rating: row.rating || 4.8,
+        rating: row.rating_avg || row.rating || 5.0,
       }));
 
-      const existingIds = new Set(mappedDbSalons.map((s) => s.id));
-      const combined = [...mappedDbSalons];
-
-      for (const mock of INITIAL_MOCK_ADMIN_SALONS) {
-        if (!existingIds.has(mock.id) && !existingIds.has(mock.slug)) {
-          combined.push(mock);
-          existingIds.add(mock.id);
-        }
-      }
-
-      const finalResult = combined.map((salon) => {
-        const custom = localCustoms.find((c) => c.id === salon.id);
-        return custom ? { ...salon, ...custom } : salon;
-      });
-
-      return finalResult;
+      return mappedDbSalons;
     }
 
-    // Fallback completo com Mocks
-    const merged = INITIAL_MOCK_ADMIN_SALONS.map((salon) => {
-      const custom = localCustoms.find((c) => c.id === salon.id);
-      return custom ? { ...salon, ...custom } : salon;
-    });
-
-    return merged;
+    // Fallback apenas se o banco estiver inacessível e vazio
+    return INITIAL_MOCK_ADMIN_SALONS;
   } catch (err) {
     console.warn('[Supabase Admin] Falha ao listar salões, usando fallback:', err);
     return INITIAL_MOCK_ADMIN_SALONS;

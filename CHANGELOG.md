@@ -15,6 +15,21 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-26] — ⚡ CRUD Soberano 100% Supabase para Gestão de Estabelecimentos
+- **Tipo:** `[Full CRUD / Supabase / Backend Proxy / Salons]`
+- **Motivo:** Reescrita completa da camada de dados da seção "Gestão de Estabelecimentos" para operar 100% vinculada à tabela `public.salons` do Supabase via Service Role no backend (`server.ts`).
+- **Implementações:**
+  - **Create (Inclusão):** `AdminCreateSalonModal.tsx` + `POST /api/admin/salons` para inserção soberana com sanitização automática de colunas.
+  - **Read (Leitura & Filtros):** `fetchAdminSalons()` consumindo 100% dados reais da tabela `salons` (sem mocks).
+  - **Update (Edição & Alteração de Status):** `AdminEditSalonModal.tsx` + `PATCH /api/admin/salons/:id` e toggle instantâneo de status (`is_active` / `is_verified`).
+  - **Delete (Exclusão Individual & Em Massa):** Botão de lixeira individual e em massa na tabela/cards com modal executivo de confirmação, que remove os registros no Supabase garantindo limpeza de chaves estrangeiras (`appointments`, `offers`, `professionals`).
+- **Arquivos Impactados:** `src/components/admin/AdminSalonsList.tsx`, `src/components/admin/AdminMasterApp.tsx`, `src/services/supabaseApi.ts`, `server.ts`, `src/types/admin.ts`, `CHANGELOG.md`.
+
+### [2026-09-26] — 🗄️ Auditoria & Sincronização Estrita de Estabelecimentos (Supabase 100% Real)
+- **Tipo:** `[Database Audit / Real Data Sync / Admin Salons]`
+- **Motivo:** Auditoria da tabela `public.salons` no Supabase e refatoração da API (`fetchAdminSalons`) para retornar **exclusivamente os registros reais do banco de dados**, eliminando qualquer injeção forçada de mocks quando o banco possui registros ativos.
+- **Arquivos Impactados:** `src/services/supabaseApi.ts`, `CHANGELOG.md`.
+
 ### [2026-09-26] — 🧹 Remoção da Div de Diagnóstico de Conexão (Clean UI)
 - **Tipo:** `[UI/UX / Focus Mode / Clean Design]`
 - **Motivo:** Remoção definitiva do toast/pop-up de diagnóstico de conexão com Supabase da raiz da aplicação (`App.tsx`), garantindo conformidade com a regra de Clean UI sem poluição visual ou telemetrias expostas na tela principal.

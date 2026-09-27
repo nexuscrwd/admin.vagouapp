@@ -3,6 +3,7 @@ import {
   fetchAdminSalons,
   updateAdminSalon,
   createAdminSalon,
+  deleteAdminSalon,
   bulkUpdateSalons,
   fetchAdminDashboardMetrics,
   getStoredAdmin,
@@ -108,6 +109,22 @@ export const AdminMasterApp: React.FC = () => {
       setSalons((prev) =>
         prev.map((s) => (ids.includes(s.id) ? { ...s, status, is_verified: status === 'active' } : s))
       );
+      fetchAdminDashboardMetrics().then(setMetrics);
+    }
+  };
+
+  const handleDeleteSalon = async (salonId: string) => {
+    const res = await deleteAdminSalon(salonId);
+    if (res.success) {
+      setSalons((prev) => prev.filter((s) => s.id !== salonId));
+      fetchAdminDashboardMetrics().then(setMetrics);
+    }
+  };
+
+  const handleBulkDeleteSalons = async (ids: string[]) => {
+    const res = await bulkUpdateSalons(ids, 'delete');
+    if (res.success) {
+      setSalons((prev) => prev.filter((s) => !ids.includes(s.id)));
       fetchAdminDashboardMetrics().then(setMetrics);
     }
   };
@@ -259,6 +276,8 @@ export const AdminMasterApp: React.FC = () => {
                   onEditSalon={handleEditSalon}
                   onUpdateStatus={handleUpdateStatus}
                   onBulkUpdateStatus={handleBulkUpdateStatus}
+                  onDeleteSalon={handleDeleteSalon}
+                  onBulkDeleteSalons={handleBulkDeleteSalons}
                   onOpenNewSalon={() => setIsCreateModalOpen(true)}
                   searchQuery={searchQuery}
                   onSearchChange={setSearchQuery}
@@ -275,6 +294,8 @@ export const AdminMasterApp: React.FC = () => {
                 onEditSalon={handleEditSalon}
                 onUpdateStatus={handleUpdateStatus}
                 onBulkUpdateStatus={handleBulkUpdateStatus}
+                onDeleteSalon={handleDeleteSalon}
+                onBulkDeleteSalons={handleBulkDeleteSalons}
                 onOpenNewSalon={() => setIsCreateModalOpen(true)}
                 searchQuery={searchQuery}
                 onSearchChange={setSearchQuery}

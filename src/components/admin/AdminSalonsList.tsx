@@ -13,6 +13,8 @@ import {
   Square,
   ShieldCheck,
   Building2,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import { AdminSalonItem, SalonFilterStatus, SalonSegmentFilter } from '../../types/admin';
 
@@ -21,6 +23,8 @@ interface AdminSalonsListProps {
   onEditSalon: (salon: AdminSalonItem) => void;
   onUpdateStatus: (salonId: string, status: AdminSalonItem['status']) => void;
   onBulkUpdateStatus?: (ids: string[], status: AdminSalonItem['status']) => void;
+  onDeleteSalon?: (salonId: string) => Promise<void>;
+  onBulkDeleteSalons?: (ids: string[]) => Promise<void>;
   onOpenNewSalon?: () => void;
   searchQuery?: string;
   onSearchChange?: (q: string) => void;
@@ -31,6 +35,8 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
   onEditSalon,
   onUpdateStatus,
   onBulkUpdateStatus,
+  onDeleteSalon,
+  onBulkDeleteSalons,
   onOpenNewSalon,
   searchQuery = '',
   onSearchChange,
@@ -40,6 +46,11 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
   const [statusFilter, setStatusFilter] = useState<SalonFilterStatus>('all');
   const [segmentFilter, setSegmentFilter] = useState<SalonSegmentFilter>('all');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  
+  // Modal de Exclusão
+  const [salonToDelete, setSalonToDelete] = useState<AdminSalonItem | null>(null);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const activeSearch = searchQuery || localSearch;
 
@@ -123,6 +134,32 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
     if (onBulkUpdateStatus && selectedIds.length > 0) {
       onBulkUpdateStatus(selectedIds, 'suspended');
       setSelectedIds([]);
+    }
+  };
+
+  const handleConfirmSingleDelete = async () => {
+    if (!salonToDelete || !onDeleteSalon) return;
+    setIsDeleting(true);
+    try {
+      await onDeleteSalon(salonToDelete.id);
+      setSelectedIds((prev) => prev.filter((id) => id !== salonToDelete.id));
+      setSalonToDelete(null);
+    } catch {
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleConfirmBulkDelete = async () => {
+    if (!onBulkDeleteSalons || selectedIds.length === 0) return;
+    setIsDeleting(true);
+    try {
+      await onBulkDeleteSalons(selectedIds);
+      setSelectedIds([]);
+      setIsBulkDeleting(false);
+    } catch {
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -282,9 +319,17 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
 
             <button
               onClick={handleBulkSuspend}
-              className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-rose-950/80 text-rose-300 hover:text-rose-200 font-semibold text-xs transition cursor-pointer border border-rose-900/50"
+              className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-amber-950/80 text-amber-300 hover:text-amber-200 font-semibold text-xs transition cursor-pointer border border-amber-900/50"
             >
-              Suspender Todos
+              Suspender
+            </button>
+
+            <button
+              onClick={() => setIsBulkDeleting(true)}
+              className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition cursor-pointer shadow-xs flex items-center gap-1"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-white" />
+              <span>Excluir Selecionados</span>
             </button>
 
             <button
@@ -457,6 +502,14 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                               <Edit className="w-3.5 h-3.5" />
                             </button>
 
+                            <button
+                              onClick={() => setSalonToDelete(salon)}
+                              className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/80 text-slate-400 hover:text-rose-400 transition cursor-pointer border border-slate-700/60"
+                              title="Excluir do Supabase"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+
                             <a
                               href={`https://${salon.slug}.vagouapp.com`}
                               target="_blank"
@@ -570,6 +623,14 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                     <span>Editar Dados</span>
                   </button>
 
+                  <button
+                    onClick={() => setSalonToDelete(salon)}
+                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/80 text-slate-400 hover:text-rose-400 transition cursor-pointer"
+                    title="Excluir Estabelecimento"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+
                   <a
                     href={`https://${salon.slug}.vagouapp.com`}
                     target="_blank"
@@ -583,6 +644,86 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* MODAL: Confirmação de Exclusão Individual */}
+      {salonToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-rose-400">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-sm">Excluir Estabelecimento?</h3>
+                <p className="text-xs text-slate-400">Esta ação é irreversível no Supabase.</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 bg-slate-950 p-3 rounded-xl border border-slate-800">
+              Você está prestes a remover o salão <strong className="text-white">{salonToDelete.trade_name}</strong> (`{salonToDelete.slug}.vagouapp.com`) do banco de dados.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setSalonToDelete(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSingleDelete}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-lg shadow-rose-950/50 disabled:opacity-50"
+              >
+                {isDeleting ? 'Excluindo...' : 'Confirmar Exclusão'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Confirmação de Exclusão em Massa */}
+      {isBulkDeleting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-rose-400">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-sm">Excluir {selectedIds.length} Estabelecimentos?</h3>
+                <p className="text-xs text-slate-400">Ação em massa irreversível no banco.</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 bg-slate-950 p-3 rounded-xl border border-slate-800">
+              Serão removidos permanentemente <strong className="text-white">{selectedIds.length}</strong> salões selecionados e todos os seus registros vinculados.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsBulkDeleting(false)}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmBulkDelete}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-lg shadow-rose-950/50 disabled:opacity-50"
+              >
+                {isDeleting ? 'Excluindo...' : 'Confirmar Exclusão em Massa'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

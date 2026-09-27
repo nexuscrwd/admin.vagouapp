@@ -482,6 +482,12 @@ async function startServer() {
         if (payload.is_verified === undefined) payload.is_verified = true;
       }
 
+      // Remove propriedades puramente visuais/locais antes da inserção no banco
+      delete payload.category;
+      delete payload.professionals_count;
+      delete payload.active_offers_count;
+      delete payload.rating;
+
       const { data, error } = await supabaseAdmin
         .from('salons')
         .insert([payload])
@@ -510,6 +516,13 @@ async function startServer() {
         delete updates.status;
       }
 
+      // Remove propriedades puramente visuais/locais antes do update no banco
+      delete updates.category;
+      delete updates.professionals_count;
+      delete updates.active_offers_count;
+      delete updates.rating;
+      delete updates.id;
+
       const { data, error } = await supabaseAdmin
         .from('salons')
         .update(updates)
@@ -531,6 +544,14 @@ async function startServer() {
   app.delete('/api/admin/salons/:id', async (req, res) => {
     try {
       const { id } = req.params;
+
+      // Limpa registros filhos vinculados primeiro para evitar quebra de Chave Estrangeira (FK)
+      try {
+        await supabaseAdmin.from('appointments').delete().eq('salon_id', id);
+        await supabaseAdmin.from('service_offers').delete().eq('salon_id', id);
+        await supabaseAdmin.from('professionals').delete().eq('salon_id', id);
+      } catch {}
+
       const { error } = await supabaseAdmin
         .from('salons')
         .delete()
@@ -567,6 +588,12 @@ async function startServer() {
       }
 
       if (action === 'delete') {
+        try {
+          await supabaseAdmin.from('appointments').delete().in('salon_id', ids);
+          await supabaseAdmin.from('service_offers').delete().in('salon_id', ids);
+          await supabaseAdmin.from('professionals').delete().in('salon_id', ids);
+        } catch {}
+
         const { error } = await supabaseAdmin
           .from('salons')
           .delete()
