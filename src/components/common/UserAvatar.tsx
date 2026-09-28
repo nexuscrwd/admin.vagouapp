@@ -84,7 +84,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   // Fallback padrão homologado pela Tríade: Moldura quadrada com cantos suavemente arredondados e ícone User de traço fino (stroke-[1.8])
   return (
     <div
-      className={`${containerSize} ${roundedClass} bg-slate-100 dark:bg-slate-900/90 hover:bg-slate-200 dark:hover:bg-slate-850 border border-slate-200 dark:border-slate-800 hover:border-emerald-500/40 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0 transition shadow-xs ${className}`}
+      className={`${containerSize} ${roundedClass} bg-slate-100 dark:bg-slate-900/90 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 hover:border-emerald-500/40 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0 transition-colors shadow-xs ${className}`}
       title={name || 'Usuário'}
     >
       <User className={`${iconSize} stroke-[1.8]`} />

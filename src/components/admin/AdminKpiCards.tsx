@@ -91,17 +91,22 @@ export const AdminKpiCards: React.FC<AdminKpiCardsProps> = ({ metrics, onFilterS
           <div
             key={card.id}
             onClick={() => handleClick(card)}
-            className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 transition shadow-xs dark:shadow-md hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-850 cursor-pointer active:scale-[0.99]"
+            className="group relative p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 hover:bg-slate-50/60 dark:hover:bg-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-md dark:hover:shadow-xl dark:hover:shadow-black/40 hover:-translate-y-0.5 transition-all duration-200 ease-out cursor-pointer active:scale-[0.99] select-none"
           >
+            {/* Top border accent highlight on hover */}
+            <div className="absolute top-0 left-3 right-3 h-[2px] bg-transparent group-hover:bg-emerald-500/40 rounded-full transition-colors duration-200" />
+
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400 tracking-tight">{card.title}</span>
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${card.iconBg}`}>
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 tracking-tight group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors">
+                {card.title}
+              </span>
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center border transition-transform duration-200 group-hover:scale-110 ${card.iconBg}`}>
                 <Icon className="w-4 h-4" />
               </div>
             </div>
 
             <div className="flex items-baseline justify-between">
-              <span className="text-2xl font-black text-slate-900 dark:text-white font-mono tracking-tight">
+              <span className="text-2xl font-black text-slate-900 dark:text-white font-mono tracking-tight group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                 {card.value}
               </span>
 
@@ -113,7 +118,7 @@ export const AdminKpiCards: React.FC<AdminKpiCardsProps> = ({ metrics, onFilterS
               )}
             </div>
 
-            <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400 truncate">
+            <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400 truncate group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors">
               {card.subtext}
             </div>
           </div>

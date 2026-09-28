@@ -390,7 +390,7 @@ export const AdminUsersManager: React.FC = () => {
                   </tr>
                 ) : (
                   filteredAdmins.map((admin) => (
-                    <tr key={admin.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition">
+                    <tr key={admin.id} className="hover:bg-slate-50/90 dark:hover:bg-slate-800/60 transition-colors">
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2.5">
                           <UserAvatar
@@ -611,7 +611,7 @@ export const AdminUsersManager: React.FC = () => {
                   </tr>
                 ) : (
                   filteredSalonUsers.map((su) => (
-                    <tr key={su.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition">
+                    <tr key={su.id} className="hover:bg-slate-50/90 dark:hover:bg-slate-800/60 transition-colors">
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2.5">
                           <UserAvatar
@@ -693,7 +693,7 @@ export const AdminUsersManager: React.FC = () => {
                   </tr>
                 ) : (
                   filteredProfessionals.map((prof) => (
-                    <tr key={prof.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition">
+                    <tr key={prof.id} className="hover:bg-slate-50/90 dark:hover:bg-slate-800/60 transition-colors">
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2.5">
                           <UserAvatar

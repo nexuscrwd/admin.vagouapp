@@ -343,13 +343,13 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
           <form onSubmit={handleLoginSubmit} className="p-4 sm:p-6 space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                Nome de usuário ou E-mail
+                E-mail Corporativo (Supabase Auth)
               </label>
               <div className="flex items-center bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2.5 focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500 shadow-xs dark:shadow-none transition">
                 <User className="w-4 h-4 text-slate-400 dark:text-slate-500 mr-2.5 shrink-0" />
                 <input
-                  type="text"
-                  placeholder="Ex: AdminMaster@Vagou ou admin@vagouapp.com"
+                  type="email"
+                  placeholder="nexuscrwd@gmail.com"
                   value={loginIdentifier}
                   onChange={(e) => setLoginIdentifier(e.target.value)}
                   className="w-full bg-transparent text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 outline-none"

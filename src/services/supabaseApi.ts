@@ -897,43 +897,17 @@ export async function createTechnicalBulletin(
 
 const ADMIN_STORAGE_KEY = 'vagou_admin_session';
 
-export const DEFAULT_MASTER_SUPERADMIN: SystemAdminUser = {
-  id: 'd785a1c2-c610-4b84-92d5-654594d9dec0',
-  full_name: 'ANDERSON HORACIO PIRES',
-  username: 'Anderson@',
-  email: 'nexuscrwd@gmail.com',
-  phone_whatsapp: '(11) 91353-1030',
-  role: 'superadmin',
-  is_active: true,
-  avatar_url: '',
-};
-
 export function getStoredAdmin(): SystemAdminUser | null {
   try {
     const raw = localStorage.getItem(ADMIN_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      // Se a sessão salva for de salão/parceiro (Jose Roberto) ou legado (Elisa), expurga e restaura o superadmin
-      if (
-        parsed?.email?.includes('jose@') ||
-        parsed?.username === 'jose' ||
-        parsed?.full_name?.toLowerCase().includes('jose') ||
-        parsed?.email?.includes('elisa') ||
-        parsed?.full_name?.toLowerCase().includes('elisa')
-      ) {
-        localStorage.removeItem(ADMIN_STORAGE_KEY);
-        localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(DEFAULT_MASTER_SUPERADMIN));
-        return DEFAULT_MASTER_SUPERADMIN;
+      if (parsed?.id && parsed?.email) {
+        return parsed;
       }
-      return parsed;
     }
   } catch {}
-
-  // Administrador Master oficial do painel de governança (Superadmin)
-  try {
-    localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(DEFAULT_MASTER_SUPERADMIN));
-  } catch {}
-  return DEFAULT_MASTER_SUPERADMIN;
+  return null;
 }
 
 export function setStoredAdmin(admin: SystemAdminUser | null): void {
@@ -1186,186 +1160,87 @@ export async function loginAdmin(
   identifier: string,
   password: string
 ): Promise<{ success: boolean; admin?: SystemAdminUser; error?: string }> {
-  const query = identifier.trim().toLowerCase();
+  let cleanEmail = identifier.trim().toLowerCase();
 
-  // 1. Tenta via backend Express API (/api/admin/auth/login)
-  try {
-    const resp = await fetch('/api/admin/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifier, password }),
-    });
-    const text = await resp.text();
-    if (text && text.trim().startsWith('{')) {
-      const json = JSON.parse(text);
-      if (resp.ok && json.success) {
-        if (json.admin) setStoredAdmin(json.admin);
-        return json;
-      }
-      if (json.error) {
-        return { success: false, error: json.error };
-      }
-    }
-  } catch {}
-
-  // 2. Tenta via Supabase RPC (verify_admin_login)
-  try {
-    const { data: rpcData, error: rpcError } = await supabase.rpc('verify_admin_login', {
-      p_identifier: identifier.trim(),
-      p_password: password,
-    });
-
-    if (!rpcError && rpcData && typeof rpcData === 'object') {
-      if (rpcData.success && rpcData.admin) {
-        setStoredAdmin(rpcData.admin);
-        return { success: true, admin: rpcData.admin };
-      }
-      if (rpcData.error) {
-        return { success: false, error: rpcData.error };
-      }
-    }
-  } catch {}
-
-  // 3. Tenta consulta direta no Supabase (system_admins -> profiles -> professionals -> clients)
-  try {
-    const { data: admins, error: dbError } = await supabase
-      .from('system_admins')
-      .select('*')
-      .or(`email.ilike.%${query}%,username.ilike.%${query}%`)
-      .limit(1);
-
-    if (!dbError && admins && admins.length > 0) {
-      const admin = admins[0];
-      if (admin.password_hash === password || password === 'Admin@2026!' || true) {
-        if (!admin.is_active) {
-          return { success: false, error: 'Conta de administrador inativa ou suspensa.' };
-        }
-        const { password_hash, ...safeAdmin } = admin;
-        setStoredAdmin(safeAdmin as SystemAdminUser);
-        return { success: true, admin: safeAdmin as SystemAdminUser };
-      } else {
-        return { success: false, error: 'Senha incorreta.' };
-      }
-    }
-
-    // Tenta em profiles
-    const { data: profs } = await supabase
-      .from('profiles')
-      .select('*')
-      .or(`email.ilike.%${query}%,full_name.ilike.%${query}%`)
-      .limit(1);
-
-    if (profs && profs.length > 0) {
-      const p = profs[0];
-      const mappedUser: SystemAdminUser = {
-        id: p.id,
-        full_name: p.full_name || 'Usuário Registrado',
-        username: p.username || (p.email ? p.email.split('@')[0] : 'usuario'),
-        email: p.email || query,
-        phone_whatsapp: p.phone_whatsapp || p.phone || '',
-        avatar_url: (p.avatar_url && !p.avatar_url.includes('unsplash.com')) ? p.avatar_url : '',
-        role: 'owner',
-        is_active: true,
-        last_login_at: new Date().toISOString(),
-        created_at: p.created_at || new Date().toISOString(),
-      };
-      setStoredAdmin(mappedUser);
-      return { success: true, admin: mappedUser };
-    }
-
-    // Tenta em professionals
-    const { data: prosData } = await supabase
-      .from('professionals')
-      .select('*')
-      .or(`email.ilike.%${query}%,name.ilike.%${query}%`)
-      .limit(1);
-
-    if (prosData && prosData.length > 0) {
-      const pr = prosData[0];
-      const mappedUser: SystemAdminUser = {
-        id: pr.id,
-        full_name: pr.name || 'Profissional',
-        username: pr.email ? pr.email.split('@')[0] : 'profissional',
-        email: pr.email || query,
-        phone_whatsapp: pr.phone_whatsapp || pr.phone || '',
-        avatar_url: (pr.avatar_url && !pr.avatar_url.includes('unsplash.com')) ? pr.avatar_url : '',
-        role: 'owner',
-        is_active: true,
-        last_login_at: new Date().toISOString(),
-        created_at: pr.created_at || new Date().toISOString(),
-      };
-      setStoredAdmin(mappedUser);
-      return { success: true, admin: mappedUser };
-    }
-
-    // Tenta em clients
-    const { data: clientsData } = await supabase
-      .from('clients')
-      .select('*')
-      .or(`email.ilike.%${query}%,name.ilike.%${query}%`)
-      .limit(1);
-
-    if (clientsData && clientsData.length > 0) {
-      const cl = clientsData[0];
-      const mappedUser: SystemAdminUser = {
-        id: cl.id,
-        full_name: cl.name || cl.full_name || 'Cliente',
-        username: cl.email ? cl.email.split('@')[0] : 'cliente',
-        email: cl.email || query,
-        phone_whatsapp: cl.phone || '',
-        avatar_url: (cl.avatar_url && !cl.avatar_url.includes('unsplash.com')) ? cl.avatar_url : '',
-        role: 'client',
-        is_active: true,
-        last_login_at: new Date().toISOString(),
-        created_at: cl.created_at || new Date().toISOString(),
-      };
-      setStoredAdmin(mappedUser);
-      return { success: true, admin: mappedUser };
-    }
-
-    // Tenta em salons (Proprietários cadastrados diretamente no salão, ex: Jose)
-    const { data: salonMatches } = await supabase
-      .from('salons')
-      .select('*')
-      .or(`email.ilike.%${query}%,slug.ilike.%${query}%`)
-      .limit(1);
-
-    if (salonMatches && salonMatches.length > 0) {
-      const salon = salonMatches[0];
-      const newUserId = salon.owner_id || 'a1b2c3d4-e5f6-4789-8012-345678901234';
-      const mappedUser: SystemAdminUser = {
-        id: newUserId,
-        full_name: salon.legal_name || salon.trade_name || 'Jose Roberto',
-        username: salon.slug || 'jose',
-        email: salon.email || `${salon.slug}@jose.com`,
-        phone_whatsapp: salon.phone_whatsapp || '',
-        avatar_url: '',
-        role: 'owner',
-        is_active: true,
-        last_login_at: new Date().toISOString(),
-        created_at: salon.created_at || new Date().toISOString(),
-      };
-      setStoredAdmin(mappedUser);
-      return { success: true, admin: mappedUser };
-    }
-  } catch {}
-
-  // 4. Se for o usuário do seed mestre
-  if ((query === 'adminmaster@vagou' || query === 'admin@vagouapp.com') && (password === 'Admin@2026!')) {
-    const defaultMaster: SystemAdminUser = {
-      id: '00000000-0000-4000-8000-000000000001',
-      full_name: 'Administrador Master Vagou',
-      username: 'AdminMaster@Vagou',
-      email: 'admin@vagouapp.com',
-      phone_whatsapp: '(11) 99999-0000',
-      role: 'superadmin',
-      is_active: true,
-    };
-    setStoredAdmin(defaultMaster);
-    return { success: true, admin: defaultMaster };
+  // Auto-resolução amigável: se digitar username 'Anderson@' ou telefone '11913531030'
+  if (
+    cleanEmail === 'anderson@' ||
+    cleanEmail === 'anderson' ||
+    cleanEmail.replace(/\D/g, '') === '11913531030' ||
+    cleanEmail === 'nexuscrwd'
+  ) {
+    cleanEmail = 'nexuscrwd@gmail.com';
   }
 
-  return { success: false, error: 'Credenciais inválidas ou administrador não localizado.' };
+  if (!cleanEmail.includes('@')) {
+    return {
+      success: false,
+      error: 'Por favor, informe seu e-mail corporativo (ex: nexuscrwd@gmail.com).',
+    };
+  }
+
+  try {
+    // 1. Autenticação oficial no Supabase Auth usando chave anon (sem service_role)
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password: password,
+    });
+
+    if (authError || !authData?.user) {
+      if (authError?.message?.toLowerCase().includes('email not confirmed')) {
+        return {
+          success: false,
+          error: 'E-mail pendente de confirmação no Supabase Auth. Execute a confirmação rápida no SQL Editor.',
+        };
+      }
+      return {
+        success: false,
+        error: authError?.message === 'Invalid login credentials'
+          ? 'E-mail ou senha incorretos no Supabase Auth.'
+          : (authError?.message || 'Falha ao autenticar no Supabase Auth.'),
+      };
+    }
+
+    const userId = authData.user.id;
+
+    // 2. Consulta de autorização estrita na tabela platform_admins
+    // Como o cliente agora possui o JWT autenticado, as políticas RLS STABLE são acionadas
+    const { data: padmin, error: padminError } = await supabase
+      .from('platform_admins')
+      .select('user_id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (padminError || !padmin) {
+      // 🛑 Sem linha em platform_admins: Acesso negado
+      await supabase.auth.signOut();
+      setStoredAdmin(null);
+      return {
+        success: false,
+        error: 'Acesso negado: Este usuário autenticado não possui privilégios de Administrador da Plataforma (usuário não cadastrado em platform_admins).',
+      };
+    }
+
+    // 3. Usuário autorizado como platform_admin (RLS liberada pelo banco para todas as tabelas)
+    const adminObj: SystemAdminUser = {
+      id: userId,
+      full_name: authData.user.user_metadata?.full_name || authData.user.email?.split('@')[0] || 'Administrador Master',
+      username: authData.user.user_metadata?.username || authData.user.email?.split('@')[0] || 'admin',
+      email: authData.user.email || cleanEmail,
+      phone_whatsapp: authData.user.user_metadata?.phone || '',
+      role: 'superadmin',
+      is_active: true,
+      avatar_url: authData.user.user_metadata?.avatar_url || '',
+    };
+
+    setStoredAdmin(adminObj);
+    return { success: true, admin: adminObj };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.message || 'Erro inesperado ao realizar autenticação no Supabase Auth.',
+    };
+  }
 }
 
 export async function recoverAdminAccess(
@@ -1402,7 +1277,10 @@ export async function recoverAdminAccess(
   }
 }
 
-export function logoutAdmin(): void {
+export async function logoutAdmin(): Promise<void> {
+  try {
+    await supabase.auth.signOut();
+  } catch {}
   setStoredAdmin(null);
 }
 

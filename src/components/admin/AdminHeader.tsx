@@ -101,7 +101,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
         <button
           onClick={toggleTheme}
           title={isDark ? 'Alternar para Tema Claro' : 'Alternar para Tema Escuro'}
-          className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700/80 text-amber-500 dark:text-amber-400 transition cursor-pointer shadow-xs dark:shadow-none"
+          className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800/80 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 text-amber-500 dark:text-amber-400 transition-all duration-150 cursor-pointer shadow-xs dark:shadow-none active:scale-95"
         >
           {isDark ? (
             <Sun className="w-4 h-4 text-amber-400" />
@@ -115,7 +115,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
           onClick={onRefresh}
           disabled={isRefreshing}
           title="Recarregar dados do banco de dados"
-          className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer disabled:opacity-50 shadow-xs dark:shadow-none"
+          className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800/80 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-150 cursor-pointer disabled:opacity-50 shadow-xs dark:shadow-none active:scale-95"
         >
           <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-500' : ''}`} />
         </button>
@@ -145,7 +145,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
               <button
                 onClick={onLogout}
                 title="Encerrar Sessão"
-                className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/80 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-300 transition cursor-pointer border border-slate-200 dark:border-slate-700/60 ml-1"
+                className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 dark:bg-slate-800/80 dark:hover:bg-rose-950/40 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-300 border border-slate-200 dark:border-slate-700/60 hover:border-rose-200 dark:hover:border-rose-900/60 transition-all duration-150 cursor-pointer ml-1 active:scale-95"
               >
                 <LogOut className="w-3.5 h-3.5" />
               </button>

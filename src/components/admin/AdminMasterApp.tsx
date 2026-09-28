@@ -80,7 +80,45 @@ export const AdminMasterApp: React.FC = () => {
   };
 
   useEffect(() => {
-    loadData();
+    // 🔐 Verificação Obrigatória de Sessão Supabase Auth + platform_admins:
+    const checkActiveSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) {
+          setAdminUser(null);
+          return;
+        }
+
+        const { data: padmin, error: padminErr } = await supabase
+          .from('platform_admins')
+          .select('user_id')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+
+        if (padminErr || !padmin) {
+          await supabase.auth.signOut();
+          setAdminUser(null);
+          return;
+        }
+
+        const verifiedAdmin: SystemAdminUser = {
+          id: session.user.id,
+          full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Administrador Master',
+          username: session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'admin',
+          email: session.user.email || '',
+          phone_whatsapp: session.user.user_metadata?.phone || '',
+          role: 'superadmin',
+          is_active: true,
+          avatar_url: session.user.user_metadata?.avatar_url || '',
+        };
+        setAdminUser(verifiedAdmin);
+        loadData();
+      } catch {
+        setAdminUser(null);
+      }
+    };
+
+    checkActiveSession();
 
     // 📡 Sincronização em Tempo Real (Realtime) da Tríade:
     // Qualquer alteração de avatar enviada via celular ou portal atualiza o cabeçalho imediatamente!
@@ -167,8 +205,8 @@ export const AdminMasterApp: React.FC = () => {
     setIsAuthModalOpen(true);
   };
 
-  const handleLogout = () => {
-    logoutAdmin();
+  const handleLogout = async () => {
+    await logoutAdmin();
     setAdminUser(null);
   };
 
@@ -271,14 +309,14 @@ export const AdminMasterApp: React.FC = () => {
 
                       <button
                         onClick={() => setCurrentScreen('settings')}
-                        className="w-full py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-xs transition flex items-center justify-center gap-2 cursor-pointer border border-slate-200 dark:border-slate-700/60 shadow-xs dark:shadow-none"
+                        className="w-full py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800/90 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 font-semibold text-xs transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer border border-slate-200 dark:border-slate-700/70 hover:border-slate-300 dark:hover:border-slate-600 shadow-xs dark:shadow-none active:scale-[0.99]"
                       >
                         <span>Painel de Configurações & Tríade</span>
                       </button>
 
                       <button
                         onClick={() => setIsCreateAdminModalOpen(true)}
-                        className="w-full py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-xs transition flex items-center justify-center gap-2 cursor-pointer border border-slate-200 dark:border-slate-700/60 shadow-xs dark:shadow-none"
+                        className="w-full py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800/90 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 font-semibold text-xs transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer border border-slate-200 dark:border-slate-700/70 hover:border-slate-300 dark:hover:border-slate-600 shadow-xs dark:shadow-none active:scale-[0.99]"
                       >
                         <UserPlus className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                         <span>Cadastrar Novo Administrador</span>

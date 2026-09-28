@@ -15,6 +15,28 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-28] — 🎨✨ Redesign Figma de Estados Hover & Correção do Bug de Fundo Branco
+- **Tipo:** `[UI/UX / Design System / Figma Tokens / Hover Fix]`
+- **Motivo / Solicitação:** Ao passar o mouse sobre os cards (ex: "Agendamentos Hoje") e botões, o elemento ficava totalmente branco no tema escuro, deixando números e textos ilegíveis.
+- **Causa Raiz:** O código utilizava a classe Tailwind inválida `dark:hover:bg-slate-850`. Como `slate-850` não existe na paleta padrão do Tailwind, o navegador ignorava a variante escura e aplicava a regra clara `hover:bg-slate-50` (`#f8fafc` - branco) sobre o tema escuro.
+- **Ações Técnicas Realizadas:**
+  1. **Redesign de Tokens Figma nos Cards KPI (`AdminKpiCards`):** Eliminação do `slate-850` e implementação de elevação suave:
+     - **Tema Escuro:** `dark:bg-slate-900` com hover para `dark:hover:bg-slate-800/80`, borda `dark:hover:border-slate-700`, sombra profunda `dark:hover:shadow-xl dark:hover:shadow-black/40` e micro-lift `hover:-translate-y-0.5`.
+     - **Tema Claro:** `bg-white` com hover mantendo fundo limpo `hover:bg-slate-50/60`, borda `hover:border-slate-300`, sombra `hover:shadow-md` e micro-lift `hover:-translate-y-0.5`.
+     - **Barra de Acento Superior:** Indicador sutil de 2px no topo que acende com `group-hover:bg-emerald-500/40`.
+  2. **Higienização de Linhas de Tabelas e Botões:** Substituição em `AdminSettingsPanel`, `AdminUsersManager`, `UserAvatar`, `AdminHeader` e `AdminMasterApp` de todos os seletores com vazamento de hover claro, garantindo alto contraste e feedback tátil refinado (`active:scale-[0.99]`).
+- **Arquivos Impactados:** `src/components/admin/AdminKpiCards.tsx`, `src/components/admin/AdminSettingsPanel.tsx`, `src/components/admin/AdminUsersManager.tsx`, `src/components/common/UserAvatar.tsx`, `src/components/admin/AdminHeader.tsx`, `src/components/admin/AdminMasterApp.tsx`, `CHANGELOG.md`.
+
+### [2026-09-28] — 🛡️🔐 Migração do Login Master para Supabase Auth + Verificação em `platform_admins`
+- **Tipo:** `[Security / RBAC / Supabase Auth / RLS Enforce]`
+- **Motivo / Solicitação:** Com a ativação das políticas RLS restritas no Supabase, o painel do Admin Master precisava autenticar diretamente no Supabase Auth para emitir JWT com `auth.uid()`, e validar estritamente se o usuário logado está cadastrado na tabela `platform_admins`.
+- **Ações Técnicas Realizadas:**
+  1. **Autenticação Direta via Supabase Auth (`loginAdmin`):** Substituição de todos os fallbacks legados por chamada canônica a `supabase.auth.signInWithPassword({ email, password })` usando a chave pública anon (sem service_role no client).
+  2. **Validação Estrita de Papel (`platform_admins`):** Após o login com sucesso no Auth, o cliente executa uma consulta a `platform_admins` com filtro `user_id = auth.uid()`. Se não houver linha correspondente, o acesso é sumariamente negado com `supabase.auth.signOut()`.
+  3. **Gate de Sessão Ativa (`AdminMasterApp`):** Validação automática na montagem do app via `supabase.auth.getSession()` e checagem em `platform_admins`. Sem sessão válida de plataforma, a interface fica bloqueada exibindo o modal de login.
+  4. **Logout Seguro (`logoutAdmin`):** Executa `supabase.auth.signOut()` garantindo a destruição do token JWT e do armazenamento local.
+- **Arquivos Impactados:** `src/services/supabaseApi.ts`, `src/components/admin/AdminMasterApp.tsx`, `src/components/admin/AdminAuthModal.tsx`, `CHANGELOG.md`.
+
 ### [2026-09-28] — 🏛️👑 Restauração do Superadmin Master Oficial (`ANDERSON HORACIO PIRES`) e Expulso Tenant do Admin
 - **Tipo:** `[Fix / Admin Session / Security & Tenant Isolation]`
 - **Motivo / Solicitação:** A seção de administrador master do `admvapp` estava aparecendo logada como "Jose", o que é incorreto visto que José Roberto é um parceiro de salão (tenant) e não o administrador da plataforma VagouApp.

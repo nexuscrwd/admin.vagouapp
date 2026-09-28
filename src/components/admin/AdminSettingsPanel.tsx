@@ -208,7 +208,7 @@ export const AdminSettingsPanel: React.FC = () => {
                     </tr>
                   ) : (
                     admins.map((admin) => (
-                      <tr key={admin.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition">
+                      <tr key={admin.id} className="hover:bg-slate-50/90 dark:hover:bg-slate-800/60 transition-colors">
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2.5">
                             <UserAvatar
@@ -268,9 +268,9 @@ export const AdminSettingsPanel: React.FC = () => {
                         <td className="py-3 px-4 text-right">
                           <button
                             onClick={() => handleToggleStatus(admin)}
-                            className={`text-[11px] font-bold px-2.5 py-1 rounded-lg transition cursor-pointer border ${
+                            className={`text-[11px] font-bold px-2.5 py-1 rounded-lg transition-all duration-150 cursor-pointer border ${
                               admin.is_active
-                                ? 'bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-500/20 text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 border-slate-200 dark:border-slate-700 shadow-xs dark:shadow-none'
+                                ? 'bg-slate-100 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-950/40 text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-300 border-slate-200 dark:border-slate-700/80 hover:border-rose-200 dark:hover:border-rose-900/60 shadow-xs dark:shadow-none'
                                 : 'bg-[#20C933] hover:bg-[#1bb32d] text-white border-transparent shadow-xs active:scale-95'
                             }`}
                           >
