@@ -15,6 +15,15 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-28] — 🏛️👑 Restauração do Superadmin Master Oficial (`ANDERSON HORACIO PIRES`) e Expulso Tenant do Admin
+- **Tipo:** `[Fix / Admin Session / Security & Tenant Isolation]`
+- **Motivo / Solicitação:** A seção de administrador master do `admvapp` estava aparecendo logada como "Jose", o que é incorreto visto que José Roberto é um parceiro de salão (tenant) e não o administrador da plataforma VagouApp.
+- **Causa Raiz:** Durante o processo de isolamento anterior contra a foto da Elisa, a função `getStoredAdmin()` havia ficado com um fallback padrão atribuindo o objeto `joseAdmin` quando nenhuma sessão estivesse salva.
+- **Ações Técnicas Realizadas:**
+  1. **Restauração de Sessão Master Oficial (`DEFAULT_MASTER_SUPERADMIN`):** O superadmin padrão da governança agora é `ANDERSON HORACIO PIRES` (`nexuscrwd@gmail.com`), com username `@Anderson@` e permissão `superadmin`.
+  2. **Purga Automática de Sessões de Tenant (`getStoredAdmin`):** Qualquer tentativa de carregar sessões antigas que contenham `jose@` ou resíduos de salões parceiros em `vagou_admin_session` é imediatamente expurgada e substituída pelo perfil superadmin legítimo do Painel Master.
+- **Arquivos Impactados:** `src/services/supabaseApi.ts`, `CHANGELOG.md`.
+
 ### [2026-09-28] — 🛑🎯 BLOQUEIO ABSOLUTO DA FOTO DA ELISA: Trava Canônica no Resolver de Avatares (`isMockAvatarUrl`)
 - **Tipo:** `[Fix / Universal Avatar Resolver / Legacy Photo Suppression]`
 - **Motivo / Solicitação:** A foto de Elisa Pires continuava aparecendo no círculo do avatar da tela "MEUS DADOS PESSOAIS" para o usuário José Roberto (`jose@jose.com`).

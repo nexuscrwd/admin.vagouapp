@@ -897,46 +897,43 @@ export async function createTechnicalBulletin(
 
 const ADMIN_STORAGE_KEY = 'vagou_admin_session';
 
+export const DEFAULT_MASTER_SUPERADMIN: SystemAdminUser = {
+  id: 'd785a1c2-c610-4b84-92d5-654594d9dec0',
+  full_name: 'ANDERSON HORACIO PIRES',
+  username: 'Anderson@',
+  email: 'nexuscrwd@gmail.com',
+  phone_whatsapp: '(11) 91353-1030',
+  role: 'superadmin',
+  is_active: true,
+  avatar_url: '',
+};
+
 export function getStoredAdmin(): SystemAdminUser | null {
   try {
     const raw = localStorage.getItem(ADMIN_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      // Se a sessão salva for da Elisa Pires, purga a sessão e retorna o perfil do José
-      if (parsed?.email?.includes('elisa') || parsed?.full_name?.includes('Elisa')) {
+      // Se a sessão salva for de salão/parceiro (Jose Roberto) ou legado (Elisa), expurga e restaura o superadmin
+      if (
+        parsed?.email?.includes('jose@') ||
+        parsed?.username === 'jose' ||
+        parsed?.full_name?.toLowerCase().includes('jose') ||
+        parsed?.email?.includes('elisa') ||
+        parsed?.full_name?.toLowerCase().includes('elisa')
+      ) {
         localStorage.removeItem(ADMIN_STORAGE_KEY);
-        const joseAdmin: SystemAdminUser = {
-          id: 'a1b2c3d4-e5f6-4789-8012-345678901234',
-          full_name: 'Jose Roberto',
-          username: 'jose',
-          email: 'jose@jose.com',
-          phone_whatsapp: '(11) 22334-4556',
-          role: 'owner',
-          is_active: true,
-          avatar_url: '',
-        };
-        localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(joseAdmin));
-        return joseAdmin;
+        localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(DEFAULT_MASTER_SUPERADMIN));
+        return DEFAULT_MASTER_SUPERADMIN;
       }
       return parsed;
     }
   } catch {}
 
-  // Contexto padrão Jose Roberto caso nenhuma sessão esteja armazenada
-  const joseAdmin: SystemAdminUser = {
-    id: 'a1b2c3d4-e5f6-4789-8012-345678901234',
-    full_name: 'Jose Roberto',
-    username: 'jose',
-    email: 'jose@jose.com',
-    phone_whatsapp: '(11) 22334-4556',
-    role: 'owner',
-    is_active: true,
-    avatar_url: '',
-  };
+  // Administrador Master oficial do painel de governança (Superadmin)
   try {
-    localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(joseAdmin));
+    localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(DEFAULT_MASTER_SUPERADMIN));
   } catch {}
-  return joseAdmin;
+  return DEFAULT_MASTER_SUPERADMIN;
 }
 
 export function setStoredAdmin(admin: SystemAdminUser | null): void {
