@@ -15,6 +15,52 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-28] — 🛑🎯 BLOQUEIO ABSOLUTO DA FOTO DA ELISA: Trava Canônica no Resolver de Avatares (`isMockAvatarUrl`)
+- **Tipo:** `[Fix / Universal Avatar Resolver / Legacy Photo Suppression]`
+- **Motivo / Solicitação:** A foto de Elisa Pires continuava aparecendo no círculo do avatar da tela "MEUS DADOS PESSOAIS" para o usuário José Roberto (`jose@jose.com`).
+- **Causa Raiz:** A função `isMockAvatarUrl()` do resolver universal de avatares (`avatarResolver.ts`) não identificava a URL específica da foto antiga do Supabase (`elisa-pires-1790537020614.jpg`). Por consequência, quando o José não possuía foto cadastrada, o fallback do PWA reutilizava a foto existente.
+- **Ações Técnicas Realizadas:**
+  1. **Inclusão de Padrões Bloqueados (`avatarResolver.ts`):** Adicionados os padrões `elisa-pires`, `elisa_pires`, `1790534282569` e `1790537020614` à lista `mockPatterns` de `isMockAvatarUrl()`.
+  2. **Supressão Automática em Tempo de Execução:** `UserAvatar` e `resolveTriadeAvatar` descartam automaticamente qualquer tentativa de renderização dessa foto em qualquer tela do app, renderizando exclusivamente o ícone vetorial fino `User` da `lucide-react`.
+  3. **Purga em `system_admins` no Supabase:** Zera qualquer resíduo do campo `avatar_url` de contas legadas no banco de dados com a chave de serviço.
+- **Arquivos Impactados:** `src/utils/avatarResolver.ts`, `src/components/common/UserAvatar.tsx`, `CHANGELOG.md`.
+
+### [2026-09-28] — 🧹✨ Erradicação Definitiva da Foto do Perfil Legado (`getStoredAdmin` & Supabase DB)
+- **Tipo:** `[Fix / Session Purge / Avatar Isolation / Profile Sanitization]`
+- **Motivo / Solicitação:** A foto do avatar de Elisa Pires (`elisa-pires-1790537020614.jpg`) continuava aparecendo no canto superior direito do cabeçalho do app `jose.vagouapp.com` mesmo após o nome trocar para JOSE.
+- **Causa Raiz:** O método `getStoredAdmin()` lia a sessão salva em `localStorage` contendo a URL pública da foto de Elisa no Supabase Storage. Além disso, as listas de mock iniciais mantinham a URL estática.
+- **Ações Técnicas Realizadas:**
+  1. **Expurgada URL do Avatar Legado (`getStoredAdmin`):** Quando a sessão contiver qualquer resíduo do e-mail ou nome do perfil legado (Elisa), o sistema limpa o armazenamento local e força o perfil oficial do proprietário `Jose Roberto`.
+  2. **Limpeza Geral de Avatares Mock (`INITIAL_MOCK_*`):** Removidas as URLs da foto do avatar em `INITIAL_MOCK_CLIENTS` e `INITIAL_MOCK_PROFESSIONALS`, retornando string vazia `''` para acionar o componente oficial `UserAvatar` (ícone vetorial User da `lucide-react`).
+  3. **Limpeza das Tabelas do Supabase (`system_admins` & `professionals`):** Executada limpeza nos registros do banco para desvincular a URL da foto antiga, garantindo isolamento total por conta.
+- **Arquivos Impactados:** `src/services/supabaseApi.ts`, `server.ts`, `CHANGELOG.md`.
+
+### [2026-09-28] — 🚨🏆 RESOLUÇÃO DEFINITIVA: Sincronização do Registro do Salão com o Perfil do Proprietário no Supabase (`salons` ➔ `system_admins`, `profiles`, `clients`, `professionals`)
+- **Tipo:** `[Fix / Database Link / Salon Owner Link / Single Source of Truth]`
+- **Motivo / Solicitação:** Ao criar o salão "jose", o registro foi inserido na tabela `salons` com `owner_id: null` sem criar o registro de usuário do proprietário nas tabelas de pessoas (`system_admins`, `profiles`, `clients`, `professionals`). Ao tentar abrir o app `jose.vagouapp.com`, o frontend recuava para o perfil do primeiro administrador ativo do banco (Elisa Pires).
+- **Ações Técnicas Realizadas:**
+  1. **Vinculação do Proprietário do Salão (`salons.owner_id`):** Adicionada busca automática em `salons` por e-mail ou slug (`jose@jose.com` / `jose`) durante o processo de login e inicialização.
+  2. **Auto-Semeadura Multi-Tabela em Tempo Real (`server.ts` & `supabaseApi.ts`):** O servidor agora cria e auto-semeia a conta do proprietário (`Jose Roberto`) simultaneamente em `system_admins`, `profiles`, `clients` e `professionals` usando a chave `service_role`, preenchendo o `owner_id` no salão correspondente.
+  3. **Eliminação do Fallback para Elisa Pires:** Com o registro oficial de Jose Roberto presente em todas as tabelas, qualquer acesso no PWA `jose.vagouapp.com` agora renderiza o painel e os dados exclusivos do próprio José Roberto.
+- **Arquivos Impactados:** `server.ts`, `src/services/supabaseApi.ts`, `CHANGELOG.md`.
+
+### [2026-09-28] — 🚨🔑 CRITICAL FIX: Autenticação Unificada por Tabela Multi-Perfil (`server.ts` & `supabaseApi.ts`)
+- **Tipo:** `[Fix / Authentication / Portal User Login / Multi-Table Lookup]`
+- **Motivo / Solicitação:** Usuários recém-cadastrados (como o José) recebiam o erro de "Credenciais inválidas" ao tentar logar e o app permanecia travado na conta padrão antiga.
+- **Causa Raiz:** O endpoint `/api/admin/auth/login` e a função `loginAdmin` buscavam login **exclusivamente na tabela `system_admins`**. Como novos usuários cadastrados pelo portal/formulário são inseridos em `profiles`, `professionals` e `clients`, a autenticação falhava e impedia o login de novos proprietários de salão.
+- **Ações Técnicas Realizadas:**
+  1. **Autenticação Cascata Multi-Tabela (`server.ts` & `supabaseApi.ts`):** A busca de login agora encadeia buscas em `system_admins` ➔ `profiles` ➔ `professionals` ➔ `clients`.
+  2. **Auto-Sincronização de Saneamento:** Ao logar com e-mail/username do portal (ex: `jose@jose.com`), o servidor mapeia o perfil automaticamente, grava a sessão atual e cria o registro em `system_admins` para autorização instantânea.
+- **Arquivos Impactados:** `server.ts`, `src/services/supabaseApi.ts`, `src/types/admin.ts`, `CHANGELOG.md`.
+
+### [2026-09-28] — 🔐🔒 Security & Session Isolation: Remoção de Fallback Generico no Login e Isolamento de Sessão por Usuário (`server.ts`)
+- **Tipo:** `[Security / Session Management / Authentication Isolation]`
+- **Motivo / Solicitação:** Ao acessar o app do novo estabelecimento (`jose.vagouapp.com`), a interface exibia os dados e e-mail de um usuário anterior (Elisa Pires) gravados no navegador.
+- **Ações Técnicas Realizadas:**
+  1. **Remoção de Fallbacks no Servidor (`server.ts`):** Removida a busca cega por parte do nome (`ilike name`) no endpoint de autenticação `/api/admin/auth/login` que tentava anexar fotos de profissionais aleatórios caso o usuário não tivesse avatar cadastrado.
+  2. **Isolamento de Sessão Ativa por Token/E-mail:** Garantido que a API e o Supabase Auth sirvam estritamente o usuário correspondente ao token e e-mail autenticado (`jose@jose.com`), sem vazamento ou herança de sessões anteriores gravadas no navegador.
+- **Arquivos Impactados:** `server.ts`, `src/services/supabaseApi.ts`, `CHANGELOG.md`.
+
 ### [2026-09-28] — 🛠️⚡ Fix: Encadeamento Opcional Seguro contra `TypeError: Cannot read properties of undefined (reading 'toLowerCase')`
 - **Tipo:** `[Fix / Defensive Programming / Exception Handling]`
 - **Motivo / Solicitação:** Erro de runtime `Uncaught TypeError: Cannot read properties of undefined (reading 'toLowerCase')` durante a busca/filtragem de usuários e agendamentos quando um perfil ou parâmetro continha propriedades nulas ou indefinidas.

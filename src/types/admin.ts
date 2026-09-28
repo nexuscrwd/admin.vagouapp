@@ -115,7 +115,7 @@ export interface SystemAdminUser {
   username: string;
   email: string;
   phone_whatsapp: string;
-  role: 'superadmin' | 'moderator' | 'support';
+  role: 'superadmin' | 'moderator' | 'support' | 'owner' | 'client';
   is_active: boolean;
   avatar_url?: string;
   created_at?: string;

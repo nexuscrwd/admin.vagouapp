@@ -37,6 +37,10 @@ export function isMockAvatarUrl(url?: string | null): boolean {
     'randomuser.me',
     'dummyimage.com',
     'placekitten.com',
+    'elisa-pires',
+    'elisa_pires',
+    '1790534282569',
+    '1790537020614',
   ];
 
   return mockPatterns.some((pattern) => cleaned.includes(pattern));
