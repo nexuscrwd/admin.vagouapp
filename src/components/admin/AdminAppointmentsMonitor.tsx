@@ -122,9 +122,9 @@ export const AdminAppointmentsMonitor: React.FC = () => {
     const q = search.toLowerCase();
     return salonsWithMetrics.filter(
       (item) =>
-        item.salon.trade_name.toLowerCase().includes(q) ||
-        item.salon.slug.toLowerCase().includes(q) ||
-        item.salon.city.toLowerCase().includes(q)
+        (item.salon?.trade_name?.toLowerCase() || '').includes(q) ||
+        (item.salon?.slug?.toLowerCase() || '').includes(q) ||
+        (item.salon?.city?.toLowerCase() || '').includes(q)
     );
   }, [salonsWithMetrics, search]);
 
@@ -148,11 +148,11 @@ export const AdminAppointmentsMonitor: React.FC = () => {
       // Busca texto
       if (search.trim()) {
         const q = search.toLowerCase();
-        const matchClient = apt.client_name.toLowerCase().includes(q);
-        const matchBeneficiary = apt.beneficiary_name?.toLowerCase().includes(q);
-        const matchService = apt.service_title.toLowerCase().includes(q);
-        const matchProf = apt.professional_name?.toLowerCase().includes(q);
-        const matchProto = apt.protocol.toLowerCase().includes(q);
+        const matchClient = (apt.client_name?.toLowerCase() || '').includes(q);
+        const matchBeneficiary = (apt.beneficiary_name?.toLowerCase() || '').includes(q);
+        const matchService = (apt.service_title?.toLowerCase() || '').includes(q);
+        const matchProf = (apt.professional_name?.toLowerCase() || '').includes(q);
+        const matchProto = (apt.protocol?.toLowerCase() || '').includes(q);
         if (!matchClient && !matchBeneficiary && !matchService && !matchProf && !matchProto) {
           return false;
         }

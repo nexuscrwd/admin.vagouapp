@@ -15,6 +15,14 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-28] — 🛠️⚡ Fix: Encadeamento Opcional Seguro contra `TypeError: Cannot read properties of undefined (reading 'toLowerCase')`
+- **Tipo:** `[Fix / Defensive Programming / Exception Handling]`
+- **Motivo / Solicitação:** Erro de runtime `Uncaught TypeError: Cannot read properties of undefined (reading 'toLowerCase')` durante a busca/filtragem de usuários e agendamentos quando um perfil ou parâmetro continha propriedades nulas ou indefinidas.
+- **Ações Técnicas Realizadas:**
+  1. **Encadeamento Opcional Seguro (`AdminUsersManager.tsx` & `AdminAppointmentsMonitor.tsx`):** Aplicado `(prop?.toLowerCase() || '')` em todas as buscas por e-mail, nome, telefone e nome de salão, prevenindo quebras de execução caso algum usuário do banco possua campo nulo.
+  2. **Proteção no Servidor (`server.ts`):** Adicionada verificação segura `(p.email ? p.email.toLowerCase() : '')` na agregação de usuários por chave única (`userMap`), garantindo estabilidade do endpoint de listagem.
+- **Arquivos Impactados:** `src/components/admin/AdminUsersManager.tsx`, `src/components/admin/AdminAppointmentsMonitor.tsx`, `server.ts`, `CHANGELOG.md`.
+
 ### [2026-09-28] — 🖼️🚨 Fix: Eliminação do Cross-Contaminação de Avatares Fallback (`fetchUserProfileFromDb`)
 - **Tipo:** `[Fix / User Profile / Avatar Isolation / Tríade Protocol]`
 - **Motivo / Solicitação:** Ao cadastrar um novo usuário sem foto (como José), o app exibia a foto da Elisa Pires no cabeçalho superior.

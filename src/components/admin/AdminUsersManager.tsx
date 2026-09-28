@@ -159,9 +159,9 @@ export const AdminUsersManager: React.FC = () => {
     if (!q) return admins;
     return admins.filter(
       (a) =>
-        a.full_name.toLowerCase().includes(q) ||
-        a.username.toLowerCase().includes(q) ||
-        a.email.toLowerCase().includes(q)
+        (a.full_name?.toLowerCase() || '').includes(q) ||
+        (a.username?.toLowerCase() || '').includes(q) ||
+        (a.email?.toLowerCase() || '').includes(q)
     );
   }, [admins, q]);
 
@@ -169,10 +169,10 @@ export const AdminUsersManager: React.FC = () => {
     if (!q) return clients;
     return clients.filter(
       (c) =>
-        c.full_name.toLowerCase().includes(q) ||
-        c.email.toLowerCase().includes(q) ||
-        c.phone.includes(q) ||
-        c.dependents.some((d) => d.full_name.toLowerCase().includes(q))
+        (c.full_name?.toLowerCase() || '').includes(q) ||
+        (c.email?.toLowerCase() || '').includes(q) ||
+        (c.phone || '').includes(q) ||
+        (c.dependents || []).some((d) => (d.full_name?.toLowerCase() || '').includes(q))
     );
   }, [clients, q]);
 
@@ -180,10 +180,10 @@ export const AdminUsersManager: React.FC = () => {
     if (!q) return salonUsers;
     return salonUsers.filter(
       (su) =>
-        su.full_name.toLowerCase().includes(q) ||
-        su.email.toLowerCase().includes(q) ||
-        su.salon_name.toLowerCase().includes(q) ||
-        su.phone_whatsapp.includes(q)
+        (su.full_name?.toLowerCase() || '').includes(q) ||
+        (su.email?.toLowerCase() || '').includes(q) ||
+        (su.salon_name?.toLowerCase() || '').includes(q) ||
+        (su.phone_whatsapp || '').includes(q)
     );
   }, [salonUsers, q]);
 
@@ -191,10 +191,10 @@ export const AdminUsersManager: React.FC = () => {
     if (!q) return professionals;
     return professionals.filter(
       (p) =>
-        p.full_name.toLowerCase().includes(q) ||
-        (p.nickname && p.nickname.toLowerCase().includes(q)) ||
-        (p.current_salon_name && p.current_salon_name.toLowerCase().includes(q)) ||
-        p.phone_whatsapp.includes(q)
+        (p.full_name?.toLowerCase() || '').includes(q) ||
+        (p.nickname?.toLowerCase() || '').includes(q) ||
+        (p.current_salon_name?.toLowerCase() || '').includes(q) ||
+        (p.phone_whatsapp || '').includes(q)
     );
   }, [professionals, q]);
 

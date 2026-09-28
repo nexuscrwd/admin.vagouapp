@@ -1052,8 +1052,8 @@ async function startServer() {
 
       // 1. Profiles (unified source)
       (profiles || []).forEach((p: any) => {
-        if (p.id || p.email) {
-          const key = p.id || p.email.toLowerCase();
+        const key = p.id || (p.email ? p.email.toLowerCase() : '');
+        if (key) {
           userMap.set(key, {
             id: p.id,
             name: p.full_name || p.name || 'Usuário Sem Nome',
