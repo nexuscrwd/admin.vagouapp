@@ -11,6 +11,17 @@ export type SalonFilterStatus = 'all' | 'active' | 'pending' | 'incomplete' | 's
 
 export type SalonSegmentFilter = 'all' | 'barbearia' | 'salao' | 'estetica' | 'outro';
 
+export interface DayOperatingHour {
+  day: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+  label: string;
+  isOpen: boolean;
+  openTime: string;  // e.g. "08:00"
+  closeTime: string; // e.g. "19:00"
+  hasBreak?: boolean;
+  breakStart?: string; // e.g. "12:00"
+  breakEnd?: string;   // e.g. "13:00"
+}
+
 export interface AdminSalonItem {
   id: string;
   trade_name: string;
@@ -20,6 +31,7 @@ export interface AdminSalonItem {
   status: 'active' | 'pending' | 'incomplete' | 'suspended';
   is_verified?: boolean;
   phone_whatsapp?: string;
+  phone_landline?: string;
   email?: string;
   document_type?: 'CNPJ' | 'CPF' | string;
   document_number?: string;
@@ -39,6 +51,7 @@ export interface AdminSalonItem {
   cep?: string;
   logo_url?: string;
   primary_color?: string;
+  operating_hours?: DayOperatingHour[];
   created_at?: string;
   professionals_count?: number;
   active_offers_count?: number;

@@ -119,6 +119,41 @@ interface TechnicalBulletin {
 
 const TRIADE_BULLETINS: TechnicalBulletin[] = [
   {
+    id: 'bol-016-dedicated-business-contacts-and-address-sync',
+    timestamp: '2026-09-28T07:15:00.000Z',
+    sourceApp: 'admvapp',
+    targetApps: ['pvapp', 'mnvapp'],
+    title: 'Ajuste de Schema Supabase & Regra de Negócio: Endereço Comercial Independente e Contatos Específicos do Salão',
+    category: 'schema_change',
+    summary: 'Adequação Oficial da Tríade: 1. O Endereço do Estabelecimento (Salão) passa a ser cadastrado e armazenado de forma totalmente independente do endereço residencial do cidadão/profissional quando não forem no mesmo local. O Radar do PVAPP (portal.vagouapp.com) DEVE utilizar obrigatoriamente as colunas de endereço do salão (address, cep, city, neighborhood, latitude, longitude) da tabela salons. 2. Os Meios de Contato Comerciais (WhatsApp do Salão, Telefone Fixo e E-mail do Salão) são desmarcados por padrão no cadastro para incentivar o preenchimento dos contatos comerciais dedicados. 3. Script SQL preventivo disponibilizado para inclusão de colunas em salons.',
+    impactedTables: ['public.salons', 'public.profiles'],
+    sqlMigration: `-- Executar no Supabase SQL Editor para garantir total integridade
+ALTER TABLE public.salons 
+ADD COLUMN IF NOT EXISTS phone_landline TEXT,
+ADD COLUMN IF NOT EXISTS subdomain TEXT,
+ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active',
+ADD COLUMN IF NOT EXISTS cep TEXT,
+ADD COLUMN IF NOT EXISTS street_number TEXT,
+ADD COLUMN IF NOT EXISTS complement TEXT,
+ADD COLUMN IF NOT EXISTS neighborhood TEXT,
+ADD COLUMN IF NOT EXISTS city TEXT,
+ADD COLUMN IF NOT EXISTS state TEXT;`,
+    instructions: '1. PVAPP: Garantir que a busca de ofertas no Radar utilize salon.address, salon.cep e salon.city para rotas e proximidade do estabelecimento, e exiba os telefones de contato comercial (phone_whatsapp, phone_landline). 2. MNVAPP: Exibir os dados comerciais do salão nas configurações da empresa.',
+    author: 'Super Administrador • admvapp (admin.vagouapp.com)',
+  },
+  {
+    id: 'bol-015-unified-sovereign-registration-gateway',
+    timestamp: '2026-09-28T05:45:00.000Z',
+    sourceApp: 'admvapp',
+    targetApps: ['pvapp', 'mnvapp'],
+    title: 'Erradicação dos Sistemas Nativos de Cadastro no PVAPP e MNVAPP & Adoção Exclusiva do Gateway Soberano Unificado (admin.vagouapp.com/cadastro)',
+    category: 'breaking_change',
+    summary: 'Instrução Inegociável da Tríade: 1. Remoção completa de formulários e rotas locais de criação de conta no PVAPP (portal.vagouapp.com) e MNVAPP (meunegocio.vagouapp.com). 2. Redirecionamento e/ou Embed Seguro (iframe modal) para o Gateway Soberano de Cadastro do ADMVAPP (https://admin.vagouapp.com/cadastro). 3. Suporte a Query Params (?type=client|professional, ?slug=..., ?redirect=...) e protocolo postMessage (VAGOU_REGISTRATION_SUCCESS) para fechamento fluido de modais e navegação instantânea sem fricção. 4. Todos os novos usuários e profissionais são cadastrados diretamente com chave Service Role via auth.users + public.profiles + clients / professionals / salons.',
+    impactedTables: ['auth.users', 'public.profiles', 'public.clients', 'public.professionals', 'public.salons'],
+    instructions: '1. PVAPP e MNVAPP: DESTRUIR totalmente modais/telas nativas de cadastro de usuário e profissional. 2. Substituir links e botões por direcionamento para https://admin.vagouapp.com/cadastro com parâmetros ou por um modal contendo <iframe src="https://admin.vagouapp.com/cadastro?embed=true&type=client|professional&redirect=..."/>. 3. Escutar window.addEventListener("message", ...) para capturar VAGOU_REGISTRATION_SUCCESS.',
+    author: 'Super Administrador • admvapp (admin.vagouapp.com)',
+  },
+  {
     id: 'bol-009-single-source-of-truth-avatar-realtime-sync',
     timestamp: '2026-09-27T19:25:00.000Z',
     sourceApp: 'admvapp',
@@ -690,37 +725,55 @@ async function startServer() {
     try {
       const payload = { ...req.body };
       if (!payload.trade_name || !payload.slug) {
-        return res.status(400).json({ success: false, error: 'trade_name e slug são obrigatórios' });
+        return res.status(400).json({ success: false, error: 'Nome Fantasia e Subdomínio são obrigatórios.' });
       }
 
-      if (payload.status) {
-        payload.is_active = payload.status === 'active';
-        payload.is_verified = payload.status === 'active' || payload.status === 'incomplete';
-        delete payload.status;
-      } else {
-        if (payload.is_active === undefined) payload.is_active = true;
-        if (payload.is_verified === undefined) payload.is_verified = true;
-      }
+      const cleanSlug = payload.slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
 
-      // Remove propriedades puramente visuais/locais antes da inserção no banco
-      delete payload.category;
-      delete payload.professionals_count;
-      delete payload.active_offers_count;
-      delete payload.rating;
+      // Prepara objeto limpo para evitar erros de colunas ou chaves nulas no Supabase
+      const dbInsert: Record<string, any> = {
+        trade_name: payload.trade_name.trim(),
+        legal_name: payload.legal_name?.trim() || payload.trade_name.trim(),
+        slug: cleanSlug,
+        phone_whatsapp: payload.phone_whatsapp?.trim() || null,
+        email: payload.email?.trim() || null,
+        document_number: payload.document_number?.trim() || null,
+        address: payload.address?.trim() || null,
+        neighborhood: payload.neighborhood?.trim() || null,
+        city: payload.city?.trim() || 'São Paulo',
+        state: payload.state?.trim() || 'SP',
+        cep: payload.cep?.trim() || null,
+        logo_url: payload.logo_url?.trim() || null,
+        primary_color: payload.primary_color || '#10B981',
+        is_active: payload.status !== 'incomplete' && payload.status !== 'suspended',
+        is_verified: payload.status === 'active' || payload.is_verified === true,
+      };
+
+      if (payload.owner_user_id) {
+        dbInsert.owner_user_id = payload.owner_user_id;
+      }
 
       const { data, error } = await supabaseAdmin
         .from('salons')
-        .insert([payload])
+        .insert([dbInsert])
         .select()
         .single();
 
       if (error) {
-        return res.status(400).json({ success: false, error: error.message });
+        console.error('[POST /api/admin/salons Supabase Error]:', error);
+        if (error.code === '23505' || error.message.includes('unique')) {
+          return res.status(400).json({
+            success: false,
+            error: `O subdomínio "${cleanSlug}" já está em uso por outro estabelecimento no banco. Por favor, escolha outro subdomínio.`,
+          });
+        }
+        return res.status(400).json({ success: false, error: `Erro no banco: ${error.message}` });
       }
 
       return res.json({ success: true, salon: data });
     } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
+      console.error('[POST /api/admin/salons Exception]:', err);
+      return res.status(500).json({ success: false, error: err.message || 'Erro no servidor' });
     }
   });
 
@@ -975,6 +1028,394 @@ async function startServer() {
       return res.json({ success: true, bulletin: newBulletin });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // UNIFIED ALL PORTAL USERS ENDPOINT (Sovereign Service Role)
+  app.get('/api/admin/all-portal-users', async (req, res) => {
+    try {
+      const [
+        { data: profiles },
+        { data: clients },
+        { data: professionals },
+        { data: salonUsers },
+        { data: admins },
+      ] = await Promise.all([
+        supabaseAdmin.from('profiles').select('*').order('created_at', { ascending: false }),
+        supabaseAdmin.from('clients').select('*').order('created_at', { ascending: false }),
+        supabaseAdmin.from('professionals').select('*').order('created_at', { ascending: false }),
+        supabaseAdmin.from('salon_users').select('*').order('created_at', { ascending: false }),
+        supabaseAdmin.from('system_admins').select('*').order('created_at', { ascending: false }),
+      ]);
+
+      const userMap = new Map<string, any>();
+
+      // 1. Profiles (unified source)
+      (profiles || []).forEach((p: any) => {
+        if (p.id || p.email) {
+          const key = p.id || p.email.toLowerCase();
+          userMap.set(key, {
+            id: p.id,
+            name: p.full_name || p.name || 'Usuário Sem Nome',
+            email: p.email || '',
+            username: p.username || (p.email ? p.email.split('@')[0] : 'usuario'),
+            phone: p.phone_whatsapp || p.phone || '',
+            avatarUrl: p.avatar_url || '',
+            roleType: 'Usuário Portal',
+          });
+        }
+      });
+
+      // 2. Clients
+      (clients || []).forEach((c: any) => {
+        const key = c.id || c.email?.toLowerCase();
+        if (key) {
+          const existing = userMap.get(key) || {};
+          userMap.set(key, {
+            id: c.id || existing.id,
+            name: c.name || c.full_name || existing.name || 'Cliente',
+            email: c.email || existing.email || '',
+            username: c.username || existing.username || (c.email ? c.email.split('@')[0] : 'usuario'),
+            phone: c.phone || c.phone_whatsapp || existing.phone || '',
+            avatarUrl: c.avatar_url || existing.avatarUrl || '',
+            roleType: existing.roleType || 'Cliente',
+          });
+        }
+      });
+
+      // 3. Professionals
+      (professionals || []).forEach((pr: any) => {
+        const key = pr.id || pr.email?.toLowerCase();
+        if (key) {
+          const existing = userMap.get(key) || {};
+          userMap.set(key, {
+            id: pr.id || existing.id,
+            name: pr.name || pr.full_name || existing.name || 'Profissional',
+            email: pr.email || existing.email || '',
+            username: pr.username || pr.nickname || existing.username || (pr.email ? pr.email.split('@')[0] : 'profissional'),
+            phone: pr.phone_whatsapp || pr.phone || existing.phone || '',
+            avatarUrl: pr.avatar_url || existing.avatarUrl || '',
+            roleType: 'Profissional',
+          });
+        }
+      });
+
+      // 4. Salon Users
+      (salonUsers || []).forEach((su: any) => {
+        const key = su.id || su.email?.toLowerCase();
+        if (key) {
+          const existing = userMap.get(key) || {};
+          userMap.set(key, {
+            id: su.id || existing.id,
+            name: su.full_name || su.name || existing.name || 'Gestor de Salão',
+            email: su.email || existing.email || '',
+            username: su.username || existing.username || (su.email ? su.email.split('@')[0] : 'gestor'),
+            phone: su.phone_whatsapp || su.phone || existing.phone || '',
+            avatarUrl: su.avatar_url || existing.avatarUrl || '',
+            roleType: 'Gestor / Salão',
+          });
+        }
+      });
+
+      // 5. System Admins
+      (admins || []).forEach((a: any) => {
+        const key = a.id || a.email?.toLowerCase();
+        if (key) {
+          const existing = userMap.get(key) || {};
+          userMap.set(key, {
+            id: a.id || existing.id,
+            name: a.full_name || a.name || existing.name || 'Administrador',
+            email: a.email || existing.email || '',
+            username: a.username || existing.username || (a.email ? a.email.split('@')[0] : 'admin'),
+            phone: a.phone_whatsapp || a.phone || existing.phone || '',
+            avatarUrl: a.avatar_url || existing.avatarUrl || '',
+            roleType: 'Administrador Master',
+          });
+        }
+      });
+
+      const usersList = Array.from(userMap.values());
+      return res.json({ success: true, users: usersList });
+    } catch (err: any) {
+      console.error('[API All Portal Users Error]:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // UNIFIED PUBLIC REGISTRATION ENGINE (Sovereign Service Role)
+  app.post('/api/public/register-user', async (req, res) => {
+    try {
+      const {
+        type = 'client', // 'client' | 'professional'
+        name,
+        email,
+        password,
+        phone = '',
+        documentCpf = '',
+        username = '',
+        avatarUrl = '',
+        // Address
+        cep = '',
+        street = '',
+        number = '',
+        complement = '',
+        neighborhood = '',
+        city = '',
+        state = '',
+        // Dependents array
+        dependents = [],
+        // Salon / Business fields
+        tradeName = '',
+        slug = '',
+        category = 'barbearia',
+        attendanceType = 'salon_only', // 'home_only' | 'hybrid' | 'salon_only'
+        targetGender = 'unisex',      // 'male' | 'female' | 'unisex'
+        targetAgeGroup = 'both',       // 'adults' | 'kids' | 'both'
+        // Dedicated Salon Address & Contacts (if different from personal)
+        salonSameAsPersonalAddress = true,
+        salonCep = '',
+        salonStreet = '',
+        salonNumber = '',
+        salonComplement = '',
+        salonNeighborhood = '',
+        salonCity = '',
+        salonState = '',
+        salonPhoneWhatsapp = '',
+        salonPhoneLandline = '',
+        salonEmail = '',
+        redirectUrl = '',
+      } = req.body;
+
+      if (!name || !email || !password) {
+        return res.status(400).json({ success: false, error: 'Nome, E-mail e Senha são obrigatórios.' });
+      }
+
+      // Username Validation Rule: Must have at least 1 uppercase letter and 1 special char
+      if (username) {
+        const hasUpper = /[A-Z]/.test(username);
+        const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(username);
+        if (!hasUpper || !hasSpecial) {
+          return res.status(400).json({
+            success: false,
+            error: 'O nome de perfil precisa ter pelo menos 1 letra maiúscula e 1 caractere especial (ex: Anderson#).'
+          });
+        }
+      }
+
+      const cleanEmail = email.trim().toLowerCase();
+      const cleanName = name.trim();
+      const cleanSlug = slug
+        .toLowerCase()
+        .trim()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9-]/g, '')
+        .slice(0, 30);
+
+      const RESERVED_SUBDOMAINS = [
+        'adm', 'admin', 'admvapp', 'portal', 'pvapp', 'meunegocio', 'mnvapp',
+        'www', 'api', 'suporte', 'ajuda', 'vagou', 'vagouapp', 'localhost',
+        'app', 'dashboard', 'status', 'auth', 'login', 'signup', 'checkout'
+      ];
+
+      if (type === 'professional' && (!tradeName?.trim() || !cleanSlug)) {
+        return res.status(400).json({ success: false, error: 'Nome do Estabelecimento e Subdomínio são obrigatórios para profissionais.' });
+      }
+
+      if (type === 'professional' && RESERVED_SUBDOMAINS.includes(cleanSlug)) {
+        return res.status(400).json({ success: false, error: `O subdomínio "${cleanSlug}" é reservado pelo sistema.` });
+      }
+
+      // 1. Create or retrieve auth user via Supabase Admin
+      let authUserId: string | null = null;
+      
+      const { data: authUserResp, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: cleanEmail,
+        password: password,
+        email_confirm: true,
+        user_metadata: {
+          full_name: cleanName,
+          phone: phone || undefined,
+          avatar_url: avatarUrl || undefined,
+          username: username || undefined,
+        },
+      });
+
+      if (authError) {
+        if (authError.message.includes('already registered') || authError.message.includes('already exists')) {
+          const { data: existingUser } = await supabaseAdmin
+            .from('clients')
+            .select('id')
+            .eq('email', cleanEmail)
+            .maybeSingle();
+
+          if (existingUser?.id) {
+            authUserId = existingUser.id;
+          } else {
+            const { data: existingPro } = await supabaseAdmin
+              .from('professionals')
+              .select('id')
+              .eq('email', cleanEmail)
+              .maybeSingle();
+            authUserId = existingPro?.id || null;
+          }
+        } else {
+          return res.status(400).json({ success: false, error: `Erro no Auth: ${authError.message}` });
+        }
+      } else {
+        authUserId = authUserResp.user.id;
+      }
+
+      const effectiveId = authUserId || `usr-${Date.now()}`;
+
+      // 2. Upsert into public.profiles (Unified Person Profile)
+      try {
+        await supabaseAdmin.from('profiles').upsert({
+          id: effectiveId,
+          full_name: cleanName,
+          email: cleanEmail,
+          phone_whatsapp: phone || null,
+          document_number: documentCpf || null,
+          avatar_url: avatarUrl || null,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'id' });
+      } catch (profErr) {
+        console.warn('Aviso no upsert de profiles:', profErr);
+      }
+
+      // 3. Upsert into public.clients
+      const fullAddress = [street, number, complement, neighborhood, city, state, cep]
+        .filter(Boolean)
+        .join(', ');
+
+      await supabaseAdmin.from('clients').upsert({
+        id: effectiveId,
+        name: cleanName,
+        email: cleanEmail,
+        phone: phone || null,
+        avatar_url: avatarUrl || null,
+        default_address: fullAddress || null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+
+      // 4. Upsert into public.professionals (Single Source of Truth)
+      await supabaseAdmin.from('professionals').upsert({
+        id: effectiveId,
+        name: cleanName,
+        email: cleanEmail,
+        phone_whatsapp: phone || null,
+        avatar_url: avatarUrl || null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+
+      // 5. Save Dependents if present
+      if (Array.isArray(dependents) && dependents.length > 0) {
+        for (const dep of dependents) {
+          if (dep.fullName && dep.fullName.trim()) {
+            try {
+              await supabaseAdmin.from('user_dependents').insert({
+                user_id: effectiveId,
+                full_name: dep.fullName.trim(),
+                nickname: dep.nickname || null,
+                age: dep.age ? parseInt(dep.age) : null,
+                gender: dep.gender || null,
+                relationship: dep.relationship || 'Filho/a',
+                avatar_url: dep.avatarUrl || null,
+              });
+            } catch (depErr) {
+              console.warn('Aviso ao inserir dependente:', depErr);
+            }
+          }
+        }
+      }
+
+      // 6. If professional, create salon entry
+      let createdSalon = null;
+      if (type === 'professional') {
+        const homeDeliveryEnabled = attendanceType === 'home_only' || attendanceType === 'hybrid';
+
+        // Effective Salon Address (if different from personal residence)
+        const effSalonCep = (!salonSameAsPersonalAddress && salonCep) ? salonCep : cep;
+        const effSalonStreet = (!salonSameAsPersonalAddress && salonStreet) ? salonStreet : street;
+        const effSalonNumber = (!salonSameAsPersonalAddress && salonNumber) ? salonNumber : number;
+        const effSalonComplement = (!salonSameAsPersonalAddress && salonComplement) ? salonComplement : complement;
+        const effSalonNeighborhood = (!salonSameAsPersonalAddress && salonNeighborhood) ? salonNeighborhood : neighborhood;
+        const effSalonCity = (!salonSameAsPersonalAddress && salonCity) ? salonCity : city;
+        const effSalonState = (!salonSameAsPersonalAddress && salonState) ? salonState : state;
+
+        const effSalonAddress = (!salonSameAsPersonalAddress && salonStreet)
+          ? [salonStreet, salonNumber, salonComplement, salonNeighborhood, salonCity, salonState, salonCep].filter(Boolean).join(', ')
+          : fullAddress;
+
+        const effSalonPhoneWhatsapp = (!salonSameAsPersonalAddress && salonPhoneWhatsapp) ? salonPhoneWhatsapp : phone;
+        const effSalonEmail = (!salonSameAsPersonalAddress && salonEmail) ? salonEmail : cleanEmail;
+
+        const { data: salonData, error: salonErr } = await supabaseAdmin
+          .from('salons')
+          .upsert({
+            trade_name: tradeName.trim(),
+            legal_name: cleanName,
+            slug: cleanSlug,
+            subdomain: cleanSlug,
+            owner_id: effectiveId,
+            document_number: documentCpf || null,
+            phone_whatsapp: effSalonPhoneWhatsapp || null,
+            phone_landline: salonPhoneLandline || null,
+            email: effSalonEmail,
+            category: category || 'barbearia',
+            status: 'active',
+            is_verified: true,
+            is_active: true,
+            home_delivery_enabled: homeDeliveryEnabled,
+            operating_model: attendanceType,
+            address: effSalonAddress || null,
+            cep: effSalonCep || null,
+            street_number: effSalonNumber || null,
+            complement: effSalonComplement || null,
+            neighborhood: effSalonNeighborhood || null,
+            city: effSalonCity || 'São Paulo',
+            state: effSalonState || 'SP',
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'slug' })
+          .select()
+          .single();
+
+        if (salonErr) {
+          console.warn('Aviso no upsert do salão:', salonErr);
+        } else {
+          createdSalon = salonData;
+        }
+      }
+
+      // 7. Determine default Target Redirect
+      let targetRedirect = redirectUrl;
+      if (!targetRedirect) {
+        if (type === 'professional' && cleanSlug) {
+          targetRedirect = `https://${cleanSlug}.vagouapp.com`;
+        } else {
+          targetRedirect = 'https://portal.vagouapp.com';
+        }
+      }
+
+      return res.json({
+        success: true,
+        message: type === 'professional' ? 'Estabelecimento e conta criados com sucesso!' : 'Conta de usuário criada com sucesso!',
+        user: {
+          id: effectiveId,
+          name: cleanName,
+          email: cleanEmail,
+          username: username || null,
+          phone,
+          avatarUrl: avatarUrl || null,
+          type,
+          dependentsCount: dependents.length,
+        },
+        salon: createdSalon,
+        targetRedirect,
+      });
+    } catch (err: any) {
+      console.error('Erro no cadastro unificado:', err);
+      return res.status(500).json({ success: false, error: err.message || 'Erro interno no cadastro unificado.' });
     }
   });
 

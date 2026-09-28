@@ -7,6 +7,7 @@ import {
   Check,
 } from 'lucide-react';
 import { AdminSalonItem } from '../../types/admin';
+import { SalonLogo } from '../common/SalonLogo';
 
 interface AdminModerationPanelProps {
   salons: AdminSalonItem[];
@@ -74,21 +75,12 @@ export const AdminModerationPanel: React.FC<AdminModerationPanelProps> = ({
                 <div>
                   <div className="flex items-start justify-between gap-3 mb-2.5">
                     <div className="flex items-center gap-3">
-                      <div
-                        className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-xs shrink-0"
-                        style={{ backgroundColor: salon.primary_color || '#F59E0B' }}
-                      >
-                        {salon.logo_url && !salon.logo_url.includes('unsplash') ? (
-                          <img
-                            src={salon.logo_url}
-                            alt={salon.trade_name}
-                            className="w-full h-full object-cover rounded-lg"
-                            onError={(e) => ((e.target as HTMLElement).style.display = 'none')}
-                          />
-                        ) : (
-                          <Building2 className="w-5 h-5 text-white" />
-                        )}
-                      </div>
+                      <SalonLogo
+                        logoUrl={salon.logo_url}
+                        name={salon.trade_name}
+                        size="lg"
+                        primaryColor={salon.primary_color}
+                      />
                       <div>
                         <h4 className="font-bold text-sm text-slate-900 dark:text-white">{salon.trade_name}</h4>
                         <span className="text-[11px] text-slate-500 dark:text-slate-400">{salon.legal_name || 'Sem razão social informada'}</span>

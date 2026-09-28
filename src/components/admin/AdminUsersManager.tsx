@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   XCircle,
   User,
+  UserPlus,
   Info,
 } from 'lucide-react';
 import {
@@ -32,10 +33,11 @@ import {
 } from '../../services/supabaseApi';
 import { AdminCreateAdminModal } from './AdminCreateAdminModal';
 import { UserAvatar } from '../common/UserAvatar';
+import { UnifiedRegistrationForm } from '../public/UnifiedRegistrationForm';
 
 export const AdminUsersManager: React.FC = () => {
-  // Aba ativa
-  const [activeTab, setActiveTab] = useState<UserCategoryTab>('admins');
+  // Aba ativa (Padrão: Clientes)
+  const [activeTab, setActiveTab] = useState<UserCategoryTab>('clients');
 
   // Dados
   const [admins, setAdmins] = useState<SystemAdminUser[]>([]);
@@ -50,6 +52,7 @@ export const AdminUsersManager: React.FC = () => {
 
   // Modais de Criação / Edição
   const [isCreateAdminModalOpen, setIsCreateAdminModalOpen] = useState(false);
+  const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState(false);
 
   // Carregar dados
   const loadAll = async () => {
@@ -216,7 +219,7 @@ export const AdminUsersManager: React.FC = () => {
           </div>
         </div>
 
-        {/* Botão de Atualizar & Adicionar Admin */}
+        {/* Botão de Atualizar, Cadastrar Usuário & Adicionar Admin */}
         <div className="flex items-center gap-2 self-start md:self-auto">
           <button
             onClick={loadAll}
@@ -227,13 +230,22 @@ export const AdminUsersManager: React.FC = () => {
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-emerald-600 dark:text-emerald-400' : ''}`} />
           </button>
 
+          <button
+            onClick={() => setIsRegistrationModalOpen(true)}
+            className="px-3.5 py-2 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center gap-1.5 shadow-md shadow-emerald-500/20 cursor-pointer active:scale-95"
+            title="Cadastrar novo usuário no ecossistema Vagou"
+          >
+            <UserPlus className="w-4 h-4 text-white" />
+            <span>Cadastrar Usuário</span>
+          </button>
+
           {activeTab === 'admins' && (
             <button
               onClick={() => setIsCreateAdminModalOpen(true)}
-              className="px-3.5 py-2 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center gap-1.5 shadow-md shadow-emerald-500/20 cursor-pointer active:scale-95"
+              className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition flex items-center gap-1.5 border border-slate-700 cursor-pointer active:scale-95"
             >
               <Plus className="w-4 h-4 text-white" />
-              <span>Novo Administrador</span>
+              <span>Novo Admin</span>
             </button>
           )}
         </div>
@@ -261,23 +273,8 @@ export const AdminUsersManager: React.FC = () => {
         </div>
       </div>
 
-      {/* Navegação por Abas (4 Categorias de Usuários) */}
+      {/* Navegação por Abas (4 Categorias de Usuários do Sistema) */}
       <div className="p-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-1 shadow-xs dark:shadow-none">
-        <button
-          onClick={() => {
-            setActiveTab('admins');
-            setSearch('');
-          }}
-          className={`flex-1 min-w-[140px] py-2 px-3 rounded-lg text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 ${
-            activeTab === 'admins'
-              ? 'bg-[#20C933] text-white shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-          }`}
-        >
-          <ShieldCheck className="w-4 h-4" />
-          <span>Administradores ({admins.length})</span>
-        </button>
-
         <button
           onClick={() => {
             setActiveTab('clients');
@@ -295,21 +292,6 @@ export const AdminUsersManager: React.FC = () => {
 
         <button
           onClick={() => {
-            setActiveTab('salon_users');
-            setSearch('');
-          }}
-          className={`flex-1 min-w-[140px] py-2 px-3 rounded-lg text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 ${
-            activeTab === 'salon_users'
-              ? 'bg-[#20C933] text-white shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-          }`}
-        >
-          <Building2 className="w-4 h-4" />
-          <span>Acessos de Salão ({salonUsers.length})</span>
-        </button>
-
-        <button
-          onClick={() => {
             setActiveTab('professionals');
             setSearch('');
           }}
@@ -320,7 +302,37 @@ export const AdminUsersManager: React.FC = () => {
           }`}
         >
           <Scissors className="w-4 h-4" />
-          <span>Prestadores & Equipe ({professionals.length})</span>
+          <span>Profissionais da Rede ({professionals.length})</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('salon_users');
+            setSearch('');
+          }}
+          className={`flex-1 min-w-[140px] py-2 px-3 rounded-lg text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 ${
+            activeTab === 'salon_users'
+              ? 'bg-[#20C933] text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <Building2 className="w-4 h-4" />
+          <span>Proprietários & Gestores ({salonUsers.length})</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('admins');
+            setSearch('');
+          }}
+          className={`flex-1 min-w-[140px] py-2 px-3 rounded-lg text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 ${
+            activeTab === 'admins'
+              ? 'bg-[#20C933] text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <ShieldCheck className="w-4 h-4" />
+          <span>Admins do Portal ({admins.length})</span>
         </button>
       </div>
 
@@ -732,9 +744,9 @@ export const AdminUsersManager: React.FC = () => {
                       </td>
 
                       <td className="py-3 px-4">
-                        <span className="text-slate-900 dark:text-white block font-bold">⭐ {prof.rating.toFixed(2)}</span>
+                        <span className="text-slate-900 dark:text-white block font-bold">⭐ {(prof.rating ?? 5.0).toFixed(2)}</span>
                         <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
-                          {prof.total_services_done} atendimentos realizados
+                          {prof.total_services_done ?? 0} atendimentos realizados
                         </span>
                       </td>
 
@@ -771,6 +783,24 @@ export const AdminUsersManager: React.FC = () => {
           triggerFeedback(`Novo administrador @${newAdmin.username} cadastrado com sucesso!`);
         }}
       />
+
+      {/* Modal Dedicado para Cadastro Unificado de Usuários (Cidadão / Profissional) */}
+      {isRegistrationModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn overflow-y-auto">
+          <div className="w-full max-w-xl bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl relative my-auto max-h-[92vh] overflow-y-auto">
+            <UnifiedRegistrationForm
+              initialType="client"
+              hideTypeSelector={true}
+              onClose={() => setIsRegistrationModalOpen(false)}
+              onSuccess={() => {
+                setIsRegistrationModalOpen(false);
+                loadAll();
+                triggerFeedback('Novo usuário cliente cadastrado com sucesso!');
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

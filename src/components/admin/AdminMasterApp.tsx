@@ -126,7 +126,9 @@ export const AdminMasterApp: React.FC = () => {
     if (res.success && res.salon) {
       setSalons((prev) => [res.salon!, ...prev]);
       fetchAdminDashboardMetrics().then(setMetrics);
+      return { success: true };
     }
+    return { success: false, error: res.error || 'Erro ao cadastrar estabelecimento.' };
   };
 
   const handleUpdateStatus = async (salonId: string, status: AdminSalonItem['status']) => {

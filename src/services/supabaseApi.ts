@@ -188,7 +188,7 @@ export async function fetchAdminSalons(): Promise<AdminSalonItem[]> {
             city: row.city || 'São Paulo',
             state: row.state || 'SP',
             cep: row.cep || '',
-            logo_url: row.logo_url || '',
+            logo_url: row.logo_url || row.logo || row.logo_light_url || row.logo_dark_url || '',
             primary_color: row.primary_color || row.brand_color || '#10B981',
             created_at: row.created_at || new Date().toISOString(),
             professionals_count: row.professionals_count || 2,
@@ -226,7 +226,7 @@ export async function fetchAdminSalons(): Promise<AdminSalonItem[]> {
         city: row.city || 'São Paulo',
         state: row.state || 'SP',
         cep: row.cep || '',
-        logo_url: row.logo_url || '',
+        logo_url: row.logo_url || row.logo || row.logo_light_url || row.logo_dark_url || '',
         primary_color: row.primary_color || row.brand_color || '#10B981',
         created_at: row.created_at || new Date().toISOString(),
         professionals_count: row.professionals_count || 2,
@@ -259,30 +259,58 @@ export async function createAdminSalon(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(salonData),
       });
-      if (resp.ok) {
-        const json = await resp.json();
-        if (json.success && json.salon) {
-          return { success: true, salon: json.salon };
-        }
+      const json = await resp.json();
+      if (resp.ok && json.success && json.salon) {
+        return { success: true, salon: json.salon };
       }
-    } catch {}
+      if (json.error) {
+        console.warn('[Supabase Admin] Erro da API ao criar salão:', json.error);
+        return { success: false, error: json.error };
+      }
+    } catch (e: any) {
+      console.warn('[Supabase Admin] Exceção na chamada de criação:', e);
+    }
 
     // 2. Fallback Supabase client
+    const cleanSlug = salonData.slug?.toLowerCase().trim().replace(/[^a-z0-9-]/g, '') || `salao-${Date.now()}`;
+    const dbInsert: Record<string, any> = {
+      trade_name: salonData.trade_name?.trim() || 'Novo Salão',
+      legal_name: salonData.legal_name?.trim() || salonData.trade_name?.trim() || 'Novo Salão',
+      slug: cleanSlug,
+      phone_whatsapp: salonData.phone_whatsapp?.trim() || null,
+      email: salonData.email?.trim() || null,
+      address: salonData.address?.trim() || null,
+      neighborhood: salonData.neighborhood?.trim() || null,
+      city: salonData.city?.trim() || 'São Paulo',
+      state: salonData.state?.trim() || 'SP',
+      logo_url: salonData.logo_url?.trim() || null,
+      primary_color: salonData.primary_color || '#10B981',
+      is_active: salonData.status !== 'incomplete' && salonData.status !== 'suspended',
+      is_verified: salonData.status === 'active' || salonData.is_verified === true,
+    };
+
     const { data, error } = await supabase
       .from('salons')
-      .insert([salonData])
+      .insert([dbInsert])
       .select()
       .single();
 
     if (error) {
       console.warn('[Supabase Admin] Warning inserção:', error.message);
+      if (error.code === '23505' || error.message.includes('unique')) {
+        return {
+          success: false,
+          error: `O subdomínio "${cleanSlug}" já está cadastrado no banco. Escolha outro subdomínio.`,
+        };
+      }
+      return { success: false, error: error.message };
     }
 
-    // Persiste localmente para garantir presença imediata
+    // Persiste localmente para garantia de presença
     const newSalon: AdminSalonItem = {
       id: data?.id || `salon-local-${Date.now()}`,
       trade_name: salonData.trade_name || 'Novo Salão',
-      slug: salonData.slug || `salao-${Date.now()}`,
+      slug: cleanSlug,
       category: salonData.category || 'salao',
       status: salonData.status || 'active',
       is_verified: salonData.is_verified ?? true,
@@ -901,7 +929,7 @@ export async function fetchUserProfileFromDb(identifier?: { email?: string; name
   const term = (identifier?.email || identifier?.name || '').trim();
 
   try {
-    // 1. Tentar usuário ativo no Supabase Auth
+    // 1. Tentar usuário ativo no Supabase Auth (estritamente do usuário)
     try {
       const { data: authUserResp } = await supabase.auth.getUser();
       const authUser = authUserResp?.user;
@@ -917,21 +945,21 @@ export async function fetchUserProfileFromDb(identifier?: { email?: string; name
 
     const isGenericTerm = !term || term === 'Profissional' || term === 'Usuário' || term === 'Visitante' || term === 'Cliente';
 
-    // 2. Busca por e-mail/nome específico em professionals
+    // 2. Busca estrita por e-mail/nome do PRÓPRIO usuário em professionals / clients
     if (!isGenericTerm) {
       const { data: pros } = await (supabase.from('professionals') as any)
         .select('*')
         .or(`email.ilike.%${term}%,name.ilike.%${term}%`)
-        .not('avatar_url', 'is', null)
-        .neq('avatar_url', '')
         .order('updated_at', { ascending: false })
         .limit(1);
-      if (pros && pros.length > 0 && pros[0].avatar_url && !pros[0].avatar_url.includes('unsplash.com')) {
+
+      if (pros && pros.length > 0) {
+        const photo = (pros[0].avatar_url && !pros[0].avatar_url.includes('unsplash.com')) ? pros[0].avatar_url : '';
         return {
           id: pros[0].id,
           name: pros[0].name,
           email: pros[0].email || '',
-          avatarUrl: pros[0].avatar_url,
+          avatarUrl: photo,
         };
       }
 
@@ -939,57 +967,25 @@ export async function fetchUserProfileFromDb(identifier?: { email?: string; name
       const { data: cls } = await (supabase.from('clients') as any)
         .select('*')
         .or(`email.ilike.%${term}%,name.ilike.%${term}%`)
-        .not('avatar_url', 'is', null)
-        .neq('avatar_url', '')
         .order('updated_at', { ascending: false })
         .limit(1);
-      if (cls && cls.length > 0 && cls[0].avatar_url && !cls[0].avatar_url.includes('unsplash.com')) {
+
+      if (cls && cls.length > 0) {
+        const photo = (cls[0].avatar_url && !cls[0].avatar_url.includes('unsplash.com')) ? cls[0].avatar_url : '';
         return {
           id: cls[0].id,
           name: cls[0].name,
           email: cls[0].email || '',
-          avatarUrl: cls[0].avatar_url,
+          avatarUrl: photo,
         };
       }
-    }
-
-    // 3. FALLBACK DE BANCO: Se o termo for genérico ou vazio, busca o registro mais recente com foto em professionals
-    const { data: proAvatars } = await (supabase.from('professionals') as any)
-      .select('*')
-      .not('avatar_url', 'is', null)
-      .neq('avatar_url', '')
-      .order('updated_at', { ascending: false })
-      .limit(1);
-
-    if (proAvatars && proAvatars.length > 0 && proAvatars[0].avatar_url && !proAvatars[0].avatar_url.includes('unsplash.com')) {
-      return {
-        id: proAvatars[0].id,
-        name: proAvatars[0].name,
-        email: proAvatars[0].email || '',
-        avatarUrl: proAvatars[0].avatar_url,
-      };
-    }
-
-    // 4. FALLBACK DE BANCO: Busca na tabela clients
-    const { data: clientAvatars } = await (supabase.from('clients') as any)
-      .select('*')
-      .not('avatar_url', 'is', null)
-      .neq('avatar_url', '')
-      .order('updated_at', { ascending: false })
-      .limit(1);
-
-    if (clientAvatars && clientAvatars.length > 0 && clientAvatars[0].avatar_url && !clientAvatars[0].avatar_url.includes('unsplash.com')) {
-      return {
-        id: clientAvatars[0].id,
-        name: clientAvatars[0].name,
-        email: clientAvatars[0].email || '',
-        avatarUrl: clientAvatars[0].avatar_url,
-      };
     }
   } catch (err) {
     console.warn('Erro ao consultar perfil no Supabase:', err);
   }
 
+  // Se o usuário não tem foto enviada, retorna o perfil com avatarUrl vazia ''
+  // garantindo que a UI renderize o avatar canônico vetorial User (com as iniciais do próprio usuário).
   return null;
 }
 
@@ -1023,7 +1019,7 @@ export async function refreshStoredAdmin(): Promise<SystemAdminUser | null> {
     const { data: profData } = await supabase
       .from('professionals')
       .select('avatar_url, updated_at')
-      .or(`email.ilike.%${userEmail}%,name.ilike.%${cleanFirstName}%`)
+      .eq('email', userEmail)
       .not('avatar_url', 'is', null)
       .neq('avatar_url', '')
       .order('updated_at', { ascending: false })
@@ -1033,7 +1029,7 @@ export async function refreshStoredAdmin(): Promise<SystemAdminUser | null> {
     const { data: clientData } = await supabase
       .from('clients')
       .select('avatar_url, updated_at')
-      .or(`email.ilike.%${userEmail}%,name.ilike.%${cleanFirstName}%`)
+      .eq('email', userEmail)
       .not('avatar_url', 'is', null)
       .neq('avatar_url', '')
       .order('updated_at', { ascending: false })

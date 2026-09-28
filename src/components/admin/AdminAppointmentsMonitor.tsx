@@ -48,8 +48,9 @@ export const AdminAppointmentsMonitor: React.FC = () => {
   }, []);
 
   // Formatação BRL
-  const formatBRL = (val: number) => {
-    return `R$ ${val.toFixed(2).replace('.', ',')}`;
+  const formatBRL = (val?: number | null) => {
+    if (val === undefined || val === null || isNaN(Number(val))) return 'R$ 0,00';
+    return `R$ ${Number(val).toFixed(2).replace('.', ',')}`;
   };
 
   // 1. Resumo Consolidado de cada Salão na Competência Selecionada
@@ -68,7 +69,7 @@ export const AdminAppointmentsMonitor: React.FC = () => {
       const cancelled = salonAppointments.filter(
         (a) => a.status === 'cancelado' || a.status === 'no_show'
       );
-      const grossRevenue = billable.reduce((acc, curr) => acc + curr.price, 0);
+      const grossRevenue = billable.reduce((acc, curr) => acc + (curr.price || 0), 0);
 
       const feePerBooking = salon.fee_per_booking ?? 2.5;
       const isSubscription = salon.billing_plan === 'subscription';
@@ -190,8 +191,8 @@ export const AdminAppointmentsMonitor: React.FC = () => {
       `"${a.professional_name || 'Profissional'}"`,
       `"${a.appointment_date}"`,
       `"${a.time_slot}"`,
-      `"${a.price.toFixed(2)}"`,
-      `"${(a.status === 'concluido' || a.status === 'confirmado' ? a.fee_charged : 0).toFixed(2)}"`,
+      `"${(a.price ?? 0).toFixed(2)}"`,
+      `"${((a.status === 'concluido' || a.status === 'confirmado' ? (a.fee_charged ?? 0) : 0)).toFixed(2)}"`,
       `"${a.is_radar_offer ? 'Radar Relâmpago' : 'Agenda Direta'}"`,
       `"${a.status}"`,
     ]);

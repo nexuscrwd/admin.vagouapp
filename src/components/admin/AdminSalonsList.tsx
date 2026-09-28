@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { AdminSalonItem, SalonFilterStatus, SalonSegmentFilter } from '../../types/admin';
 import { AdminModerationPanel } from './AdminModerationPanel';
+import { SalonLogo } from '../common/SalonLogo';
+import { UnifiedRegistrationForm } from '../public/UnifiedRegistrationForm';
 
 interface AdminSalonsListProps {
   salons: AdminSalonItem[];
@@ -49,10 +51,11 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
   const [segmentFilter, setSegmentFilter] = useState<SalonSegmentFilter>('all');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   
-  // Modal de Exclusão
+  // Modal de Exclusão & Cadastro de Profissional
   const [salonToDelete, setSalonToDelete] = useState<AdminSalonItem | null>(null);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isProfessionalRegistrationOpen, setIsProfessionalRegistrationOpen] = useState(false);
 
   const activeSearch = searchQuery || localSearch;
 
@@ -336,15 +339,14 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                 <span className="hidden sm:inline">Exportar CSV</span>
               </button>
 
-              {onOpenNewSalon && (
-                <button
-                  onClick={onOpenNewSalon}
-                  className="px-3 py-1.5 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-500/20 active:scale-95"
-                >
-                  <Plus className="w-3.5 h-3.5 text-white" />
-                  <span>Novo Salão</span>
-                </button>
-              )}
+              <button
+                onClick={onOpenNewSalon || (() => setIsProfessionalRegistrationOpen(true))}
+                className="px-3 py-1.5 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-500/20 active:scale-95"
+                title="Cadastrar novo estabelecimento e vincular proprietário no ecossistema"
+              >
+                <Plus className="w-3.5 h-3.5 text-white" />
+                <span>Cadastrar Estabelecimento</span>
+              </button>
 
               <div className="flex items-center bg-slate-100 dark:bg-slate-950 p-1 rounded-lg border border-slate-200 dark:border-slate-800">
                 <button
@@ -473,24 +475,15 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                               </button>
                             </td>
 
-                            {/* Name & Avatar */}
+                            {/* Name & Logo */}
                             <td className="py-3 px-3">
                               <div className="flex items-center gap-3">
-                                <div
-                                  className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-xs shrink-0"
-                                  style={{ backgroundColor: salon.primary_color || '#10B981' }}
-                                >
-                                  {salon.logo_url && !salon.logo_url.includes('unsplash') ? (
-                                    <img
-                                      src={salon.logo_url}
-                                      alt={salon.trade_name}
-                                      className="w-full h-full object-cover rounded-lg"
-                                      onError={(e) => ((e.target as HTMLElement).style.display = 'none')}
-                                    />
-                                  ) : (
-                                    <Building2 className="w-4 h-4 text-white" />
-                                  )}
-                                </div>
+                                <SalonLogo
+                                  logoUrl={salon.logo_url}
+                                  name={salon.trade_name}
+                                  size="md"
+                                  primaryColor={salon.primary_color}
+                                />
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-1.5">
                                     <span className="font-bold text-slate-900 dark:text-white block truncate">{salon.trade_name}</span>
@@ -615,21 +608,12 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                       {/* Top card header */}
                       <div className="flex items-start justify-between gap-2 mb-3">
                         <div className="relative">
-                          <div
-                            className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-base shadow-md shrink-0"
-                            style={{ backgroundColor: salon.primary_color || '#10B981' }}
-                          >
-                            {salon.logo_url && !salon.logo_url.includes('unsplash') ? (
-                              <img
-                                src={salon.logo_url}
-                                alt={salon.trade_name}
-                                className="w-full h-full object-cover rounded-xl"
-                                onError={(e) => ((e.target as HTMLElement).style.display = 'none')}
-                              />
-                            ) : (
-                              <Building2 className="w-5 h-5 text-white" />
-                            )}
-                          </div>
+                          <SalonLogo
+                            logoUrl={salon.logo_url}
+                            name={salon.trade_name}
+                            size="xl"
+                            primaryColor={salon.primary_color}
+                          />
                           {salon.is_verified && (
                             <div className="absolute -bottom-1 -right-1 bg-white dark:bg-slate-900 rounded-full p-0.5 shadow-xs">
                               <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
@@ -793,6 +777,23 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                     {isDeleting ? 'Excluindo...' : 'Confirmar Exclusão em Massa'}
                   </button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Modal Dedicado Desvinculado para Cadastro de Profissional / Estabelecimento */}
+          {isProfessionalRegistrationOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn overflow-y-auto">
+              <div className="w-full max-w-xl bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl relative my-auto max-h-[92vh] overflow-y-auto">
+                <UnifiedRegistrationForm
+                  initialType="professional"
+                  hideTypeSelector={true}
+                  onClose={() => setIsProfessionalRegistrationOpen(false)}
+                  onSuccess={() => {
+                    setIsProfessionalRegistrationOpen(false);
+                    window.location.reload();
+                  }}
+                />
               </div>
             </div>
           )}

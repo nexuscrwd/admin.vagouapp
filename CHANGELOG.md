@@ -15,6 +15,213 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-09-28] — 🖼️🚨 Fix: Eliminação do Cross-Contaminação de Avatares Fallback (`fetchUserProfileFromDb`)
+- **Tipo:** `[Fix / User Profile / Avatar Isolation / Tríade Protocol]`
+- **Motivo / Solicitação:** Ao cadastrar um novo usuário sem foto (como José), o app exibia a foto da Elisa Pires no cabeçalho superior.
+- **Causa Raiz:** O utilitário `fetchUserProfileFromDb` continha um fallback que, na ausência de foto própria do usuário, realizava `SELECT * FROM professionals ORDER BY updated_at DESC LIMIT 1`, capturando e atribuindo a foto do último usuário que havia feito upload (Elisa Pires).
+- **Ações Técnicas Realizadas:**
+  1. **Remoção de Fallbacks Cruzados de Foto (`src/services/supabaseApi.ts`):** Removidos os passos de busca cega em `professionals` e `clients` que atribuíam fotos de terceiros para novos usuários.
+  2. **Validação Estrita por E-mail do Próprio Usuário:** As consultas em `fetchUserProfileFromDb` e `refreshStoredAdmin` agora exigem correspondência exata de e-mail (`eq('email', userEmail)`).
+  3. **Avatar Canônico Padrão (`UserAvatar`):** Novos usuários sem foto enviada retornam `avatarUrl: ""` por padrão, renderizando o ícone vetorial limpo `User` (`lucide-react`) com as iniciais do próprio usuário (ex: **"J"** para José), até que ele faça o upload da sua foto/logotipo próprio no app.
+- **Arquivos Impactados:** `src/services/supabaseApi.ts`, `CHANGELOG.md`.
+
+### [2026-09-28] — 🛠️🚨 Fix: Higienização de Payload & Diagnóstico Detalhado de Erro ao Criar Salão (`server.ts` & `AdminCreateSalonModal`)
+- **Tipo:** `[Fix / Database Sanitization / Error Handling]`
+- **Motivo / Solicitação:** Investigação e resolução da mensagem de erro *"Erro ao cadastrar estabelecimento"*: o banco de dados Supabase recusava inserções quando subdomínios (slugs) duplicados colidiam com a constraint `UNIQUE` ou quando strings vazias entravam em conflito.
+- **Ações Técnicas Realizadas:**
+  1. **Higienização de Campos Nulos (`server.ts`):** O payload da API `POST /api/admin/salons` agora sanitiza campos opcionais vazios (`document_number`, `phone_whatsapp`, `email`, `address`, `cep`, `logo_url`) convertendo-os para `null` em vez de string vazia `""`, evitando colisões de chave única.
+  2. **Tratamento de Conflito de Subdomínio (`code === 23505`):** Adicionada captura específica de violação de chave única com mensagem amigável: *"O subdomínio '[slug]' já está em uso por outro estabelecimento no banco de dados. Por favor, escolha outro subdomínio."*
+  3. **Repasse do Diagnóstico para a UI (`AdminCreateSalonModal.tsx` & `supabaseApi.ts`):** O modal agora exibe a mensagem de erro detalhada retornada pelo Supabase em vez de um alerta genérico.
+- **Arquivos Impactados:** `server.ts`, `src/services/supabaseApi.ts`, `src/components/admin/AdminMasterApp.tsx`, `src/components/admin/AdminCreateSalonModal.tsx`, `CHANGELOG.md`.
+
+### [2026-09-28] — 🌐🎨 UX/Layout: Sufixo `.vagouapp.com` Inline & Alinhamento em Mesma Linha (`AdminCreateSalonModal`)
+- **Tipo:** `[Design / UI / Grid Alignment]`
+- **Motivo / Solicitação:** Inclusão da exibição visual do sufixo `.vagouapp.com` dentro do campo de subdomínio para visualização do domínio final e alinhamento dos campos Subdomínio, Categoria e Status Inicial na mesma linha.
+- **Ações Técnicas Realizadas:**
+  1. **Exibição do Sufixo de Domínio (`.vagouapp.com`):** Adicionado badge inline verde Esmeralda (`.vagouapp.com`) fixado dentro do campo de input do subdomínio para exibição clara de como ficará o endereço final do estabelecimento.
+  2. **Alinhamento na Mesma Linha (`grid-cols-[1.3fr_1fr_1fr]`):** Padronizada a altura dos três controles em `h-9` (36px) com alinhamento inferior (`items-end`), garantindo que Subdomínio, Categoria e Status Inicial fiquem perfeitamente alinhados na mesma linha em telas desktop/tablet.
+- **Arquivos Impactados:** `src/components/admin/AdminCreateSalonModal.tsx`, `CHANGELOG.md`.
+
+### [2026-09-28] — 🌐✨ Auto-Sugestão Inteligente de Subdomínio (Slug) com Edição Opcional (`AdminCreateSalonModal`)
+- **Tipo:** `[Feat / UX / Slug Auto-Suggestion]`
+- **Motivo / Solicitação:** Ao preencher o Nome Fantasia (ex: "Zé maria", "Espaço Belo", "betão barber"), o campo de Subdomínio (Slug) deve propor automaticamente o nome do subdomínio em minúsculas e sem acentos (ex: "zemaria", "espacobelo", "betaobarber"), mantendo a liberdade do usuário para aceitar ou sobrescrever manualmente.
+- **Ações Técnicas Realizadas:**
+  1. **Algoritmo de Slugificação Contínua (`handleNameChange`):**
+     - Aplica normalização NFD e remoção de acentos/caracteres especiais no Nome Fantasia.
+     - Converte "Zé maria" → `"zemaria"`, "Espaço Belo" → `"espacobelo"`, "betão barber" → `"betaobarber"`.
+  2. **Preservação de Edição Manual (`handleSlugChange`):**
+     - Flag `isSlugEdited` rastreia se o usuário digitou uma personalização no campo de Subdomínio.
+     - Se o usuário sobrescrever o campo manualmente, a personalização é mantida intacta; se esvaziar o campo, a auto-sugestão do Nome Fantasia volta a operar.
+- **Arquivos Impactados:** `src/components/admin/AdminCreateSalonModal.tsx`, `CHANGELOG.md`.
+
+### [2026-09-28] — 🔍🎯 UX Fix: Busca de Usuários com Ocultação Inicial & Triagem por Digitação (`AdminCreateSalonModal`)
+- **Tipo:** `[Fix / UX / On-Demand Search]`
+- **Motivo / Solicitação:** A lista de nomes não deve aparecer logo de cara quando a caixa de busca estiver vazia, mas sim conforme o usuário for digitando as letras do nome (ex: digita "J" ou "Jo" para filtrar "José Roberto").
+- **Ações Técnicas Realizadas:**
+  1. **Filtragem por Demanda (`AdminCreateSalonModal.tsx`):** Alterado `filteredUsers` para retornar array vazio quando `userSearchQuery.trim()` for vazio, ocultando a lista padrão inicial.
+  2. **Mensagem Orientativa de Busca:** Quando nada estiver digitado, a div exibe uma instrução limpa: *"Digite as letras para buscar o usuário (Ex: digite 'J' ou 'Jo' para listar 'José Roberto')"*.
+  3. **Exibição Dinâmica:** Assim que o usuário digita qualquer caractere, a lista faz a triagem instantânea no banco de dados.
+- **Arquivos Impactados:** `src/components/admin/AdminCreateSalonModal.tsx`, `CHANGELOG.md`.
+
+### [2026-09-28] — 🔍⚡ Fix: Busca de Usuários com Normalização de Acentuação Neutra & Endpoint Unificado (`/api/admin/all-portal-users`)
+- **Tipo:** `[Fix / Search / Service Role / DB Sync]`
+- **Motivo / Solicitação:** Ao cadastrar "Jose Roberto" e pesquisar por "J", "Jo" ou "Jos", o usuário recém-criado não estava aparecendo na lista de sugestões.
+- **Ações Técnicas Realizadas:**
+  1. **Endpoint Centralizado de Usuários (`server.ts` - `/api/admin/all-portal-users`):** Criada rota back-end com privilégios de Service Role que consulta diretamente as tabelas `profiles`, `clients`, `professionals`, `salon_users` e `system_admins`, garantindo que todo e qualquer usuário recém-cadastrado seja retornado sem passar por RLS ou mock fallbacks.
+  2. **Normalização de Acentuação Neutra (`normalizeText` em `AdminCreateSalonModal.tsx`):**
+     - Aplicado tratamento com `.normalize('NFD').replace(/[\u0300-\u036f]/g, '')` tanto na string digitada no campo de busca quanto nos campos do banco (`name`, `email`, `username`, `phone`).
+     - Agora, pesquisas por `"J"`, `"Jo"`, `"Jos"`, `"Jose"` encontram `"José Roberto"` e variações com acento imediatamente.
+- **Arquivos Impactados:** `server.ts`, `src/components/admin/AdminCreateSalonModal.tsx`, `CHANGELOG.md`.
+
+### [2026-09-28] — 🏢👤 Validação Obrigatória de Usuário Proprietário no Cadastro de Estabelecimento (`AdminCreateSalonModal`)
+- **Tipo:** `[Feat / UX / Multi-Step Validation / Anti-Slop]`
+- **Motivo / Solicitação:** Ao criar um novo estabelecimento comercial, o sistema deve primeiro verificar se o negócio possui usuário cadastrado no VagouApp. Se SIM, permite selecionar o usuário na lista por busca interativa (nome, e-mail, username). Se NÃO, **bloqueia o avanço para os dados do negócio** e aciona imediatamente o modal de cadastro de usuário primeiro.
+- **Ações Técnicas Realizadas:**
+  1. **Estrutura em 2 Etapas com Verificação de Usuário (`AdminCreateSalonModal.tsx`):**
+     - **Etapa 1 (Pergunta e Busca):** Pergunta inicial com cartões interativos: *"O negócio a ser criado já possui usuário cadastrado?"*.
+     - **Opção SIM:** Exibe input de busca em tempo real com auto-complete na lista unificada de usuários do portal (`clients`, `salon_users`, `professionals`). Ao selecionar o usuário, exibe o cartão de confirmação do proprietário e habilita o botão "Avançar".
+     - **Opção NÃO:** Impede o avanço para o formulário do negócio e exibe alerta informativo com botão *"Cadastrar Novo Usuário Agora"*, abrindo o modal interno de cadastro (`UnifiedRegistrationForm`).
+  2. **Auto-Vínculo e Auto-Avanço Pós-Cadastro:** Ao concluir o cadastro do novo usuário, a callback `onSuccess` recarrega a lista de usuários, seleciona automaticamente o novo usuário criado e avança diretamente para a Etapa 2 (Dados do Negócio) pré-preenchendo dados de contato.
+  3. **Conexão dos Botões de Ação (`AdminSalonsList.tsx`):** Atualizado o botão "Cadastrar Estabelecimento" para abrir diretamente o `AdminCreateSalonModal` com essa lógica estruturada de 2 etapas.
+- **Arquivos Impactados:** `src/components/admin/AdminCreateSalonModal.tsx`, `src/components/admin/AdminSalonsList.tsx`, `CHANGELOG.md`.
+
+### [2026-09-28] — 🔀 Doutrina de Modais Desvinculados: Cadastro Exclusivo de Cliente (Seção Usuários) & Cadastro Exclusivo de Profissional/Salão (Seção Estabelecimentos)
+- **Tipo:** `[Refactor / UX / Decoupled Modals]`
+- **Motivo / Solicitação:** Desvinculação das abas "Sou Cliente" / "Sou Profissional": na seção de Usuários, o modal de cadastro de usuário deve ser estritamente para clientes (sem a aba de profissional). O cadastro de profissional/estabelecimento passa a ser um modal separado e desvinculado, disponibilizado na seção de Estabelecimentos.
+- **Ações Técnicas Realizadas:**
+  1. **Propriedades `initialType` & `hideTypeSelector` (`UnifiedRegistrationForm.tsx`):**
+     - Adicionada prop `hideTypeSelector`: quando ativada, oculta os botões seletores de tipo ("Sou Cliente" / "Sou Profissional").
+     - Título e subtítulo adaptados dinamicamente de acordo com o tipo de conta selecionado (`Cadastrar Novo Usuário` vs `Cadastrar Novo Estabelecimento`).
+  2. **Seção Usuários (`AdminUsersManager.tsx`):** O modal de "Cadastrar Usuário" fixa `initialType="client"` e `hideTypeSelector={true}`, garantindo fluxo limpo exclusivo para clientes/cidadãos.
+  3. **Seção Estabelecimento (`AdminSalonsList.tsx`):** Adicionado o botão "Cadastrar Profissional / Salão" que aciona o modal desvinculado fixando `initialType="professional"` e `hideTypeSelector={true}`.
+- **Arquivos Impactados:** `src/components/public/UnifiedRegistrationForm.tsx`, `src/components/admin/AdminUsersManager.tsx`, `src/components/admin/AdminSalonsList.tsx`, `CHANGELOG.md`.
+
+### [2026-09-28] — 👤✨ Botão "Cadastrar Usuário" na Seção Usuários & Integração com Formulário Unificado (`UnifiedRegistrationForm`)
+- **Tipo:** `[Feat / UI / Onboarding Integration]`
+- **Motivo / Solicitação:** Inclusão de botão dedicado "Cadastrar Usuário" na seção de Gestão de Usuários (`AdminUsersManager`) para acionar o modal com o formulário em 3 passos (`UnifiedRegistrationForm`).
+- **Ações Técnicas Realizadas:**
+  1. **Botão de Ação "Cadastrar Usuário":** Adicionado no cabeçalho da área de Gestão Centralizada de Usuários (`AdminUsersManager.tsx`) com destaque verde Esmeralda (`bg-[#20C933]`) e ícone `UserPlus`.
+  2. **Suporte a Modal no `UnifiedRegistrationForm`:** Adicionadas props `onClose` e `onSuccess` ao formulário unificado de cadastro para permitir fechar o modal ou disparar a atualização automática da lista de usuários e feedback de sucesso pós-cadastro.
+  3. **Abertura do Modal Overlay:** Configurado contêiner modal responsivo com fundo escuro `backdrop-blur` e scroll interno suave.
+- **Arquivos Impactados:** `src/components/admin/AdminUsersManager.tsx`, `src/components/public/UnifiedRegistrationForm.tsx`, `CHANGELOG.md`.
+
+### [2026-09-28] — 🏢🖼️ Fix: Exibição de Logotipos Reais & Moldura Retangular Provisória de Estabelecimentos (`SalonLogo`)
+- **Tipo:** `[Fix / Design System / Establishment Logos / Anti-Slop]`
+- **Motivo / Solicitação:** Relato do usuário de que os logotipos dos estabelecimentos não estavam sendo puxados do banco de dados e, para salões sem foto, a moldura exibida lembrava um avatar de usuário em vez do retangular de imagem provisória da marca.
+- **Ações Técnicas Realizadas:**
+  1. **Remoção de Filtros Indevidos de URL:** Eliminada a trava `!logo_url.includes('unsplash')` em `AdminSalonsList.tsx` e `AdminModerationPanel.tsx`, garantindo que logotipos cadastrados (seja Unsplash, Supabase Storage ou links externos) sejam renderizados normalmente.
+  2. **Componente Reutilizável `SalonLogo` (`src/components/common/SalonLogo.tsx`):**
+     - Criado o componente mestre para logos de estabelecimentos em formato retangular/quadrado suave (`rounded-lg` / `rounded-xl`).
+     - Em caso de ausência de logo ou falha no carregamento (`onError`), renderiza automaticamente a moldura retangular de imagem provisória "LOGO" com o ícone de estabelecimento `Building2`, erradicando avatares circulares de usuários.
+  3. **Mapeamento Amplo do Supabase (`supabaseApi.ts`):** Atualizado o parser da API para buscar `row.logo_url || row.logo || row.logo_light_url || row.logo_dark_url || ''`.
+  4. **Atualização no Modal do Salão (`AdminEditSalonModal.tsx`):** Estado `logoError` e fallback gracioso na pré-visualização do cabeçalho.
+- **Arquivos Impactados:** `src/components/common/SalonLogo.tsx`, `src/components/admin/AdminSalonsList.tsx`, `src/components/admin/AdminModerationPanel.tsx`, `src/components/admin/AdminEditSalonModal.tsx`, `src/services/supabaseApi.ts`, `CHANGELOG.md`.
+
+### [2026-09-28] — 🛠️ Fix: Tratamento de Nullish em `toFixed` (`AdminAppointmentsMonitor` e `AdminUsersManager`)
+- **Tipo:** `[Fix / Uncaught TypeError / Defensive Nullish Guard]`
+- **Motivo / Solicitação:** Erro de runtime `Uncaught TypeError: Cannot read properties of undefined (reading 'toFixed')` reportado pelo usuário.
+- **Ações Técnicas Realizadas:**
+  1. **`AdminUsersManager.tsx`:** Adicionado fallback nulo/indefinido em `prof.rating` -> `(prof.rating ?? 5.0).toFixed(2)` e `total_services_done ?? 0`.
+  2. **`AdminAppointmentsMonitor.tsx`:** Proteção defensiva na função helper `formatBRL` para valores `undefined`/`null`/`NaN`, no cálculo acumulado `grossRevenue`, e no exportador CSV para `a.price` e `a.fee_charged`.
+- **Arquivos Impactados:** `src/components/admin/AdminUsersManager.tsx`, `src/components/admin/AdminAppointmentsMonitor.tsx`, `CHANGELOG.md`.
+
+---
+
+### [2026-09-28] — 🏢🎨 Redesenho do Modal do Salão (`AdminEditSalonModal`): Retângulo de Logotipo, Abas de Equipe por Cargo & Grade Flexível de Horários
+- **Tipo:** `[Tríade / UX / Salon Modal / Operating Hours / Team Roles / Feat / 7º Mandamento]`
+- **Motivo / Solicitação:** Reformulação do modal de edição do salão na seção Estabelecimentos: inclusão de retângulo estilizado provisório de "LOGO" (em substituição ao avatar circular), navegação interna em 3 abas, gestão de equipe organizada por cargos (Proprietário, Gerente, Colaborador, Recepção, Esporádico, Outros), editor flexível de dias e horários de funcionamento e desacoplamento claro de Administradores Master em Configurações.
+- **Ações Técnicas Realizadas:**
+  1. **Retângulo de Logotipo da Empresa (`AdminEditSalonModal.tsx`):** Troca do avatar redondo por um contêiner retangular estilizado de logotipo com suporte a imagem real da logo do salão e fallback com ícone `Store` + distintivo "LOGO".
+  2. **Abas do Estabelecimento:**
+     - **🏢 Dados do Negócio:** Identidade, Contato comercial, Localização física no mapa e Plano de faturamento.
+     - **👥 Equipe & Profissionais por Cargo:** Agrupamento por funções com selos visuais (`Crown` para Proprietário, `Briefcase` para Gerente, `UserCheck` para Colaborador, `Phone` para Recepção, `Clock` para Esporádico) e formulário de vinculação de novo membro.
+     - **📅 Dias & Horários de Atendimento (Grade Flexível):** Editor interativo para Segunda a Domingo com controle de Abertura/Fechamento, Horário do Almoço e ação rápida de preenchimento de Horário Comercial em lote.
+  3. **Isolamento de Usuários do Ecossistema (`AdminUsersManager.tsx` & `AdminSettingsPanel.tsx`):**
+     - O gerenciador principal de usuários foca exclusivamente em Clientes/Família, Profissionais e Proprietários de Salões.
+     - A gestão dos Administradores do Portal (`system_admins`) fica isolada na aba de Configurações de Sistema.
+- **Arquivos Impactados:** `src/components/admin/AdminEditSalonModal.tsx`, `src/components/admin/AdminUsersManager.tsx`, `src/types/admin.ts`, `CHANGELOG.md`.
+
+### [2026-09-28] — 🚀 Motor Unificado de Cadastro em 3 Passos (Wizard Cidadão, ViaCEP, Dependentes, Endereço Dedicado do Salão & Contatos Comerciais)
+- **Tipo:** `[Tríade / UX / Onboarding / ViaCEP / Dedicated Business Address / Multi-step Wizard / Feat / 7º Mandamento]`
+- **Boletim Técnico Emitido:** `bol-016-dedicated-business-contacts-and-address-sync`.
+- **Motivo / Solicitação:** Suporte ao cadastro de Endereço Comercial do Salão quando diferente da residência pessoal do profissional (utilizado pelo Radar do `portal.vagouapp.com`), busca independente via ViaCEP para o salão, e meios adicionais de contato comercial (WhatsApp do Salão, Telefone Fixo e E-mail Comercial), com opções desmarcadas por padrão.
+- **Ações Técnicas Realizadas:**
+  1. **Motor em 3 Passos (`UnifiedRegistrationForm.tsx`):**
+     - **Passo 1 (Cidadão / Pessoa Física):** Nome completo, E-mail, Senha, WhatsApp Pessoal com máscara `(11) 92345-6789`, CPF opcional com máscara `000.000.000-00`, Nome de Perfil com validação estrita (1 maiúscula + 1 caractere especial) e foto.
+     - **Passo 2 (Endereço Pessoal & ViaCEP):** Digitação do CEP de Residência Pessoal com busca automática na API ViaCEP (`https://viacep.com.br/ws/${cep}/json/`), preenchimento instantâneo de Rua, Bairro, Cidade e UF.
+     - **Passo 3 (Perfil & Atendimento Profissional):**
+       - Opção *"O endereço do estabelecimento é O MESMO da minha residência"*: Quando desmarcada, abre a seção dedicada do Endereço Comercial com busca independente no ViaCEP (`handleSalonCepChange`) para cadastrar CEP, Rua, Número, Bairro, Cidade e UF do Salão (consumido pelo GPS/Radar do `portal.vagouapp.com`).
+       - Opções de Contato Desmarcadas por Padrão: `[ ] Usar o mesmo WhatsApp da Pessoa Física` e `[ ] Usar o mesmo E-mail da Pessoa Física no Salão` (ambas desmarcadas por padrão `false`). Permite informar o WhatsApp Comercial do Salão, Telefone Fixo Comercial `(11) 3333-4444` e E-mail Comercial.
+  2. **Endpoint Soberano Extendido (`server.ts`):** Atualizada a rota `/api/public/register-user` para calcular o endereço e contatos efetivos do salão e salvar nas colunas `address`, `cep`, `street_number`, `complement`, `neighborhood`, `city`, `state`, `phone_whatsapp`, `phone_landline` e `email` da tabela `public.salons`.
+- **Arquivos Impactados:** `src/components/public/UnifiedRegistrationForm.tsx`, `server.ts`, `CHANGELOG.md`.
+
+### [2026-09-28] — 💥📡 Comunicado Técnico Oficial da Tríade (BOL-015): Erradicação de Sistemas Nativos de Cadastro no PVAPP e MNVAPP & Gateway Soberano (`admin.vagouapp.com/cadastro`)
+- **Tipo:** `[Tríade / Architecture / Unified Onboarding / Embed Gateway / Breaking Change / 7º Mandamento]`
+- **Boletim Técnico Oficial Emitido:** `bol-015-unified-sovereign-registration-gateway`.
+- **Origem:** `admvapp (admin.vagouapp.com)` ➔ **Destinatários Obrigatórios:** `pvapp (portal.vagouapp.com)` e `mnvapp (meunegocio.vagouapp.com)`.
+- **Diretriz Mestre & Motivo da Mudança:**
+  1. Por decisão arquitetural e de governança soberana, fica expressamente proibido qualquer formulário, rota ou modal nativo de cadastro de usuários comuns ou profissionais/estabelecimentos no `pvapp` ou no `mnvapp`.
+  2. Todos os fluxos de criação de conta passam a ser processados exclusivamente pelo Gateway Soberano de Cadastro do Admin Master (`https://admin.vagouapp.com/cadastro`), seja via redirecionamento fluido ou via modal embed com `<iframe>` e protocolo `postMessage`.
+- **Ações Técnicas Realizadas no ADMVAPP:**
+  1. Suporte nativo a `postMessage` (`VAGOU_REGISTRATION_SUCCESS`) no `UnifiedRegistrationForm.tsx` para comunicação instantânea com o app pai em caso de iframe embed.
+  2. Atualização dos endpoints e boletins no `server.ts` e inclusão do `bol-015` na lista de diretrizes da Tríade.
+- **Arquivos Impactados:** `src/components/public/UnifiedRegistrationForm.tsx`, `server.ts`, `CHANGELOG.md`.
+
+### [2026-09-27] — 📡 Reemissão de Comunicado Oficial da Tríade: Correção Canônica do Domínio meunegocio.vagouapp.com & Protocolo Subdomain Guard (Tríade Sync)
+- **Tipo:** `[Tríade / Architecture / Canonical Domain Correction / Subdomain Guard / 7º Mandamento]`
+- **Boletim Técnico Oficial Emitido:** `bol-014-canonical-triad-domains-and-subdomain-guard-sync`.
+- **Causa Raiz & Correção de Diretrizes:**
+  1. O usuário enfatizou e definiu explicitamente que o domínio `seunegocio.vagouapp.com` NÃO existe. O domínio correto e único do aplicativo do parceiro/estabelecimento (`mnvapp`) é **`meunegocio.vagouapp.com`**.
+  2. Todos os boletins técnicos e diretrizes da Tríade foram reajustados e reemitidos para refletir com 100% de precisão os 3 domínios oficiais:
+     - **`admvapp`**: `admin.vagouapp.com` / `adm.vagouapp.com` (Admin Master)
+     - **`mnvapp`**: `meunegocio.vagouapp.com` (App do Parceiro/Estabelecimento)
+     - **`pvapp`**: `portal.vagouapp.com` (Portal Marketplace / Radar)
+- **Ações Técnicas Realizadas:**
+  1. Reedição do Comunicado Técnico Oficial da Tríade com as instruções completas de implementação do Subdomain Guard e Tela Customizada de "Não Encontrado" para `mnvapp`.
+  2. Validação e consolidação das regras de subdomínios reservados (`meunegocio`, `mnvapp`, `admin`, `portal`, etc.).
+- **Arquivos Impactados:** `CHANGELOG.md`.
+
+### [2026-09-27] — 🚀 Motor de Cadastro Unificado Soberano (`/cadastro`) & API `/api/public/register-user` (Tríade Sync)
+- **Tipo:** `[Tríade / Architecture / Unified Onboarding / Sovereign Gateway / Feat / 7º Mandamento]`
+- **Boletim Técnico Emitido:** `bol-013-sovereign-unified-registration-gateway`.
+- **Causa Raiz & Motivo:**
+  1. O usuário definiu a arquitetura definitiva onde todo cadastro (usuário comum ou profissional/estabelecimento) é processado centralizadamente no Admin Master (`admvapp`) via chave Service Role sem atritos de RLS.
+  2. Apresentação transparente e imperceptível ao usuário: após se cadastrar, ele é automaticamente redirecionado ao Portal (`portal.vagouapp.com`) ou ao PWA do seu próprio salão (`anderson.vagouapp.com`).
+- **Ações Técnicas Realizadas:**
+  1. **Endpoint Backend Soberano (`server.ts`):** Criado `/api/public/register-user` usando `supabaseAdmin` para criar o usuário GoTrue Auth, gravar sincronizadamente em `clients` e `professionals` e, para profissionais, criar automaticamente o salão ativo em `salons`.
+  2. **Componente de Cadastro Unificado PWA (`UnifiedRegistrationForm.tsx`):** Formulário responsivo com seletor de perfil (Sou Cliente / Sou Profissional), leitura de parâmetros de URL (`?type=`, `?slug=`, `?redirect=`) e feedback visual claro.
+  3. **Roteamento Inteligente no `App.tsx`:** Mapeadas as rotas `/cadastro`, `/onboarding`, `/registrar` e query params para renderizar o motor unificado.
+- **Arquivos Impactados:** `server.ts`, `src/components/public/UnifiedRegistrationForm.tsx`, `src/App.tsx`, `CHANGELOG.md`.
+
+### [2026-09-27] — 🗄️ Homologação do Script SQL de Governança e Alta Performance no Supabase (Tríade Sync)
+- **Tipo:** `[Tríade / Supabase / SQL Schema / Indexing / Performance / 7º Mandamento]`
+- **Boletim Técnico Emitido:** `bol-012-supabase-salons-sql-schema-validation`.
+- **Análise do Script SQL:**
+  1. Validado o script de compatibilidade para a tabela `salons`, garantindo a coexistência das colunas `slug` e `subdomain`.
+  2. Confirmada a necessidade dos índices B-Tree `idx_salons_slug_status` e `idx_salons_subdomain_status` para acelerar a validação do Wildcard em sub-5ms no Supabase.
+- **Arquivos Impactados:** `CHANGELOG.md`.
+
+### [2026-09-27] — 🎨 Tela Customizada de Orientação para Subdomínios Não Encontrados (Tríade Sync)
+- **Tipo:** `[Tríade / UX / Subdomain Guard / Custom Screen / 7º Mandamento]`
+- **Boletim Técnico Emitido:** `bol-011-custom-not-found-subdomain-screen`.
+- **Causa Raiz Identificada:**
+  1. O usuário solicitou que, ao acessar um subdomínio inexistente (ex: `xxx.vagouapp.com`), o app exiba primeiro uma tela clara e direta orientando que o endereço não foi encontrado na base de dados, acompanhada do botão de ação *"Cadastrar meu Negócio"*.
+- **Ações Técnicas Realizadas:**
+  1. **Especificação de Componente Dedicado (`SalonNotFoundScreen.tsx`):** Criado o modelo de componente visual responsivo com síntese mobile, fundo limpo e botão direto para o fluxo de cadastro.
+  2. **Emissão de Protocolo e Comunicado da Tríade (`bol-011`):** Código pronto para cópia e cola enviado para o projeto `mnvapp`.
+- **Arquivos Impactados:** `CHANGELOG.md`.
+
+### [2026-09-27] — 🌐 Arquitetura Multi-Tenant Wildcard & Validação de Segurança de Subdomínios (Tríade Sync)
+- **Tipo:** `[Tríade / Architecture / Cloudflare Wildcard / Subdomain Guard / Security / 7º Mandamento]`
+- **Boletim Técnico Emitido:** `bol-010-wildcard-subdomain-security-guard`.
+- **Causa Raiz Identificada:**
+  1. O apontamento Wildcard do Cloudflare (`*.vagouapp.com`) permite que qualquer subdomínio chegue ao aplicativo.
+  2. Sem validação no código do aplicativo (`mnvapp`), subdomínios não cadastrados ou fictícios (`xxx.vagouapp.com`) poderiam renderizar a interface de cadastro ou telas internas sem autorização.
+- **Ações Técnicas Realizadas:**
+  1. **Proteção de Subdomínios Reservados:** Adicionada validação no `AdminCreateSalonModal.tsx` (`admvapp`) para proibir cadastro de slugs pertencentes ao sistema (`adm`, `portal`, `meunegocio`, `www`, `api`, etc.).
+  2. **Emissão de Protocolo e Comunicado da Tríade (`bol-010`):** Estruturado o código de guarda de subdomínio para ser inserido no `App.tsx` do `mnvapp`, redirecionando automaticamente acessos não cadastrados (`xxx.vagouapp.com`) para `https://portal.vagouapp.com/cadastrar-salao`.
+- **Arquivos Impactados:** `src/components/admin/AdminCreateSalonModal.tsx`, `CHANGELOG.md`.
+
 ### [2026-09-27] — 📡 Sincronização em Tempo Real (Realtime) & Fonte Única da Verdade para Avatares (Resolução de Alteração no Banco de Dados)
 - **Tipo:** `[Tríade / Realtime / Supabase Storage / Single Source of Truth / Bugfix / 7º Mandamento]`
 - **Boletim Técnico Emitido:** `bol-009-single-source-of-truth-avatar-realtime-sync`.
