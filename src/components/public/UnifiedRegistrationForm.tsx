@@ -28,6 +28,7 @@ import {
   X,
 } from 'lucide-react';
 import { VagouLogo } from '../VagouLogo';
+import { supabase } from '../../services/supabase';
 
 interface DependentItem {
   id: string;
@@ -53,6 +54,9 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
   onSuccess,
 }) => {
   const [accountType, setAccountType] = useState<'client' | 'professional'>(initialType);
+  const [isLoginMode, setIsLoginMode] = useState(true);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
 
   useEffect(() => {
     if (initialType) {
@@ -128,6 +132,13 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
 
     if (params.get('embed') === 'true' || window.self !== window.top) {
       setIsEmbedded(true);
+    }
+
+    const modeParam = params.get('mode');
+    if (modeParam === 'cadastro' || modeParam === 'onboarding' || modeParam === 'register') {
+      setIsLoginMode(false);
+    } else {
+      setIsLoginMode(true);
     }
 
     const typeParam = params.get('type');
@@ -470,6 +481,68 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
     }
   };
 
+  // Autenticação de Usuário / Cliente
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage('');
+
+    if (!loginEmail.trim() || !loginPassword.trim()) {
+      setErrorMessage('Por favor, informe seu e-mail e sua senha.');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: loginEmail.trim().toLowerCase(),
+        password: loginPassword,
+      });
+
+      if (authError || !authData?.user) {
+        setErrorMessage(
+          authError?.message === 'Invalid login credentials'
+            ? 'E-mail ou senha incorretos.'
+            : authError?.message || 'Falha ao autenticar.'
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Determine redirect URL
+      const target = redirectUrl || (accountType === 'professional' ? `https://${slug || 'portal'}.vagouapp.com` : 'https://portal.vagouapp.com');
+
+      setSuccessData({
+        message: 'Acesso autorizado! Carregando sua sessão...',
+        targetRedirect: target,
+      });
+
+      // Post message to parent if iframe embedded so parent can refresh and capture session
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({
+          type: 'VAGOU_REGISTRATION_SUCCESS', // For compatibility so they both trigger the success handler
+          accountType,
+          email: loginEmail.trim().toLowerCase(),
+          name: authData.user.user_metadata?.full_name || authData.user.email?.split('@')[0] || 'Cliente',
+          user: authData.user,
+          targetRedirect: target,
+        }, '*');
+      }
+
+      setTimeout(() => {
+        if (onSuccess) {
+          onSuccess();
+        } else if (!isEmbedded) {
+          window.location.href = target;
+        }
+      }, 1500);
+
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Erro de conexão com o Supabase Auth.');
+      setIsSubmitting(false);
+    }
+  };
+
   if (successData) {
     return (
       <div className="min-h-screen w-full bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4">
@@ -510,17 +583,23 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
         <div className="flex flex-col items-center text-center mb-5">
           <VagouLogo className="h-9 text-white mb-2" />
           <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight">
-            {accountType === 'professional' ? 'Cadastrar Novo Estabelecimento' : 'Cadastrar Novo Usuário'}
+            {isLoginMode
+              ? 'Acessar Conta'
+              : accountType === 'professional'
+              ? 'Cadastrar Novo Estabelecimento'
+              : 'Cadastrar Novo Usuário'}
           </h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            {accountType === 'professional'
+            {isLoginMode
+              ? 'Bem-vindo(a) de volta! Acesse sua conta para confirmar.'
+              : accountType === 'professional'
               ? 'Cadastro do responsável e do estabelecimento comercial no ecossistema'
               : '1 Usuário = 1 Identidade Unificada no Ecossistema'}
           </p>
         </div>
 
-        {/* Account Type Selector Tabs (Only if not hidden) */}
-        {!hideTypeSelector && (
+        {/* Account Type Selector Tabs (Only in Registration Mode & if not hidden) */}
+        {!isLoginMode && !hideTypeSelector && (
           <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-950 border border-slate-800 rounded-xl mb-5">
             <button
               type="button"
@@ -556,39 +635,41 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
           </div>
         )}
 
-        {/* Multi-step Indicator */}
-        <div className="flex items-center justify-between px-2 mb-6 border-b border-slate-800 pb-4">
-          <div className="flex items-center gap-2">
-            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${currentStep === 1 ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-300'}`}>
-              1
-            </span>
-            <span className={`text-xs font-medium ${currentStep === 1 ? 'text-white font-semibold' : 'text-slate-400'}`}>
-              Cidadão
-            </span>
+        {/* Multi-step Indicator (Only in Registration Mode) */}
+        {!isLoginMode && (
+          <div className="flex items-center justify-between px-2 mb-6 border-b border-slate-800 pb-4">
+            <div className="flex items-center gap-2">
+              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${currentStep === 1 ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-300'}`}>
+                1
+              </span>
+              <span className={`text-xs font-medium ${currentStep === 1 ? 'text-white font-semibold' : 'text-slate-400'}`}>
+                Cidadão
+              </span>
+            </div>
+
+            <div className="w-6 h-px bg-slate-800" />
+
+            <div className="flex items-center gap-2">
+              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${currentStep === 2 ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-300'}`}>
+                2
+              </span>
+              <span className={`text-xs font-medium ${currentStep === 2 ? 'text-white font-semibold' : 'text-slate-400'}`}>
+                Endereço
+              </span>
+            </div>
+
+            <div className="w-6 h-px bg-slate-800" />
+
+            <div className="flex items-center gap-2">
+              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${currentStep === 3 ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-300'}`}>
+                3
+              </span>
+              <span className={`text-xs font-medium ${currentStep === 3 ? 'text-white font-semibold' : 'text-slate-400'}`}>
+                {accountType === 'professional' ? 'Negócio' : 'Dependentes'}
+              </span>
+            </div>
           </div>
-
-          <div className="w-6 h-px bg-slate-800" />
-
-          <div className="flex items-center gap-2">
-            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${currentStep === 2 ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-300'}`}>
-              2
-            </span>
-            <span className={`text-xs font-medium ${currentStep === 2 ? 'text-white font-semibold' : 'text-slate-400'}`}>
-              Endereço
-            </span>
-          </div>
-
-          <div className="w-6 h-px bg-slate-800" />
-
-          <div className="flex items-center gap-2">
-            <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${currentStep === 3 ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-300'}`}>
-              3
-            </span>
-            <span className={`text-xs font-medium ${currentStep === 3 ? 'text-white font-semibold' : 'text-slate-400'}`}>
-              {accountType === 'professional' ? 'Negócio' : 'Dependentes'}
-            </span>
-          </div>
-        </div>
+        )}
 
         {/* Error Alert */}
         {errorMessage && (
@@ -598,8 +679,87 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
           </div>
         )}
 
+        {/* LOGIN FORM (Apenas se isLoginMode for ativo) */}
+        {isLoginMode ? (
+          <form onSubmit={handleLogin} className="space-y-4 animate-fadeIn">
+            {/* E-mail */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                Seu E-mail Cadastrado
+              </label>
+              <div className="relative">
+                <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="email"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  placeholder="Ex: Amanda Silva"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/80 transition-all duration-150"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Senha */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-slate-300">
+                  Sua Senha
+                </label>
+              </div>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="password"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  placeholder="Mínimo 6 dígitos"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500/80 transition-all duration-150"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full py-3 px-4 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-sm transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-[0.98] disabled:opacity-50 mt-2"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  <span>Acessando...</span>
+                </>
+              ) : (
+                <>
+                  <ArrowRight className="w-4 h-4 text-white" />
+                  <span>ENTRAR & CONFIRMAR HORÁRIO</span>
+                </>
+              )}
+            </button>
+
+            {/* Toggle Mode Footer Link */}
+            <div className="text-center pt-3 border-t border-slate-800 mt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsLoginMode(false);
+                  setErrorMessage('');
+                }}
+                className="text-xs text-slate-400 hover:text-white transition duration-150 cursor-pointer inline-flex items-center gap-1"
+              >
+                <span>Ainda não possui uma conta?</span>
+                <span className="text-emerald-500 hover:text-emerald-400 font-bold underline">Cadastre-se aqui</span>
+              </button>
+            </div>
+          </form>
+        ) : (
+          null
+        )}
+
         {/* STEP 1: DADOS PESSOAIS DO CIDADÃO */}
-        {currentStep === 1 && (
+        {!isLoginMode && currentStep === 1 && (
           <div className="space-y-4 animate-fadeIn">
             {/* Nome Completo */}
             <div>
@@ -719,7 +879,7 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
         )}
 
         {/* STEP 2: ENDEREÇO DE RESIDÊNCIA DO CIDADÃO */}
-        {currentStep === 2 && (
+        {!isLoginMode && currentStep === 2 && (
           <div className="space-y-4 animate-fadeIn">
             <div>
               <div className="flex items-center justify-between mb-1">
@@ -862,7 +1022,7 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
         )}
 
         {/* STEP 3: DEPENDENTES (CLIENTE) OU NEGÓCIO (PROFISSIONAL) */}
-        {currentStep === 3 && (
+        {!isLoginMode && currentStep === 3 && (
           <form onSubmit={handleSubmit} className="space-y-4 animate-fadeIn">
             {accountType === 'client' ? (
               /* DEPENDENTES PARA CLIENTE */
