@@ -15,6 +15,22 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-01] — 💎 Padronização Global: Varridura Completa e Aplicação do Layout Plano Transparente em Todos os Formulários
+- **Tipo:** `[Design System / UI/UX / Architecture / Standard]`
+- **Motivo / Solicitação:** Aplicar globalmente o design de fundo transparente e layout plano (`bg-transparent border-0 p-0 shadow-none`), eliminando caixas e molduras pesadas em todos os formulários do ecossistema, além de registrar essa diretriz nos manuais mestres de arquitetura e layout.
+- **Ações Técnicas Realizadas:**
+  1. **Varridura Completa em Todos os Formulários:**
+     - `UnifiedRegistrationForm.tsx`: Unificado o contêiner do formulário para `bg-transparent border-0 p-2 sm:p-4 shadow-none` tanto em modo embed quanto em modo standalone.
+     - `AdminAuthModal.tsx`: O Gate de autenticação master e os modais internos foram convertidos para contêiner transparente plano, eliminando o card pesado e integrando diretamente sobre o canvas escuro.
+     - `AdminTriadeGovernance.tsx`: Removida a caixa duplicada (`bg-slate-900 border border-slate-700 shadow-lg`), passando para formulário plano `p-0 bg-transparent border-0 space-y-4`.
+     - `AdminEditSalonModal.tsx`: O corpo do formulário agora utiliza `bg-transparent` para fusão perfeita com a janela do modal.
+     - `AdminCreateAdminModal.tsx` & `AdminCreateSalonModal.tsx`: Formulários higienizados com `bg-transparent`.
+  2. **Registro nos Documentos Oficiais de Definição de Layout:**
+     - `KNOWLEDGE_BASE.md`: Adicionada a Seção 13 detalhando a "Diretriz Mestra de Layout: Formulários Planos com Fundo Transparente (Regra Anti-Box & Zero Poluição)".
+     - `MASTER_APPROVALS_AND_GUIDELINES.md`: Registrada a Seção 8 consolidando a regra inegociável de zero boxes desnecessárias em formulários.
+     - `ARCHITECTURE.md`: Incluída a Seção 8 documentando a diretriz arquitetural de superfícies transparentes para componentes de entrada de dados.
+- **Arquivos Impactados:** `src/components/public/UnifiedRegistrationForm.tsx`, `src/components/admin/AdminAuthModal.tsx`, `src/components/admin/AdminTriadeGovernance.tsx`, `src/components/admin/AdminEditSalonModal.tsx`, `src/components/admin/AdminCreateAdminModal.tsx`, `src/components/admin/AdminCreateSalonModal.tsx`, `KNOWLEDGE_BASE.md`, `MASTER_APPROVALS_AND_GUIDELINES.md`, `ARCHITECTURE.md`, `CHANGELOG.md`.
+
 ### [2026-10-01] — 🖼️ Modo Embed Transparente & Plano (?embed=true) no Gateway de Cadastro
 - **Tipo:** `[UI/UX / Embed / Anti-Slop / Zero Box-in-Box]`
 - **Motivo / Solicitação:** Ao carregar `/cadastro?embed=true`, eliminar o card/box envolvente (`bg-slate-900 border border-slate-800 rounded-2xl` e `min-h-screen`) e deixar o formulário totalmente plano com fundo transparente (`bg-transparent border-0 p-0`), exibindo exclusivamente os elementos essenciais do formulário.

@@ -200,6 +200,24 @@ Para garantir harmonia absoluta e zero quebras entre os 3 projetos independentes
    - **Ação Requerida:** O que o projeto receptor precisa ajustar, tipar ou validar.
    - **Contraprova:** Confirmação de lint e build aprovados.
 
+---
+
+## 🖼️ 13. Diretriz Mestra de Layout: Formulários Planos com Fundo Transparente (Regra Anti-Box & Zero Poluição)
+
+### O Problema Resolvido:
+O uso de caixas/cards pesados (`bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl`) em formulários gerava a infame "síndrome de caixa dentro de caixa" quando embutidos em iframes (como o Gateway Soberano `/cadastro?embed=true` no `pvapp` e `mnvapp`) ou em modais internos que já possuem seus próprios contêineres e backdrops.
+
+### O Padrão Consolidado & Inegociável:
+1. **Fundo Transparente & Superfície Plana:**
+   - Todo formulário (standalone, modal ou embed em iframe) deve adotar contêiner plano: `bg-transparent border-0 p-0 shadow-none`.
+   - Remoção de `min-h-screen`, cartões escuros com bordas duplicadas e padding desnecessário.
+2. **Elementos em Primeiro Plano (Flat & Clean):**
+   - Apenas os elementos essenciais do formulário ganham destaque: Logotipo Vagou, Título / Subtítulo, Campos de entrada (`input` / `select`) com borda suave e foco em Emerald, e Botão de Ação principal (`#20C933`).
+   - Links auxiliares (Recuperar Senha, Cadastro, Voltar) centralizados no rodapé ("ao pé do formulário") com alto contraste.
+3. **Interoperabilidade Total na Tríade:**
+   - Permite que o formulário renderize como uma extensão natural de qualquer modal anfitrião no ecossistema sem discrepância de cor de fundo ou molduras sobrepostas.
+   - Detecção síncrona de `?embed=true` para aplicação imediata de transparência no `document.documentElement` e `document.body`.
+
 
 
 

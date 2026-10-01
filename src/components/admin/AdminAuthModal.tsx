@@ -233,12 +233,12 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
   return (
     <div
       className={`fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto ${
-        isGate ? 'bg-slate-100 dark:bg-slate-950' : 'bg-slate-950/80 backdrop-blur-xs animate-fadeIn'
+        isGate ? 'bg-slate-950' : 'bg-slate-950/80 backdrop-blur-xs animate-fadeIn'
       }`}
     >
-      <div className="relative w-full max-w-[375px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-auto transition-colors">
+      <div className={`relative w-full max-w-[385px] ${isGate ? 'bg-transparent border-0 p-0 shadow-none' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl'} overflow-hidden my-auto transition-colors`}>
         {/* Top Header */}
-        <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/80 flex items-center justify-between gap-3">
+        <div className={`p-4 ${isGate ? 'bg-transparent border-0 pb-2' : 'border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/80'} flex items-center justify-between gap-3`}>
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
               <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
@@ -267,7 +267,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
         </div>
 
         {/* Tab Navigation: Apenas uma aba de Acesso */}
-        <div className="p-1.5 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800">
+        <div className={`p-1.5 ${isGate ? 'bg-transparent border-0' : 'bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800'}`}>
           {activeTab === 'login' ? (
             <div className="w-full py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 bg-[#20C933] text-white shadow-xs">
               <Lock className="w-3.5 h-3.5 text-white" />
@@ -320,7 +320,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
 
         {/* TAB 1: ACESSO (LOGIN) */}
         {activeTab === 'login' && (
-          <form onSubmit={handleLoginSubmit} className="p-4 sm:p-6 space-y-4">
+          <form onSubmit={handleLoginSubmit} className={`${isGate ? 'p-2 sm:p-3' : 'p-4 sm:p-6'} space-y-4 bg-transparent`}>
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                 E-mail Corporativo (Supabase Auth)
@@ -412,7 +412,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
 
         {/* TAB 2: CADASTRO */}
         {activeTab === 'register' && (
-          <form onSubmit={handleRegisterSubmit} className="p-4 sm:p-6 space-y-3.5 max-h-[75vh] overflow-y-auto">
+          <form onSubmit={handleRegisterSubmit} className={`${isGate ? 'p-2 sm:p-3' : 'p-4 sm:p-6'} space-y-3.5 max-h-[75vh] overflow-y-auto bg-transparent`}>
             {/* Nome Completo */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
@@ -640,7 +640,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
 
         {/* TAB 3: RECUPERAR */}
         {activeTab === 'recovery' && (
-          <form onSubmit={handleRecoverySubmit} className="p-4 sm:p-6 space-y-4">
+          <form onSubmit={handleRecoverySubmit} className={`${isGate ? 'p-2 sm:p-3' : 'p-4 sm:p-6'} space-y-4 bg-transparent`}>
             {/* Sub-selector: Dados de acesso vs Senha */}
             <div>
               <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-2">

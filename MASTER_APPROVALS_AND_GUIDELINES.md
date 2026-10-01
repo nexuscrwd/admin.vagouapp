@@ -179,7 +179,17 @@ not_found_handling = "single-page-application"
 
 ---
 
-## 🚀 8. Como Usar Este Documento Para Replicar em Outro Projeto no AI Studio
+## 🎨 8. Padrão de Design & Layout: Formulários Planos com Fundo Transparente (Zero Box-in-Box)
+
+- **Regra de Ouro:** Formulários no ecossistema Vagou **NÃO** devem ser confinados dentro de cartões pesados com bordas duplicadas (`bg-slate-900 border border-slate-800 rounded-2xl`).
+- **Layout Plano (Flat & Transparent):** Formulários (incluindo o Gateway Soberano `/cadastro`, o Gate de Login Master `AdminAuthModal`, telas de credenciamento e emissão de comunicados) adotam `bg-transparent border-0 p-0 shadow-none`.
+- **Exibição Pura:** Apenas os elementos funcionais (logo, tipografia, inputs e botões de ação) aparecem sobre a superfície da tela ou do modal anfitrião.
+- **Links ao Pé do Formulário:** Ações secundárias (Esqueceu a senha, Cadastro corporativo, Voltar) são centralizadas no rodapé do formulário com tipografia refinada e sem botões concorrentes.
+- **Suporte Nativo a Embeds:** Quando `?embed=true`, o `<html>` e o `<body>` ativam transparência total para renderização limpa dentro de iframes no `pvapp` e `mnvapp`.
+
+---
+
+## 🚀 9. Como Usar Este Documento Para Replicar em Outro Projeto no AI Studio
 
 Quando você iniciar o novo projeto ou ambiente de backup no AI Studio, envie o seguinte comando inicial:
 

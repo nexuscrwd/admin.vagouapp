@@ -639,7 +639,7 @@ export const AdminCreateSalonModal: React.FC<AdminCreateSalonModalProps> = ({
           {/* ETAPA 2: DADOS DO ESTABELECIMENTO COMERCIAL               */}
           {/* ======================================================== */}
           {step === 'salon_details' && (
-            <form onSubmit={handleSubmit} className="space-y-4 animate-fadeIn">
+            <form onSubmit={handleSubmit} className="space-y-4 animate-fadeIn bg-transparent">
               {/* Badge do Proprietário Selecionado */}
               <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2.5">

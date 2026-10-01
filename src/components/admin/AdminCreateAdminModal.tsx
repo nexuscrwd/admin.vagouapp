@@ -180,7 +180,7 @@ export const AdminCreateAdminModal: React.FC<AdminCreateAdminModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleRegister} className="p-4 sm:p-6 space-y-4">
+        <form onSubmit={handleRegister} className="p-4 sm:p-6 space-y-4 bg-transparent">
           {/* Feedback Messages */}
           {errorMessage && (
             <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 flex items-center gap-2.5 text-xs text-rose-700 dark:text-rose-400">

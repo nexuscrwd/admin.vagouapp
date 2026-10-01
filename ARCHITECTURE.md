@@ -97,9 +97,19 @@ O Vagou opera sob um modelo de **Single Sign-On (SSO)** descentralizado que inte
 3. **Salão com Equipe (Dono + Colaboradores):** Múltiplos profissionais com especialidades e comissões independentes.
 4. **Rede / Multi-Unidades:** Múltiplas filiais sob a mesma titularidade com endereços e equipes distintos.
 
+---
 
+## 🎨 8. Diretriz Arquitetural de Design: Formulários Planos & Transparentes
 
-```
+Para preservar a leveza e evitar aninhamento claustrofóbico de contêineres:
+- **Zero Box-in-Box:** Formulários não devem utilizar cards escuros envolventes com bordas duplicadas (`bg-slate-900 border border-slate-800 rounded-2xl`).
+- **Superfície Plana:** O contêiner de todo formulário adota `bg-transparent border-0 p-0 shadow-none`.
+- **Destaque Funcional:** Apenas o logo, tipografia, inputs e botões de ação povoam a área visual.
+- **Embeds Limpos:** Em iframes ou modais de terceiros, a raiz ativa transparência síncrona para integração 100% nativa.
+
+---
+
+## 📂 9. Estrutura de Arquivos e Diretórios
 /
 ├── AGENTS.md                  # Diretrizes mestras da IA e protocolo dos 6 mandamentos
 ├── ARCHITECTURE.md            # Este arquivo - Arquitetura e fluxos do sistema

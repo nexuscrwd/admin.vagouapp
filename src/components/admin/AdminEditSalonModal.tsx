@@ -326,7 +326,7 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
         </div>
 
         {/* CONTEÚDO DAS ABAS */}
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6 overflow-y-auto space-y-5 flex-1 bg-white dark:bg-slate-900">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 overflow-y-auto space-y-5 flex-1 bg-transparent">
           {statusMessage && (
             <div
               className={`p-3 rounded-lg text-xs font-medium flex items-center gap-2 ${

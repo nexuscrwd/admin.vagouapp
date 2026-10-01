@@ -598,7 +598,7 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
         <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_20%,_var(--tw-gradient-stops))] from-emerald-500/10 via-transparent to-transparent opacity-60" />
       )}
 
-      <div className={`relative w-full ${isEmbedded ? 'bg-transparent border-0 p-0 shadow-none' : 'max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-7 shadow-2xl'} flex flex-col animate-fadeIn`}>
+      <div className="relative w-full max-w-lg bg-transparent border-0 p-2 sm:p-4 shadow-none flex flex-col animate-fadeIn">
         {onClose && (
           <button
             type="button"
