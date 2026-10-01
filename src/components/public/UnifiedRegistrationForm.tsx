@@ -124,7 +124,13 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successData, setSuccessData] = useState<{ message: string; targetRedirect: string } | null>(null);
-  const [isEmbedded, setIsEmbedded] = useState(false);
+  const [isEmbedded, setIsEmbedded] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('embed') === 'true' || window.self !== window.top;
+    }
+    return false;
+  });
 
   // Parse URL search params on mount
   useEffect(() => {
@@ -132,6 +138,9 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
 
     if (params.get('embed') === 'true' || window.self !== window.top) {
       setIsEmbedded(true);
+      document.documentElement.classList.add('bg-transparent');
+      document.body.classList.remove('bg-slate-950');
+      document.body.classList.add('bg-transparent');
     }
 
     const modeParam = params.get('mode');
@@ -566,8 +575,8 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
 
   if (successData) {
     return (
-      <div className="min-h-screen w-full bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4">
-        <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center shadow-2xl animate-fadeIn">
+      <div className={`w-full ${isEmbedded ? 'bg-transparent border-0 p-0' : 'min-h-screen bg-slate-950 p-4'} text-slate-100 flex flex-col items-center justify-center`}>
+        <div className={`w-full max-w-md ${isEmbedded ? 'bg-transparent border-0 p-2 shadow-none' : 'bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl'} text-center animate-fadeIn`}>
           <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/30 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-400">
             <CheckCircle2 className="w-8 h-8 text-emerald-400" />
           </div>
@@ -583,21 +592,21 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
   }
 
   return (
-    <div className={`w-full ${isEmbedded ? 'p-2 sm:p-4 bg-slate-950' : 'min-h-screen bg-slate-950 flex flex-col items-center justify-center p-3 sm:p-6'} text-slate-100 select-none selection:bg-emerald-500 selection:text-white`}>
+    <div className={`w-full ${isEmbedded ? 'bg-transparent border-0 p-0' : 'min-h-screen bg-slate-950 flex flex-col items-center justify-center p-3 sm:p-6'} text-slate-100 select-none selection:bg-emerald-500 selection:text-white`}>
       {/* Background Glow */}
       {!isEmbedded && (
         <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_20%,_var(--tw-gradient-stops))] from-emerald-500/10 via-transparent to-transparent opacity-60" />
       )}
 
-      <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-7 shadow-2xl flex flex-col animate-fadeIn">
-        {(onClose || isEmbedded) && (
+      <div className={`relative w-full ${isEmbedded ? 'bg-transparent border-0 p-0 shadow-none' : 'max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-7 shadow-2xl'} flex flex-col animate-fadeIn`}>
+        {onClose && (
           <button
             type="button"
             onClick={() => {
               if (window.parent && window.parent !== window) {
                 window.parent.postMessage({ type: 'VAGOU_CLOSE_MODAL' }, '*');
               }
-              if (onClose) onClose();
+              onClose();
             }}
             className="absolute top-4 right-4 z-20 p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
             title="Fechar"

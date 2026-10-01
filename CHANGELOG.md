@@ -15,6 +15,15 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-01] — 🖼️ Modo Embed Transparente & Plano (?embed=true) no Gateway de Cadastro
+- **Tipo:** `[UI/UX / Embed / Anti-Slop / Zero Box-in-Box]`
+- **Motivo / Solicitação:** Ao carregar `/cadastro?embed=true`, eliminar o card/box envolvente (`bg-slate-900 border border-slate-800 rounded-2xl` e `min-h-screen`) e deixar o formulário totalmente plano com fundo transparente (`bg-transparent border-0 p-0`), exibindo exclusivamente os elementos essenciais do formulário.
+- **Ações Técnicas Realizadas:**
+  1. **Detecção Síncrona de Embed:** `UnifiedRegistrationForm.tsx` agora avalia o parâmetro `embed=true` ou detecção de iframe síncronamente na inicialização do estado, evitando qualquer flickering visual.
+  2. **Transparência no Documento:** Injeção de `bg-transparent` em `document.documentElement` e `document.body` quando embutido.
+  3. **Erradicação do Box Duplo:** No modo embed, o wrapper externo utiliza `bg-transparent border-0 p-0` e o contêiner interno do formulário utiliza `bg-transparent border-0 p-0 shadow-none`, exibindo diretamente o logo, títulos, campos, tabs e botões de ação sobre a superfície do modal do app anfitrião (`pvapp` / `mnvapp`).
+- **Arquivos Impactados:** `src/components/public/UnifiedRegistrationForm.tsx`, `CHANGELOG.md`.
+
 ### [2026-10-01] — 🎯 Simplificação do Modal de Acesso: Aba Única & Links de Cadastro/Recuperação no Rodapé
 - **Tipo:** `[UI/UX / Refactor / AdminAuthModal]`
 - **Motivo / Solicitação:** Transformar o cabeçalho do formulário de autenticação para exibir apenas uma aba principal ("Acesso"), movendo as ações de "Cadastro" e "Recuperar senha" para links no rodapé ("ao pé") da aba de acesso.
