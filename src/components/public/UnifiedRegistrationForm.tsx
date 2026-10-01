@@ -455,16 +455,33 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
         targetRedirect: target,
       });
 
+      // Tenta obter sessão Supabase ativa para passar aos apps consumidores (pvapp / mnvapp)
+      let userSession = null;
+      try {
+        const { data: signInData } = await supabase.auth.signInWithPassword({
+          email: email.trim().toLowerCase(),
+          password,
+        });
+        if (signInData?.session) {
+          userSession = signInData.session;
+        }
+      } catch (authErr) {
+        console.warn('Auto sign-in pós-cadastro fallback:', authErr);
+      }
+
       // Post message to parent if iframe embedded
       if (window.parent && window.parent !== window) {
-        window.parent.postMessage({
+        const payload = {
           type: 'VAGOU_REGISTRATION_SUCCESS',
           accountType,
           email: email.trim().toLowerCase(),
           name: name.trim(),
           user: data.user,
+          session: userSession,
           targetRedirect: target,
-        }, '*');
+        };
+        window.parent.postMessage(payload, '*');
+        window.parent.postMessage({ ...payload, type: 'VAGOU_AUTH_SUCCESS' }, '*');
       }
 
       // Auto redirect after 1.5s or trigger onSuccess callback
@@ -519,14 +536,18 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
 
       // Post message to parent if iframe embedded so parent can refresh and capture session
       if (window.parent && window.parent !== window) {
-        window.parent.postMessage({
-          type: 'VAGOU_REGISTRATION_SUCCESS', // For compatibility so they both trigger the success handler
+        const payload = {
+          type: 'VAGOU_AUTH_SUCCESS',
           accountType,
           email: loginEmail.trim().toLowerCase(),
           name: authData.user.user_metadata?.full_name || authData.user.email?.split('@')[0] || 'Cliente',
           user: authData.user,
+          session: authData.session,
           targetRedirect: target,
-        }, '*');
+        };
+        window.parent.postMessage(payload, '*');
+        // Para compatibilidade com componentes ouvindo apenas VAGOU_REGISTRATION_SUCCESS
+        window.parent.postMessage({ ...payload, type: 'VAGOU_REGISTRATION_SUCCESS' }, '*');
       }
 
       setTimeout(() => {
@@ -569,12 +590,17 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
       )}
 
       <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-7 shadow-2xl flex flex-col animate-fadeIn">
-        {onClose && (
+        {(onClose || isEmbedded) && (
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => {
+              if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ type: 'VAGOU_CLOSE_MODAL' }, '*');
+              }
+              if (onClose) onClose();
+            }}
             className="absolute top-4 right-4 z-20 p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
-            title="Fechar Formulário"
+            title="Fechar"
           >
             <X className="w-4 h-4 text-slate-300" />
           </button>

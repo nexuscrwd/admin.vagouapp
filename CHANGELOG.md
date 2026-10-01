@@ -15,6 +15,33 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-01] — 🎯 Simplificação do Modal de Acesso: Aba Única & Links de Cadastro/Recuperação no Rodapé
+- **Tipo:** `[UI/UX / Refactor / AdminAuthModal]`
+- **Motivo / Solicitação:** Transformar o cabeçalho do formulário de autenticação para exibir apenas uma aba principal ("Acesso"), movendo as ações de "Cadastro" e "Recuperar senha" para links no rodapé ("ao pé") da aba de acesso.
+- **Ações Técnicas Realizadas:**
+  1. **Aba Única no Cabeçalho:** O topo agora apresenta exclusivamente a aba "Acesso" em destaque, eliminando a poluição visual de múltiplas abas horizontais lado a lado. Quando em fluxo secundário (cadastro ou recuperação), exibe indicador contextual com link direto para retornar ao acesso.
+  2. **Links ao Pé da Aba de Acesso:** Adicionados links textuais com contraste refinado no rodapé do formulário de login para redefinição de senha ("Esqueceu sua senha? Recuperar senha") e solicitação de cadastro ("Ainda não tem acesso? Cadastre-se").
+  3. **Navegação Bidirecional Fluida:** Implementado link no rodapé da tela de cadastro para retornar imediatamente ao login ("Já possui acesso corporativo? Fazer Login").
+- **Arquivos Impactados:** `src/components/admin/AdminAuthModal.tsx`, `CHANGELOG.md`.
+
+### [2026-09-29] — 🌉 Sincronização Perfeita da Tríade: Bridge postMessage com Sessão Ativa & Emissão Dupla
+- **Tipo:** `[Feat / Infra / Bridge / Interoperabilidade]`
+- **Motivo / Solicitação:** Atender integralmente aos comunicados técnicos do `pvapp` e `mnvapp`, garantindo que o embed do Gateway Soberano (`admin.vagouapp.com/cadastro`) forneça o token de sessão ativo (`data.session`) e suporte a múltiplos eventos.
+- **Ações Técnicas Realizadas:**
+  1. **Injeção de Sessão Ativa:** `UnifiedRegistrationForm.tsx` agora inclui o objeto `session` completo do Supabase tanto no fluxo de login quanto no cadastro com auto sign-in, permitindo ao `pvapp` invocar `supabase.auth.setSession(data.session)` sem delay.
+  2. **Emissão Dupla de Sucesso:** Disparo de `VAGOU_AUTH_SUCCESS` e `VAGOU_REGISTRATION_SUCCESS` com o mesmo payload para garantir compatibilidade retroativa e futura com qualquer listener do `pvapp` ou `mnvapp`.
+  3. **Bridge de Fechamento (`VAGOU_CLOSE_MODAL`):** O botão fechar do modal dentro do iframe emite `{ type: 'VAGOU_CLOSE_MODAL' }`, permitindo que os apps anfitriões fechem suas gavetas/modais de forma fluida.
+- **Arquivos Impactados:** `src/components/public/UnifiedRegistrationForm.tsx`, `CHANGELOG.md`.
+
+### [2026-09-29] — 🚀 Restauração e Estabilização do Servidor de Desenvolvimento (Dev Server)
+- **Tipo:** `[Fix / Infra / DevServer]`
+- **Motivo / Solicitação:** O servidor de desenvolvimento não iniciou ou travou na porta 3000.
+- **Ações Técnicas Realizadas:**
+  1. Suporte dinâmico e resiliente a `process.env.PORT` com fallback estrito para a porta padrão `3000` em `server.ts`.
+  2. Validação completa via `tsc --noEmit` e compilação do build de produção (`npm run build`).
+  3. Reinicialização do processo do servidor Node.js com Vite middleware integrado (`http://localhost:3000`).
+- **Arquivos Impactados:** `server.ts`, `CHANGELOG.md`.
+
 ### [2026-09-28] — 🎨✨ Redesign Figma de Estados Hover & Correção do Bug de Fundo Branco
 - **Tipo:** `[UI/UX / Design System / Figma Tokens / Hover Fix]`
 - **Motivo / Solicitação:** Ao passar o mouse sobre os cards (ex: "Agendamentos Hoje") e botões, o elemento ficava totalmente branco no tema escuro, deixando números e textos ilegíveis.

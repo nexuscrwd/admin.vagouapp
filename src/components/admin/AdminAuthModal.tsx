@@ -266,61 +266,41 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
           )}
         </div>
 
-        {/* Tab Navigation */}
-        <div
-          className={`grid p-1.5 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 gap-1 ${
-            isGate ? 'grid-cols-2' : 'grid-cols-3'
-          }`}
-        >
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('login');
-              clearFeedback();
-            }}
-            className={`py-2 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-              activeTab === 'login'
-                ? 'bg-[#20C933] text-white font-bold shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-            }`}
-          >
-            <Lock className="w-3.5 h-3.5" />
-            <span>Acesso</span>
-          </button>
-
-          {!isGate && (
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('register');
-                clearFeedback();
-              }}
-              className={`py-2 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                activeTab === 'register'
-                  ? 'bg-[#20C933] text-white font-bold shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-              }`}
-            >
-              <User className="w-3.5 h-3.5" />
-              <span>Cadastro</span>
-            </button>
+        {/* Tab Navigation: Apenas uma aba de Acesso */}
+        <div className="p-1.5 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800">
+          {activeTab === 'login' ? (
+            <div className="w-full py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 bg-[#20C933] text-white shadow-xs">
+              <Lock className="w-3.5 h-3.5 text-white" />
+              <span>Acesso</span>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between px-2 py-1">
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                {activeTab === 'register' ? (
+                  <>
+                    <User className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Cadastro</span>
+                  </>
+                ) : (
+                  <>
+                    <KeyRound className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Recuperar Senha</span>
+                  </>
+                )}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('login');
+                  clearFeedback();
+                }}
+                className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline font-semibold cursor-pointer flex items-center gap-1"
+              >
+                <ArrowRight className="w-3 h-3 rotate-180" />
+                <span>Voltar ao Acesso</span>
+              </button>
+            </div>
           )}
-
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('recovery');
-              clearFeedback();
-            }}
-            className={`py-2 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-              activeTab === 'recovery'
-                ? 'bg-[#20C933] text-white font-bold shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-            }`}
-          >
-            <KeyRound className="w-3.5 h-3.5" />
-            <span>Recuperar</span>
-          </button>
         </div>
 
         {/* Feedback Alert */}
@@ -360,20 +340,9 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Senha de Acesso</label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab('recovery');
-                    setRecoveryType('password');
-                    clearFeedback();
-                  }}
-                  className="text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline transition cursor-pointer font-medium"
-                >
-                  Esqueceu a senha?
-                </button>
-              </div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                Senha de Acesso
+              </label>
               <div className="flex items-center bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2.5 focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500 shadow-xs dark:shadow-none transition">
                 <Lock className="w-4 h-4 text-slate-400 dark:text-slate-500 mr-2.5 shrink-0" />
                 <input
@@ -409,21 +378,35 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
               </button>
             </div>
 
-            {!isGate && (
-              <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                <span>Novo administrador corporativo?</span>
+            {/* Links ao pé da aba de acesso */}
+            <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-2.5 text-center text-xs">
+              <div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('recovery');
+                    setRecoveryType('password');
+                    clearFeedback();
+                  }}
+                  className="text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 font-medium transition cursor-pointer hover:underline"
+                >
+                  Esqueceu sua senha? <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Recuperar senha</span>
+                </button>
+              </div>
+
+              <div>
                 <button
                   type="button"
                   onClick={() => {
                     setActiveTab('register');
                     clearFeedback();
                   }}
-                  className="text-emerald-600 dark:text-emerald-400 font-bold hover:underline cursor-pointer"
+                  className="text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 font-medium transition cursor-pointer hover:underline"
                 >
-                  Cadastre-se aqui
+                  Ainda não tem acesso? <span className="text-emerald-600 dark:text-emerald-400 font-bold">Cadastre-se</span>
                 </button>
               </div>
-            )}
+            </div>
           </form>
         )}
 
@@ -623,7 +606,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
             </div>
 
             {/* Botão de Conclusão */}
-            <div className="pt-2 sticky bottom-0 bg-white dark:bg-slate-900 z-10">
+            <div className="pt-2 sticky bottom-0 bg-white dark:bg-slate-900 z-10 space-y-3">
               <button
                 type="submit"
                 disabled={isLoading}
@@ -638,6 +621,19 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
                   </>
                 )}
               </button>
+
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 text-center text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('login');
+                    clearFeedback();
+                  }}
+                  className="text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 font-medium transition cursor-pointer hover:underline"
+                >
+                  Já possui acesso corporativo? <span className="text-emerald-600 dark:text-emerald-400 font-bold">Fazer Login</span>
+                </button>
+              </div>
             </div>
           </form>
         )}
