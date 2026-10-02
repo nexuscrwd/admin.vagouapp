@@ -769,7 +769,7 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
               ) : (
                 <>
                   <ArrowRight className="w-4 h-4 text-white" />
-                  <span>ENTRAR & CONFIRMAR HORÁRIO</span>
+                  <span>Acessar</span>
                 </>
               )}
             </button>

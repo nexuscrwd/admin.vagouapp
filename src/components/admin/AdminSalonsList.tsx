@@ -602,9 +602,10 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                 return (
                   <div
                     key={salon.id}
-                    className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition flex flex-col justify-between shadow-xs dark:shadow-none group"
+                    className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition flex flex-col justify-between shadow-xs dark:shadow-none group w-full"
+                    style={{ width: '50%', maxWidth: '100%' }}
                   >
-                    <div>
+                    <div style={{ width: '50%', maxWidth: '100%' }}>
                       {/* Top card header */}
                       <div className="flex items-start justify-between gap-2 mb-3">
                         <div className="relative">
@@ -684,16 +685,6 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
-
-                      <a
-                        href={`https://${salon.slug}.vagouapp.com`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition cursor-pointer border border-slate-200 dark:border-slate-700 shadow-xs dark:shadow-none"
-                        title="Ver Subdomínio"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
                     </div>
                   </div>
                 );

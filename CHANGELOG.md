@@ -15,6 +15,30 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-01] — 🧹 Higienização Visual: Remoção da Barra de Aba Redundante no Modal de Autenticação
+- **Tipo:** `[UI/UX / Styling / FocusMode / CleanCode]`
+- **Motivo / Solicitação:** Remover o contêiner de barra de aba intermediária (`div:nth-of-type(2)`) no modal de autenticação master (`AdminAuthModal`), eliminando a poluição visual entre o cabeçalho e os campos do formulário.
+- **Ações Técnicas Realizadas:**
+  1. **Remoção da Div Intermediária:** Removido o bloco `div.p-1.5` que continha o botão isolado "Acesso".
+  2. **Cabeçalho Contextual Dinâmico:** O título e o subtítulo do cabeçalho agora refletem contextualmente a operação ativa (Acesso Corporativo, Cadastro ou Recuperação), e os links para alternância de modo continuam perfeitamente acessíveis no rodapé de cada formulário.
+- **Arquivos Impactados:** `src/components/admin/AdminAuthModal.tsx`, `CHANGELOG.md`.
+
+### [2026-10-01] — 📏 Ajuste de Dimensões para 50% de Largura & Simplificação do Botão de Acesso
+- **Tipo:** `[UI/UX / Styling / FocusMode / MobileSynthesis]`
+- **Motivo / Solicitação:** Ajustar a base de dimensões dos elementos para 50% da largura (`width: 50%`) e alterar o texto do botão de login de "Entrar e Confirmar Horário" para "Acessar" (síntese mobile).
+- **Ações Técnicas Realizadas:**
+  1. **Ajuste de Largura (50%):** Atualizadas as dimensões do cartão e contêiner interno em `AdminSalonsList.tsx` para `style={{ width: '50%', maxWidth: '100%' }}`.
+  2. **Texto do Botão:** Atualizado o botão de submissão de login em `UnifiedRegistrationForm.tsx` de `"ENTRAR & CONFIRMAR HORÁRIO"` para `"Acessar"`, atendendo à diretriz de síntese mobile com máxima concisão.
+- **Arquivos Impactados:** `src/components/admin/AdminSalonsList.tsx`, `src/components/public/UnifiedRegistrationForm.tsx`, `CHANGELOG.md`.
+
+### [2026-10-01] — 🎯 Ajuste Fino nos Cards de Estabelecimento: Remoção do Componente <a> & Largura 510px
+- **Tipo:** `[UI/UX / Styling / FocusMode / CleanCode]`
+- **Motivo / Solicitação:** Remover o componente de link `<a>` nos cartões de estabelecimento e aplicar a base de dimensões (`width: 510px`) nos elementos selecionados.
+- **Ações Técnicas Realizadas:**
+  1. **Remoção do Componente `<a>`:** Eliminado o botão de link externo `<a href="...">` na barra de ações rápidas inferiores dos cartões em `AdminSalonsList.tsx`, mantendo a interface limpa e focada exclusivamente nas ações essenciais de "Editar Dados" e "Excluir".
+  2. **Aplicação da Base de Dimensões:** Ajustadas as dimensões do cartão e do contêiner interno com `style={{ width: '510px', maxWidth: '100%' }}` e `sm:w-[510px]`.
+- **Arquivos Impactados:** `src/components/admin/AdminSalonsList.tsx`, `CHANGELOG.md`.
+
 ### [2026-10-01] — 💎 Padronização Global: Varridura Completa e Aplicação do Layout Plano Transparente em Todos os Formulários
 - **Tipo:** `[Design System / UI/UX / Architecture / Standard]`
 - **Motivo / Solicitação:** Aplicar globalmente o design de fundo transparente e layout plano (`bg-transparent border-0 p-0 shadow-none`), eliminando caixas e molduras pesadas em todos os formulários do ecossistema, além de registrar essa diretriz nos manuais mestres de arquitetura e layout.
