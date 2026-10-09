@@ -29,6 +29,12 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { AdminSalonItem, DayOperatingHour } from '../../types/admin';
+import {
+  SalonCategory,
+  fetchCategories,
+  subscribeCategories,
+} from '../../services/categoriesService';
+import { AdminCategoryModal } from './AdminCategoryModal';
 
 interface AdminEditSalonModalProps {
   isOpen: boolean;
@@ -101,6 +107,14 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
   const [newMemberRole, setNewMemberRole] = useState<SalonTeamMember['role']>('collaborator');
   const [newMemberSpecialty, setNewMemberSpecialty] = useState('');
   const [logoError, setLogoError] = useState(false);
+  const [categories, setCategories] = useState<SalonCategory[]>([]);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+
+  useEffect(() => {
+    fetchCategories().then(setCategories);
+    const unsubscribe = subscribeCategories(setCategories);
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     setLogoError(false);
@@ -393,16 +407,35 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">Categoria / Segmento</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Categoria / Segmento</label>
+                      <button
+                        type="button"
+                        onClick={() => setIsCategoryModalOpen(true)}
+                        className="text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer font-medium"
+                      >
+                        + Nova Categoria
+                      </button>
+                    </div>
                     <select
                       value={formData.category || 'salao'}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value as any })}
+                      onChange={(e) => {
+                        if (e.target.value === '__new_category__') {
+                          setIsCategoryModalOpen(true);
+                        } else {
+                          setFormData({ ...formData, category: e.target.value as any });
+                        }
+                      }}
                       className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-lg px-3 py-2 text-xs text-slate-900 dark:text-white outline-none shadow-xs dark:shadow-none transition"
                     >
-                      <option value="barbearia">Barbearia</option>
-                      <option value="salao">Salão de Beleza</option>
-                      <option value="estetica">Estética & Spa</option>
-                      <option value="outro">Outro</option>
+                      {categories.map((c) => (
+                        <option key={c.id || c.slug} value={c.slug}>
+                          {c.name}
+                        </option>
+                      ))}
+                      <option value="__new_category__" className="text-emerald-600 dark:text-emerald-400 font-bold">
+                        + Criar Nova Categoria...
+                      </option>
                     </select>
                   </div>
 
@@ -846,6 +879,15 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Modal Dedicado para Criação de Novas Categorias */}
+      <AdminCategoryModal
+        isOpen={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
+        onCategoryCreated={(newCat) => {
+          setFormData((prev) => ({ ...prev, category: newCat.slug as any }));
+        }}
+      />
     </div>
   );
 };

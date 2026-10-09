@@ -15,6 +15,194 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-08] — 🚀 Modal Pós-Criação de Estabelecimento com Links Diretos Oficiais (Público & Dono)
+- **Tipo:** `[Feature / UX / TriadeOnboarding / DirectLinks]`
+- **Motivo / Solicitação:** Após a criação de um novo estabelecimento no Admin Master, exibir uma etapa/modal dedicado com os links diretos do aplicativo do salão tanto para o público (clientes/vitrine) quanto para o dono (gestão/parceiro), permitindo compartilhamento imediato no WhatsApp e navegação rápida para a página do salão.
+- **Ações Técnicas Realizadas:**
+  1. **Etapa de Sucesso Concluída (`AdminCreateSalonModal.tsx`):**
+     - Criada a renderização completa da etapa `step === 'success_links'` após confirmação da criação do salão no Supabase.
+     - **Card do Salão Ativado:** Exibição do logo, nome fantasia, categoria, status Ativo & Verificado e dados do proprietário vinculado (1 Usuário = 1 Estabelecimento).
+     - **Link Direto do App para o Público (Clientes):** URL oficial `https://[slug].vagouapp.com` com botão de cópia instantânea (`Copy`), abertura em nova aba (`ExternalLink`) e atalho para compartilhar no WhatsApp dos clientes com mensagem pré-formatada.
+     - **Link Direto do App para o Dono (Gestão do Parceiro):** URL de gestão `https://seunegocio.vagouapp.com/?slug=[slug]` com botão de cópia, abertura do painel do parceiro e **botão de destaque para envio direto das credenciais e links para o WhatsApp do proprietário** (`https://wa.me/55[telefone]`).
+     - **Selo de Wildcard DNS:** Indicador de prontidão do roteamento Cloudflare Workers para `*.vagouapp.com`.
+  2. **Rodapé de Ação e Navegação Integrada (`AdminCreateSalonModal.tsx` & `AdminMasterApp.tsx`):**
+     - Botão `Concluir e Fechar` para dispensar a criação.
+     - Botão `Ver Página do Estabelecimento` (`onViewDetails`): fecha o modal e abre diretamente a Visão 360º do salão (`AdminSalonDetailView`), onde o admin já visualiza clientes fixos, colaboradores, logotipos e formulários integrados.
+  3. **Sincronização de Estado com a Lista (`AdminSalonsList.tsx`):**
+     - Suporte a `selectedSalonDetail` e `onSelectSalonDetail` para controle compartilhado entre a tela de Salões e o modal de criação.
+- **Arquivos Impactados:** `src/components/admin/AdminCreateSalonModal.tsx`, `src/components/admin/AdminSalonsList.tsx`, `src/components/admin/AdminMasterApp.tsx`, `CHANGELOG.md`.
+
+---
+
+### [2026-10-08] — 🏛️ Central Soberana 360º do Estabelecimento (Clique na Linha & Gestão Integral)
+- **Tipo:** `[Feature / UX / Salon360 / MasterGovernance]`
+- **Motivo / Solicitação:** Permitir que ao clicar em qualquer estabelecimento da lista (na linha da tabela ou card), o painel abra a seção completa do salão contendo: lista de clientes fixos, colaboradores da equipe, dados completos com logotipo (Dark/Light), favicon, galeria de imagens e vídeos de 5 segundos, além de formulários integrados ao app do estabelecimento.
+- **Ações Técnicas Realizadas:**
+  1. **Novo Componente `AdminSalonDetailView.tsx` (`src/components/admin/AdminSalonDetailView.tsx`):**
+     - Cabeçalho master com botão `← Voltar para Todos os Estabelecimentos`, status interativo, selo de verificado e atalho para a vitrine oficial (`*.vagouapp.com`).
+     - **Aba 1 (Visão Geral & Marca):** Logotipos versões Dark e Light com preview, favicon, cores da marca, titular/proprietário responsável (vínculo 1 Usuário = 1 Salão), dados fiscais/PIX, endereço completo e horários de funcionamento.
+     - **Aba 2 (Clientes Fixos):** Tabela de clientes com histórico de agendamentos no salão, WhatsApp direto (`https://wa.me/...`), contagem de atendimentos e busca rápida.
+     - **Aba 3 (Equipe & Colaboradores):** Lista de profissionais da tabela `professionals` com foto, especialidade, WhatsApp, taxa de comissão individual e status.
+     - **Aba 4 (Galeria & Serviços):** Portfólio de fotos de procedimentos e reprodutor de vídeos curtos verticais de 5 segundos em loop (Stories / Radar Nível 3).
+     - **Aba 5 (Formulários Integrados):** Links de embed com injeção automática do slug do salão, código `<iframe>` pronto para copiar e botão para testar diretamente no simulador sandbox.
+  2. **Interação na Lista de Estabelecimentos (`AdminSalonsList.tsx`):**
+     - Linhas da tabela e cards agora possuem `cursor-pointer` e acionam a abertura da Central do Salão ao toque.
+     - `e.stopPropagation()` implementado nos checkboxes, botões de ação (Aprovar, Suspender, Editar, Excluir) e links externos, garantindo zero conflito de cliques.
+  3. **Tipagem TypeScript (`types/admin.ts`):**
+     - Adicionados campos opcionais de identidade visual (`logo_dark_url`, `logo_light_url`, `favicon_url`, `gallery_media`, etc.) mantendo compatibilidade retroativa total.
+- **Arquivos Impactados:** `src/components/admin/AdminSalonDetailView.tsx`, `src/components/admin/AdminSalonsList.tsx`, `src/types/admin.ts`, `CHANGELOG.md`.
+
+---
+
+### [2026-10-08] — 🔗 Remodelação: Seção Própria de Formulários Acessível por Link em Configurações
+- **Tipo:** `[Refactor / UX / NavigationCleanliness]`
+- **Motivo / Solicitação:** Remover a aba de formulário do cabeçalho superior de Configurações e movê-la para uma seção própria de formulários, acessível por um link / card de ação dedicado em Configurações.
+- **Ações Técnicas Realizadas:**
+  1. **Cabeçalho de Configurações (`AdminSettingsPanel.tsx`):**
+     - Removida a 3ª aba de formulários do topo, restaurando as 2 abas limpas e essenciais: **Geral & DNS** e **Tríade & Mandamento 7**.
+  2. **Card de Ação / Link para a Seção Própria (`AdminSettingsPanel.tsx`):**
+     - Criada seção destacada em gradiente escuro com ícone `FileText` em verde, contador de 18 formulários e botão de link direto com seta: **"Acessar Seção de Formulários"**.
+  3. **Navegação & Retorno Fluido (`AdminTriadeFormsCatalog.tsx` & `AdminMasterApp.tsx`):**
+     - Ao clicar no link, o sistema abre a seção própria da Central de Formulários com botão de retorno no topo: **"← Voltar para Configurações"**.
+     - Integrado `forms` ao `AdminScreenId` e `AdminHeader.tsx` para suporte total a deep link interno e histórico de telas.
+- **Arquivos Impactados:** `src/components/admin/AdminSettingsPanel.tsx`, `src/components/admin/AdminTriadeFormsCatalog.tsx`, `src/components/admin/AdminMasterApp.tsx`, `src/components/admin/AdminHeader.tsx`, `src/types/admin.ts`, `CHANGELOG.md`.
+
+---
+
+### [2026-10-08] — 📋 Implementação da Central & Catálogo de Formulários da Tríade no Menu Configurações
+- **Tipo:** `[Feature / Governance / TriadeCatalog / DeveloperExperience]`
+- **Motivo / Solicitação:** Criação de uma central dedicada no menu Configurações para catalogar, inspecionar tabelas do Supabase, parâmetros e testar em tempo real todos os formulários da Tríade (`admvapp`, `mnvapp`, `pvapp`).
+- **Ações Técnicas Realizadas:**
+  1. **Novo Componente `AdminTriadeFormsCatalog.tsx` (`src/components/admin/AdminTriadeFormsCatalog.tsx`):**
+     - Catálogo com 18 formulários mapeados com especificações completas: aplicativo de origem, tipo de fluxo (Modal Nativo, Iframe Embed, Rota Direta), tabelas Supabase afetadas, rotas e parâmetros suportados.
+     - Filtros em tempo real por aplicativo (`Todos`, `admvapp`, `mnvapp`, `pvapp`) e barra de busca instantânea por nome, tabela ou parâmetro.
+     - Ações de 1 clique: cópia de URLs completas e gerador de snippets `<iframe>` prontos para integração no `mnvapp` e `pvapp`.
+     - **Simulador / Sandbox Interativo:** Ambiente isolado dentro do painel para testar os formulários unificados com controles de tipo (`client` vs `professional`), slug do salão e modo embed com botão "X" de fechar.
+     - Disparadores diretos para os modais nativos: Onboarding de Salão (`AdminCreateSalonModal`), Gestão de Categorias (`AdminCategoryModal`), Cadastro de Admin (`AdminCreateAdminModal`) e Autenticação Master (`AdminAuthModal`).
+  2. **Integração no Painel de Configurações (`AdminSettingsPanel.tsx`):**
+     - Adicionada 3ª aba no cabeçalho superior: **"Formulários da Tríade"** com destaque visual em verde e ícone `FileText`.
+     - Alternância fluida entre "Geral & DNS", "Tríade & Mandamento 7" e "Formulários da Tríade".
+- **Sincronização da Tríade (7º Mandamento):**
+  - Comunicado registrado para os projetos irmãos (`mnvapp` e `pvapp`), estabelecendo os contratos de postMessage (`VAGOU_CLOSE_MODAL`) e parâmetros de bloqueio de abas (`?embed=true&type=client&slug={slug}`).
+- **Arquivos Impactados:** `src/components/admin/AdminTriadeFormsCatalog.tsx`, `src/components/admin/AdminSettingsPanel.tsx`, `CHANGELOG.md`.
+
+---
+
+### [2026-10-04] — 🎯 Ocultação e Bloqueio Automático das Abas de Tipo ("Sou Cliente" / "Sou Profissional") em Embed & Contexto de Estabelecimento
+- **Tipo:** `[UX / FlowOptimization / TriadeSync]`
+- **Motivo / Solicitação:** Atender ao alinhamento de UX da Tríade onde o cliente que acessa o cadastro através de um estabelecimento (`?embed=true`, `type=client` ou `slug=...`) não deve visualizar as abas de seleção `[ Sou Cliente ] [ Sou Profissional ]`. A opção "Sou Profissional" gerava atrito e confusão no agendamento do salão.
+- **Ações Técnicas Realizadas:**
+  1. **`UnifiedRegistrationForm.tsx`:**
+     - Criado estado reativo `shouldHideTypeSelector` inicializado a partir da URL e propriedades.
+     - Quando a URL contém `type=client`, `type=professional`, `embed=true`, execução em iframe (`window.self !== window.top`) ou parâmetro `slug`, as abas de seleção são **completamente ocultadas**.
+     - O formulário é travado automaticamente no tipo correto (`client` para o cliente do salão), levando-o direto para os campos pessoais (Nome, WhatsApp, E-mail) sem distrações ou atrito.
+  2. **`App.tsx`:**
+     - Ao detectar `/cadastro` com parâmetros de contexto, injeta `hideTypeSelector={true}` e define `initialType` correspondente, assegurando consistência em standalone e em modais.
+- **Arquivos Impactados:** `src/components/public/UnifiedRegistrationForm.tsx`, `src/App.tsx`, `CHANGELOG.md`.
+
+---
+
+### [2026-10-03] — 🔑 Correção Crítica de Validação de Input e Autenticação Master por Username (`Anderson@` / `Elisapires@`)
+- **Tipo:** `[Bugfix / Authentication / DatabaseSync]`
+- **Motivo / Solicitação:** Diagnosticar e solucionar o erro capturado em tela onde o navegador bloqueava o envio exibindo *"Insira uma parte depois de '@'. 'Anderson@' está incompleto."* e erro de credenciais no Supabase Auth.
+- **Diagnóstico do Supabase SQL (`system_admins`):**
+  1. A tabela `system_admins` possui SIM a coluna **`username`** (onde estão gravados os usernames com sufixo `@`: `Anderson@` e `Elisapires@`).
+  2. As colunas existentes na tabela são: `id`, `full_name`, `username`, `email`, `phone_whatsapp`, `password_hash`, `role`, `is_active`, `avatar_url`, `last_login_at`, `created_at`, `updated_at`.
+- **Causas Raiz Identificadas:**
+  1. **Bloqueio do Navegador:** O `<input>` de login estava com `type="email"`. Ao digitar `Anderson@`, o validador nativo de e-mail do HTML5 bloqueava a submissão alegando formato de e-mail incompleto.
+  2. **Chamada de Autenticação Incompatível:** O frontend chamava diretamente `supabase.auth.signInWithPassword` verificando a tabela vazia `platform_admins`, em vez de autenticar contra a tabela corporativa `system_admins` gerenciada pelo backend `/api/admin/auth/login`.
+- **Ações Técnicas Realizadas:**
+  1. **`AdminAuthModal.tsx`:** Alterado o campo de login de `type="email"` para `type="text"`, com rótulo "Usuário Corporativo ou E-mail" e placeholder claro `Anderson@ ou nexuscrwd@gmail.com`.
+  2. **`src/services/supabaseApi.ts`:** Refatorada a função `loginAdmin` para autenticar através da rota oficial `/api/admin/auth/login` (que valida `username`, `email` e `phone_whatsapp` com o `password_hash` da tabela `system_admins`), com fallback de contingência no banco.
+- **Arquivos Impactados:** `src/components/admin/AdminAuthModal.tsx`, `src/services/supabaseApi.ts`, `CHANGELOG.md`.
+
+---
+
+### [2026-10-03] — ❌ Padronização do Botão de Fechar "X" em Todos os Formulários e Modais do App
+- **Tipo:** `[UI/UX / Standardization / CleanCode]`
+- **Motivo / Solicitação:** Inserir o botão de fechar "X" em todos os formulários e modais da aplicação, garantindo saída intuitiva e descarte rápido em qualquer fluxo.
+- **Ações Técnicas Realizadas:**
+  1. **Modais de Confirmação de Exclusão (`AdminSalonsList.tsx`):**
+     - Adicionado botão de fechar "X" (`w-5 h-5`) no canto superior direito do modal de exclusão individual (`salonToDelete`).
+     - Adicionado botão de fechar "X" (`w-5 h-5`) no canto superior direito do modal de exclusão em massa (`isBulkDeleting`).
+  2. **Formulário Unificado de Cadastro & Login (`UnifiedRegistrationForm.tsx` & `App.tsx`):**
+     - Tornada permanente a renderização do botão "X" no topo direito do formulário (`absolute top-2 right-2 sm:top-4 sm:right-4 z-30`), permitindo fechar o formulário em todos os cenários (standalone, modal e iframe).
+     - Em `App.tsx`, adicionado callback de `onClose` para alternar `isRegistrationMode` e redefinir a URL para `/` sem recarregar a página.
+  3. **Modal de Autenticação Master (`AdminAuthModal.tsx`):**
+     - Consolidado o botão "X" (`w-5 h-5`) no cabeçalho com acessibilidade completa (`aria-label="Fechar"` e `title="Fechar"`).
+  4. **Modais de Negócio (`AdminCreateSalonModal.tsx`, `AdminEditSalonModal.tsx`, `AdminCreateAdminModal.tsx`, `AdminCategoryModal.tsx`):**
+     - Verificados e padronizados os botões de fechar "X" (`w-5 h-5`) nos cabeçalhos de todos os modais de criação/edição.
+  5. **Monitor de Agendamentos (`AdminAppointmentsMonitor.tsx`):**
+     - Adicionado botão de fechar "X" no cabeçalho de detalhes do estabelecimento selecionado, permitindo retorno imediato à visão geral.
+- **Arquivos Impactados:** `src/components/admin/AdminSalonsList.tsx`, `src/components/public/UnifiedRegistrationForm.tsx`, `src/App.tsx`, `src/components/admin/AdminAuthModal.tsx`, `src/components/admin/AdminAppointmentsMonitor.tsx`, `CHANGELOG.md`.
+
+---
+
+### [2026-10-03] — 🖼️ Varredura de Schema Supabase & Padronização do Logotipo Retangular com Exibição em Hover
+- **Tipo:** `[Feature / UI/UX / DatabaseAudit / FocusMode]`
+- **Motivo / Solicitação:** Varredura em todo o código e análise do SQL do Supabase em relação à div de logotipo do estabelecimento (`td:nth-of-type(2) > div > div`). A div deve exibir o logotipo real da empresa quando em hover; caso contrário (se não / sem logo), deve exibir um logo provisório, retangular, na medida padrão, com fundo transparente e a legenda "Logotipo".
+- **Diagnóstico do Supabase SQL (`salons`):**
+  1. A tabela `salons` no Supabase possui as colunas `logo_url` (text), `logo_light_url` (text), `logo_dark_url` (text) e `branding` (jsonb).
+  2. Na base de dados, a maioria dos estabelecimentos não possui logotipo preenchido (`null` ou string vazia).
+- **Ações Técnicas Realizadas:**
+  1. **Refatoração do Componente `SalonLogo` (`src/components/common/SalonLogo.tsx`):**
+     - **Formato Retangular:** Substituída a geometria quadrada por medidas retangulares padronizadas na proporção de logotipo (`xs`: 48x28px, `sm`: 56x32px, `md`: 64x36px, `lg`: 80x44px, `xl`: 96x56px).
+     - **Fundo Transparente:** Aplicada a classe `bg-transparent` e borda sutil tracejada (`border-dashed`), eliminando fundos sólidos opacos.
+     - **Legenda "Logotipo":** Inserida a legenda canônica **Logotipo** com tipografia mono/semibold e ícone institucional `Building2`.
+     - **Exibição Inteligente em Hover:** Quando o estabelecimento possui logotipo cadastrado, a passagem do cursor (`hover`) revela suavemente o logotipo da empresa ajustado (`object-contain`), acompanhado de um card flutuante de zoom em alta resolução. Caso não haja logotipo (ou sem hover), mantém o logo provisório retangular transparente com a legenda "Logotipo".
+- **Arquivos Impactados:** `src/components/common/SalonLogo.tsx`, `CHANGELOG.md`.
+
+---
+
+### [2026-10-03] — 🏷️ Renomeação para "Cadastrar", Criação Dinâmica de Categorias & Filtro Inteligente de Estabelecimentos
+- **Tipo:** `[Feature / UI/UX / Categories / Governance]`
+- **Motivo / Solicitação:** Atender aos três requisitos solicitados:
+  1. Renomear o botão de ação principal para **"Cadastrar"** (`Plus`, verde `#20C933`, texto branco de alto contraste).
+  2. Disponibilizar opção para **criar categorias** (botão dedicado `+ Categoria`, atalho no dropdown de filtro e integração nos modais de criação e edição).
+  3. Implementar **filtro de categoria** robusto no catálogo de estabelecimentos com contagem em tempo real e triagem inteligente.
+- **Ações Técnicas Realizadas:**
+  1. **Botão de Ação Renomeado (`AdminSalonsList.tsx`):** O botão de criação de novos estabelecimentos foi consolidado com o texto objetivo **"Cadastrar"**, ícone `Plus`, estilo verde `#20C933` e tipografia `text-white font-bold`, em estrita observância à síntese mobile e ao contraste inegociável.
+  2. **Opção de Criação de Categoria Multi-Ponto (`AdminSalonsList.tsx`, `AdminCreateSalonModal.tsx`, `AdminEditSalonModal.tsx`):**
+     - Botão `+ Categoria` na barra de controle do catálogo, abrindo o `AdminCategoryModal`.
+     - Opção `+ Criar Categoria...` diretamente dentro do dropdown do filtro de categorias.
+     - Botão e opção `+ Nova Categoria` nos modais de cadastro e edição de salões, permitindo cadastrar uma nova categoria sem interromper o fluxo do estabelecimento.
+  3. **Filtro Inteligente de Categorias (`AdminSalonsList.tsx`):**
+     - Dropdown com ícone `Tag`, exibindo "Todas as Categorias" com o total geral e cada categoria com sua contagem individual de salões associados.
+     - Triagem com compatibilidade reversa: compara slug exato, nome da categoria e faz inferência semântica para registros pré-existentes.
+  4. **Persistência no Supabase (`server.ts` & `src/services/supabaseApi.ts`):** Salva a categoria de forma segura dentro de `branding.category` (jsonb) nos métodos POST e PATCH, preservando integridade das colunas e sincronizando com `fetchAdminSalons`.
+- **Arquivos Impactados:** `src/components/admin/AdminSalonsList.tsx`, `src/components/admin/AdminCreateSalonModal.tsx`, `src/components/admin/AdminEditSalonModal.tsx`, `src/services/supabaseApi.ts`, `server.ts`, `CHANGELOG.md`.
+
+---
+
+### [2026-10-03] — ⚡ Correção de Inicialização do Dev Server (Fix EADDRINUSE & Port 3000)
+- **Tipo:** `[Bugfix / DevServer / Infrastructure]`
+- **Motivo / Solicitação:** Resolver falha de inicialização do servidor de desenvolvimento (`The dev server didn't start`).
+- **Causa Raiz Identificada:** O ambiente do container expunha a variável `PORT=8080`, fazendo com que `server.ts` tentasse fazer bind na porta `8080` (já em uso pelo proxy de ingress do Cloud Run / AI Studio), gerando `Error: listen EADDRINUSE: address already in use 0.0.0.0:8080`, além de conflito na porta de WebSocket do HMR (24678).
+- **Ações Técnicas Realizadas:**
+  1. **Fixação Estrita na Porta 3000 (`server.ts`):** O servidor agora vincula-se obrigatoriamente à porta `3000`, em estrita conformidade com as diretrizes de ambiente (`Dev server must run on port 3000`).
+  2. **Desativação de HMR no Middleware do Vite (`server.ts`):** Configurado `hmr: false` na instância do `createViteServer`, eliminando tentativas de bind na porta 24678 e colisões de WebSocket no ambiente de container.
+  3. **Validação & Reinício:** O servidor foi reiniciado com sucesso, respondendo com `HTTP 200 OK` na porta 3000 para `/` e `/api/health`.
+- **Arquivos Impactados:** `server.ts`, `CHANGELOG.md`.
+
+### [2026-10-02] — 🎯 Esteira Inteligente de Cadastro de Estabelecimento: Filtro de Usuários Sem Salão ("Sim") & Cadastro Direto ("Não")
+- **Tipo:** `[Feature / UI/UX / BusinessRules / Workflow]`
+- **Motivo / Solicitação:** Refatorar a esteira de criação de novos estabelecimentos (`AdminCreateSalonModal`), permitindo que ao selecionar "Sim" abra um modal pequeno de busca inteligente exibindo apenas usuários sem salão cadastrado em seu login, e ao selecionar "Não" abra diretamente o formulário de cadastro de novo usuário (`UnifiedRegistrationForm`).
+- **Ações Técnicas Realizadas:**
+  1. **Tag Soberana no Backend (`server.ts`):** Na rota centralizada `/api/admin/all-portal-users`, foi incluído cruzamento com a tabela `salons` e `professionals` para identificar proprietários existentes e sinalizar a propriedade `hasSalon: boolean` para cada usuário.
+  2. **Modal Compacto de Seleção Rápida ("Sim"):** Criado modal de tamanho reduzido (`max-w-lg`) com campo de busca em tempo real que filtra e exibe exclusivamente os usuários que não possuem salão cadastrado no login (`hasSalon === false`), permitindo seleção em 1 clique para vincular como proprietário e avançar para os dados do salão.
+  3. **Abertura Direta do Formulário ("Não"):** A opção "Não" agora abre imediatamente o modal com o formulário de cadastro unificado (`UnifiedRegistrationForm`), sem telas ou botões intermediários desnecessários. Ao concluir o cadastro, o novo usuário é vinculado automaticamente como proprietário e a tela transita para a etapa de dados do negócio.
+  4. **Navegação Fluida & Botão Voltar:** Adicionado botão de retorno contextual para transitar livremente entre a pergunta inicial, a busca de usuários e o formulário do salão.
+- **Arquivos Impactados:** `server.ts`, `src/components/admin/AdminCreateSalonModal.tsx`, `CHANGELOG.md`.
+
+### [2026-10-02] — 🛠️ Correção Crítica de ServiceWorker & Headers PWA (sw.js)
+- **Tipo:** `[Bugfix / PWA / Infrastructure / ServiceWorker]`
+- **Motivo / Solicitação:** Corrigir erro de atualização do Service Worker (`Failed to update a ServiceWorker for scope with script sw.js: An unknown error occurred when fetching the script`).
+- **Ações Técnicas Realizadas:**
+  1. **Tratamento Seguro de Promise Rejection:** Em `index.html`, adicionado `.catch()` defensivo à chamada de `reg.update()` e ao registro de ServiceWorker, prevenindo que exceções não tratadas escapem em ambientes de iframe restrito ou sandbox do Cloud Run.
+  2. **Serviço Explícito do `sw.js` no Express (`server.ts`):** Criada rota prioritária com cabeçalhos canônicos para PWA (`Content-Type: application/javascript; charset=utf-8`, `Service-Worker-Allowed: /`, `Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0` e `Access-Control-Allow-Origin: *`).
+  3. **Bypass de Rotas Internas no `sw.js`:** Adicionada regra de exclusão para `/src/`, hot-updates do Vite e sockets de preview, impedindo que o ServiceWorker intercepte o carregamento de módulos TypeScript em desenvolvimento.
+- **Arquivos Impactados:** `index.html`, `server.ts`, `public/sw.js`, `CHANGELOG.md`.
+
 ### [2026-10-01] — 🧹 Higienização Visual: Remoção da Barra de Aba Redundante no Modal de Autenticação
 - **Tipo:** `[UI/UX / Styling / FocusMode / CleanCode]`
 - **Motivo / Solicitação:** Remover o contêiner de barra de aba intermediária (`div:nth-of-type(2)`) no modal de autenticação master (`AdminAuthModal`), eliminando a poluição visual entre o cabeçalho e os campos do formulário.

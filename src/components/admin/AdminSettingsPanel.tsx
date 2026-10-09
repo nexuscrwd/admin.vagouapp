@@ -15,14 +15,22 @@ import {
   Phone,
   Settings,
   Layers,
+  FileText,
+  ArrowRight,
+  ArrowLeft,
 } from 'lucide-react';
 import { fetchTablesSummary, fetchSystemAdmins, toggleAdminStatus } from '../../services/supabaseApi';
 import { SystemAdminUser } from '../../types/admin';
 import { AdminCreateAdminModal } from './AdminCreateAdminModal';
 import { AdminTriadeGovernance } from './AdminTriadeGovernance';
+import { AdminTriadeFormsCatalog } from './AdminTriadeFormsCatalog';
 import { UserAvatar } from '../common/UserAvatar';
 
-export const AdminSettingsPanel: React.FC = () => {
+export interface AdminSettingsPanelProps {
+  onNavigateToForms?: () => void;
+}
+
+export const AdminSettingsPanel: React.FC<AdminSettingsPanelProps> = ({ onNavigateToForms }) => {
   const [tables, setTables] = useState<Record<string, { count: number; accessible: boolean }>>({
     salons: { count: 6, accessible: true },
     appointments: { count: 42, accessible: true },
@@ -38,6 +46,7 @@ export const AdminSettingsPanel: React.FC = () => {
   const [isCreateAdminModalOpen, setIsCreateAdminModalOpen] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [activeSettingsTab, setActiveSettingsTab] = useState<'settings' | 'triade'>('settings');
+  const [isViewingFormsSection, setIsViewingFormsSection] = useState(false);
 
   const loadTables = async () => {
     setIsLoadingTables(true);
@@ -88,17 +97,31 @@ export const AdminSettingsPanel: React.FC = () => {
     }
   };
 
+  if (isViewingFormsSection) {
+    return (
+      <div className="space-y-4">
+        <AdminTriadeFormsCatalog onBack={() => setIsViewingFormsSection(false)} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Top Header com Alternador de Abas */}
       <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-xs dark:shadow-none">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 flex items-center justify-center shrink-0">
-            {activeSettingsTab === 'settings' ? <Globe className="w-5 h-5 text-blue-600 dark:text-blue-400" /> : <Layers className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />}
+            {activeSettingsTab === 'settings' ? (
+              <Globe className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            ) : (
+              <Layers className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+            )}
           </div>
           <div>
             <h2 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">
-              {activeSettingsTab === 'settings' ? 'Configurações, DNS & Acessos' : 'Governança da Tríade (7º Mandamento)'}
+              {activeSettingsTab === 'settings'
+                ? 'Configurações, DNS & Acessos'
+                : 'Governança da Tríade (7º Mandamento)'}
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               {activeSettingsTab === 'settings'
@@ -108,10 +131,10 @@ export const AdminSettingsPanel: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex items-center bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800 shrink-0 self-start sm:self-auto">
+        <div className="flex items-center bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800 shrink-0 self-start sm:self-auto overflow-x-auto">
           <button
             onClick={() => setActiveSettingsTab('settings')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
               activeSettingsTab === 'settings'
                 ? 'bg-[#20C933] text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -123,7 +146,7 @@ export const AdminSettingsPanel: React.FC = () => {
 
           <button
             onClick={() => setActiveSettingsTab('triade')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
               activeSettingsTab === 'triade'
                 ? 'bg-[#20C933] text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -140,6 +163,43 @@ export const AdminSettingsPanel: React.FC = () => {
         <AdminTriadeGovernance />
       ) : (
         <>
+          {/* 📋 SEÇÃO: CENTRAL DE FORMULÁRIOS DA TRÍADE (Acessível por Link / Ação) */}
+          <div className="p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-slate-950 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm relative overflow-hidden">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-xl bg-[#20C933]/15 text-[#20C933] border border-[#20C933]/30 flex items-center justify-center shrink-0 shadow-lg shadow-emerald-950/20">
+                <FileText className="w-6 h-6 text-[#20C933]" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-white tracking-tight">
+                    Central de Formulários da Tríade
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#20C933] text-white">
+                    18 Formulários Mapeados
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Catálogo dos formulários do admvapp, mnvapp e pvapp com parâmetros de embed e simulador ao vivo.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (onNavigateToForms) {
+                  onNavigateToForms();
+                } else {
+                  setIsViewingFormsSection(true);
+                }
+              }}
+              className="px-4 py-2.5 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold transition cursor-pointer flex items-center gap-2 shadow-sm active:scale-95 whitespace-nowrap self-start sm:self-auto"
+            >
+              <span>Acessar Formulários</span>
+              <ArrowRight className="w-4 h-4 text-white" />
+            </button>
+          </div>
+
           {/* 🔐 SEÇÃO: GESTÃO DE ADMINISTRADORES SOBERANOS */}
           <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 shadow-xs dark:shadow-none">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">

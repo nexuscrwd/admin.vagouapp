@@ -53,7 +53,43 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
   onClose,
   onSuccess,
 }) => {
-  const [accountType, setAccountType] = useState<'client' | 'professional'>(initialType);
+  const [accountType, setAccountType] = useState<'client' | 'professional'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const typeParam = params.get('type');
+      if (typeParam === 'professional' || typeParam === 'pro' || typeParam === 'salao') {
+        return 'professional';
+      }
+      if (typeParam === 'client' || typeParam === 'usuario') {
+        return 'client';
+      }
+    }
+    return initialType;
+  });
+
+  const [shouldHideTypeSelector, setShouldHideTypeSelector] = useState<boolean>(() => {
+    if (hideTypeSelector) return true;
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const typeParam = params.get('type');
+      const embedParam = params.get('embed');
+      const slugParam = params.get('slug') || params.get('subdomain') || params.get('origem');
+      if (
+        typeParam === 'client' ||
+        typeParam === 'professional' ||
+        typeParam === 'pro' ||
+        typeParam === 'salao' ||
+        typeParam === 'usuario' ||
+        embedParam === 'true' ||
+        window.self !== window.top ||
+        Boolean(slugParam)
+      ) {
+        return true;
+      }
+    }
+    return false;
+  });
+
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -151,13 +187,36 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
     }
 
     const typeParam = params.get('type');
+    const embedParam = params.get('embed');
+    const slugParam = params.get('slug') || params.get('subdomain') || params.get('origem');
+
+    const shouldLock =
+      hideTypeSelector ||
+      typeParam === 'client' ||
+      typeParam === 'professional' ||
+      typeParam === 'pro' ||
+      typeParam === 'salao' ||
+      typeParam === 'usuario' ||
+      embedParam === 'true' ||
+      window.self !== window.top ||
+      Boolean(slugParam);
+
+    if (shouldLock) {
+      setShouldHideTypeSelector(true);
+    }
+
     if (typeParam === 'professional' || typeParam === 'pro' || typeParam === 'salao') {
       setAccountType('professional');
-    } else if (typeParam === 'client' || typeParam === 'usuario') {
+    } else if (
+      typeParam === 'client' ||
+      typeParam === 'usuario' ||
+      Boolean(slugParam) ||
+      embedParam === 'true' ||
+      initialType === 'client'
+    ) {
       setAccountType('client');
     }
 
-    const slugParam = params.get('slug') || params.get('subdomain') || params.get('origem');
     if (slugParam) {
       const clean = slugParam.toLowerCase().replace(/[^a-z0-9-]/g, '');
       setSlug(clean);
@@ -599,21 +658,24 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
       )}
 
       <div className="relative w-full max-w-lg bg-transparent border-0 p-2 sm:p-4 shadow-none flex flex-col animate-fadeIn">
-        {onClose && (
-          <button
-            type="button"
-            onClick={() => {
-              if (window.parent && window.parent !== window) {
-                window.parent.postMessage({ type: 'VAGOU_CLOSE_MODAL' }, '*');
-              }
+        <button
+          type="button"
+          onClick={() => {
+            if (window.parent && window.parent !== window) {
+              window.parent.postMessage({ type: 'VAGOU_CLOSE_MODAL' }, '*');
+            }
+            if (onClose) {
               onClose();
-            }}
-            className="absolute top-4 right-4 z-20 p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
-            title="Fechar"
-          >
-            <X className="w-4 h-4 text-slate-300" />
-          </button>
-        )}
+            } else {
+              window.location.href = '/';
+            }
+          }}
+          className="absolute top-2 right-2 sm:top-4 sm:right-4 z-30 p-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/80 transition cursor-pointer shadow-lg active:scale-95"
+          title="Fechar"
+          aria-label="Fechar"
+        >
+          <X className="w-5 h-5 text-white" />
+        </button>
         {/* Header Logo & Title */}
         <div className="flex flex-col items-center text-center mb-5">
           <VagouLogo className="h-9 text-white mb-2" />
@@ -634,7 +696,7 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
         </div>
 
         {/* Account Type Selector Tabs (Only in Registration Mode & if not hidden) */}
-        {!isLoginMode && !hideTypeSelector && (
+        {!isLoginMode && !shouldHideTypeSelector && (
           <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-950 border border-slate-800 rounded-xl mb-5">
             <button
               type="button"

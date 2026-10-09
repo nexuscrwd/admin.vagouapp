@@ -52,6 +52,8 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
         return 'Agendamentos & Faturamento';
       case 'triade':
         return 'Governança da Tríade & 7º Mandamento';
+      case 'forms':
+        return 'Central de Formulários da Tríade';
       case 'settings':
         return 'Configurações do Sistema & DNS';
       default:

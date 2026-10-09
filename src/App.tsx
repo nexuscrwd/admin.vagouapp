@@ -23,7 +23,26 @@ export const App: React.FC = () => {
   }, []);
 
   if (isRegistrationMode) {
-    return <UnifiedRegistrationForm />;
+    const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const typeParam = searchParams?.get('type');
+    const embedParam = searchParams?.get('embed');
+    const slugParam = searchParams?.get('slug') || searchParams?.get('subdomain');
+    const shouldLock =
+      typeParam === 'client' ||
+      typeParam === 'professional' ||
+      embedParam === 'true' ||
+      Boolean(slugParam);
+
+    return (
+      <UnifiedRegistrationForm
+        initialType={typeParam === 'professional' ? 'professional' : 'client'}
+        hideTypeSelector={shouldLock}
+        onClose={() => {
+          setIsRegistrationMode(false);
+          window.history.pushState({}, '', '/');
+        }}
+      />
+    );
   }
 
   return (

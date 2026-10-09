@@ -28,6 +28,7 @@ import { AdminCreateSalonModal } from './AdminCreateSalonModal';
 import { AdminAppointmentsMonitor } from './AdminAppointmentsMonitor';
 import { AdminUsersManager } from './AdminUsersManager';
 import { AdminSettingsPanel } from './AdminSettingsPanel';
+import { AdminTriadeFormsCatalog } from './AdminTriadeFormsCatalog';
 import { AdminAuthModal } from './AdminAuthModal';
 import { AdminCreateAdminModal } from './AdminCreateAdminModal';
 import { ArrowRight, Plus, UserPlus } from 'lucide-react';
@@ -56,8 +57,14 @@ export const AdminMasterApp: React.FC = () => {
 
   // Salon Modals
   const [selectedSalonToEdit, setSelectedSalonToEdit] = useState<AdminSalonItem | null>(null);
+  const [selectedSalonForDetail, setSelectedSalonForDetail] = useState<AdminSalonItem | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+  const handleOpenSalonDetail = (salon: AdminSalonItem) => {
+    setSelectedSalonForDetail(salon);
+    setCurrentScreen('salons');
+  };
 
   const loadData = async () => {
     setIsRefreshing(true);
@@ -164,7 +171,7 @@ export const AdminMasterApp: React.FC = () => {
     if (res.success && res.salon) {
       setSalons((prev) => [res.salon!, ...prev]);
       fetchAdminDashboardMetrics().then(setMetrics);
-      return { success: true };
+      return { success: true, salon: res.salon };
     }
     return { success: false, error: res.error || 'Erro ao cadastrar estabelecimento.' };
   };
@@ -304,7 +311,7 @@ export const AdminMasterApp: React.FC = () => {
                         className="w-full py-2.5 px-3 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-emerald-500/20 active:scale-95"
                       >
                         <Plus className="w-4 h-4 text-white" />
-                        <span>Cadastrar Estabelecimento</span>
+                        <span>Cadastrar</span>
                       </button>
 
                       <button
@@ -352,6 +359,8 @@ export const AdminMasterApp: React.FC = () => {
                   onOpenNewSalon={() => setIsCreateModalOpen(true)}
                   searchQuery={searchQuery}
                   onSearchChange={setSearchQuery}
+                  selectedSalonDetail={selectedSalonForDetail}
+                  onSelectSalonDetail={setSelectedSalonForDetail}
                 />
               </div>
             </div>
@@ -370,6 +379,8 @@ export const AdminMasterApp: React.FC = () => {
                 onOpenNewSalon={() => setIsCreateModalOpen(true)}
                 searchQuery={searchQuery}
                 onSearchChange={setSearchQuery}
+                selectedSalonDetail={selectedSalonForDetail}
+                onSelectSalonDetail={setSelectedSalonForDetail}
               />
             </div>
           )}
@@ -381,7 +392,14 @@ export const AdminMasterApp: React.FC = () => {
           {currentScreen === 'appointments' && <AdminAppointmentsMonitor />}
 
           {/* SCREEN: SETTINGS (Includes Tríade Governance inside) */}
-          {currentScreen === 'settings' && <AdminSettingsPanel />}
+          {currentScreen === 'settings' && (
+            <AdminSettingsPanel onNavigateToForms={() => setCurrentScreen('forms')} />
+          )}
+
+          {/* SCREEN: FORMS (Central de Formulários da Tríade) */}
+          {currentScreen === 'forms' && (
+            <AdminTriadeFormsCatalog onBack={() => setCurrentScreen('settings')} />
+          )}
         </main>
       </div>
 
@@ -413,6 +431,7 @@ export const AdminMasterApp: React.FC = () => {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onCreate={handleCreateSalon}
+        onViewDetails={handleOpenSalonDetail}
       />
     </div>
   );

@@ -71,10 +71,12 @@ self.addEventListener('fetch', (event) => {
   // Bypass para rotas de desenvolvimento / hot-reload / supabase / APIs externas
   if (
     url.pathname.startsWith('/@') ||
+    url.pathname.startsWith('/src/') ||
     url.pathname.includes('node_modules') ||
     url.pathname.includes('hot-update') ||
     url.pathname.startsWith('/api/') ||
-    url.origin.includes('supabase.co')
+    url.origin.includes('supabase.co') ||
+    url.origin.includes('run.app') && url.pathname.includes('socket')
   ) {
     return;
   }

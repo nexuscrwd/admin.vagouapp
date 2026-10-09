@@ -295,7 +295,8 @@ WHERE email ILIKE '%elisa%';`,
 
 async function startServer() {
   const app = express();
-  const PORT = Number(process.env.PORT) || 3000;
+  // Dev server must always bind to port 3000 per environment constraints
+  const PORT = 3000;
 
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -306,6 +307,24 @@ async function startServer() {
   if (apiKey) {
     ai = new GoogleGenAI({ apiKey });
   }
+
+  // Explicit PWA Service Worker & Manifest routing
+  app.get('/sw.js', (req, res) => {
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    res.setHeader('Service-Worker-Allowed', '/');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    const swPath = path.join(process.cwd(), 'public', 'sw.js');
+    return res.sendFile(swPath);
+  });
+
+  app.get('/manifest.json', (req, res) => {
+    res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    const manifestPath = path.join(process.cwd(), 'public', 'manifest.json');
+    return res.sendFile(manifestPath);
+  });
 
   // Health check & Service Role verification
   app.get('/api/health', (req, res) => {
@@ -915,6 +934,11 @@ async function startServer() {
         primary_color: payload.primary_color || '#10B981',
         is_active: payload.status !== 'incomplete' && payload.status !== 'suspended',
         is_verified: payload.status === 'active' || payload.is_verified === true,
+        branding: {
+          themeMode: 'light',
+          primaryColor: payload.primary_color || '#10B981',
+          category: payload.category || 'salao',
+        },
       };
 
       if (payload.owner_user_id) {
@@ -955,6 +979,14 @@ async function startServer() {
         updates.is_active = updates.status === 'active';
         if (updates.status === 'active') updates.is_verified = true;
         delete updates.status;
+      }
+
+      // Preserva categoria dentro de branding no banco
+      if (updates.category) {
+        updates.branding = {
+          ...(updates.branding || {}),
+          category: updates.category,
+        };
       }
 
       // Remove propriedades puramente visuais/locais antes do update no banco
@@ -1199,6 +1231,73 @@ async function startServer() {
     }
   });
 
+  // SYSTEM CATEGORIES MANAGEMENT
+  let SYSTEM_CATEGORIES = [
+    { id: 'cat-salao', name: 'Salão de Beleza', slug: 'salao', icon: 'Scissors', is_default: true },
+    { id: 'cat-barbearia', name: 'Barbearia', slug: 'barbearia', icon: 'Scissors', is_default: true },
+    { id: 'cat-estetica', name: 'Estética & Spa', slug: 'estetica', icon: 'Sparkles', is_default: true },
+    { id: 'cat-manicure', name: 'Esmalteria & Unhas', slug: 'manicure', icon: 'Sparkles', is_default: true },
+    { id: 'cat-spa', name: 'Spa & Bem-Estar', slug: 'spa', icon: 'Heart', is_default: true },
+    { id: 'cat-podologia', name: 'Podologia', slug: 'podologia', icon: 'Sparkles', is_default: false },
+    { id: 'cat-massoterapia', name: 'Massoterapia', slug: 'massoterapia', icon: 'Heart', is_default: false },
+    { id: 'cat-tatuagem', name: 'Tatuagem & Piercing', slug: 'tatuagem', icon: 'Palette', is_default: false },
+    { id: 'cat-outro', name: 'Outro', slug: 'outro', icon: 'Tag', is_default: true },
+  ];
+
+  app.get('/api/admin/categories', (req, res) => {
+    return res.json({ success: true, categories: SYSTEM_CATEGORIES });
+  });
+
+  app.post('/api/admin/categories', (req, res) => {
+    try {
+      const { name, slug, icon, description } = req.body;
+      if (!name || !name.trim()) {
+        return res.status(400).json({ success: false, error: 'O nome da categoria é obrigatório.' });
+      }
+
+      const generatedSlug = (slug || name)
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9-]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+
+      const existing = SYSTEM_CATEGORIES.find((c) => c.slug === generatedSlug);
+      if (existing) {
+        return res.status(400).json({ success: false, error: `A categoria com slug "${generatedSlug}" já existe.` });
+      }
+
+      const newCategory = {
+        id: `cat-${Date.now()}`,
+        name: name.trim(),
+        slug: generatedSlug,
+        icon: icon || 'Tag',
+        is_default: false,
+        description: description || '',
+      };
+
+      SYSTEM_CATEGORIES.push(newCategory);
+      return res.json({ success: true, category: newCategory, categories: SYSTEM_CATEGORIES });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.delete('/api/admin/categories/:id', (req, res) => {
+    const { id } = req.params;
+    const cat = SYSTEM_CATEGORIES.find((c) => c.id === id || c.slug === id);
+    if (!cat) {
+      return res.status(404).json({ success: false, error: 'Categoria não encontrada.' });
+    }
+    if (cat.is_default) {
+      return res.status(400).json({ success: false, error: 'Categorias padrão do sistema não podem ser removidas.' });
+    }
+
+    SYSTEM_CATEGORIES = SYSTEM_CATEGORIES.filter((c) => c.id !== id && c.slug !== id);
+    return res.json({ success: true, categories: SYSTEM_CATEGORIES });
+  });
+
   // UNIFIED ALL PORTAL USERS ENDPOINT (Sovereign Service Role)
   app.get('/api/admin/all-portal-users', async (req, res) => {
     try {
@@ -1208,12 +1307,14 @@ async function startServer() {
         { data: professionals },
         { data: salonUsers },
         { data: admins },
+        { data: salons },
       ] = await Promise.all([
         supabaseAdmin.from('profiles').select('*').order('created_at', { ascending: false }),
         supabaseAdmin.from('clients').select('*').order('created_at', { ascending: false }),
         supabaseAdmin.from('professionals').select('*').order('created_at', { ascending: false }),
         supabaseAdmin.from('salon_users').select('*').order('created_at', { ascending: false }),
         supabaseAdmin.from('system_admins').select('*').order('created_at', { ascending: false }),
+        supabaseAdmin.from('salons').select('id, name, trade_name, owner_id, email').order('created_at', { ascending: false }),
       ]);
 
       const userMap = new Map<string, any>();
@@ -1302,7 +1403,31 @@ async function startServer() {
         }
       });
 
-      const usersList = Array.from(userMap.values());
+      // Identifica proprietários existentes de salão
+      const salonOwnerIds = new Set<string>();
+      const salonOwnerEmails = new Set<string>();
+
+      (salons || []).forEach((s: any) => {
+        if (s.owner_id) salonOwnerIds.add(String(s.owner_id));
+        if (s.email) salonOwnerEmails.add(String(s.email).toLowerCase().trim());
+      });
+
+      (professionals || []).forEach((pr: any) => {
+        if (pr.role === 'Proprietário' || pr.is_owner) {
+          if (pr.id) salonOwnerIds.add(String(pr.id));
+          if (pr.email) salonOwnerEmails.add(String(pr.email).toLowerCase().trim());
+        }
+      });
+
+      const usersList = Array.from(userMap.values()).map((u: any) => {
+        const hasSalon =
+          (u.id && salonOwnerIds.has(String(u.id))) ||
+          (u.email && salonOwnerEmails.has(String(u.email).toLowerCase().trim()));
+        return {
+          ...u,
+          hasSalon: !!hasSalon,
+        };
+      });
       return res.json({ success: true, users: usersList });
     } catch (err: any) {
       console.error('[API All Portal Users Error]:', err);
@@ -1663,7 +1788,10 @@ Responda APENAS com o JSON válido, sem blocos de código adicionais além do JS
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: false,
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);

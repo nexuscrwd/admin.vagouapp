@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Search,
   LayoutGrid,
@@ -15,11 +15,22 @@ import {
   Trash2,
   AlertTriangle,
   ShieldAlert,
+  FolderPlus,
+  Tag,
+  X,
 } from 'lucide-react';
-import { AdminSalonItem, SalonFilterStatus, SalonSegmentFilter } from '../../types/admin';
+import { AdminSalonItem, SalonFilterStatus } from '../../types/admin';
 import { AdminModerationPanel } from './AdminModerationPanel';
 import { SalonLogo } from '../common/SalonLogo';
 import { UnifiedRegistrationForm } from '../public/UnifiedRegistrationForm';
+import { AdminCategoryModal } from './AdminCategoryModal';
+import { AdminSalonDetailView } from './AdminSalonDetailView';
+import {
+  SalonCategory,
+  fetchCategories,
+  subscribeCategories,
+  getCategoryLabel as getStoredCategoryLabel,
+} from '../../services/categoriesService';
 
 interface AdminSalonsListProps {
   salons: AdminSalonItem[];
@@ -31,6 +42,8 @@ interface AdminSalonsListProps {
   onOpenNewSalon?: () => void;
   searchQuery?: string;
   onSearchChange?: (q: string) => void;
+  selectedSalonDetail?: AdminSalonItem | null;
+  onSelectSalonDetail?: (salon: AdminSalonItem | null) => void;
 }
 
 export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
@@ -43,19 +56,48 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
   onOpenNewSalon,
   searchQuery = '',
   onSearchChange,
+  selectedSalonDetail: propSelectedSalonDetail,
+  onSelectSalonDetail,
 }) => {
   const [activeSection, setActiveSection] = useState<'all_salons' | 'moderation'>('all_salons');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [localSearch, setLocalSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<SalonFilterStatus>('all');
-  const [segmentFilter, setSegmentFilter] = useState<SalonSegmentFilter>('all');
+  const [segmentFilter, setSegmentFilter] = useState<string>('all');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   
+  // Categorias Dinâmicas & Modal de Gestão
+  const [categories, setCategories] = useState<SalonCategory[]>([]);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+
+  useEffect(() => {
+    fetchCategories().then(setCategories);
+    const unsubscribe = subscribeCategories(setCategories);
+    return () => unsubscribe();
+  }, []);
+
   // Modal de Exclusão & Cadastro de Profissional
   const [salonToDelete, setSalonToDelete] = useState<AdminSalonItem | null>(null);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isProfessionalRegistrationOpen, setIsProfessionalRegistrationOpen] = useState(false);
+
+  // Detalhes Soberanos do Estabelecimento (Interno + Sincronização com Prop)
+  const [internalSelectedSalonDetail, setInternalSelectedSalonDetail] = useState<AdminSalonItem | null>(null);
+
+  useEffect(() => {
+    if (propSelectedSalonDetail !== undefined) {
+      setInternalSelectedSalonDetail(propSelectedSalonDetail);
+    }
+  }, [propSelectedSalonDetail]);
+
+  const activeSelectedSalon =
+    propSelectedSalonDetail !== undefined ? propSelectedSalonDetail : internalSelectedSalonDetail;
+
+  const handleSelectSalonDetail = (salon: AdminSalonItem | null) => {
+    setInternalSelectedSalonDetail(salon);
+    onSelectSalonDetail?.(salon);
+  };
 
   const activeSearch = searchQuery || localSearch;
 
@@ -79,14 +121,24 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
         if (salon.status !== statusFilter) return false;
       }
 
-      // Segment
+      // Segment / Category Filter
       if (segmentFilter !== 'all') {
-        if (salon.category !== segmentFilter) return false;
+        const salonCat = (salon.category || '').toLowerCase().trim();
+        const filterSlug = segmentFilter.toLowerCase().trim();
+        const matchedCategory = categories.find((c) => c.slug.toLowerCase() === filterSlug);
+        const filterName = matchedCategory ? matchedCategory.name.toLowerCase().trim() : '';
+
+        const matchesExact = salonCat === filterSlug || (filterName && salonCat === filterName);
+        if (!matchesExact) {
+          const salonText = `${salon.trade_name} ${salon.legal_name || ''}`.toLowerCase();
+          const matchesInference = salonText.includes(filterSlug) || (filterName && salonText.includes(filterName));
+          if (!matchesInference) return false;
+        }
       }
 
       return true;
     });
-  }, [salons, activeSearch, statusFilter, segmentFilter]);
+  }, [salons, activeSearch, statusFilter, segmentFilter, categories]);
 
   const toggleSelectAll = () => {
     if (selectedIds.length === filteredSalons.length) {
@@ -217,19 +269,28 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
   };
 
   const getCategoryLabel = (cat: string) => {
-    switch (cat) {
-      case 'barbearia':
-        return 'Barbearia';
-      case 'salao':
-        return 'Salão de Beleza';
-      case 'estetica':
-        return 'Estética & Spa';
-      default:
-        return 'Geral';
-    }
+    return getStoredCategoryLabel(cat, categories);
   };
 
   const pendingCount = salons.filter((s) => s.status === 'pending').length;
+
+  if (activeSelectedSalon) {
+    return (
+      <AdminSalonDetailView
+        salon={activeSelectedSalon}
+        onBack={() => handleSelectSalonDetail(null)}
+        onEdit={() => onEditSalon(activeSelectedSalon)}
+        onUpdateStatus={(id, st) => {
+          onUpdateStatus(id, st);
+          handleSelectSalonDetail(
+            activeSelectedSalon && activeSelectedSalon.id === id
+              ? { ...activeSelectedSalon, status: st }
+              : activeSelectedSalon
+          );
+        }}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -288,9 +349,9 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
         <>
           {/* Control Bar: Filters, Search & View Mode Switcher */}
           <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-xs dark:shadow-none">
-            {/* Search & Status Filters */}
+            {/* Search, Category Filter & Status Filters */}
             <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0">
-              <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 w-full sm:w-64 focus-within:border-emerald-500 transition shadow-xs dark:shadow-none">
+              <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 w-full sm:w-56 focus-within:border-emerald-500 transition shadow-xs dark:shadow-none">
                 <Search className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 mr-2 shrink-0" />
                 <input
                   type="text"
@@ -302,6 +363,50 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                   }}
                   className="w-full bg-transparent text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 outline-none"
                 />
+              </div>
+
+              {/* Filtro de Categoria */}
+              <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 focus-within:border-emerald-500 transition shadow-xs dark:shadow-none">
+                <Tag className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 mr-1.5 shrink-0" />
+                <select
+                  value={segmentFilter}
+                  onChange={(e) => {
+                    if (e.target.value === '__new_category__') {
+                      setIsCategoryModalOpen(true);
+                    } else {
+                      setSegmentFilter(e.target.value);
+                    }
+                  }}
+                  className="bg-transparent text-xs font-semibold text-slate-800 dark:text-slate-200 outline-none cursor-pointer pr-1"
+                  title="Filtrar por Categoria"
+                >
+                  <option value="all" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                    Todas as Categorias ({salons.length})
+                  </option>
+                  {categories.map((c) => {
+                    const count = salons.filter((s) => {
+                      const cat = (s.category || '').toLowerCase();
+                      const slug = c.slug.toLowerCase();
+                      const name = c.name.toLowerCase();
+                      const exact = cat === slug || cat === name;
+                      if (exact) return true;
+                      const text = `${s.trade_name} ${s.legal_name || ''}`.toLowerCase();
+                      return text.includes(slug) || text.includes(name);
+                    }).length;
+                    return (
+                      <option
+                        key={c.id || c.slug}
+                        value={c.slug}
+                        className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                      >
+                        {c.name} {count > 0 ? `(${count})` : ''}
+                      </option>
+                    );
+                  })}
+                  <option value="__new_category__" className="bg-emerald-50 dark:bg-emerald-950 font-bold text-emerald-600 dark:text-emerald-400">
+                    + Criar Categoria...
+                  </option>
+                </select>
               </div>
 
               {/* Status Tabs */}
@@ -328,7 +433,7 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
               </div>
             </div>
 
-            {/* Right Side: Export, New Salon, View Switcher */}
+            {/* Right Side: Export, New Category, New Salon, View Switcher */}
             <div className="flex items-center justify-between md:justify-end gap-2 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-200 dark:border-slate-800">
               <button
                 onClick={handleExportCSV}
@@ -340,12 +445,21 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
               </button>
 
               <button
+                onClick={() => setIsCategoryModalOpen(true)}
+                title="Criar e gerenciar categorias de estabelecimentos"
+                className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer border border-slate-200 dark:border-slate-700 shadow-xs dark:shadow-none"
+              >
+                <FolderPlus className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>+ Categoria</span>
+              </button>
+
+              <button
                 onClick={onOpenNewSalon || (() => setIsProfessionalRegistrationOpen(true))}
                 className="px-3 py-1.5 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-500/20 active:scale-95"
                 title="Cadastrar novo estabelecimento e vincular proprietário no ecossistema"
               >
                 <Plus className="w-3.5 h-3.5 text-white" />
-                <span>Cadastrar Estabelecimento</span>
+                <span>Cadastrar</span>
               </button>
 
               <div className="flex items-center bg-slate-100 dark:bg-slate-950 p-1 rounded-lg border border-slate-200 dark:border-slate-800">
@@ -457,14 +571,19 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                         return (
                           <tr
                             key={salon.id}
-                            className={`transition group ${
+                            onClick={() => handleSelectSalonDetail(salon)}
+                            className={`transition group cursor-pointer ${
                               isSelected ? 'bg-emerald-50 dark:bg-emerald-950/20' : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40 text-slate-800 dark:text-slate-200'
                             }`}
+                            title={`Clique para abrir a página completa de ${salon.trade_name}`}
                           >
                             {/* Checkbox */}
                             <td className="py-3 px-3">
                               <button
-                                onClick={() => toggleSelectOne(salon.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleSelectOne(salon.id);
+                                }}
                                 className="text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
                               >
                                 {isSelected ? (
@@ -534,12 +653,15 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                               </span>
                             </td>
 
-                            {/* Actions */}
+                             {/* Actions */}
                             <td className="py-3 px-4 text-right">
                               <div className="flex items-center justify-end gap-1.5">
                                 {salon.status === 'pending' && (
                                   <button
-                                    onClick={() => onUpdateStatus(salon.id, 'active')}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onUpdateStatus(salon.id, 'active');
+                                    }}
                                     className="px-2 py-1 rounded bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-[10px] transition cursor-pointer shadow-xs active:scale-95"
                                     title="Aprovar Cadastro"
                                   >
@@ -549,7 +671,10 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
 
                                 {salon.status === 'active' && (
                                   <button
-                                    onClick={() => onUpdateStatus(salon.id, 'suspended')}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onUpdateStatus(salon.id, 'suspended');
+                                    }}
                                     className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/60 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition cursor-pointer border border-slate-200 dark:border-slate-700/60 shadow-xs dark:shadow-none"
                                     title="Suspender Salão"
                                   >
@@ -558,7 +683,10 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                                 )}
 
                                 <button
-                                  onClick={() => onEditSalon(salon)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onEditSalon(salon);
+                                  }}
                                   className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition cursor-pointer border border-slate-200 dark:border-slate-700/60 shadow-xs dark:shadow-none"
                                   title="Editar Informações Críticas"
                                 >
@@ -566,7 +694,10 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                                 </button>
 
                                 <button
-                                  onClick={() => setSalonToDelete(salon)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSalonToDelete(salon);
+                                  }}
                                   className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/80 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition cursor-pointer border border-slate-200 dark:border-slate-700/60 shadow-xs dark:shadow-none"
                                   title="Excluir Estabelecimento"
                                 >
@@ -577,6 +708,7 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                                   href={`https://${salon.slug}.vagouapp.com`}
                                   target="_blank"
                                   rel="noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
                                   className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition cursor-pointer border border-slate-200 dark:border-slate-700/60 shadow-xs dark:shadow-none"
                                   title="Abrir Subdomínio Oficial"
                                 >
@@ -602,10 +734,11 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                 return (
                   <div
                     key={salon.id}
-                    className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition flex flex-col justify-between shadow-xs dark:shadow-none group w-full"
-                    style={{ width: '50%', maxWidth: '100%' }}
+                    onClick={() => handleSelectSalonDetail(salon)}
+                    className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-500/50 dark:hover:border-emerald-500/50 transition flex flex-col justify-between shadow-xs dark:shadow-none group w-full cursor-pointer"
+                    title={`Clique para abrir a página completa de ${salon.trade_name}`}
                   >
-                    <div style={{ width: '50%', maxWidth: '100%' }}>
+                    <div>
                       {/* Top card header */}
                       <div className="flex items-start justify-between gap-2 mb-3">
                         <div className="relative">
@@ -631,7 +764,10 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                           </span>
 
                           <button
-                            onClick={() => onEditSalon(salon)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEditSalon(salon);
+                            }}
                             className="p-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition cursor-pointer"
                             title="Editar"
                           >
@@ -671,7 +807,10 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                     {/* Bottom Quick Action */}
                     <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
                       <button
-                        onClick={() => onEditSalon(salon)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEditSalon(salon);
+                        }}
                         className="flex-1 py-1.5 px-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-700 shadow-xs dark:shadow-none"
                       >
                         <Edit className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
@@ -679,7 +818,10 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                       </button>
 
                       <button
-                        onClick={() => setSalonToDelete(salon)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSalonToDelete(salon);
+                        }}
                         className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/80 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition cursor-pointer border border-slate-200 dark:border-slate-700 shadow-xs dark:shadow-none"
                         title="Excluir Estabelecimento"
                       >
@@ -695,15 +837,27 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
           {/* MODAL: Confirmação de Exclusão Individual */}
           {salonToDelete && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-950/80 backdrop-blur-xs animate-fadeIn">
-              <div className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4">
-                <div className="flex items-center gap-3 text-rose-600 dark:text-rose-400">
-                  <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-500/20 border border-rose-200 dark:border-rose-500/30 flex items-center justify-center shrink-0">
-                    <AlertTriangle className="w-5 h-5" />
+              <div className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4 relative">
+                <div className="flex items-start justify-between gap-3 text-rose-600 dark:text-rose-400">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-500/20 border border-rose-200 dark:border-rose-500/30 flex items-center justify-center shrink-0">
+                      <AlertTriangle className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 dark:text-white text-sm">Excluir Estabelecimento?</h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Esta ação é irreversível no Supabase.</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-bold text-slate-900 dark:text-white text-sm">Excluir Estabelecimento?</h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Esta ação é irreversível no Supabase.</p>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSalonToDelete(null)}
+                    disabled={isDeleting}
+                    className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer shrink-0"
+                    title="Fechar"
+                    aria-label="Fechar"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
 
                 <p className="text-xs text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
@@ -735,15 +889,27 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
           {/* MODAL: Confirmação de Exclusão em Massa */}
           {isBulkDeleting && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-950/80 backdrop-blur-xs animate-fadeIn">
-              <div className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4">
-                <div className="flex items-center gap-3 text-rose-600 dark:text-rose-400">
-                  <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-500/20 border border-rose-200 dark:border-rose-500/30 flex items-center justify-center shrink-0">
-                    <AlertTriangle className="w-5 h-5" />
+              <div className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4 relative">
+                <div className="flex items-start justify-between gap-3 text-rose-600 dark:text-rose-400">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-500/20 border border-rose-200 dark:border-rose-500/30 flex items-center justify-center shrink-0">
+                      <AlertTriangle className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 dark:text-white text-sm">Excluir {selectedIds.length} Estabelecimentos?</h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Ação em massa irreversível no banco.</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-bold text-slate-900 dark:text-white text-sm">Excluir {selectedIds.length} Estabelecimentos?</h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Ação em massa irreversível no banco.</p>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsBulkDeleting(false)}
+                    disabled={isDeleting}
+                    className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer shrink-0"
+                    title="Fechar"
+                    aria-label="Fechar"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
 
                 <p className="text-xs text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
@@ -788,6 +954,16 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
               </div>
             </div>
           )}
+
+          {/* Modal de Gestão e Criação de Categorias */}
+          <AdminCategoryModal
+            isOpen={isCategoryModalOpen}
+            onClose={() => setIsCategoryModalOpen(false)}
+            salons={salons}
+            onCategoryCreated={(newCat) => {
+              setSegmentFilter(newCat.slug);
+            }}
+          />
         </>
       )}
     </div>

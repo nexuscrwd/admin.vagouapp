@@ -38,24 +38,31 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').then((reg) => {
-            // Força busca imediata por atualização do Service Worker no servidor
-            reg.update();
-
-            // Detecta quando um novo Service Worker está pronto
-            reg.addEventListener('updatefound', () => {
-              const newWorker = reg.installing;
-              if (newWorker) {
-                newWorker.addEventListener('statechange', () => {
-                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                    newWorker.postMessage({ type: 'SKIP_WAITING' });
-                  }
+          navigator.serviceWorker.register('/sw.js', { scope: '/' })
+            .then((reg) => {
+              // Safely handle updates without throwing unhandled promise rejections
+              if (typeof reg.update === 'function') {
+                reg.update().catch(() => {
+                  // Silent catch: network or sandbox iframe constraints
                 });
               }
+
+              // Detecta quando um novo Service Worker está pronto
+              reg.addEventListener('updatefound', () => {
+                const newWorker = reg.installing;
+                if (newWorker) {
+                  newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                      newWorker.postMessage({ type: 'SKIP_WAITING' });
+                    }
+                  });
+                }
+              });
+            })
+            .catch((err) => {
+              // Graceful fallback if Service Workers are restricted in sandbox environment
+              console.warn('[SW] Registration skipped or restricted:', err?.message || err);
             });
-          }).catch((err) => {
-            console.log('SW registration error:', err);
-          });
 
           // Quando o novo Service Worker assumir o controle, recarrega para aplicar os estilos novos
           let refreshing = false;

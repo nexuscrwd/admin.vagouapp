@@ -263,13 +263,15 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
             </div>
           </div>
 
-          {!isGate && onClose && (
+          {onClose && (
             <button
+              type="button"
               onClick={onClose}
               className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white border border-slate-200 dark:border-slate-700 transition cursor-pointer"
-              title="Fechar Modal"
+              title="Fechar"
+              aria-label="Fechar"
             >
-              <X className="w-4 h-4" />
+              <X className="w-5 h-5" />
             </button>
           )}
         </div>
@@ -294,13 +296,13 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
           <form onSubmit={handleLoginSubmit} className={`${isGate ? 'p-2 sm:p-3' : 'p-4 sm:p-6'} space-y-4 bg-transparent`}>
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                E-mail Corporativo (Supabase Auth)
+                Usuário Corporativo ou E-mail
               </label>
               <div className="flex items-center bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2.5 focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500 shadow-xs dark:shadow-none transition">
                 <User className="w-4 h-4 text-slate-400 dark:text-slate-500 mr-2.5 shrink-0" />
                 <input
-                  type="email"
-                  placeholder="nexuscrwd@gmail.com"
+                  type="text"
+                  placeholder="Anderson@ ou nexuscrwd@gmail.com"
                   value={loginIdentifier}
                   onChange={(e) => setLoginIdentifier(e.target.value)}
                   className="w-full bg-transparent text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 outline-none"

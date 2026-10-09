@@ -5,6 +5,7 @@ export type AdminScreenId =
   | 'moderation'
   | 'appointments'
   | 'triade'
+  | 'forms'
   | 'settings';
 
 export type SalonFilterStatus = 'all' | 'active' | 'pending' | 'incomplete' | 'suspended';
@@ -50,12 +51,30 @@ export interface AdminSalonItem {
   state?: string;
   cep?: string;
   logo_url?: string;
+  logo_dark_url?: string;
+  logo_light_url?: string;
+  favicon_url?: string;
   primary_color?: string;
+  secondary_color?: string;
   operating_hours?: DayOperatingHour[];
   created_at?: string;
   professionals_count?: number;
   active_offers_count?: number;
+  fixed_clients_count?: number;
   rating?: number;
+  owner_id?: string;
+  owner_name?: string;
+  owner_email?: string;
+  owner_phone?: string;
+  owner_avatar_url?: string;
+  gallery_media?: {
+    id: string;
+    url: string;
+    title?: string;
+    type: 'image' | 'video';
+    duration_seconds?: number;
+    thumbnail_url?: string;
+  }[];
 }
 
 export interface AdminDashboardMetrics {

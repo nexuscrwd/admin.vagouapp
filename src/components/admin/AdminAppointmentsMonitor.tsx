@@ -12,6 +12,7 @@ import {
   MessageCircle,
   ArrowLeft,
   XCircle,
+  X,
 } from 'lucide-react';
 import { AdminAppointmentItem, AdminSalonItem } from '../../types/admin';
 import { fetchAdminAppointments, fetchAdminSalons } from '../../services/supabaseApi';
@@ -496,6 +497,21 @@ export const AdminAppointmentsMonitor: React.FC = () => {
                 >
                   <MessageCircle className="w-3.5 h-3.5 text-white" />
                   <span>Enviar Fatura (WhatsApp)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedSalonId(null);
+                    setSearch('');
+                    setStatusFilter('all');
+                    setFilterType('all');
+                  }}
+                  className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white border border-slate-200 dark:border-slate-700 transition cursor-pointer"
+                  title="Fechar"
+                  aria-label="Fechar"
+                >
+                  <X className="w-4 h-4" />
                 </button>
               </div>
             </div>
