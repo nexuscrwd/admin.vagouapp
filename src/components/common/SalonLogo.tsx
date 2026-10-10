@@ -7,6 +7,7 @@ interface SalonLogoProps {
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'custom';
   primaryColor?: string;
   className?: string;
+  alwaysShow?: boolean;
 }
 
 // Medidas padrões retangulares (proporção padrão 16:9 / 16:10 de logotipo)
@@ -39,6 +40,7 @@ export const SalonLogo: React.FC<SalonLogoProps> = ({
   size = 'md',
   primaryColor,
   className = '',
+  alwaysShow = false,
 }) => {
   const [imageError, setImageError] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -54,8 +56,8 @@ export const SalonLogo: React.FC<SalonLogoProps> = ({
   const containerSize = sizeClasses[size] || sizeClasses.md;
   const iconSize = iconSizes[size] || iconSizes.md;
 
-  // Mostra o logotipo da empresa quando hover (se houver logo válido)
-  const showCompanyLogo = isValidLogo && logoUrl && isHovered;
+  // Mostra o logotipo da empresa quando hover ou se alwaysShow for verdadeiro
+  const showCompanyLogo = isValidLogo && logoUrl && (isHovered || alwaysShow);
 
   return (
     <div

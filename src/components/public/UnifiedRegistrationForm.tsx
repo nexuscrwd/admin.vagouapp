@@ -28,7 +28,9 @@ import {
   X,
 } from 'lucide-react';
 import { VagouLogo } from '../VagouLogo';
+import { SalonLogo } from '../common/SalonLogo';
 import { supabase } from '../../services/supabase';
+import { AdminSalonItem } from '../../types/admin';
 
 interface DependentItem {
   id: string;
@@ -40,16 +42,34 @@ interface DependentItem {
   avatarUrl: string;
 }
 
+export interface SalonBrandingInfo {
+  trade_name?: string;
+  slug?: string;
+  logo_url?: string;
+  logo_light_url?: string;
+  logo_dark_url?: string;
+  primary_color?: string;
+  category?: string;
+}
+
 interface UnifiedRegistrationFormProps {
   initialType?: 'client' | 'professional';
+  initialMode?: 'cadastro' | 'login';
+  targetSlug?: string;
+  salonInfo?: AdminSalonItem | SalonBrandingInfo;
   hideTypeSelector?: boolean;
+  showCloseButton?: boolean;
   onClose?: () => void;
   onSuccess?: () => void;
 }
 
 export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = ({
   initialType = 'client',
+  initialMode,
+  targetSlug,
+  salonInfo,
   hideTypeSelector = false,
+  showCloseButton = true,
   onClose,
   onSuccess,
 }) => {
@@ -73,7 +93,7 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
       const params = new URLSearchParams(window.location.search);
       const typeParam = params.get('type');
       const embedParam = params.get('embed');
-      const slugParam = params.get('slug') || params.get('subdomain') || params.get('origem');
+      const slugParam = targetSlug || params.get('slug') || params.get('subdomain') || params.get('origem');
       if (
         typeParam === 'client' ||
         typeParam === 'professional' ||
@@ -90,7 +110,40 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
     return false;
   });
 
-  const [isLoginMode, setIsLoginMode] = useState(true);
+  const [isLoginMode, setIsLoginMode] = useState<boolean>(() => {
+    if (initialMode) {
+      return initialMode === 'login';
+    }
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const modeParam = params.get('mode');
+      if (modeParam === 'cadastro' || modeParam === 'onboarding' || modeParam === 'register') {
+        return false;
+      }
+      if (modeParam === 'login' || modeParam === 'auth' || modeParam === 'entrar') {
+        return true;
+      }
+    }
+    return true;
+  });
+
+  // Identificação e Logotipo do Estabelecimento Parceiro
+  const [activeSalon, setActiveSalon] = useState<SalonBrandingInfo | null>(() => {
+    if (salonInfo) {
+      return {
+        trade_name: salonInfo.trade_name,
+        slug: salonInfo.slug,
+        logo_url: salonInfo.logo_url || (salonInfo as any).logo_light_url || (salonInfo as any).logo_dark_url,
+        logo_light_url: (salonInfo as any).logo_light_url,
+        logo_dark_url: (salonInfo as any).logo_dark_url,
+        primary_color: salonInfo.primary_color,
+        category: salonInfo.category,
+      };
+    }
+    return null;
+  });
+  const [isLoadingSalonData, setIsLoadingSalonData] = useState(false);
+
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
 
@@ -99,6 +152,26 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
       setAccountType(initialType);
     }
   }, [initialType]);
+
+  useEffect(() => {
+    if (initialMode) {
+      setIsLoginMode(initialMode === 'login');
+    }
+  }, [initialMode]);
+
+  useEffect(() => {
+    if (salonInfo) {
+      setActiveSalon({
+        trade_name: salonInfo.trade_name,
+        slug: salonInfo.slug,
+        logo_url: salonInfo.logo_url || (salonInfo as any).logo_light_url || (salonInfo as any).logo_dark_url,
+        logo_light_url: (salonInfo as any).logo_light_url,
+        logo_dark_url: (salonInfo as any).logo_dark_url,
+        primary_color: salonInfo.primary_color,
+        category: salonInfo.category,
+      });
+    }
+  }, [salonInfo]);
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
 
   // STEP 1: Pessoa Física / Cidadão
@@ -179,11 +252,15 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
       document.body.classList.add('bg-transparent');
     }
 
-    const modeParam = params.get('mode');
-    if (modeParam === 'cadastro' || modeParam === 'onboarding' || modeParam === 'register') {
-      setIsLoginMode(false);
+    if (initialMode) {
+      setIsLoginMode(initialMode === 'login');
     } else {
-      setIsLoginMode(true);
+      const modeParam = params.get('mode');
+      if (modeParam === 'cadastro' || modeParam === 'onboarding' || modeParam === 'register') {
+        setIsLoginMode(false);
+      } else {
+        setIsLoginMode(true);
+      }
     }
 
     const typeParam = params.get('type');
@@ -217,11 +294,60 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
       setAccountType('client');
     }
 
-    if (slugParam) {
-      const clean = slugParam.toLowerCase().replace(/[^a-z0-9-]/g, '');
+    const targetSlugActive = targetSlug || slugParam;
+    if (targetSlugActive) {
+      const clean = targetSlugActive.toLowerCase().replace(/[^a-z0-9-]/g, '');
       setSlug(clean);
       if (!tradeName) {
         setTradeName(clean.charAt(0).toUpperCase() + clean.slice(1));
+      }
+
+      // Se ainda não temos os dados completos do estabelecimento, carrega do backend / Supabase
+      if (!activeSalon?.trade_name || !activeSalon?.logo_url) {
+        setIsLoadingSalonData(true);
+        (async () => {
+          try {
+            const resp = await fetch(`/api/admin/salons/by-slug/${clean}`);
+            const res = await resp.json();
+            if (res.success && res.salon) {
+              const s = res.salon;
+              setActiveSalon({
+                trade_name: s.trade_name,
+                slug: s.slug,
+                logo_url: s.logo_url || s.logo_light_url || s.logo_dark_url,
+                logo_light_url: s.logo_light_url,
+                logo_dark_url: s.logo_dark_url,
+                primary_color: s.primary_color,
+                category: s.category,
+              });
+              setTradeName(s.trade_name);
+              return;
+            }
+          } catch {}
+
+          try {
+            const { data: dbSal } = await supabase
+              .from('salons')
+              .select('*')
+              .eq('slug', clean)
+              .maybeSingle();
+
+            if (dbSal) {
+              setActiveSalon({
+                trade_name: dbSal.trade_name,
+                slug: dbSal.slug,
+                logo_url: dbSal.logo_url || dbSal.logo_light_url || dbSal.logo_dark_url,
+                logo_light_url: dbSal.logo_light_url,
+                logo_dark_url: dbSal.logo_dark_url,
+                primary_color: dbSal.primary_color,
+                category: dbSal.category,
+              });
+              setTradeName(dbSal.trade_name);
+            }
+          } catch {}
+        })().finally(() => {
+          setIsLoadingSalonData(false);
+        });
       }
     }
 
@@ -658,37 +784,72 @@ export const UnifiedRegistrationForm: React.FC<UnifiedRegistrationFormProps> = (
       )}
 
       <div className="relative w-full max-w-lg bg-transparent border-0 p-2 sm:p-4 shadow-none flex flex-col animate-fadeIn">
-        <button
-          type="button"
-          onClick={() => {
-            if (window.parent && window.parent !== window) {
-              window.parent.postMessage({ type: 'VAGOU_CLOSE_MODAL' }, '*');
-            }
-            if (onClose) {
-              onClose();
-            } else {
-              window.location.href = '/';
-            }
-          }}
-          className="absolute top-2 right-2 sm:top-4 sm:right-4 z-30 p-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/80 transition cursor-pointer shadow-lg active:scale-95"
-          title="Fechar"
-          aria-label="Fechar"
-        >
-          <X className="w-5 h-5 text-white" />
-        </button>
+        {showCloseButton && (
+          <button
+            type="button"
+            onClick={() => {
+              if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ type: 'VAGOU_CLOSE_MODAL' }, '*');
+              }
+              if (onClose) {
+                onClose();
+              } else {
+                window.location.href = '/';
+              }
+            }}
+            className="absolute top-2 right-2 sm:top-4 sm:right-4 z-30 p-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/80 transition cursor-pointer shadow-lg active:scale-95"
+            title="Fechar"
+            aria-label="Fechar"
+          >
+            <X className="w-5 h-5 text-white" />
+          </button>
+        )}
         {/* Header Logo & Title */}
         <div className="flex flex-col items-center text-center mb-5">
-          <VagouLogo className="h-9 text-white mb-2" />
+          {activeSalon && activeSalon.trade_name ? (
+            /* Identificação Visual Dedicada do Estabelecimento Parceiro */
+            <div className="flex flex-col items-center gap-2 mb-2 animate-fadeIn">
+              <div className="flex items-center justify-center gap-3">
+                <SalonLogo
+                  logoUrl={activeSalon.logo_url || activeSalon.logo_light_url || activeSalon.logo_dark_url}
+                  name={activeSalon.trade_name}
+                  size="lg"
+                  alwaysShow={true}
+                  className="rounded-xl shadow-md border-emerald-500/40"
+                />
+              </div>
+
+              {/* Tag / Badge de Salão Oficial Parceiro */}
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800 text-[11px] font-medium text-slate-300 shadow-xs">
+                <Building2 className="w-3.5 h-3.5 text-[#20C933]" />
+                <span className="font-bold text-white tracking-wide">{activeSalon.trade_name}</span>
+                <span className="text-slate-500">•</span>
+                <span className="text-[10px] text-emerald-400 font-mono">@{activeSalon.slug || slug}</span>
+              </div>
+            </div>
+          ) : (
+            /* Fallback Padrão Institucional do Ecossistema Vagou */
+            <VagouLogo className="h-9 text-white mb-2" />
+          )}
+
           <h1 className="text-lg sm:text-xl font-bold text-white tracking-tight">
             {isLoginMode
-              ? 'Acessar Conta'
+              ? activeSalon?.trade_name
+                ? `Acessar Conta • ${activeSalon.trade_name}`
+                : 'Acessar Conta'
+              : activeSalon?.trade_name
+              ? `Cadastro de Usuário • ${activeSalon.trade_name}`
               : accountType === 'professional'
               ? 'Cadastrar Novo Estabelecimento'
               : 'Cadastrar Novo Usuário'}
           </h1>
           <p className="text-xs text-slate-400 mt-0.5">
             {isLoginMode
-              ? 'Bem-vindo(a) de volta! Acesse sua conta para confirmar.'
+              ? activeSalon?.trade_name
+                ? `Identifique-se para continuar seus agendamentos em ${activeSalon.trade_name}`
+                : 'Bem-vindo(a) de volta! Acesse sua conta para confirmar.'
+              : activeSalon?.trade_name
+              ? `Crie seu cadastro no ecossistema Vagou e vincule-se a ${activeSalon.trade_name}`
               : accountType === 'professional'
               ? 'Cadastro do responsável e do estabelecimento comercial no ecossistema'
               : '1 Usuário = 1 Identidade Unificada no Ecossistema'}

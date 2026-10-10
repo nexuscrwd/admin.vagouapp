@@ -13,8 +13,10 @@ export const App: React.FC = () => {
       pathname.includes('/cadastro') ||
       pathname.includes('/onboarding') ||
       pathname.includes('/registrar') ||
+      pathname.includes('/login') ||
       search.includes('mode=cadastro') ||
       search.includes('mode=onboarding') ||
+      search.includes('mode=login') ||
       search.includes('type=client') ||
       search.includes('type=professional')
     ) {
@@ -24,6 +26,7 @@ export const App: React.FC = () => {
 
   if (isRegistrationMode) {
     const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const modeParam = searchParams?.get('mode');
     const typeParam = searchParams?.get('type');
     const embedParam = searchParams?.get('embed');
     const slugParam = searchParams?.get('slug') || searchParams?.get('subdomain');
@@ -33,9 +36,16 @@ export const App: React.FC = () => {
       embedParam === 'true' ||
       Boolean(slugParam);
 
+    const initialMode: 'cadastro' | 'login' =
+      modeParam === 'login' || modeParam === 'auth' || modeParam === 'entrar'
+        ? 'login'
+        : 'cadastro';
+
     return (
       <UnifiedRegistrationForm
         initialType={typeParam === 'professional' ? 'professional' : 'client'}
+        initialMode={initialMode}
+        targetSlug={slugParam || undefined}
         hideTypeSelector={shouldLock}
         onClose={() => {
           setIsRegistrationMode(false);

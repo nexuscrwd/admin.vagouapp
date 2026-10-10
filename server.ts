@@ -907,6 +907,36 @@ async function startServer() {
     }
   });
 
+  // PUBLIC / ADMIN: Obter dados e identificação visual do estabelecimento por slug
+  app.get('/api/admin/salons/by-slug/:slug', async (req, res) => {
+    try {
+      const { slug } = req.params;
+      if (!slug) {
+        return res.status(400).json({ success: false, error: 'Slug não informado.' });
+      }
+
+      const cleanSlug = String(slug).toLowerCase().trim().replace(/[^a-z0-9-]/g, '');
+
+      const { data, error } = await supabaseAdmin
+        .from('salons')
+        .select('id, trade_name, legal_name, slug, logo_url, logo_light_url, logo_dark_url, favicon_url, primary_color, category, address, phone_whatsapp, branding')
+        .eq('slug', cleanSlug)
+        .maybeSingle();
+
+      if (error) {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+
+      if (!data) {
+        return res.status(404).json({ success: false, error: 'Estabelecimento não encontrado.' });
+      }
+
+      return res.json({ success: true, salon: data });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // ADMIN: Create new Salon (Service Role)
   app.post('/api/admin/salons', async (req, res) => {
     try {

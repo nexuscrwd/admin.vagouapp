@@ -15,6 +15,46 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-09] — 🖼️ Visualização Real dos Formulários Lado a Lado (Login & Cadastro) na Aba de Formulários
+- **Tipo:** `[Feature / Layout / SideBySideForms / UX]`
+- **Motivo / Solicitação:** Dentro da aba Formulários da seção do estabelecimento, criar contêineres/divs para cada formulário como ele realmente é para visualização direta na seção, ajustando o tamanho para caber e visualizar lado a lado (máximo duas colunas).
+- **Ações Técnicas Realizadas:**
+  1. **Layout Lado a Lado de 2 Colunas (`grid grid-cols-1 lg:grid-cols-2`):**
+     - A aba **Formulários Integrados** (`AdminSalonDetailView.tsx`) agora renderiza diretamente os formulários reais de **Login para Acesso** (Coluna 1) e **Cadastro de Usuário** (Coluna 2) lado a lado na própria página, sem a obrigatoriedade de abrir modais adicionais.
+     - Ajuste de dimensões responsivas (`max-w-md mx-auto`) para visualização simultânea, nítida e confortável em telas desktop e tablets.
+  2. **Renderização Fiel com Identidade do Estabelecimento:**
+     - Cada contêiner incorpora a instância viva do `UnifiedRegistrationForm` com o logotipo oficial do salão, nome fantasia, badge com slug (`@slug`) e cores do tema.
+     - **Coluna 1 (Login):** Foco em e-mail e senha para acesso rápido.
+     - **Coluna 2 (Cadastro):** Fluxo em etapas para novos clientes.
+     - Suporte a `showCloseButton={false}` nas exibições embutidas para evitar botões de fechar flutuantes redundantes dentro da página.
+  3. **Ações Rápidas por Formulário:**
+     - Botão individual de cópia da URL de cada formulário (`Copiar URL`).
+     - Botão para expandir em tela cheia/modal caso o administrador queira testar a experiência mobile isolada.
+- **Arquivos Impactados:** `src/components/admin/AdminSalonDetailView.tsx`, `src/components/public/UnifiedRegistrationForm.tsx`, `CHANGELOG.md`.
+
+---
+
+### [2026-10-09] — 🎨 Identificação Visual Multi-Tenant dos Estabelecimentos (A, B, C...) & Distinção Rigorosa dos Formulários
+- **Tipo:** `[Feature / MultiTenant / UX / TriadeForms]`
+- **Motivo / Solicitação:** Corrigir os formulários que estavam abrindo iguais. Garantir que existam claramente o formulário de Login para acesso e o de Cadastro dos usuários. Além disso, se o formulário for puxado do estabelecimento "A", abrir com o logotipo e identificação de "A"; se for de "B", com o logotipo e identificação de "B", e assim sucessivamente para qualquer estabelecimento.
+- **Ações Técnicas Realizadas:**
+  1. **Distinção Rigorosa dos Formulários (`Login` vs `Cadastro`):**
+     - O formulário de login abre focado e limpo com campos de e-mail e senha, botão de acesso e link para alternar para cadastro.
+     - O formulário de cadastro abre diretamente nas etapas de criação de conta (Dados do cidadão, Endereço e Dependentes), com as abas de seleção travadas quando invocado por um salão (`type=client`).
+     - Parâmetros `mode=login` e `mode=cadastro` devidamente respeitados tanto via props (`initialMode`) quanto na URL do app (`/cadastro?mode=login...`).
+  2. **Identificação Visual Dinâmica do Salão (`Multi-Tenant Branding`):**
+     - Implementado carregamento dinâmico do estabelecimento parceiro no cabeçalho do formulário (`activeSalon`) a partir do `targetSlug`, `salonInfo` ou parâmetro `slug` da URL.
+     - Quando o formulário pertence ao estabelecimento "A", o cabeçalho exibe o logotipo oficial de "A" (via `SalonLogo` com `alwaysShow=true`), nome fantasia ("A • Studio") e badge com slug (`@slug-a`), adaptando títulos e subtítulos contextuais ("Acessar Conta • Estabelecimento A").
+     - Endpoint dedicado no backend Express/Node `GET /api/admin/salons/by-slug/:slug` para buscar nome, logotipo, cores e branding do salão com bypass seguro de RLS via Supabase Service Role.
+  3. **Integração na Visão do Salão (`AdminSalonDetailView.tsx`):**
+     - Links de cadastro (`mode=cadastro&type=client&slug=...`) e login (`mode=login&type=client&slug=...`) atualizados com parâmetros explícitos.
+     - Simuladores sandbox passam os dados completos do estabelecimento (`salonInfo={salon}`, `initialMode={simulatorMode}`, `targetSlug={salon.slug}`).
+  4. **Atualização no Catálogo da Tríade (`AdminTriadeFormsCatalog.tsx`):**
+     - Seletor de Modo (`Cadastro de Usuário` vs `Login de Acesso`) e campo de Slug do salão integrados ao simulador em tempo real.
+- **Arquivos Impactados:** `src/components/public/UnifiedRegistrationForm.tsx`, `src/components/common/SalonLogo.tsx`, `src/components/admin/AdminSalonDetailView.tsx`, `src/components/admin/AdminTriadeFormsCatalog.tsx`, `src/App.tsx`, `server.ts`, `CHANGELOG.md`.
+
+---
+
 ### [2026-10-08] — 🚀 Modal Pós-Criação de Estabelecimento com Links Diretos Oficiais (Público & Dono)
 - **Tipo:** `[Feature / UX / TriadeOnboarding / DirectLinks]`
 - **Motivo / Solicitação:** Após a criação de um novo estabelecimento no Admin Master, exibir uma etapa/modal dedicado com os links diretos do aplicativo do salão tanto para o público (clientes/vitrine) quanto para o dono (gestão/parceiro), permitindo compartilhamento imediato no WhatsApp e navegação rápida para a página do salão.

@@ -778,6 +778,18 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
             {/* Controles de Parâmetros Rápidos do Simulador */}
             <div className="p-3 bg-slate-900/40 border-b border-slate-800 flex flex-wrap items-center gap-3 text-xs shrink-0">
               <div className="flex items-center gap-1.5">
+                <span className="text-slate-400 font-semibold text-[11px]">Modo:</span>
+                <select
+                  value={simMode}
+                  onChange={(e) => setSimMode(e.target.value as any)}
+                  className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-white text-xs outline-none"
+                >
+                  <option value="cadastro">Cadastro de Usuário</option>
+                  <option value="login">Login de Acesso</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
                 <span className="text-slate-400 font-semibold text-[11px]">Tipo:</span>
                 <select
                   value={simType}
@@ -817,6 +829,8 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
             <div className="flex-1 overflow-y-auto p-2 sm:p-4">
               <UnifiedRegistrationForm
                 initialType={simType}
+                initialMode={simMode}
+                targetSlug={simSlug}
                 hideTypeSelector={true}
                 onClose={() => setActiveSimulationForm(null)}
                 onSuccess={() => {
