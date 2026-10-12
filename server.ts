@@ -816,31 +816,119 @@ async function startServer() {
     }
   });
 
-  // 3. Recovery (Dados de Acesso ou Senha)
+  // 3. Recovery (Dados de Acesso ou Senha com Redefinição Real)
   app.post('/api/admin/auth/recovery', async (req, res) => {
     try {
-      const { type, query } = req.body;
+      const { type, query, new_password } = req.body;
       if (!query || !query.trim()) {
-        return res.status(400).json({ success: false, error: 'Informe os dados para recuperação.' });
+        return res.status(400).json({ success: false, error: 'Informe seu usuário, e-mail ou telefone para recuperação.' });
       }
 
       const cleanQuery = query.trim().toLowerCase();
 
+      // Busca o administrador no Supabase system_admins
+      let matchedAdmin: any = null;
+      try {
+        const { data: dbAdmins } = await supabaseAdmin
+          .from('system_admins')
+          .select('*')
+          .or(`email.ilike.%${cleanQuery}%,username.ilike.%${cleanQuery}%,phone_whatsapp.ilike.%${cleanQuery}%`)
+          .limit(1);
+
+        if (dbAdmins && dbAdmins.length > 0) {
+          matchedAdmin = dbAdmins[0];
+        }
+      } catch (err) {
+        console.warn('[recovery] Erro na busca em system_admins:', err);
+      }
+
+      // Fallback em localAdmins
+      if (!matchedAdmin) {
+        matchedAdmin = localAdmins.find(
+          (a) =>
+            a.username.toLowerCase().includes(cleanQuery) ||
+            a.email.toLowerCase().includes(cleanQuery) ||
+            (a.phone_whatsapp && a.phone_whatsapp.includes(cleanQuery))
+        );
+      }
+
       if (type === 'access_data') {
         // Recuperar Dados de Acesso (Username / E-mail)
+        if (matchedAdmin) {
+          const maskedEmail = matchedAdmin.email
+            ? matchedAdmin.email.replace(/^(.)(.*)(@.*)$/, (_, a, b, c) => a + '***' + c)
+            : 'E-mail não cadastrado';
+          return res.json({
+            success: true,
+            type: 'access_data',
+            admin_found: true,
+            username: matchedAdmin.username,
+            full_name: matchedAdmin.full_name,
+            message: `Administrador localizado: Nome de usuário "${matchedAdmin.username}" (${matchedAdmin.full_name}). E-mail: ${maskedEmail}.`,
+            hint: 'Utilize este nome de usuário na tela de login.',
+          });
+        }
+
         return res.json({
           success: true,
           type: 'access_data',
-          message: `Se os dados informados (${query}) constarem no registro master, o nome de usuário e orientações foram enviadas.`,
-          hint: 'Verifique sua caixa de entrada ou mensagens no WhatsApp associado.',
+          admin_found: false,
+          message: `Se os dados informados (${query}) constarem no registro master, as orientações foram enviadas.`,
+          hint: 'Verifique os dados ou contate um superadministrador da Tríade.',
         });
       } else {
-        // Recuperar Senha
+        // Redefinir ou Recuperar Senha
+        if (!matchedAdmin) {
+          return res.status(404).json({
+            success: false,
+            error: `Nenhum administrador encontrado com o identificador "${query}". Verifique se digitou corretamente o usuário (ex: Anderson@) ou e-mail corporativo.`,
+          });
+        }
+
+        // Se nova senha foi fornecida, atualiza imediatamente no banco
+        if (new_password) {
+          if (typeof new_password !== 'string' || new_password.length < 6) {
+            return res.status(400).json({
+              success: false,
+              error: 'A nova senha deve ter no mínimo 6 caracteres.',
+            });
+          }
+
+          // Atualiza em system_admins
+          try {
+            await supabaseAdmin
+              .from('system_admins')
+              .update({
+                password_hash: new_password,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', matchedAdmin.id);
+          } catch (updateErr) {
+            console.warn('[recovery] Falha ao atualizar senha em system_admins:', updateErr);
+          }
+
+          // Atualiza em localAdmins se presente
+          const localIdx = localAdmins.findIndex((a) => a.id === matchedAdmin.id);
+          if (localIdx >= 0) {
+            localAdmins[localIdx].password = new_password;
+          }
+
+          return res.json({
+            success: true,
+            type: 'password_reset_success',
+            message: `Senha do administrador @${matchedAdmin.username} redefinida com sucesso! Você já pode realizar o login com sua nova senha.`,
+            admin_username: matchedAdmin.username,
+          });
+        }
+
+        // Apenas validação de existência do usuário para avançar à etapa da nova senha
         return res.json({
           success: true,
-          type: 'password',
-          message: `Link e instruções para redefinição segura de senha enviados com sucesso para (${query}).`,
-          hint: 'O link de redefinição expira em 30 minutos.',
+          type: 'password_user_verified',
+          admin_found: true,
+          username: matchedAdmin.username,
+          full_name: matchedAdmin.full_name,
+          message: `Administrador @${matchedAdmin.username} localizado com sucesso. Informe a nova senha de acesso desejada.`,
         });
       }
     } catch (err: any) {

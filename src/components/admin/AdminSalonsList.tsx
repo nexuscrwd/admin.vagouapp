@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Search,
   LayoutGrid,
   List,
   Edit,
@@ -14,13 +13,12 @@ import {
   Building2,
   Trash2,
   AlertTriangle,
-  ShieldAlert,
   FolderPlus,
   Tag,
+  Filter,
   X,
 } from 'lucide-react';
 import { AdminSalonItem, SalonFilterStatus } from '../../types/admin';
-import { AdminModerationPanel } from './AdminModerationPanel';
 import { SalonLogo } from '../common/SalonLogo';
 import { UnifiedRegistrationForm } from '../public/UnifiedRegistrationForm';
 import { AdminCategoryModal } from './AdminCategoryModal';
@@ -59,9 +57,7 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
   selectedSalonDetail: propSelectedSalonDetail,
   onSelectSalonDetail,
 }) => {
-  const [activeSection, setActiveSection] = useState<'all_salons' | 'moderation'>('all_salons');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
-  const [localSearch, setLocalSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<SalonFilterStatus>('all');
   const [segmentFilter, setSegmentFilter] = useState<string>('all');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -99,7 +95,7 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
     onSelectSalonDetail?.(salon);
   };
 
-  const activeSearch = searchQuery || localSearch;
+  const activeSearch = searchQuery || '';
 
   const filteredSalons = useMemo(() => {
     return salons.filter((salon) => {
@@ -272,8 +268,6 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
     return getStoredCategoryLabel(cat, categories);
   };
 
-  const pendingCount = salons.filter((s) => s.status === 'pending').length;
-
   if (activeSelectedSalon) {
     return (
       <AdminSalonDetailView
@@ -294,196 +288,142 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Top Section Switcher: Catálogo Geral vs Moderação */}
-      <div className="p-3 sm:p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-xs dark:shadow-none">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 flex items-center justify-center shrink-0">
-            <Building2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+      {/* Unified Header & Control Bar */}
+      <div className="p-3 sm:p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 shadow-xs dark:shadow-none">
+        {/* Left Side: Title & Compact Filters */}
+        <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0">
+          <div className="flex items-center gap-2 mr-1">
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 flex items-center justify-center shrink-0">
+              <Building2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <h2 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight whitespace-nowrap">Estabelecimentos</h2>
           </div>
-          <div>
-            <h2 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Gestão de Estabelecimentos</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Catálogo soberano e esteira de moderação e auditoria de parceiros.</p>
+
+          <div className="h-5 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block mx-0.5" />
+
+          {/* Filtro de Categoria (Lista suspensa compacta) */}
+          <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 focus-within:border-emerald-500 transition shadow-xs dark:shadow-none">
+            <Tag className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 mr-1.5 shrink-0" />
+            <select
+              value={segmentFilter}
+              onChange={(e) => {
+                if (e.target.value === '__new_category__') {
+                  setIsCategoryModalOpen(true);
+                } else {
+                  setSegmentFilter(e.target.value);
+                }
+              }}
+              className="bg-transparent text-xs font-semibold text-slate-800 dark:text-slate-200 outline-none cursor-pointer pr-1"
+              title="Filtrar por Categoria"
+            >
+              <option value="all" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                Categorias ({salons.length})
+              </option>
+              {categories.map((c) => {
+                const count = salons.filter((s) => {
+                  const cat = (s.category || '').toLowerCase();
+                  const slug = c.slug.toLowerCase();
+                  const name = c.name.toLowerCase();
+                  const exact = cat === slug || cat === name;
+                  if (exact) return true;
+                  const text = `${s.trade_name} ${s.legal_name || ''}`.toLowerCase();
+                  return text.includes(slug) || text.includes(name);
+                }).length;
+                return (
+                  <option
+                    key={c.id || c.slug}
+                    value={c.slug}
+                    className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                  >
+                    {c.name} {count > 0 ? `(${count})` : ''}
+                  </option>
+                );
+              })}
+              <option value="__new_category__" className="bg-emerald-50 dark:bg-emerald-950 font-bold text-emerald-600 dark:text-emerald-400">
+                + Criar Categoria...
+              </option>
+            </select>
+          </div>
+
+          {/* Filtro de Status (Lista suspensa compacta) */}
+          <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 focus-within:border-emerald-500 transition shadow-xs dark:shadow-none">
+            <Filter className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 mr-1.5 shrink-0" />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as SalonFilterStatus)}
+              className="bg-transparent text-xs font-semibold text-slate-800 dark:text-slate-200 outline-none cursor-pointer pr-1"
+              title="Filtrar por Status"
+            >
+              <option value="all" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                Status
+              </option>
+              <option value="active" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                Ativos ({salons.filter((s) => s.status === 'active').length})
+              </option>
+              <option value="pending" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                Pendentes ({salons.filter((s) => s.status === 'pending').length})
+              </option>
+              <option value="incomplete" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                Incompletos ({salons.filter((s) => s.status === 'incomplete').length})
+              </option>
+              <option value="suspended" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                Suspensos ({salons.filter((s) => s.status === 'suspended').length})
+              </option>
+            </select>
           </div>
         </div>
 
-        <div className="flex items-center bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800 shrink-0 self-start sm:self-auto">
+        {/* Right Side: Export, New Category, New Salon, View Switcher */}
+        <div className="flex items-center justify-between lg:justify-end gap-2 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-200 dark:border-slate-800">
           <button
-            onClick={() => setActiveSection('all_salons')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-2 ${
-              activeSection === 'all_salons'
-                ? 'bg-[#20C933] text-white shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
+            onClick={handleExportCSV}
+            title="Exportar dados filtrados para arquivo CSV"
+            className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer border border-slate-200 dark:border-slate-700 shadow-xs dark:shadow-none"
           >
-            <Building2 className="w-3.5 h-3.5" />
-            <span>Todos os Salões ({salons.length})</span>
+            <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span className="hidden sm:inline">Exportar CSV</span>
           </button>
 
           <button
-            onClick={() => setActiveSection('moderation')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-2 ${
-              activeSection === 'moderation'
-                ? 'bg-[#20C933] text-white shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
+            onClick={() => setIsCategoryModalOpen(true)}
+            title="Criar e gerenciar categorias de estabelecimentos"
+            className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer border border-slate-200 dark:border-slate-700 shadow-xs dark:shadow-none"
           >
-            <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
-            <span>Moderação</span>
-            {pendingCount > 0 && (
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/40 font-bold">
-                {pendingCount}
-              </span>
-            )}
+            <FolderPlus className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span>+ Categoria</span>
           </button>
+
+          <button
+            onClick={onOpenNewSalon || (() => setIsProfessionalRegistrationOpen(true))}
+            className="px-3 py-1.5 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-500/20 active:scale-95"
+            title="Cadastrar novo estabelecimento e vincular proprietário no ecossistema"
+          >
+            <Plus className="w-3.5 h-3.5 text-white" />
+            <span>Cadastrar</span>
+          </button>
+
+          <div className="flex items-center bg-slate-100 dark:bg-slate-950 p-1 rounded-lg border border-slate-200 dark:border-slate-800">
+            <button
+              onClick={() => setViewMode('table')}
+              title="Visualização em Tabela"
+              className={`p-1.5 rounded-md transition cursor-pointer ${
+                viewMode === 'table' ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-xs' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+              }`}
+            >
+              <List className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('cards')}
+              title="Visualização em Cartões"
+              className={`p-1.5 rounded-md transition cursor-pointer ${
+                viewMode === 'cards' ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-xs' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+              }`}
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
-
-      {/* RENDER MODERATION SUBSECTION */}
-      {activeSection === 'moderation' ? (
-        <AdminModerationPanel
-          salons={salons}
-          onEditSalon={onEditSalon}
-          onUpdateStatus={onUpdateStatus}
-        />
-      ) : (
-        <>
-          {/* Control Bar: Filters, Search & View Mode Switcher */}
-          <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-xs dark:shadow-none">
-            {/* Search, Category Filter & Status Filters */}
-            <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0">
-              <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 w-full sm:w-56 focus-within:border-emerald-500 transition shadow-xs dark:shadow-none">
-                <Search className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 mr-2 shrink-0" />
-                <input
-                  type="text"
-                  placeholder="Buscar estabelecimento..."
-                  value={activeSearch}
-                  onChange={(e) => {
-                    if (onSearchChange) onSearchChange(e.target.value);
-                    else setLocalSearch(e.target.value);
-                  }}
-                  className="w-full bg-transparent text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 outline-none"
-                />
-              </div>
-
-              {/* Filtro de Categoria */}
-              <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 focus-within:border-emerald-500 transition shadow-xs dark:shadow-none">
-                <Tag className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 mr-1.5 shrink-0" />
-                <select
-                  value={segmentFilter}
-                  onChange={(e) => {
-                    if (e.target.value === '__new_category__') {
-                      setIsCategoryModalOpen(true);
-                    } else {
-                      setSegmentFilter(e.target.value);
-                    }
-                  }}
-                  className="bg-transparent text-xs font-semibold text-slate-800 dark:text-slate-200 outline-none cursor-pointer pr-1"
-                  title="Filtrar por Categoria"
-                >
-                  <option value="all" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
-                    Todas as Categorias ({salons.length})
-                  </option>
-                  {categories.map((c) => {
-                    const count = salons.filter((s) => {
-                      const cat = (s.category || '').toLowerCase();
-                      const slug = c.slug.toLowerCase();
-                      const name = c.name.toLowerCase();
-                      const exact = cat === slug || cat === name;
-                      if (exact) return true;
-                      const text = `${s.trade_name} ${s.legal_name || ''}`.toLowerCase();
-                      return text.includes(slug) || text.includes(name);
-                    }).length;
-                    return (
-                      <option
-                        key={c.id || c.slug}
-                        value={c.slug}
-                        className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
-                      >
-                        {c.name} {count > 0 ? `(${count})` : ''}
-                      </option>
-                    );
-                  })}
-                  <option value="__new_category__" className="bg-emerald-50 dark:bg-emerald-950 font-bold text-emerald-600 dark:text-emerald-400">
-                    + Criar Categoria...
-                  </option>
-                </select>
-              </div>
-
-              {/* Status Tabs */}
-              <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-950 p-1 rounded-lg border border-slate-200 dark:border-slate-800 overflow-x-auto max-w-full">
-                {[
-                  { id: 'all', label: 'Todos' },
-                  { id: 'active', label: 'Ativos' },
-                  { id: 'pending', label: 'Pendentes' },
-                  { id: 'incomplete', label: 'Incompletos' },
-                  { id: 'suspended', label: 'Suspensos' },
-                ].map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setStatusFilter(tab.id as any)}
-                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition cursor-pointer whitespace-nowrap ${
-                      statusFilter === tab.id
-                        ? 'bg-[#20C933] text-white font-bold shadow-xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Right Side: Export, New Category, New Salon, View Switcher */}
-            <div className="flex items-center justify-between md:justify-end gap-2 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-200 dark:border-slate-800">
-              <button
-                onClick={handleExportCSV}
-                title="Exportar dados filtrados para arquivo CSV"
-                className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer border border-slate-200 dark:border-slate-700 shadow-xs dark:shadow-none"
-              >
-                <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span className="hidden sm:inline">Exportar CSV</span>
-              </button>
-
-              <button
-                onClick={() => setIsCategoryModalOpen(true)}
-                title="Criar e gerenciar categorias de estabelecimentos"
-                className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer border border-slate-200 dark:border-slate-700 shadow-xs dark:shadow-none"
-              >
-                <FolderPlus className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span>+ Categoria</span>
-              </button>
-
-              <button
-                onClick={onOpenNewSalon || (() => setIsProfessionalRegistrationOpen(true))}
-                className="px-3 py-1.5 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-500/20 active:scale-95"
-                title="Cadastrar novo estabelecimento e vincular proprietário no ecossistema"
-              >
-                <Plus className="w-3.5 h-3.5 text-white" />
-                <span>Cadastrar</span>
-              </button>
-
-              <div className="flex items-center bg-slate-100 dark:bg-slate-950 p-1 rounded-lg border border-slate-200 dark:border-slate-800">
-                <button
-                  onClick={() => setViewMode('table')}
-                  title="Visualização em Tabela"
-                  className={`p-1.5 rounded-md transition cursor-pointer ${
-                    viewMode === 'table' ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-xs' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-                  }`}
-                >
-                  <List className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setViewMode('cards')}
-                  title="Visualização em Cartões"
-                  className={`p-1.5 rounded-md transition cursor-pointer ${
-                    viewMode === 'cards' ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-xs' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-                  }`}
-                >
-                  <LayoutGrid className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </div>
 
           {/* Bulk Actions Banner when items are selected */}
           {selectedIds.length > 0 && (
@@ -964,8 +904,6 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
               setSegmentFilter(newCat.slug);
             }}
           />
-        </>
-      )}
     </div>
   );
 };

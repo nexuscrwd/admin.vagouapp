@@ -825,16 +825,9 @@ export const AdminCreateSalonModal: React.FC<AdminCreateSalonModalProps> = ({
                   </div>
 
                   <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs font-semibold text-slate-300">Categoria Principal</label>
-                      <button
-                        type="button"
-                        onClick={() => setIsCategoryModalOpen(true)}
-                        className="text-[11px] text-emerald-400 hover:text-emerald-300 hover:underline cursor-pointer font-medium"
-                      >
-                        + Nova Categoria
-                      </button>
-                    </div>
+                    <label className="text-xs font-semibold text-slate-300 block mb-1">
+                      Categoria Principal
+                    </label>
                     <select
                       value={formData.category}
                       onChange={(e) => {

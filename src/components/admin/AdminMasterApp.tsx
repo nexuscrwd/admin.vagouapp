@@ -31,6 +31,8 @@ import { AdminSettingsPanel } from './AdminSettingsPanel';
 import { AdminTriadeFormsCatalog } from './AdminTriadeFormsCatalog';
 import { AdminAuthModal } from './AdminAuthModal';
 import { AdminCreateAdminModal } from './AdminCreateAdminModal';
+import { AdminPortalManager } from './AdminPortalManager';
+import { AdminCategoryModal } from './AdminCategoryModal';
 import { ArrowRight, Plus, UserPlus } from 'lucide-react';
 
 export const AdminMasterApp: React.FC = () => {
@@ -60,6 +62,7 @@ export const AdminMasterApp: React.FC = () => {
   const [selectedSalonForDetail, setSelectedSalonForDetail] = useState<AdminSalonItem | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
   const handleOpenSalonDetail = (salon: AdminSalonItem) => {
     setSelectedSalonForDetail(salon);
@@ -179,6 +182,10 @@ export const AdminMasterApp: React.FC = () => {
   const handleUpdateStatus = async (salonId: string, status: AdminSalonItem['status']) => {
     const isVerified = status === 'active';
     await handleSaveSalonUpdates(salonId, { status, is_verified: isVerified });
+  };
+
+  const handleUpdateVerified = async (salonId: string, isVerified: boolean) => {
+    await handleSaveSalonUpdates(salonId, { is_verified: isVerified });
   };
 
   const handleBulkUpdateStatus = async (ids: string[], status: AdminSalonItem['status']) => {
@@ -366,6 +373,20 @@ export const AdminMasterApp: React.FC = () => {
             </div>
           )}
 
+          {/* SCREEN: PORTAL VAPP (Gestão e Criação de Estabelecimentos do Portal) */}
+          {currentScreen === 'portal' && (
+            <AdminPortalManager
+              salons={salons}
+              onOpenNewSalon={() => setIsCreateModalOpen(true)}
+              onEditSalon={handleEditSalon}
+              onSelectSalonDetail={handleOpenSalonDetail}
+              onUpdateStatus={handleUpdateStatus}
+              onUpdateVerified={handleUpdateVerified}
+              onDeleteSalon={handleDeleteSalon}
+              onOpenCategoryModal={() => setIsCategoryModalOpen(true)}
+            />
+          )}
+
           {/* SCREEN: SALONS */}
           {currentScreen === 'salons' && (
             <div className="space-y-4">
@@ -433,6 +454,14 @@ export const AdminMasterApp: React.FC = () => {
         onCreate={handleCreateSalon}
         onViewDetails={handleOpenSalonDetail}
       />
+
+      {/* Category Modal */}
+      {isCategoryModalOpen && (
+        <AdminCategoryModal
+          isOpen={isCategoryModalOpen}
+          onClose={() => setIsCategoryModalOpen(false)}
+        />
+      )}
     </div>
   );
 };

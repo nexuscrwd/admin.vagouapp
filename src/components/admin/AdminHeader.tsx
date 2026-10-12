@@ -42,6 +42,8 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
     switch (screen) {
       case 'dashboard':
         return 'Visão Geral do Ecossistema';
+      case 'portal':
+        return 'Portal VAPP • Gestão de Estabelecimentos';
       case 'salons':
         return 'Gestão de Estabelecimentos';
       case 'users':

@@ -1,5 +1,6 @@
 export type AdminScreenId =
   | 'dashboard'
+  | 'portal'
   | 'salons'
   | 'users'
   | 'moderation'
@@ -141,7 +142,7 @@ export interface SystemAdminUser {
   last_login_at?: string;
 }
 
-export type AdminAuthTab = 'login' | 'register' | 'recovery';
+export type AdminAuthTab = 'login' | 'recovery';
 export type AdminRecoveryType = 'access_data' | 'password';
 
 export interface AdminAppointmentItem {

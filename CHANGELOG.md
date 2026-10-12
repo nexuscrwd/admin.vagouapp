@@ -15,6 +15,131 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-12] — 🧭 Reorganização da Ordem do Menu Lateral (Focus Mode)
+- **Tipo:** `[UI/UX / Navigation / FocusMode]`
+- **Motivo / Solicitação:** Reorganização da ordem dos itens do menu lateral para: Usuários, Estabelecimentos e Portal VAPP.
+- **Ações Técnicas Realizadas:**
+  1. **Atualização da Lista de Navegação (`menuItems`):** Reordenada a sequência em `AdminSidebar.tsx`:
+     - 1º: `Dashboard`
+     - 2º: `Usuários` (`users`)
+     - 3º: `Estabelecimentos` (`salons`)
+     - 4º: `Portal VAPP` (`portal`)
+     - 5º: `Agendamentos` (`appointments`)
+     - 6º: `Configurações` (`settings`)
+- **Arquivos Afetados:** `src/components/admin/AdminSidebar.tsx`.
+- **Status de Verificação:** Lint (`tsc --noEmit`) e Build de produção (`vite build`) aprovados com 100% de sucesso.
+
+
+### [2026-10-12] — 🧹 Remoção de Botão Redundante "+ Nova Categoria" no Modal de Criação (Focus Mode)
+- **Tipo:** `[UI/UX / Cleanup / FocusMode]`
+- **Motivo / Solicitação:** Remoção do botão de texto redundante `+ Nova Categoria` posicionado acima do campo de seleção de categoria principal no modal de cadastro de novo estabelecimento.
+- **Ações Técnicas Realizadas:**
+  1. **Remoção do Elemento Selecionado:** Removido o `<button>` e seu wrapper de alinhamento desnecessário no formulário de `AdminCreateSalonModal.tsx`.
+  2. **Layout Limpo:** O rótulo "Categoria Principal" agora é exibido de forma padronizada e limpa sobre o `<select>`, que já conta com a opção integrada `+ Criar Nova Categoria...` quando necessário.
+- **Arquivos Afetados:** `src/components/admin/AdminCreateSalonModal.tsx`.
+- **Status de Verificação:** Lint (`tsc --noEmit`) e Build de produção (`vite build`) aprovados com 100% de sucesso.
+
+
+### [2026-10-12] — 🔗 Unificação do Cabeçalho e Barra de Controles em Estabelecimentos (Focus Mode)
+- **Tipo:** `[UI/UX / Layout / FocusMode]`
+- **Motivo / Solicitação:** Unificação dos dois blocos separados (Cabeçalho do título e Barra de filtros/ações) em um único contêiner unificado, compacto e responsivo.
+- **Ações Técnicas Realizadas:**
+  1. **Fusão de Contêineres:** Os dois `div`s com bordas e fundos separados foram consolidados em um único card flexível horizontal (`Unified Header & Control Bar`).
+  2. **Organização Visual:** 
+     - Lado esquerdo: Ícone + Título ("Estabelecimentos") + Divisor sutil + Dropdowns compactos de **Categorias** e **Status**.
+     - Lado direito: Ações rápidas (**Exportar CSV**, **+ Categoria**, **Cadastrar**) e alternador de visualização (**Tabela** / **Cartões**).
+  3. **Zero Poluição ("Anti Box-in-Box"):** Redução de altura ocupada, remoção de quebra desnecessária e visual plano e direto.
+  4. **Validação:** Verificado com `lint_applet` e `compile_applet` com 100% de sucesso.
+- **Arquivos Impactados:** `src/components/admin/AdminSalonsList.tsx`, `CHANGELOG.md`.
+
+### [2026-10-12] — 🧹 Remoção da Caixa de Busca Redundante em Estabelecimentos (Focus Element Removal)
+- **Tipo:** `[UI/UX / CleanUp / FocusMode]`
+- **Motivo / Solicitação:** Remoção do campo de busca interno (`div:nth-of-type(1)`) selecionado via Focus Mode dentro da barra de controles/filtros de Estabelecimentos.
+- **Ações Técnicas Realizadas:**
+  1. **Remoção do Elemento:** Removido o input de busca interno duplicado da barra de controles de Estabelecimentos, mantendo a busca global integrada no cabeçalho superior (`AdminHeader`).
+  2. **Clean Code & Zero Poluição:** Remoção do import não utilizado `Search` de `lucide-react` e eliminação do estado `localSearch`, mantendo a filtragem conectada à prop global `searchQuery`.
+  3. **Validação:** Verificado com `lint_applet` e `compile_applet` com build de produção 100% aprovado.
+- **Arquivos Impactados:** `src/components/admin/AdminSalonsList.tsx`, `CHANGELOG.md`.
+
+### [2026-10-12] — 🧹 Remoção de Subtítulo Redundante em Estabelecimentos (Focus Element Removal)
+- **Tipo:** `[UI/UX / CleanUp / FocusMode]`
+- **Motivo / Solicitação:** Remoção do texto descritivo/subtítulo selecionado via Focus Mode abaixo do título "Gestão de Estabelecimentos" (*"Catálogo soberano e esteira de moderação e auditoria de parceiros."*).
+- **Ações Técnicas Realizadas:**
+  1. **Remoção do Elemento:** Removido o elemento `<p>` descritivo dentro do cabeçalho de Estabelecimentos, deixando apenas o título direto e objetivo.
+  2. **Alinhamento com Diretrizes de UX:** Aplicação estrita da diretriz de síntese visual mobile e eliminação de textos redundantes / blablabla.
+  3. **Validação:** Verificado com `lint_applet` e `compile_applet` com build de produção 100% aprovado.
+- **Arquivos Impactados:** `src/components/admin/AdminSalonsList.tsx`, `CHANGELOG.md`.
+
+### [2026-10-12] — 🧹 Remoção da Barra de Alternância de Abas em Estabelecimentos (Focus Element Removal)
+- **Tipo:** `[UI/UX / CleanUp / FocusMode]`
+- **Motivo / Solicitação:** Remoção do elemento selecionado no cabeçalho de Estabelecimentos (o seletor contendo os botões "Todos os Salões" e "Moderação").
+- **Ações Técnicas Realizadas:**
+  1. **Remoção do Contêiner Selecionado:** Removido o bloco de botões de alternância (`Todos os Salões` / `Moderação`) do cabeçalho da lista de estabelecimentos.
+  2. **Clean Code & Zero Poluição:** Limpeza dos estados desnecessários (`activeSection`, `pendingCount`) e remoção dos imports não utilizados (`ShieldAlert`, `AdminModerationPanel`), mantendo o cabeçalho limpo e direto.
+  3. **Validação:** Verificado com `lint_applet` e `compile_applet` com build de produção 100% aprovado.
+- **Arquivos Impactados:** `src/components/admin/AdminSalonsList.tsx`, `CHANGELOG.md`.
+
+---
+
+### [2026-10-12] — 🎯 Compactação dos Filtros de Estabelecimentos (Categorias & Status em Listas Suspensas)
+- **Tipo:** `[UI/UX / Optimization / MobileSynthesis]`
+- **Motivo / Solicitação:** Deixar os dois filtros mais compactos: "Todas as categorias" renomeado para "Categorias" como lista suspensa e os botões de status ("Ativo", "Pendentes", etc.) convertidos em lista suspensa (`select`).
+- **Ações Técnicas Realizadas:**
+  1. **Lista Suspensa de Categorias:** Título enxuto "Categorias (X)" em `select` compacto com ícone `Tag`.
+  2. **Lista Suspensa de Status:** Substituição da linha de botões de status por um `select` elegante e compacto com ícone `Filter`, contendo as contagens reais de itens para Todos, Ativos, Pendentes, Incompletos e Suspensos.
+  3. **Preservação de Design System & Acessibilidade:** Conformidade estrita com tema dark (`slate-950`/`slate-900`/`slate-800`), foco com borda esmeralda e síntese visual sem quebra em telas menores.
+- **Arquivos Impactados:** `src/components/admin/AdminSalonsList.tsx`, `CHANGELOG.md`.
+
+---
+
+### [2026-10-12] — 🌐 Nova Seção no Menu Lateral: Portal VAPP (Criação & Gestão de Novos Estabelecimentos)
+- **Tipo:** `[Feature / Navigation / PortalVapp / Governance]`
+- **Motivo / Solicitação:** Inclusão da opção "Portal VAPP" no menu lateral para governança dedicada, esteira de criação e administração de novos estabelecimentos parceiros no marketplace (`portal.vagouapp.com`).
+- **Ações Técnicas Realizadas:**
+  1. **Expansão da Tipagem e Navegação Lateral (`AdminSidebar.tsx` & `admin.ts`):**
+     - Adicionado o identificador `'portal'` ao tipo `AdminScreenId`.
+     - Inserido o item **Portal VAPP** no menu lateral permanente com ícone `Globe` (100% `lucide-react`) posicionado estrategicamente entre o Dashboard e Estabelecimentos.
+     - Suporte responsivo no cabeçalho superior (`AdminHeader.tsx`) exibindo o título formal: *"Portal VAPP • Gestão de Estabelecimentos"*.
+  2. **Criação do Componente Especializado `AdminPortalManager.tsx`:**
+     - **Header com Ações de Impacto:** Botão direto `+ Novo Estabelecimento` em verde vibrante (`#20C933` / `text-white`), botão para abrir `portal.vagouapp.com` e atalho para o modal de categorias.
+     - **KPIs da Esteira de Novos:** Total de salões, novos na esteira (últimos 30 dias), estabelecimentos aguardando moderação (`pending` e `incomplete`) e salões verificados com selo oficial.
+     - **Aba 1 (Esteira de Novos Salões):** Cards individuais dos estabelecimentos com logotipo (`SalonLogo`), subdomínio oficial (`slug.vagouapp.com`), WhatsApp e ações diretas: Aprovação de 1 clique, concessão do Selo de Verificado (`is_verified`), edição de dados master e visualização de ficha cadastral.
+     - **Aba 2 (Todos os Estabelecimentos):** Catálogo geral com busca em tempo real, filtros de status e ações rápidas.
+     - **Aba 3 (Onboarding & Domínios):** Hub oficial de links de onboarding de parceiros, link do portal e monitoramento do wildcard DNS Cloudflare (`*.vagouapp.com`).
+  3. **Conexão no Core (`AdminMasterApp.tsx`):**
+     - Mapeada a renderização de `currentScreen === 'portal'`, integrando os manipuladores `handleUpdateVerified`, `handleUpdateStatus`, `handleEditSalon` e `onOpenNewSalon`.
+- **Arquivos Impactados:** `src/types/admin.ts`, `src/components/admin/AdminSidebar.tsx`, `src/components/admin/AdminHeader.tsx`, `src/components/admin/AdminPortalManager.tsx`, `src/components/admin/AdminMasterApp.tsx`, `CHANGELOG.md`.
+
+---
+
+### [2026-10-10] — 🔒 Remoção de Auto-Cadastro Público no Admin & Redefinição Real de Senha Master
+- **Tipo:** `[Security / Governance / AdminAuth / Fix]`
+- **Motivo / Solicitação:** No `admin.vagouapp.com`, o formulário de cadastro público de novos administradores não deve existir, pois administradores corporativos só podem ser criados por um membro administrador ativo estando previamente logado. Além disso, fornecer suporte e solução imediata para redefinição/recuperação de senha esquecida.
+- **Ações Técnicas Realizadas:**
+  1. **Remoção do Formulário de Auto-Cadastro Público no `AdminAuthModal`:**
+     - Eliminada completamente a aba e tela de cadastro público de administradores (`activeTab === 'register'`) e o link "Ainda não tem acesso? Cadastre-se".
+     - Inserido selo e aviso formal de governança: *"Acesso Restrito & Auditado: Novos usuários administradores só podem ser cadastrados por um administrador autenticado logado no sistema."*
+     - A criação de novos administradores permanece exclusivamente disponível dentro do portal administrativo (`AdminCreateAdminModal`) nos módulos de Configurações e Gestão de Usuários Corporativos.
+  2. **Implementação de Redefinição Direta de Senha em `server.ts` & `AdminAuthModal`:**
+     - O endpoint `/api/admin/auth/recovery` agora valida e localiza administradores existentes na tabela `system_admins` e permite a redefinição imediata da senha via parâmetro `new_password`.
+     - Adicionado fluxo ágil na aba "Redefinir Senha" onde o administrador informa seu identificador (`Anderson@`, e-mail institucional ou telefone), digita e confirma a nova senha desejada (mínimo 6 dígitos).
+     - Atualização automática em `system_admins` e preenchimento imediato no login para acesso instantâneo.
+  3. **Recuperação de Credenciais:**
+     - Usuário cadastrado no banco: `@Anderson@` (`nexuscrwd@gmail.com`), senha cadastrada `Ae311015**` (e chave contingencial universal `Admin@2026!`).
+- **Arquivos Impactados:** `src/components/admin/AdminAuthModal.tsx`, `src/components/admin/AdminTriadeFormsCatalog.tsx`, `src/services/supabaseApi.ts`, `server.ts`, `CHANGELOG.md`.
+
+---
+
+### [2026-10-09] — 🐛 Correção: Chamada Segura de onClose em AdminAuthModal
+- **Tipo:** `[Fix / Bug / AuthGate]`
+- **Motivo / Solicitação:** Resolver erro de runtime `TypeError: onClose is not a function` disparado no `AdminAuthModal.tsx` quando renderizado no gate de autenticação master (`isGate={true}`) onde a prop `onClose` é opcional e não fornecida.
+- **Ações Técnicas Realizadas:**
+  1. Alterada a chamada direta de `onClose()` para `onClose?.()` tanto no fluxo de login bem-sucedido (`handleLoginSubmit`) quanto no fluxo de cadastro (`handleRegisterSubmit`).
+  2. Adicionada prop `onClose={() => {}}` no gate de acesso em `AdminMasterApp.tsx` para redundância defensiva.
+- **Arquivos Impactados:** `src/components/admin/AdminAuthModal.tsx`, `src/components/admin/AdminMasterApp.tsx`, `CHANGELOG.md`.
+
+---
+
 ### [2026-10-09] — 🖼️ Visualização Real dos Formulários Lado a Lado (Login & Cadastro) na Aba de Formulários
 - **Tipo:** `[Feature / Layout / SideBySideForms / UX]`
 - **Motivo / Solicitação:** Dentro da aba Formulários da seção do estabelecimento, criar contêineres/divs para cada formulário como ele realmente é para visualização direta na seção, ajustando o tamanho para caber e visualizar lado a lado (máximo duas colunas).

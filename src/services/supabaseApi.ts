@@ -1249,20 +1249,67 @@ export async function loginAdmin(
 
 export async function recoverAdminAccess(
   type: 'access_data' | 'password',
-  query: string
-): Promise<{ success: boolean; message?: string; hint?: string; error?: string }> {
+  query: string,
+  newPassword?: string
+): Promise<{
+  success: boolean;
+  message?: string;
+  hint?: string;
+  error?: string;
+  type?: string;
+  admin_found?: boolean;
+  username?: string;
+  full_name?: string;
+  admin_username?: string;
+}> {
   try {
     const resp = await fetch('/api/admin/auth/recovery', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, query }),
+      body: JSON.stringify({ type, query, new_password: newPassword }),
     });
     const text = await resp.text();
     if (text && text.trim().startsWith('{')) {
       const json = JSON.parse(text);
       if (resp.ok && json.success) {
         return json;
+      } else if (json.error) {
+        return { success: false, error: json.error };
       }
+    }
+  } catch {}
+
+  // Fallback direto no Supabase se API não responder
+  try {
+    const clean = query.trim().toLowerCase();
+    const { data: dbAdmins } = await supabase
+      .from('system_admins')
+      .select('*')
+      .or(`email.ilike.%${clean}%,username.ilike.%${clean}%`)
+      .limit(1);
+
+    if (dbAdmins && dbAdmins.length > 0) {
+      const a = dbAdmins[0];
+      if (newPassword && newPassword.length >= 6) {
+        await supabase
+          .from('system_admins')
+          .update({ password_hash: newPassword })
+          .eq('id', a.id);
+        return {
+          success: true,
+          type: 'password_reset_success',
+          message: `Senha do administrador @${a.username} redefinida com sucesso! Você já pode realizar o login.`,
+          admin_username: a.username,
+        };
+      }
+      return {
+        success: true,
+        type: 'password_user_verified',
+        admin_found: true,
+        username: a.username,
+        full_name: a.full_name,
+        message: `Administrador @${a.username} localizado. Informe a nova senha.`,
+      };
     }
   } catch {}
 
@@ -1270,13 +1317,12 @@ export async function recoverAdminAccess(
     return {
       success: true,
       message: `Se os dados informados (${query}) constarem no registro master, as orientações de acesso foram enviadas.`,
-      hint: 'Verifique sua caixa de entrada e WhatsApp.',
+      hint: 'Verifique sua caixa de entrada e WhatsApp corporativo.',
     };
   } else {
     return {
-      success: true,
-      message: `Link e instruções para redefinição segura de senha enviados com sucesso para (${query}).`,
-      hint: 'O link de redefinição expira em 30 minutos.',
+      success: false,
+      error: `Nenhum administrador encontrado para o identificador "${query}". Verifique se o nome de usuário ou e-mail está correto.`,
     };
   }
 }
