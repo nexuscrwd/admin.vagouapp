@@ -144,17 +144,29 @@ O `SalonProfileView.tsx` é a peça central da experiência do salão dentro do 
 
 ## 🗄️ 6. Banco de Dados Relacional & Schema SQL (Supabase / PostgreSQL)
 
-O arquivo `supabase/schema.sql` define a base de dados compartilhada com **extensão PostGIS** para o radar de proximidade:
+O ecossistema dispõe de **duas opções oficiais de SQL** para governança de dados:
+- **Opção 1 (Migração Incremental Segura):** `/supabase/migrations/20261012_media_gallery_and_services.sql` — Idempotente (`IF NOT EXISTS`), sem drop de tabelas, ideal para rodar no SQL Editor do Supabase de ambientes de produção já povoados.
+- **Opção 2 (Schema Consolidado v2.2.0):** `/supabase_schema.sql` — Arquivo unificado completo com auto-limpeza, criação ordenada de todas as tabelas, triggers de `updated_at`, políticas RLS, RPCs geoespaciais e seeds demonstrativos com mídias reais em 3 abas.
 
-1. **`salons`:** Cadastros com campos para os 3 Níveis (Razão Social, CNPJ/CPF, WhatsApp, endereço, coordenadas `lat`/`lng`), taxa de comissão e campos de theming (cores e URLs de logo/banner).
-2. **`salon_media_slots`:** Tabela que restringe estritamente a 5 slots ativos de mídia por salão (`slot_index` de 1 a 5, tipo `video` ou `image`).
-3. **`professionals`:** Lista de barbeiros/cabeleireiros/esteticistas associados, especialidades e jornada de trabalho configurável.
-4. **`services`:** Procedimentos oferecidos com preço base, preço promocional no Radar e tempo de execução.
-5. **`service_offers`:** Vagas imediatas publicadas no Radar com georreferenciamento e contagem regressiva de expiração.
+### Estrutura Consolidada das Tabelas da Tríade:
+
+1. **`salons`:** Cadastros com campos para os 3 Níveis (Razão Social, CNPJ/CPF, WhatsApp, endereço, coordenadas `lat`/`lng`), status (`active`, `pending`, `incomplete`, `suspended`), `cover_image_url` (Banner oficial do App), `pix_key`, `operating_hours`, taxa de comissão e campos de theming (cores e URLs de logo).
+2. **`salon_media_items` (Novo Acervo Central de Mídias):**
+   - Suporte às 3 abas principais soberanas do estabelecimento:
+     - `media_group = 'fotos'`: Sub-abas `servicos`, `profissionais` e `espaco`.
+     - `media_group = 'videos'`: Sub-abas `servicos` e `espaco` (vídeos em loop de 5 segundos ou tamanho equivalente).
+     - `media_group = 'imagens'`: Sub-abas `banner` (cabeçalho do app) e `logotipo` (marca oficial do salão).
+   - Campos: `id`, `salon_id`, `title`, `url`, `type` (`image` | `video`), `media_group`, `category`, `duration_seconds` (5s), `is_cover`, `created_at`, `updated_at`.
+3. **`services` (Catálogo e Procedimentos Estendidos):**
+   - Campos essenciais: `id`, `salon_id`, `name`, `title` (retrocompatibilidade), `category`, `price`, `duration_minutes`, `description`.
+   - Vínculos diretos com a galeria de mídias: `photos TEXT[]`, `videos JSONB`, `slides TEXT[]`, `target_audience`, `order_index`.
+4. **`professionals`:** Lista de barbeiros/cabeleireiros/esteticistas associados, especialidades e jornada de trabalho configurável.
+5. **`service_offers`:** Vagas imediatas publicadas no Radar com georreferenciamento, contagem regressiva de expiração e mídia de Story.
 6. **`clients`:** Usuários finais com provedor de autenticação (`google` ou `email`), status de validação de WhatsApp e tokens de Notificações Push.
 7. **`appointments`:** Agendamentos efetuados com protocolo único `#VGA-xxxxx`, data, horário, status e QR Code.
-8. **`billing_records`:** Registro contábil de comissões geradas para o VagouApp (R$ 2,50 por agendamento).
-9. **Função PostGIS `find_nearby_offers_km`:** Consulta geoespacial ultra-rápida filtrando estabelecimentos por raio em quilômetros.
+8. **`system_admins` & `admin_access_logs`:** Gestão corporativa de administradores master, autenticação via `crypt(bf)` e trilha de auditoria para o `admvapp`.
+9. **`billing_invoices`:** Faturamento contábil de comissões geradas para o VagouApp.
+10. **Função Geoespacial `get_offers_in_radius`:** Consulta geoespacial otimizada calculando distâncias reais em metros e quilômetros.
 
 ---
 

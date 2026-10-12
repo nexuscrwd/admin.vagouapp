@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Building2,
@@ -248,9 +249,9 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-xs animate-fadeIn">
-      <div className="w-full max-w-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden transition-colors">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
+      <div className="w-full max-w-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[92vh] my-auto overflow-hidden transition-colors">
         
         {/* HEADER MODAL COM RETÂNGULO DE LOGOTIPO PROVISÓRIO */}
         <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900/90">
@@ -854,7 +855,7 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
         </form>
 
         {/* FOOTER ACTIONS */}
-        <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 flex items-center justify-end gap-3 sticky bottom-0 z-10">
+        <div className="shrink-0 p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex items-center justify-end gap-3">
           <button
             type="button"
             onClick={onClose}
@@ -888,6 +889,7 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
           setFormData((prev) => ({ ...prev, category: newCat.slug as any }));
         }}
       />
-    </div>
+    </div>,
+    document.body
   );
 };

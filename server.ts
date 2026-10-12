@@ -517,19 +517,19 @@ async function startServer() {
         return res.status(400).json({ success: false, error: 'A confirmação de e-mail não confere.' });
       }
 
+      const cleanUsername = username.replace(/^@+/, '').trim();
+      const cleanEmail = email.trim().toLowerCase();
+
       // Validação de Username: Ao menos uma letra maiúscula e um caractere especial
-      const hasUppercase = /[A-Z]/.test(username);
-      const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(username);
+      const hasUppercase = /[A-Z]/.test(cleanUsername);
+      const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(cleanUsername);
 
       if (!hasUppercase || !hasSpecialChar) {
         return res.status(400).json({
           success: false,
-          error: 'O nome de usuário deve conter ao menos uma letra maiúscula e um caractere especial (ex: @, #, $, !).',
+          error: 'O nome de usuário deve conter ao menos uma letra maiúscula e um caractere especial (Ex: Anderson@, jOse#, pauLa**).',
         });
       }
-
-      const cleanUsername = username.trim();
-      const cleanEmail = email.trim().toLowerCase();
 
       // Tenta persistir no Supabase system_admins
       try {
@@ -941,15 +941,73 @@ async function startServer() {
     try {
       const { data, error } = await supabaseAdmin
         .from('system_admins')
-        .select('id, full_name, username, email, phone_whatsapp, role, is_active, avatar_url, last_login_at, created_at')
+        .select('id, full_name, username, email, phone_whatsapp, role, is_active, avatar_url, password_hash, last_login_at, created_at')
         .order('created_at', { ascending: false });
 
       if (error) {
         return res.status(400).json({ success: false, error: error.message });
       }
 
-      return res.json({ success: true, admins: data || [] });
+      const adminsWithPassword = (data || []).map((a: any) => ({
+        ...a,
+        password: a.password_hash || a.password || 'Admin@2026!',
+      }));
+
+      return res.json({ success: true, admins: adminsWithPassword });
     } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 4b. Update System Admin Details & Password (Service Role bypasses RLS)
+  app.put('/api/admin/system-admins/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const payload = req.body || {};
+
+      if (!id) {
+        return res.status(400).json({ success: false, error: 'ID do administrador não informado.' });
+      }
+
+      const updateData: Record<string, any> = {};
+
+      if (payload.full_name !== undefined) updateData.full_name = String(payload.full_name).trim();
+      if (payload.username !== undefined) updateData.username = String(payload.username).trim().replace(/^@+/, '');
+      if (payload.email !== undefined) updateData.email = String(payload.email).trim().toLowerCase();
+      if (payload.phone_whatsapp !== undefined) updateData.phone_whatsapp = String(payload.phone_whatsapp).trim();
+      if (payload.role !== undefined) updateData.role = payload.role;
+      if (payload.is_active !== undefined) updateData.is_active = !!payload.is_active;
+      if (payload.avatar_url !== undefined) updateData.avatar_url = payload.avatar_url;
+
+      // Trata atualização de senha para salvar em password_hash no Supabase
+      if (payload.password) {
+        updateData.password_hash = payload.password;
+      } else if (payload.password_hash) {
+        updateData.password_hash = payload.password_hash;
+      }
+
+      updateData.updated_at = new Date().toISOString();
+
+      const { data, error } = await supabaseAdmin
+        .from('system_admins')
+        .update(updateData)
+        .eq('id', id)
+        .select('id, full_name, username, email, phone_whatsapp, role, is_active, avatar_url, password_hash, last_login_at, created_at')
+        .single();
+
+      if (error) {
+        console.error('[server] Erro ao atualizar system_admins via supabaseAdmin:', error);
+        return res.status(400).json({ success: false, error: error.message });
+      }
+
+      const adminWithPassword = {
+        ...data,
+        password: data.password_hash || payload.password || 'Admin@2026!',
+      };
+
+      return res.json({ success: true, admin: adminWithPassword });
+    } catch (err: any) {
+      console.error('[server] Exceção em PUT /api/admin/system-admins/:id:', err);
       return res.status(500).json({ success: false, error: err.message });
     }
   });

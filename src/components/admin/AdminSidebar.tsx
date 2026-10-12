@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  LayoutDashboard,
+  Home,
   Globe,
   Building2,
   Users,
@@ -52,9 +52,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     icon: React.ComponentType<{ className?: string }>;
     badge?: number;
   }[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'users', label: 'Usuários', icon: Users },
+    { id: 'dashboard', label: 'Início', icon: Home },
     { id: 'salons', label: 'Estabelecimentos', icon: Building2 },
+    { id: 'users', label: 'Usuários', icon: Users },
     { id: 'portal', label: 'Portal VAPP', icon: Globe },
     { id: 'appointments', label: 'Agendamentos', icon: CalendarCheck },
     { id: 'settings', label: 'Configurações', icon: Settings },

@@ -74,12 +74,19 @@ O Vagou opera sob um modelo de **Single Sign-On (SSO)** descentralizado que inte
 4. **Vínculo Automático por Trigger (`handle_auto_link_salon_client`):** Cada agendamento criado em `appointments` vincula o cliente à tabela `salon_clients` sem intervenção manual.
 5. **Anti-Double Booking (`unique_professional_time`):** Trava de unicidade no banco por `(salon_id, professional_id, scheduled_date, start_time)` para impedir agendamentos sobrepostos.
 
-### B. Esquema de Tabelas do Ecossistema:
+### B. Esquema de Tabelas do Ecossistema & Governança SQL:
 - `auth.users`: Cadastro global de pessoa física.
-- `salons`: Estabelecimentos e marcas parceiras.
+- `salons`: Estabelecimentos e marcas parceiras (`status`, `cover_image_url`, `pix_key`, `operating_hours`, `branding`).
+- `salon_media_items`: Acervo Central de Mídias estruturado em **3 Abas Principais** (`fotos`, `videos`, `imagens`) e sub-abas (`servicos`, `profissionais`, `espaco`, `banner`, `logotipo`).
 - `professionals`: Cadeiras / membros da equipe.
+- `services`: Procedimentos e catálogo completo com suporte nativo a `photos TEXT[]`, `videos JSONB` e `slides TEXT[]`.
 - `appointments`: Agendamentos unificados com suporte a `origin` (`portal`, `salon_pwa`, `radar_flash`), `service_type` (`IN_SALON`, `HOME_DELIVERY`) e dependentes (`is_dependent`, `dependent_name`).
+- `system_admins` & `admin_access_logs`: Governança corporativa de acesso do Admin Master (`admvapp`).
 - `salon_clients`: Tabela de fidelidade, contagem de visitas e estabelecimentos favoritados.
+
+#### 📦 Duas Opções de Deploy SQL:
+1. **Opção 1 (Migração Incremental):** `/supabase/migrations/20261012_media_gallery_and_services.sql` — Para clusters de produção existentes com dados em andamento.
+2. **Opção 2 (Schema Consolidado v2.2.0):** `/supabase_schema.sql` — Para novos ambientes ou reset de banco.
 
 ---
 

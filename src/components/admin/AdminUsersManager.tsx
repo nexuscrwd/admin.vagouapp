@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Users,
   ShieldCheck,
@@ -92,7 +93,7 @@ export const AdminUsersManager: React.FC = () => {
       setAdmins((prev) =>
         prev.map((a) => (a.id === admin.id ? { ...a, is_active: nextStatus } : a))
       );
-      triggerFeedback(`Status do administrador @${admin.username} atualizado para ${nextStatus ? 'Ativo' : 'Inativo'}.`);
+      triggerFeedback(`Status do administrador ${admin.username.replace(/^@+/, '')} atualizado para ${nextStatus ? 'Ativo' : 'Inativo'}.`);
     }
   };
 
@@ -102,7 +103,7 @@ export const AdminUsersManager: React.FC = () => {
       setAdmins((prev) =>
         prev.map((a) => (a.id === admin.id ? { ...a, role: newRole } : a))
       );
-      triggerFeedback(`Privilégios de @${admin.username} atualizados para ${newRole === 'superadmin' ? 'Superadmin' : newRole === 'moderator' ? 'Moderador' : 'Suporte'}.`);
+      triggerFeedback(`Privilégios de ${admin.username.replace(/^@+/, '')} atualizados para ${newRole === 'superadmin' ? 'Superadmin' : newRole === 'moderator' ? 'Moderador' : 'Suporte'}.`);
     }
   };
 
@@ -400,7 +401,7 @@ export const AdminUsersManager: React.FC = () => {
                           />
                           <div>
                             <strong className="text-slate-900 dark:text-white block font-medium">{admin.full_name}</strong>
-                            <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-mono">@{admin.username}</span>
+                            <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-mono">{admin.username.replace(/^@+/, '')}</span>
                           </div>
                         </div>
                       </td>
@@ -785,8 +786,8 @@ export const AdminUsersManager: React.FC = () => {
       />
 
       {/* Modal Dedicado para Cadastro Unificado de Usuários (Cidadão / Profissional) */}
-      {isRegistrationModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn overflow-y-auto">
+      {isRegistrationModalOpen && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
           <div className="w-full max-w-xl bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl relative my-auto max-h-[92vh] overflow-y-auto">
             <UnifiedRegistrationForm
               initialType="client"
@@ -799,7 +800,8 @@ export const AdminUsersManager: React.FC = () => {
               }}
             />
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

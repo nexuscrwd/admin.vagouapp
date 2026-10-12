@@ -1,10 +1,11 @@
 -- ==============================================================================
 -- 💈 VAGOU APP — SCHEMA COMPLETO DO BANCO DE DADOS (SUPABASE / POSTGRESQL)
--- Versão: 2.1.0 (100% Resiliente • Auto-Limpeza • Radar de Vagas • RLS • Seeds)
+-- Versão: 2.2.0 (Tríade Master • Acervo Central de Mídias 3 Abas • Admin Master • RLS • Seeds Ricos)
 -- ==============================================================================
 
 -- 1. EXTENSÕES
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- 2. LIMPEZA SEGURA DAS TABELAS E FUNÇÕES (SE JÁ EXISTIREM)
 DROP FUNCTION IF EXISTS public.get_offers_in_radius(DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, TEXT) CASCADE;
@@ -12,10 +13,13 @@ DROP TABLE IF EXISTS public.appointments CASCADE;
 DROP TABLE IF EXISTS public.service_offers CASCADE;
 DROP TABLE IF EXISTS public.services CASCADE;
 DROP TABLE IF EXISTS public.professionals CASCADE;
+DROP TABLE IF EXISTS public.salon_media_items CASCADE;
 DROP TABLE IF EXISTS public.salon_media_slots CASCADE;
 DROP TABLE IF EXISTS public.billing_invoices CASCADE;
 DROP TABLE IF EXISTS public.clients CASCADE;
 DROP TABLE IF EXISTS public.salons CASCADE;
+DROP TABLE IF EXISTS public.admin_access_logs CASCADE;
+DROP TABLE IF EXISTS public.system_admins CASCADE;
 
 -- 3. TABELA: SALONS (ESTABELECIMENTOS / PARCEIROS)
 CREATE TABLE public.salons (
@@ -32,6 +36,7 @@ CREATE TABLE public.salons (
     home_delivery_enabled BOOLEAN DEFAULT FALSE,
     home_delivery_area TEXT,
     home_delivery_travel_fee NUMERIC(10,2) DEFAULT 0.00,
+    status VARCHAR(30) DEFAULT 'active' CHECK (status IN ('active', 'pending', 'incomplete', 'suspended')),
     is_verified BOOLEAN DEFAULT TRUE,
     is_active BOOLEAN DEFAULT TRUE,
     commission_rate NUMERIC(5,2) DEFAULT 15.00,
@@ -52,10 +57,15 @@ CREATE TABLE public.salons (
     logo_light_url TEXT,
     logo_dark_url TEXT,
     cover_url TEXT,
+    cover_image_url TEXT,                          -- Banner de cabeçalho do app
     branding JSONB DEFAULT '{"primaryColor": "#20C933", "secondaryColor": "#0F172A", "themeMode": "dark"}'::jsonb,
     primary_color VARCHAR(20) DEFAULT '#20C933',
     secondary_color VARCHAR(20) DEFAULT '#0F172A',
     bio TEXT,
+    
+    -- Financeiro & Pagamentos
+    pix_key VARCHAR(100),                          -- Chave PIX oficial do parceiro
+    operating_hours JSONB,                         -- Horários de funcionamento por dia da semana
     
     -- Avaliações & Métricas
     rating_avg NUMERIC(3,2) DEFAULT 5.00,
@@ -91,16 +101,22 @@ CREATE TABLE public.professionals (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 5. TABELA: SERVICES (CATÁLOGO DE SERVIÇOS)
+-- 5. TABELA: SERVICES (CATÁLOGO DE SERVIÇOS / PROCEDIMENTOS)
 CREATE TABLE public.services (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     salon_id UUID NOT NULL REFERENCES public.salons(id) ON DELETE CASCADE,
-    title VARCHAR(255) NOT NULL,
-    category VARCHAR(50) DEFAULT 'cabelo', -- cabelo, barba, unhas, beleza, estetica, outros
+    name VARCHAR(255),                             -- Nome do Procedimento (Ex: Corte Degradê Navalhado)
+    title VARCHAR(255) NOT NULL,                   -- Sincronizado para retrocompatibilidade
+    category VARCHAR(50) DEFAULT 'cabelo',         -- cabelo, barba, unhas, beleza, estetica, outros
     price NUMERIC(10,2) NOT NULL,
     duration_minutes INTEGER DEFAULT 45,
     description TEXT,
     image_url TEXT,
+    photos TEXT[] DEFAULT ARRAY[]::TEXT[],         -- Acervo de fotos do serviço
+    videos JSONB DEFAULT '[]'::jsonb,              -- Acervo de vídeos curtos (5s / MB equiv)
+    slides TEXT[] DEFAULT ARRAY[]::TEXT[],         -- Fotos de slides / carrossel
+    target_audience VARCHAR(20) DEFAULT 'all',     -- all, male, female, kids
+    order_index INTEGER DEFAULT 0,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -181,7 +197,26 @@ CREATE TABLE public.appointments (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 9. TABELA: SALON_MEDIA_SLOTS (GALERIA E STORIES DO SALÃO)
+-- 9. TABELA: SALON_MEDIA_ITEMS (ACERVO CENTRAL DE MÍDIAS: FOTOS, VÍDEOS 5S, IMAGENS)
+CREATE TABLE public.salon_media_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    salon_id UUID NOT NULL REFERENCES public.salons(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    url TEXT NOT NULL,
+    type VARCHAR(20) NOT NULL DEFAULT 'image' CHECK (type IN ('image', 'video')),
+    media_group VARCHAR(20) NOT NULL DEFAULT 'fotos' CHECK (media_group IN ('fotos', 'videos', 'imagens')),
+    category VARCHAR(50) NOT NULL DEFAULT 'servicos', -- servicos, profissionais, espaco, banner, logotipo
+    duration_seconds INTEGER DEFAULT 5,
+    is_cover BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_salon_media_items_salon ON public.salon_media_items(salon_id);
+CREATE INDEX idx_salon_media_items_group ON public.salon_media_items(salon_id, media_group);
+CREATE INDEX idx_salon_media_items_category ON public.salon_media_items(salon_id, category);
+
+-- 9.1 TABELA LEGADA: SALON_MEDIA_SLOTS (Stories Legados)
 CREATE TABLE public.salon_media_slots (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     salon_id UUID NOT NULL REFERENCES public.salons(id) ON DELETE CASCADE,
@@ -192,7 +227,43 @@ CREATE TABLE public.salon_media_slots (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 10. TABELA: BILLING_INVOICES (FATURAMENTO DE COMISSÕES DO PARCEIRO)
+-- 10. TABELA: SYSTEM_ADMINS & ADMIN_ACCESS_LOGS (ADMIN MASTER CORP)
+CREATE TABLE public.system_admins (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    full_name VARCHAR(255) NOT NULL,
+    username VARCHAR(100) NOT NULL UNIQUE,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    phone_whatsapp VARCHAR(30) NOT NULL,
+    password_hash TEXT NOT NULL,
+    role VARCHAR(50) NOT NULL DEFAULT 'superadmin' CHECK (role IN ('superadmin', 'moderator', 'support')),
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    avatar_url TEXT,
+    last_login_at TIMESTAMPTZ,
+    last_login_ip VARCHAR(50),
+    password_reset_token VARCHAR(255),
+    password_reset_expires_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_system_admins_username ON public.system_admins (LOWER(username));
+CREATE INDEX idx_system_admins_email ON public.system_admins (LOWER(email));
+
+CREATE TABLE public.admin_access_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    admin_id UUID REFERENCES public.system_admins(id) ON DELETE CASCADE,
+    username VARCHAR(100) NOT NULL,
+    action_type VARCHAR(50) NOT NULL CHECK (action_type IN ('login_success', 'login_failed', 'register', 'recovery_requested', 'password_changed', 'logout')),
+    ip_address VARCHAR(50),
+    user_agent TEXT,
+    details JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_admin_access_logs_admin_id ON public.admin_access_logs (admin_id);
+CREATE INDEX idx_admin_access_logs_created_at ON public.admin_access_logs (created_at DESC);
+
+-- 11. TABELA: BILLING_INVOICES (FATURAMENTO DE COMISSÕES DO PARCEIRO)
 CREATE TABLE public.billing_invoices (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     salon_id UUID NOT NULL REFERENCES public.salons(id) ON DELETE CASCADE,
@@ -307,7 +378,24 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ==============================================================================
--- 12. POLÍTICAS DE SEGURANÇA (ROW LEVEL SECURITY - RLS)
+-- 12. TRIGGERS DE ATUALIZAÇÃO AUTOMÁTICA (UPDATED_AT)
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.handle_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_salons_updated_at BEFORE UPDATE ON public.salons FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+CREATE TRIGGER trigger_professionals_updated_at BEFORE UPDATE ON public.professionals FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+CREATE TRIGGER trigger_services_updated_at BEFORE UPDATE ON public.services FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+CREATE TRIGGER trigger_salon_media_items_updated_at BEFORE UPDATE ON public.salon_media_items FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+CREATE TRIGGER trigger_system_admins_updated_at BEFORE UPDATE ON public.system_admins FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+-- ==============================================================================
+-- 13. POLÍTICAS DE SEGURANÇA (ROW LEVEL SECURITY - RLS)
 -- ==============================================================================
 ALTER TABLE public.salons ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.professionals ENABLE ROW LEVEL SECURITY;
@@ -315,23 +403,29 @@ ALTER TABLE public.services ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.service_offers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.salon_media_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.salon_media_slots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.billing_invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.system_admins ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_access_logs ENABLE ROW LEVEL SECURITY;
 
 -- Leitura Pública
 CREATE POLICY "Leitura_Salons" ON public.salons FOR SELECT USING (true);
 CREATE POLICY "Leitura_Professionals" ON public.professionals FOR SELECT USING (true);
 CREATE POLICY "Leitura_Services" ON public.services FOR SELECT USING (true);
 CREATE POLICY "Leitura_Offers" ON public.service_offers FOR SELECT USING (true);
+CREATE POLICY "Leitura_Media_Items" ON public.salon_media_items FOR SELECT USING (true);
 CREATE POLICY "Leitura_Media" ON public.salon_media_slots FOR SELECT USING (true);
 CREATE POLICY "Leitura_Appointments" ON public.appointments FOR SELECT USING (true);
 
--- Inserção e Atualização sem bloqueios
+-- Inserção, Atualização e Exclusão
 CREATE POLICY "Insert_Salons" ON public.salons FOR INSERT WITH CHECK (true);
 CREATE POLICY "Update_Salons" ON public.salons FOR UPDATE USING (true);
 CREATE POLICY "Insert_Professionals" ON public.professionals FOR INSERT WITH CHECK (true);
 CREATE POLICY "Update_Professionals" ON public.professionals FOR UPDATE USING (true);
 CREATE POLICY "Insert_Services" ON public.services FOR INSERT WITH CHECK (true);
+CREATE POLICY "Update_Services" ON public.services FOR UPDATE USING (true);
+CREATE POLICY "Delete_Services" ON public.services FOR DELETE USING (true);
 CREATE POLICY "Insert_Offers" ON public.service_offers FOR INSERT WITH CHECK (true);
 CREATE POLICY "Update_Offers" ON public.service_offers FOR UPDATE USING (true);
 CREATE POLICY "Insert_Appointments" ON public.appointments FOR INSERT WITH CHECK (true);
@@ -339,13 +433,22 @@ CREATE POLICY "Update_Appointments" ON public.appointments FOR UPDATE USING (tru
 CREATE POLICY "Insert_Clients" ON public.clients FOR INSERT WITH CHECK (true);
 CREATE POLICY "Update_Clients" ON public.clients FOR UPDATE USING (true);
 
+-- Políticas do Acervo Central de Mídias
+CREATE POLICY "Insert_Salon_Media_Items" ON public.salon_media_items FOR INSERT WITH CHECK (true);
+CREATE POLICY "Update_Salon_Media_Items" ON public.salon_media_items FOR UPDATE USING (true);
+CREATE POLICY "Delete_Salon_Media_Items" ON public.salon_media_items FOR DELETE USING (true);
+
+-- Políticas para Administradores do Sistema Master
+CREATE POLICY "Admin_Access_System_Admins" ON public.system_admins FOR ALL USING (true);
+CREATE POLICY "Admin_Access_Logs" ON public.admin_access_logs FOR ALL USING (true);
+
 -- ==============================================================================
--- 13. DADOS INICIAIS (SEEDS DE SALÕES, PROFISSIONAIS E VAGAS ATIVAS)
+-- 14. DADOS INICIAIS (SEEDS DE SALÕES, PROFISSIONAIS, SERVIÇOS, MÍDIAS E VAGAS)
 -- ==============================================================================
 
--- SALÕES
+-- SALÕES PARCEIROS
 INSERT INTO public.salons (
-    id, trade_name, legal_name, slug, phone_whatsapp, address, neighborhood, city, state, latitude, longitude, rating_avg, rating_count, bio
+    id, trade_name, legal_name, slug, phone_whatsapp, address, neighborhood, city, state, latitude, longitude, rating_avg, rating_count, status, is_verified, is_active, cover_image_url, logo_url, pix_key, bio
 ) VALUES
 (
     '11111111-1111-1111-1111-111111111101',
@@ -361,6 +464,12 @@ INSERT INTO public.salons (
     -46.4520,
     4.9,
     142,
+    'active',
+    true,
+    true,
+    'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=1200&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=400&auto=format&fit=crop&q=80',
+    'contato@salaoxprime.com.br',
     'Especialistas em cortes degradê, barba na toalha quente e estética masculina de alta performance.'
 ),
 (
@@ -377,6 +486,12 @@ INSERT INTO public.salons (
     -46.4560,
     4.9,
     98,
+    'active',
+    true,
+    true,
+    'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=1200&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1622286342621-4bd786c2447c?w=400&auto=format&fit=crop&q=80',
+    '11972345678',
     'Ambiente retrô aconchegante com chopp gelado e os melhores mestres barbudos da zona leste.'
 ),
 (
@@ -393,6 +508,12 @@ INSERT INTO public.salons (
     -46.4620,
     4.8,
     84,
+    'active',
+    true,
+    true,
+    'https://images.unsplash.com/photo-1604654894610-df63bc536371?w=1200&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400&auto=format&fit=crop&q=80',
+    'financeiro@mabenails.com',
     'Especialistas em unhas em gel, fibra de vidro e spa dos pés com produtos hipoalergênicos.'
 ),
 (
@@ -409,6 +530,12 @@ INSERT INTO public.salons (
     -46.4500,
     4.9,
     210,
+    'active',
+    true,
+    true,
+    'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=1200&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?w=400&auto=format&fit=crop&q=80',
+    'donstudio@pix.me',
     'Design de sobrancelhas personalizado, visagismo e extensão de cílios com técnica exclusiva.'
 );
 
@@ -418,6 +545,115 @@ INSERT INTO public.professionals (id, salon_id, name, role, specialties, color_h
 ('22222222-2222-2222-2222-222222222202', '11111111-1111-1111-1111-111111111102', 'João Santos', 'Cabeleireiro & Visagista', ARRAY['Corte Tesoura', 'Coloração', 'Escova'], '#2563eb', 50),
 ('22222222-2222-2222-2222-222222222203', '11111111-1111-1111-1111-111111111103', 'Camila Rocha', 'Manicure & Nail Designer', ARRAY['Esmaltação Gel', 'Fibra', 'Spa dos Pés'], '#db2777', 60),
 ('22222222-2222-2222-2222-222222222204', '11111111-1111-1111-1111-111111111104', 'Juliana Mendes', 'Designer de Sobrancelhas', ARRAY['Henna', 'Lash Lifting', 'Micropigmentação'], '#7c3aed', 30);
+
+-- CATÁLOGO DE SERVIÇOS / PROCEDIMENTOS (COM MÍDIAS VINCULADAS)
+INSERT INTO public.services (
+    id, salon_id, name, title, category, price, duration_minutes, description, photos, slides, is_active
+) VALUES
+(
+    '55555555-5555-5555-5555-555555555501',
+    '11111111-1111-1111-1111-111111111101',
+    'Corte Degradê Navalhado',
+    'Corte Degradê Navalhado',
+    'cabelo',
+    45.00,
+    45,
+    'Degradê suave na navalha ou shaver, finalizado com lavagem refrescante e pomada matte.',
+    ARRAY['https://images.unsplash.com/photo-1622286342621-4bd786c2447c?w=900&auto=format&fit=crop&q=80']::TEXT[],
+    ARRAY['https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=900&auto=format&fit=crop&q=80']::TEXT[],
+    true
+),
+(
+    '55555555-5555-5555-5555-555555555502',
+    '11111111-1111-1111-1111-111111111101',
+    'Barboterapia Spa Prime',
+    'Barboterapia Spa Prime',
+    'barba',
+    50.00,
+    40,
+    'Alinhamento com navalha descartável, toalha quente com essência de eucalipto e massagem facial.',
+    ARRAY['https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=900&auto=format&fit=crop&q=80']::TEXT[],
+    ARRAY[]::TEXT[],
+    true
+),
+(
+    '55555555-5555-5555-5555-555555555503',
+    '11111111-1111-1111-1111-111111111103',
+    'Alongamento em Fibra de Vidro',
+    'Alongamento em Fibra de Vidro',
+    'unhas',
+    160.00,
+    120,
+    'Estrutura fina e natural com acabamento em gel de alta durabilidade e cuticulagem russa.',
+    ARRAY['https://images.unsplash.com/photo-1604654894610-df63bc536371?w=900&auto=format&fit=crop&q=80']::TEXT[],
+    ARRAY[]::TEXT[],
+    true
+);
+
+-- ACERVO CENTRAL DE MÍDIAS (3 ABAS: FOTOS, VÍDEOS 5S E IMAGENS)
+INSERT INTO public.salon_media_items (
+    salon_id, title, url, type, media_group, category, duration_seconds, is_cover
+) VALUES
+(
+    '11111111-1111-1111-1111-111111111101',
+    'Degradê Fade Master',
+    'https://images.unsplash.com/photo-1622286342621-4bd786c2447c?w=900&auto=format&fit=crop&q=80',
+    'image',
+    'fotos',
+    'servicos',
+    5,
+    true
+),
+(
+    '11111111-1111-1111-1111-111111111101',
+    'Lucas Silva (Barbeiro Master)',
+    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=900&auto=format&fit=crop&q=80',
+    'image',
+    'fotos',
+    'profissionais',
+    5,
+    false
+),
+(
+    '11111111-1111-1111-1111-111111111101',
+    'Estrutura e Bancadas Vintage',
+    'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=900&auto=format&fit=crop&q=80',
+    'image',
+    'fotos',
+    'espaco',
+    5,
+    false
+),
+(
+    '11111111-1111-1111-1111-111111111101',
+    'Corte Degradê em Ação 5s',
+    'https://assets.mixkit.co/videos/preview/mixkit-barber-trimming-a-mans-beard-43093-large.mp4',
+    'video',
+    'videos',
+    'servicos',
+    5,
+    false
+),
+(
+    '11111111-1111-1111-1111-111111111101',
+    'Banner Oficial Cabeçalho App',
+    'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=1200&auto=format&fit=crop&q=80',
+    'image',
+    'imagens',
+    'banner',
+    5,
+    false
+),
+(
+    '11111111-1111-1111-1111-111111111101',
+    'Logotipo Oficial Prime',
+    'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=400&auto=format&fit=crop&q=80',
+    'image',
+    'imagens',
+    'logotipo',
+    5,
+    false
+);
 
 -- VAGAS RELÂMPAGO DO RADAR (ATIVAS E DISPONÍVEIS AGORA)
 INSERT INTO public.service_offers (
@@ -514,3 +750,17 @@ INSERT INTO public.appointments (
     '15:15:00',
     'CONFIRMADO'
 );
+
+-- SUPER ADMINISTRADOR MASTER (SEED SEGURO)
+INSERT INTO public.system_admins (
+    id, full_name, username, email, phone_whatsapp, password_hash, role, is_active
+) VALUES (
+    '99999999-9999-9999-9999-999999999999',
+    'Administrador Master VagouApp',
+    'admin',
+    'admin@vagouapp.com',
+    '(11) 99999-9999',
+    crypt('Admin@2026!', gen_salt('bf')),
+    'superadmin',
+    true
+) ON CONFLICT (username) DO NOTHING;

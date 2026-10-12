@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   ShieldCheck,
@@ -35,7 +36,7 @@ export const AdminCreateAdminModal: React.FC<AdminCreateAdminModalProps> = ({
   const [role, setRole] = useState<'superadmin' | 'moderator' | 'support'>('superadmin');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const [showPassword, setShowPassword] = useState(true);
 
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -52,9 +53,10 @@ export const AdminCreateAdminModal: React.FC<AdminCreateAdminModalProps> = ({
   };
 
   // Validations
-  const hasUppercase = /[A-Z]/.test(username);
-  const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(username);
-  const isUsernameValid = username.length >= 4 && hasUppercase && hasSpecialChar;
+  const cleanUsername = username.replace(/^@+/, '');
+  const hasUppercase = /[A-Z]/.test(cleanUsername);
+  const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(cleanUsername);
+  const isUsernameValid = cleanUsername.length >= 3 && hasUppercase && hasSpecialChar;
   const isEmailMatching =
     email.trim().length > 0 &&
     emailConfirm.trim().length > 0 &&
@@ -119,7 +121,7 @@ export const AdminCreateAdminModal: React.FC<AdminCreateAdminModalProps> = ({
     try {
       const res = await registerAdmin({
         full_name: fullName.trim(),
-        username: username.trim(),
+        username: cleanUsername,
         email: email.trim().toLowerCase(),
         email_confirmation: emailConfirm.trim().toLowerCase(),
         phone_whatsapp: phone.trim(),
@@ -143,9 +145,9 @@ export const AdminCreateAdminModal: React.FC<AdminCreateAdminModalProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-xs animate-fadeIn overflow-y-auto">
-      <div className="relative w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-auto transition-colors">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
+      <div className="relative w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[90vh] flex flex-col transition-colors">
         {/* Header */}
         <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/80 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -179,15 +181,17 @@ export const AdminCreateAdminModal: React.FC<AdminCreateAdminModalProps> = ({
           </button>
         </div>
 
-        {/* Form Body */}
-        <form onSubmit={handleRegister} className="p-4 sm:p-6 space-y-4 bg-transparent">
-          {/* Feedback Messages */}
-          {errorMessage && (
-            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 flex items-center gap-2.5 text-xs text-rose-700 dark:text-rose-400">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{errorMessage}</span>
-            </div>
-          )}
+        {/* Form Container */}
+        <form onSubmit={handleRegister} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          {/* Scrollable Form Body */}
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 min-h-0 text-xs">
+            {/* Feedback Messages */}
+            {errorMessage && (
+              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 flex items-center gap-2.5 text-xs text-rose-700 dark:text-rose-400">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
 
           {successMessage && (
             <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 flex items-center gap-2.5 text-xs text-emerald-700 dark:text-emerald-400 font-bold">
@@ -225,18 +229,18 @@ export const AdminCreateAdminModal: React.FC<AdminCreateAdminModalProps> = ({
               <input
                 type="text"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="ex: Carlos@Master ou Gestor#Vagou"
+                onChange={(e) => setUsername(e.target.value.replace(/^@+/, ''))}
+                placeholder="ex: Anderson@, jOse#, pauLa**"
                 required
                 className={`w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 text-xs focus:outline-none focus:ring-1 transition shadow-xs dark:shadow-none ${
-                  username
+                  cleanUsername
                     ? isUsernameValid
                       ? 'border-emerald-500/70 focus:border-emerald-500 focus:ring-emerald-500'
                       : 'border-amber-500/70 focus:border-amber-500 focus:ring-amber-500'
                     : 'border-slate-300 dark:border-slate-800 focus:border-emerald-500 focus:ring-emerald-500'
                 }`}
               />
-              {username && isUsernameValid && (
+              {cleanUsername && isUsernameValid && (
                 <div className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-600 dark:text-emerald-400">
                   <CheckCircle2 className="w-4 h-4" />
                 </div>
@@ -388,8 +392,10 @@ export const AdminCreateAdminModal: React.FC<AdminCreateAdminModalProps> = ({
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2.5">
+          </div>
+
+          {/* Fixed Footer Actions */}
+          <div className="shrink-0 p-4 px-5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex items-center justify-end gap-2.5">
             <button
               type="button"
               onClick={() => {
@@ -418,6 +424,7 @@ export const AdminCreateAdminModal: React.FC<AdminCreateAdminModalProps> = ({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

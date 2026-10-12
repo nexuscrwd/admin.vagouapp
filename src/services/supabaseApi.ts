@@ -1298,17 +1298,17 @@ export async function recoverAdminAccess(
         return {
           success: true,
           type: 'password_reset_success',
-          message: `Senha do administrador @${a.username} redefinida com sucesso! Você já pode realizar o login.`,
-          admin_username: a.username,
+          message: `Senha do administrador ${a.username.replace(/^@+/, '')} redefinida com sucesso! Você já pode realizar o login.`,
+          admin_username: a.username.replace(/^@+/, ''),
         };
       }
       return {
         success: true,
         type: 'password_user_verified',
         admin_found: true,
-        username: a.username,
+        username: a.username.replace(/^@+/, ''),
         full_name: a.full_name,
-        message: `Administrador @${a.username} localizado. Informe a nova senha.`,
+        message: `Administrador ${a.username.replace(/^@+/, '')} localizado. Informe a nova senha.`,
       };
     }
   } catch {}
@@ -1344,7 +1344,10 @@ export async function fetchSystemAdmins(): Promise<SystemAdminUser[]> {
     if (text && text.trim().startsWith('{')) {
       const json = JSON.parse(text);
       if (resp.ok && json.success && Array.isArray(json.admins)) {
-        return json.admins;
+        return json.admins.map((a: any) => ({
+          ...a,
+          password: a.password_hash || a.password || 'Admin@2026!',
+        }));
       }
     }
   } catch {}
@@ -1353,11 +1356,14 @@ export async function fetchSystemAdmins(): Promise<SystemAdminUser[]> {
   try {
     const { data, error } = await supabase
       .from('system_admins')
-      .select('id, full_name, username, email, phone_whatsapp, role, is_active, avatar_url, last_login_at, created_at')
+      .select('id, full_name, username, email, phone_whatsapp, role, is_active, avatar_url, password_hash, last_login_at, created_at')
       .order('created_at', { ascending: false });
 
     if (!error && Array.isArray(data)) {
-      return data as SystemAdminUser[];
+      return data.map((a: any) => ({
+        ...a,
+        password: a.password_hash || a.password || 'Admin@2026!',
+      })) as SystemAdminUser[];
     }
   } catch {}
 
@@ -2037,21 +2043,65 @@ export async function unlinkProfessionalFromSalon(professionalId: string, _salon
   }
 }
 
-// 6. Promover / Alterar Papel de Administrador
-export async function updateAdminRole(adminId: string, newRole: SystemAdminUser['role']): Promise<{ success: boolean }> {
+// 6. Promover / Alterar Papel ou Atualizar Dados e Senha de Administrador
+export async function updateAdminUser(
+  adminId: string,
+  updates: Partial<SystemAdminUser> & { password?: string; password_hash?: string }
+): Promise<{ success: boolean; admin?: SystemAdminUser; error?: string }> {
+  const dbUpdates: any = { ...updates };
+  if (dbUpdates.password) {
+    dbUpdates.password_hash = dbUpdates.password;
+    delete dbUpdates.password;
+  }
+
+  // 1. Tenta atualizar via rota Express com Service Role (supabaseAdmin)
   try {
-    const { error } = await supabase
+    const resp = await fetch(`/api/admin/system-admins/${adminId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    const text = await resp.text();
+    if (text && text.trim().startsWith('{')) {
+      const json = JSON.parse(text);
+      if (resp.ok && json.success) {
+        return { success: true, admin: json.admin };
+      }
+      if (json.error) {
+        return { success: false, error: json.error };
+      }
+    }
+  } catch (apiErr) {
+    console.warn('[updateAdminUser] Falha na rota Express, tentando fallback direto no Supabase:', apiErr);
+  }
+
+  // 2. Fallback via client Supabase (se RLS permitir)
+  try {
+    const { data, error } = await supabase
       .from('system_admins')
-      .update({ role: newRole })
-      .eq('id', adminId);
+      .update(dbUpdates)
+      .eq('id', adminId)
+      .select()
+      .single();
 
     if (error) {
-      console.warn('[Supabase Admin] Falha ao atualizar papel do admin:', error);
+      console.warn('[Supabase Admin] Falha ao atualizar dados do admin:', error);
+      return { success: false, error: error.message };
     }
-    return { success: true };
-  } catch (err) {
-    console.warn('[Supabase Admin] Atualizando papel do admin em memória:', err);
-    return { success: true };
+
+    const updatedAdmin = data ? {
+      ...data,
+      password: data.password_hash || dbUpdates.password_hash || 'Admin@2026!',
+    } : undefined;
+
+    return { success: true, admin: updatedAdmin as SystemAdminUser };
+  } catch (err: any) {
+    console.warn('[Supabase Admin] Erro ao atualizar admin:', err);
+    return { success: false, error: err?.message || 'Erro de comunicação ao salvar.' };
   }
+}
+
+export async function updateAdminRole(adminId: string, newRole: SystemAdminUser['role']): Promise<{ success: boolean }> {
+  return updateAdminUser(adminId, { role: newRole });
 }
 

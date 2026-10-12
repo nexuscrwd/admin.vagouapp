@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Building2,
@@ -469,8 +470,8 @@ export const AdminCreateSalonModal: React.FC<AdminCreateSalonModalProps> = ({
     onClose();
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-xs animate-fadeIn overflow-y-auto">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
       <div
         className={`w-full ${
           step === 'user_check'
@@ -480,7 +481,7 @@ export const AdminCreateSalonModal: React.FC<AdminCreateSalonModalProps> = ({
             : step === 'success_links'
             ? 'max-w-xl'
             : 'max-w-2xl'
-        } bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden transition-all duration-200`}
+        } bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[92vh] my-auto overflow-hidden transition-all duration-200`}
       >
         {/* Header */}
         <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/90">
@@ -1162,7 +1163,7 @@ export const AdminCreateSalonModal: React.FC<AdminCreateSalonModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-800 bg-slate-950/90 flex items-center justify-between gap-3 sticky bottom-0 z-10">
+        <div className="shrink-0 p-4 border-t border-slate-800 bg-slate-950 flex items-center justify-between gap-3">
           {step === 'user_check' ? (
             <button
               type="button"
@@ -1265,6 +1266,7 @@ export const AdminCreateSalonModal: React.FC<AdminCreateSalonModalProps> = ({
           setFormData((prev) => ({ ...prev, category: newCat.slug as any }));
         }}
       />
-    </div>
+    </div>,
+    document.body
   );
 };

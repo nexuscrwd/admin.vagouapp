@@ -23,6 +23,7 @@ interface AdminHeaderProps {
   adminUser?: SystemAdminUser | null;
   onOpenAuthModal?: (tab?: AdminAuthTab) => void;
   onLogout?: () => void;
+  onNavigateScreen?: (screen: AdminScreenId) => void;
 }
 
 export const AdminHeader: React.FC<AdminHeaderProps> = ({
@@ -35,6 +36,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
   adminUser,
   onOpenAuthModal,
   onLogout,
+  onNavigateScreen,
 }) => {
   const { isDark, toggleTheme } = useTheme();
 
@@ -128,9 +130,13 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
         {adminUser ? (
           <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-800">
             <button
-              onClick={() => onOpenAuthModal && onOpenAuthModal('login')}
+              onClick={() => {
+                if (onNavigateScreen) {
+                  onNavigateScreen('users');
+                }
+              }}
               className="flex items-center gap-2 hover:opacity-90 transition cursor-pointer text-left"
-              title="Gerenciar Sessão de Administrador"
+              title="Ir para Gerenciamento de Usuários"
             >
               <UserAvatar
                 name={adminUser.full_name}
@@ -141,7 +147,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
                 <span className="text-xs font-bold text-slate-900 dark:text-white block leading-tight truncate max-w-[120px]">
                   {adminUser.full_name.split(' ')[0]}
                 </span>
-                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block font-mono">@{adminUser.username}</span>
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block font-mono">{adminUser.username.replace(/^@+/, '')}</span>
               </div>
             </button>
 

@@ -218,6 +218,24 @@ O uso de caixas/cards pesados (`bg-slate-900 border border-slate-800 rounded-2xl
    - Permite que o formulário renderize como uma extensão natural de qualquer modal anfitrião no ecossistema sem discrepância de cor de fundo ou molduras sobrepostas.
    - Detecção síncrona de `?embed=true` para aplicação imediata de transparência no `document.documentElement` e `document.body`.
 
+---
+
+## 🖼️ 14. Padrão Arquitetural da Galeria de Mídias em 3 Abas & Governança SQL (Dual-Mode)
+
+### O Problema Resolvido:
+A dispersão de fotos de serviços, fotos de equipe e fotos do espaço em locais isolados complicava o cadastro dos estabelecimentos e exigia múltiplos uploads da mesma imagem. Além disso, ao atualizar schemas em bancos de dados reais já em produção, um script com `DROP TABLE` destruiria dados existentes, enquanto novos ambientes necessitam de um arquivo unificado completo com seeds prontos.
+
+### A Solução Padronizada:
+1. **Acervo Central em 3 Abas Soberanas (`salon_media_items`):**
+   - **Fotos:** Sub-abas `Serviços`, `Profissionais` e `Espaço`.
+   - **Vídeos:** Sub-abas `Serviços` e `Espaço` (vídeos de 5 segundos / MB equivalente).
+   - **Imagens:** Sub-abas `Banner` (cabeçalho oficial do app) e `Logotipo` (marca do app).
+   - Ações de 1 clique para definir Banner Capa e Logotipo do estabelecimento.
+   - Vínculo direto de mídias aos procedimentos na tabela `services` (`photos`, `videos`, `slides`).
+2. **Estratégia Dual-Mode de SQL:**
+   - **Opção 1 (`/supabase/migrations/20261012_media_gallery_and_services.sql`):** Migração incremental idempotente com `ALTER TABLE ADD COLUMN IF NOT EXISTS`, migração de dados legados (`name` ⇄ `title`, `cover_image_url` ⇄ `cover_url`), `CREATE TABLE IF NOT EXISTS public.salon_media_items`, triggers, RLS e seeds não destrutivos via `NOT EXISTS`.
+   - **Opção 2 (`/supabase_schema.sql`):** Schema mestre consolidado v2.2.0 que orquestra a limpeza ordenada, criação de 100% das tabelas da Tríade (`salons`, `professionals`, `services`, `salon_media_items`, `service_offers`, `appointments`, `system_admins`, `admin_access_logs`, etc.), triggers, políticas de segurança completas e seeds demonstrativos ricos em mídias reais.
+
 
 
 

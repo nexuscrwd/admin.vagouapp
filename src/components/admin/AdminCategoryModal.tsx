@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Tag,
@@ -146,9 +147,9 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-xs animate-fadeIn overflow-y-auto">
-      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
+      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col my-auto max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/90">
           <div className="flex items-center gap-2.5">
@@ -344,7 +345,7 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-3.5 bg-slate-950/80 border-t border-slate-800 flex items-center justify-between text-xs">
+        <div className="shrink-0 p-3.5 bg-slate-950/90 border-t border-slate-800 flex items-center justify-between text-xs">
           <span className="text-slate-500 text-[11px]">
             Sincronizado com os formulários de cadastro e filtros de catálogo.
           </span>
@@ -357,6 +358,7 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

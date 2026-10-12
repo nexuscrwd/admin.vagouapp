@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   LayoutGrid,
   List,
@@ -775,8 +776,8 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
           )}
 
           {/* MODAL: Confirmação de Exclusão Individual */}
-          {salonToDelete && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-950/80 backdrop-blur-xs animate-fadeIn">
+          {salonToDelete && createPortal(
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
               <div className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4 relative">
                 <div className="flex items-start justify-between gap-3 text-rose-600 dark:text-rose-400">
                   <div className="flex items-center gap-3">
@@ -823,12 +824,13 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                   </button>
                 </div>
               </div>
-            </div>
+            </div>,
+            document.body
           )}
 
           {/* MODAL: Confirmação de Exclusão em Massa */}
-          {isBulkDeleting && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-950/80 backdrop-blur-xs animate-fadeIn">
+          {isBulkDeleting && createPortal(
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
               <div className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4 relative">
                 <div className="flex items-start justify-between gap-3 text-rose-600 dark:text-rose-400">
                   <div className="flex items-center gap-3">
@@ -875,12 +877,13 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                   </button>
                 </div>
               </div>
-            </div>
+            </div>,
+            document.body
           )}
 
           {/* Modal Dedicado Desvinculado para Cadastro de Profissional / Estabelecimento */}
-          {isProfessionalRegistrationOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn overflow-y-auto">
+          {isProfessionalRegistrationOpen && createPortal(
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
               <div className="w-full max-w-xl bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl relative my-auto max-h-[92vh] overflow-y-auto">
                 <UnifiedRegistrationForm
                   initialType="professional"
@@ -892,7 +895,8 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                   }}
                 />
               </div>
-            </div>
+            </div>,
+            document.body
           )}
 
           {/* Modal de Gestão e Criação de Categorias */}

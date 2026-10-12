@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   ShieldCheck,
@@ -116,7 +117,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
       setErrorMessage(
         recoveryType === 'access_data'
           ? 'Informe seu E-mail ou Cel./WhatsApp cadastrado.'
-          : 'Informe seu Nome de usuário (@) ou E-mail corporativo.'
+          : 'Informe seu Nome de usuário ou E-mail corporativo.'
       );
       return;
     }
@@ -162,10 +163,10 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
     }
   };
 
-  return (
+  return createPortal(
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto ${
-        isGate ? 'bg-slate-950' : 'bg-slate-950/80 backdrop-blur-xs animate-fadeIn'
+      className={`fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto ${
+        isGate ? 'bg-slate-950' : 'bg-slate-950/80 backdrop-blur-md animate-fadeIn'
       }`}
     >
       <div
@@ -373,7 +374,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                 {recoveryType === 'access_data'
                   ? 'E-mail corporativo ou Cel./WhatsApp cadastrado'
-                  : 'Nome de usuário (@) ou E-mail corporativo'}
+                  : 'Nome de usuário ou E-mail corporativo'}
               </label>
               <div className="flex items-center bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl px-3.5 py-2.5 focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500 shadow-xs dark:shadow-none transition">
                 {recoveryType === 'access_data' ? (
@@ -477,6 +478,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
           </form>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

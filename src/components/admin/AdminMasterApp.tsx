@@ -20,9 +20,8 @@ import {
 } from '../../types/admin';
 import { AdminSidebar } from './AdminSidebar';
 import { AdminHeader } from './AdminHeader';
-import { AdminKpiCards } from './AdminKpiCards';
+import { AdminHomeScreen } from './AdminHomeScreen';
 import { AdminSalonsList } from './AdminSalonsList';
-import { AdminModerationPanel } from './AdminModerationPanel';
 import { AdminEditSalonModal } from './AdminEditSalonModal';
 import { AdminCreateSalonModal } from './AdminCreateSalonModal';
 import { AdminAppointmentsMonitor } from './AdminAppointmentsMonitor';
@@ -33,7 +32,6 @@ import { AdminAuthModal } from './AdminAuthModal';
 import { AdminCreateAdminModal } from './AdminCreateAdminModal';
 import { AdminPortalManager } from './AdminPortalManager';
 import { AdminCategoryModal } from './AdminCategoryModal';
-import { ArrowRight, Plus, UserPlus } from 'lucide-react';
 
 export const AdminMasterApp: React.FC = () => {
   const [currentScreen, setCurrentScreen] = useState<AdminScreenId>('dashboard');
@@ -268,109 +266,21 @@ export const AdminMasterApp: React.FC = () => {
           adminUser={adminUser}
           onOpenAuthModal={handleOpenAuthModal}
           onLogout={handleLogout}
+          onNavigateScreen={setCurrentScreen}
         />
 
         {/* Scrollable View Container */}
         <main className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
-          {/* SCREEN: DASHBOARD */}
+          {/* SCREEN: HOME / INÍCIO (PÁGINA INICIAL COM MÓDULOS EM CARDS) */}
           {currentScreen === 'dashboard' && (
-            <div className="space-y-6">
-              <AdminKpiCards metrics={metrics} onNavigateScreen={setCurrentScreen} />
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Moderation Fast Action */}
-                <div className="lg:col-span-2 p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 shadow-xs dark:shadow-md">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h2 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">
-                        Fila Rápida de Moderação
-                      </h2>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        {metrics.pendingSalons + metrics.incompleteSalons} salões aguardando liberação
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setCurrentScreen('salons')}
-                      className="text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 font-bold flex items-center gap-1 transition cursor-pointer"
-                    >
-                      <span>Ver fila completa</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  <AdminModerationPanel
-                    salons={salons}
-                    onEditSalon={handleEditSalon}
-                    onUpdateStatus={handleUpdateStatus}
-                    limit={3}
-                  />
-                </div>
-
-                {/* Direct Actions & Quick Links */}
-                <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 flex flex-col justify-between shadow-xs dark:shadow-md">
-                  <div>
-                    <h2 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">Ações Executivas</h2>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Gestão imediata do cluster</p>
-
-                    <div className="mt-4 space-y-2.5">
-                      <button
-                        onClick={() => setIsCreateModalOpen(true)}
-                        className="w-full py-2.5 px-3 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-emerald-500/20 active:scale-95"
-                      >
-                        <Plus className="w-4 h-4 text-white" />
-                        <span>Cadastrar</span>
-                      </button>
-
-                      <button
-                        onClick={() => setCurrentScreen('settings')}
-                        className="w-full py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800/90 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 font-semibold text-xs transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer border border-slate-200 dark:border-slate-700/70 hover:border-slate-300 dark:hover:border-slate-600 shadow-xs dark:shadow-none active:scale-[0.99]"
-                      >
-                        <span>Painel de Configurações & Tríade</span>
-                      </button>
-
-                      <button
-                        onClick={() => setIsCreateAdminModalOpen(true)}
-                        className="w-full py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800/90 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 font-semibold text-xs transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer border border-slate-200 dark:border-slate-700/70 hover:border-slate-300 dark:hover:border-slate-600 shadow-xs dark:shadow-none active:scale-[0.99]"
-                      >
-                        <UserPlus className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                        <span>Cadastrar Novo Administrador</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400">
-                    <strong className="text-slate-900 dark:text-white block mb-1">Status do Cluster Supabase</strong>
-                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">Bypass RLS Soberano • 100% Operacional</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Salons Table Quick Preview */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-bold text-slate-900 dark:text-white">Todos os Estabelecimentos Cadastrados</h2>
-                  <button
-                    onClick={() => setCurrentScreen('salons')}
-                    className="text-xs text-emerald-600 dark:text-emerald-400 font-bold hover:underline cursor-pointer"
-                  >
-                    Gerenciar todos ({salons.length})
-                  </button>
-                </div>
-                <AdminSalonsList
-                  salons={salons}
-                  onEditSalon={handleEditSalon}
-                  onUpdateStatus={handleUpdateStatus}
-                  onBulkUpdateStatus={handleBulkUpdateStatus}
-                  onDeleteSalon={handleDeleteSalon}
-                  onBulkDeleteSalons={handleBulkDeleteSalons}
-                  onOpenNewSalon={() => setIsCreateModalOpen(true)}
-                  searchQuery={searchQuery}
-                  onSearchChange={setSearchQuery}
-                  selectedSalonDetail={selectedSalonForDetail}
-                  onSelectSalonDetail={setSelectedSalonForDetail}
-                />
-              </div>
-            </div>
+            <AdminHomeScreen
+              metrics={metrics}
+              salons={salons}
+              onNavigateScreen={setCurrentScreen}
+              onOpenCreateSalon={() => setIsCreateModalOpen(true)}
+              onOpenCreateAdmin={() => setIsCreateAdminModalOpen(true)}
+              onOpenSalonDetail={handleOpenSalonDetail}
+            />
           )}
 
           {/* SCREEN: PORTAL VAPP (Gestão e Criação de Estabelecimentos do Portal) */}

@@ -140,6 +140,7 @@ export interface SystemAdminUser {
   avatar_url?: string;
   created_at?: string;
   last_login_at?: string;
+  password?: string;
 }
 
 export type AdminAuthTab = 'login' | 'recovery';
@@ -270,5 +271,30 @@ export interface UserProfessionalItem {
   total_services_done: number;
   rating: number;
   created_at: string;
+}
+
+export interface SalonServiceMediaItem {
+  id: string;
+  url: string;
+  title?: string;
+  duration_seconds?: number;
+}
+
+// Procedimento / Serviço do Estabelecimento (Tabela 'services' da Tríade)
+export interface SalonServiceRecord {
+  id: string;
+  salon_id: string;
+  name: string;
+  description?: string;
+  category: string;
+  price: number;
+  duration_minutes: number;
+  is_active: boolean;
+  target_audience?: 'all' | 'men' | 'women' | 'kids';
+  order_index?: number;
+  created_at?: string;
+  photos?: string[];
+  videos?: SalonServiceMediaItem[];
+  slides?: string[]; // Slide com limite de 5 imagens
 }
 
