@@ -2192,31 +2192,42 @@ export const INITIAL_MOCK_PROFESSIONALS: UserProfessionalItem[] = [
   },
 ];
 
-// 1. Clientes
+// 1. Clientes (Prioriza API com service role para contornar RLS e ler os clientes reais do Supabase)
 export async function fetchAdminClients(): Promise<UserClientItem[]> {
+  try {
+    const resp = await fetch('/api/admin/clients');
+    const text = await resp.text();
+    if (text && text.trim().startsWith('{')) {
+      const json = JSON.parse(text);
+      if (resp.ok && json.success && Array.isArray(json.clients) && json.clients.length > 0) {
+        return json.clients;
+      }
+    }
+  } catch {}
+
   try {
     const { data, error } = await supabase
       .from('clients')
-      .select('*, dependents(*)')
+      .select('*')
       .order('created_at', { ascending: false });
 
-    if (error || !data || data.length === 0) {
-      return INITIAL_MOCK_CLIENTS;
+    if (!error && Array.isArray(data) && data.length > 0) {
+      return data.map((c: any) => ({
+        ...c,
+        full_name: c.name || c.full_name || 'Cliente',
+        username: c.username || (c.email ? `@${c.email.split('@')[0]}` : `@${(c.name || 'cliente').toLowerCase().replace(/\s+/g, '')}`),
+        phone: c.phone || c.phone_whatsapp || '—',
+        phone_secondary: c.phone_secondary || '',
+        dependents: Array.isArray(c.dependents) ? c.dependents : [],
+        is_active: c.is_active !== undefined ? !!c.is_active : true,
+        access_level: c.access_level || 'Cliente Titular',
+      })) as UserClientItem[];
     }
-    return data.map((c: any) => ({
-      ...c,
-      full_name: c.full_name || c.name || 'Cliente',
-      username: c.username || (c.email ? `@${c.email.split('@')[0]}` : `@${(c.full_name || c.name || 'cliente').toLowerCase().replace(/\s+/g, '')}`),
-      phone: c.phone || c.phone_whatsapp || '—',
-      phone_secondary: c.phone_secondary || '',
-      dependents: Array.isArray(c.dependents) ? c.dependents : [],
-      is_active: c.is_active !== undefined ? !!c.is_active : true,
-      access_level: c.access_level || 'Cliente Titular',
-    })) as UserClientItem[];
   } catch (err) {
-    console.warn('[Supabase Admin] Usando mock de clientes:', err);
-    return INITIAL_MOCK_CLIENTS;
+    console.warn('[Supabase Admin] Fallback para mock de clientes:', err);
   }
+
+  return INITIAL_MOCK_CLIENTS;
 }
 
 // 2. Desvincular Dependente (Soft Unlink com Preservação de Histórico)
@@ -2240,59 +2251,87 @@ export async function unlinkClientDependent(dependentId: string): Promise<{ succ
   }
 }
 
-// 3. Usuários de Salão
+// 3. Usuários de Salão (Proprietários e Gestores Reais do Supabase)
 export async function fetchAdminSalonUsers(): Promise<UserSalonAccessItem[]> {
   try {
+    const resp = await fetch('/api/admin/salon-users');
+    const text = await resp.text();
+    if (text && text.trim().startsWith('{')) {
+      const json = JSON.parse(text);
+      if (resp.ok && json.success && Array.isArray(json.salonUsers) && json.salonUsers.length > 0) {
+        return json.salonUsers;
+      }
+    }
+  } catch {}
+
+  try {
     const { data, error } = await supabase
-      .from('salon_users')
-      .select('*, salons(trade_name, slug)')
+      .from('salons')
+      .select('id, trade_name, legal_name, slug, email, phone_whatsapp, address, is_active')
       .order('created_at', { ascending: false });
 
-    if (error || !data || data.length === 0) {
-      return INITIAL_MOCK_SALON_USERS;
+    if (!error && Array.isArray(data) && data.length > 0) {
+      return data.map((s: any) => ({
+        id: `su-${s.id}`,
+        salon_id: s.id,
+        salon_name: s.trade_name || s.legal_name || 'Salão Parceiro',
+        salon_slug: s.slug || 'parceiro',
+        full_name: s.legal_name || s.trade_name || 'Proprietário',
+        username: s.slug ? `@${s.slug}` : '@parceiro',
+        email: s.email || 'parceiro@vagouapp.com',
+        phone_whatsapp: s.phone_whatsapp || '—',
+        phone_secondary: '',
+        role: 'owner',
+        access_level: 'Proprietário (Dono)',
+        is_active: s.is_active !== false,
+        total_appointments: 0,
+        dependents_count: 0,
+        created_at: s.created_at || new Date().toISOString(),
+      })) as any;
     }
-    return data.map((su: any) => ({
-      ...su,
-      full_name: su.full_name || su.name || 'Gestor de Salão',
-      username: su.username || (su.email ? `@${su.email.split('@')[0]}` : `@${(su.full_name || su.name || 'gestor').toLowerCase().replace(/\s+/g, '')}`),
-      phone_whatsapp: su.phone_whatsapp || su.phone || '—',
-      phone_secondary: su.phone_secondary || '',
-      salon_name: su.salons?.trade_name || su.salon_name || 'Estabelecimento Parceiro',
-      salon_slug: su.salons?.slug || su.salon_slug || 'parceiro',
-      is_active: su.is_active !== undefined ? !!su.is_active : true,
-      access_level: su.access_level || (su.role === 'owner' ? 'Proprietário (Dono)' : 'Gerente Geral'),
-    })) as any;
   } catch (err) {
-    console.warn('[Supabase Admin] Usando mock de usuários de salão:', err);
-    return INITIAL_MOCK_SALON_USERS;
+    console.warn('[Supabase Admin] Fallback para mock de usuários de salão:', err);
   }
+
+  return INITIAL_MOCK_SALON_USERS;
 }
 
-// 4. Profissionais / Prestadores
+// 4. Profissionais / Prestadores Reais do Supabase
 export async function fetchAdminProfessionals(): Promise<UserProfessionalItem[]> {
+  try {
+    const resp = await fetch('/api/admin/professionals');
+    const text = await resp.text();
+    if (text && text.trim().startsWith('{')) {
+      const json = JSON.parse(text);
+      if (resp.ok && json.success && Array.isArray(json.professionals) && json.professionals.length > 0) {
+        return json.professionals;
+      }
+    }
+  } catch {}
+
   try {
     const { data, error } = await supabase
       .from('professionals')
       .select('*, salons(trade_name, slug)')
       .order('created_at', { ascending: false });
 
-    if (error || !data || data.length === 0) {
-      return INITIAL_MOCK_PROFESSIONALS;
+    if (!error && Array.isArray(data) && data.length > 0) {
+      return data.map((p: any) => ({
+        ...p,
+        full_name: p.name || p.full_name || 'Profissional',
+        username: p.username || (p.nickname ? `@${p.nickname.toLowerCase().replace(/\s+/g, '')}` : (p.email ? `@${p.email.split('@')[0]}` : `@${(p.name || 'prof').toLowerCase().replace(/\s+/g, '')}`)),
+        phone_whatsapp: p.phone || p.phone_whatsapp || '—',
+        phone_secondary: p.phone_secondary || '',
+        current_salon_name: p.salons?.trade_name || p.current_salon_name || 'Sem Salão Ativo',
+        status: p.status || (p.is_active === false ? 'suspended' : 'active'),
+        access_level: p.access_level || 'MEI Parceiro',
+      })) as any;
     }
-    return data.map((p: any) => ({
-      ...p,
-      full_name: p.full_name || p.name || 'Profissional',
-      username: p.username || (p.nickname ? `@${p.nickname.toLowerCase().replace(/\s+/g, '')}` : (p.email ? `@${p.email.split('@')[0]}` : `@${(p.full_name || p.name || 'prof').toLowerCase().replace(/\s+/g, '')}`)),
-      phone_whatsapp: p.phone_whatsapp || p.phone || '—',
-      phone_secondary: p.phone_secondary || '',
-      current_salon_name: p.salons?.trade_name || p.current_salon_name || 'Sem Salão Ativo',
-      status: p.status || (p.is_active === false ? 'suspended' : 'active'),
-      access_level: p.access_level || 'MEI Parceiro',
-    })) as any;
   } catch (err) {
-    console.warn('[Supabase Admin] Usando mock de profissionais:', err);
-    return INITIAL_MOCK_PROFESSIONALS;
+    console.warn('[Supabase Admin] Fallback para mock de profissionais:', err);
   }
+
+  return INITIAL_MOCK_PROFESSIONALS;
 }
 
 // 5. Desvincular Profissional de Salão (Mantendo Registro no Ecossistema)

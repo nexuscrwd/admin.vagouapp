@@ -1164,6 +1164,129 @@ async function startServer() {
     }
   });
 
+  // ADMIN: List all Clients (bypasses RLS with service role)
+  app.get('/api/admin/clients', async (req, res) => {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('clients')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('[GET /api/admin/clients] Supabase error:', error.message);
+        return res.status(400).json({ success: false, error: error.message });
+      }
+
+      const clients = (data || []).map((c: any) => ({
+        ...c,
+        full_name: c.name || c.full_name || 'Cliente',
+        username: c.username || (c.email ? `@${c.email.split('@')[0]}` : `@${(c.name || 'cliente').toLowerCase().replace(/\s+/g, '')}`),
+        phone: c.phone || c.phone_whatsapp || '—',
+        phone_secondary: c.phone_secondary || '',
+        dependents: Array.isArray(c.dependents) ? c.dependents : [],
+        is_active: c.is_active !== undefined ? !!c.is_active : true,
+        access_level: c.access_level || 'Cliente Titular',
+      }));
+
+      return res.json({ success: true, clients });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // ADMIN: List all Professionals (bypasses RLS with service role)
+  app.get('/api/admin/professionals', async (req, res) => {
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('professionals')
+        .select('*, salons(trade_name, slug)')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('[GET /api/admin/professionals] Supabase error:', error.message);
+        return res.status(400).json({ success: false, error: error.message });
+      }
+
+      const professionals = (data || []).map((p: any) => ({
+        ...p,
+        full_name: p.name || p.full_name || 'Profissional',
+        username: p.username || (p.nickname ? `@${p.nickname.toLowerCase().replace(/\s+/g, '')}` : (p.email ? `@${p.email.split('@')[0]}` : `@${(p.name || 'prof').toLowerCase().replace(/\s+/g, '')}`)),
+        phone_whatsapp: p.phone || p.phone_whatsapp || '—',
+        phone_secondary: p.phone_secondary || '',
+        current_salon_name: p.salons?.trade_name || p.current_salon_name || 'Sem Salão Ativo',
+        current_salon_slug: p.salons?.slug || p.current_salon_slug || '',
+        status: p.status || (p.is_active === false ? 'suspended' : 'active'),
+        access_level: p.access_level || 'MEI Parceiro',
+      }));
+
+      return res.json({ success: true, professionals });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // ADMIN: List all Salon Users / Owners (bypasses RLS with service role)
+  app.get('/api/admin/salon-users', async (req, res) => {
+    try {
+      const [
+        { data: salons },
+        { data: authUsersResp },
+      ] = await Promise.all([
+        supabaseAdmin.from('salons').select('id, trade_name, legal_name, slug, owner_id, email, phone_whatsapp, address, street_number, complement, neighborhood, city, state, cep, is_active').order('created_at', { ascending: false }),
+        supabaseAdmin.auth.admin.listUsers(),
+      ]);
+
+      const authUsersMap = new Map<string, any>();
+      (authUsersResp?.users || []).forEach((u: any) => {
+        authUsersMap.set(u.id, u);
+        if (u.email) authUsersMap.set(u.email.toLowerCase(), u);
+      });
+
+      const salonUsers: any[] = [];
+      (salons || []).forEach((s: any) => {
+        const authUser = (s.owner_id && authUsersMap.get(s.owner_id)) || (s.email && authUsersMap.get(s.email.toLowerCase())) || null;
+        const meta = authUser?.user_metadata || {};
+        const fullName = meta.full_name || meta.name || s.legal_name || s.trade_name || 'Proprietário';
+        const email = authUser?.email || s.email || 'parceiro@vagouapp.com';
+        const phone = meta.phone || s.phone_whatsapp || '—';
+        const rawUsername = meta.username || (email ? email.split('@')[0] : s.slug);
+        const username = rawUsername.startsWith('@') ? rawUsername : `@${rawUsername}`;
+
+        salonUsers.push({
+          id: `su-${s.id}`,
+          salon_id: s.id,
+          salon_name: s.trade_name || s.legal_name || 'Salão Parceiro',
+          salon_slug: s.slug || 'parceiro',
+          full_name: fullName,
+          username,
+          email,
+          phone_whatsapp: phone,
+          phone_secondary: '',
+          cpf: meta.cpf || s.document_number || '',
+          role: 'owner',
+          access_level: 'Proprietário (Dono)',
+          is_active: s.is_active !== false,
+          address: s.address || '',
+          street_number: s.street_number || '',
+          complement: s.complement || '',
+          neighborhood: s.neighborhood || '',
+          city: s.city || 'São Paulo',
+          state: s.state || 'SP',
+          cep: s.cep || '',
+          can_manage_financial: true,
+          can_manage_professionals: true,
+          total_appointments: 0,
+          dependents_count: 0,
+          created_at: s.created_at || new Date().toISOString(),
+        });
+      });
+
+      return res.json({ success: true, salonUsers });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // ADMIN: List all Salons (bypasses RLS with service role)
   app.get('/api/admin/salons', async (req, res) => {
     try {

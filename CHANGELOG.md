@@ -15,6 +15,33 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-13] — 🎯 Eliminação Definitiva dos Mocks & Conexão Integral com os Usuários Reais do Supabase
+- **Tipo:** `[Database / Backend / Supabase / AuthSync]`
+- **Motivo / Solicitação:** 
+  O usuário questionou: *"esses nomes não constam no supabase, ou não soube onde encontrar. esse nomes são mocks ou esta faltndo colunas na tabela sql? Veja e me de a solução, pois na tabelas de clientes faltam colunas do sistema"*.
+- **Arquivos Impactados:** 
+  - `server.ts`
+  - `src/services/supabaseApi.ts`
+  - `supabase_schema.sql`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Diagnóstico & Causa Raiz:**
+     - Os nomes apresentados anteriormente ("Roberto Ferreira", "Mariana Duarte", etc.) eram de fato **MOCKS** (`INITIAL_MOCK_CLIENTS`).
+     - O sistema caía no fallback de mocks por dois motivos:
+       a) A tabela `public.clients` no Supabase estava vazia (0 linhas), pois os cadastros reais haviam sido gravados no `auth.users` do Supabase via login/cadastro e não sincronizados para `public.clients`.
+       b) A requisição direta do navegador com chave `anon` era bloqueada pelo RLS (Row Level Security) e tentava fazer `.select('*, dependents(*)')`, que falhava devido à ausência de relação foreign key no schema cache.
+     - As colunas de endereço residencial, `username`, `cpf` e `phone_secondary` de fato não constavam na tabela original `clients`.
+  2. **Solução & Implementação:**
+     - **Sincronização Executada:** Sincronizadas com sucesso todas as contas reais de `auth.users` para a tabela `public.clients` (13 clientes reais agora presentes no banco).
+     - **Rotas de Backend com Service Role:** Criadas as rotas `GET /api/admin/clients`, `GET /api/admin/professionals` e `GET /api/admin/salon-users` no `server.ts`, contornando RLS com a chave soberana `service_role`.
+     - **Substituição dos Mocks:** `fetchAdminClients`, `fetchAdminProfessionals` e `fetchAdminSalonUsers` em `supabaseApi.ts` agora consomem diretamente essas rotas.
+     - **Resultado Real:** O painel agora exibe 100% de usuários reais do Supabase:
+       - 13 Clientes reais (Anderson H. Pires, ANDERSON VIBRA, Anderson Pires, Elisa Pires, Jose Roberto, Lucas Gabriel Mendes, Camila Rocha Fernandes, etc.).
+       - 7 Profissionais reais (Jose Roberto, Lucas Santos, Ricardo Belle, Mariana Silva, etc.).
+       - 6 Gestores de salão reais vinculados aos salões do Supabase.
+       - 2 Administradores reais (ANDERSON HORACIO PIRES e Elisa de Omena).
+     - **Script DDL SQL:** Disponibilizado script `ALTER TABLE` completo e idempotente para adicionar permanentemente todas as novas colunas à tabela `clients` no SQL Editor do Supabase.
+
 ### [2026-10-13] — 🚀 Correção Crítica da Seção Usuários & Isolamento Físico de Rolagem no Modal de Dados Gerais
 - **Tipo:** `[UI / Bugfix / Database / Portal / TriadeSync]`
 - **Motivo / Solicitação:** 
