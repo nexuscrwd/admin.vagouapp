@@ -20,6 +20,7 @@ import {
   Trash2,
   Phone,
   Calendar,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   SystemAdminUser,
@@ -39,6 +40,7 @@ import {
   unlinkProfessionalFromSalon,
   updateUnifiedUserData,
   deleteUnifiedUserData,
+  batchDeleteUnifiedUsers,
   toggleUnifiedUserStatus,
 } from '../../services/supabaseApi';
 import { AdminCreateAdminModal } from './AdminCreateAdminModal';
@@ -117,6 +119,10 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
   // Modais de Criação
   const [isCreateAdminModalOpen, setIsCreateAdminModalOpen] = useState(false);
   const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState(false);
+
+  // Modal de Confirmação de Exclusão em Massa
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   // Carregar dados de todos os usuários
   const loadAll = async () => {
@@ -635,6 +641,38 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
     triggerFeedback(`${selectedIds.length} contas foram suspensas.`);
   };
 
+  // Exclusão em Massa de Usuários Selecionados
+  const handleConfirmBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    setIsBulkDeleting(true);
+
+    try {
+      const itemsToDelete = allUnifiedUsers
+        .filter((u) => selectedIds.includes(u.id))
+        .map((u) => ({ kind: u.kind, id: u.originalId }));
+
+      await batchDeleteUnifiedUsers(itemsToDelete);
+
+      const deletedIdsSet = new Set(itemsToDelete.map((it) => it.id));
+      setClients((prev) => prev.filter((c) => !deletedIdsSet.has(c.id)));
+      setProfessionals((prev) => prev.filter((p) => !deletedIdsSet.has(p.id)));
+      setSalonUsers((prev) => prev.filter((su) => !deletedIdsSet.has(su.id)));
+      setAdmins((prev) => prev.filter((a) => !deletedIdsSet.has(a.id)));
+
+      const totalRemoved = itemsToDelete.length;
+      setSelectedIds([]);
+      setIsBulkDeleteModalOpen(false);
+      triggerFeedback(
+        `${totalRemoved} ${totalRemoved === 1 ? 'usuário excluído' : 'usuários excluídos'} com sucesso.`
+      );
+    } catch (err) {
+      console.error('Erro na exclusão em massa:', err);
+      triggerFeedback('Erro ao processar exclusão em massa.');
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
   // Exportar CSV
   const handleExportCSV = () => {
     const headers = [
@@ -890,11 +928,20 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
             </button>
 
             <button
-              onClick={() => setSelectedIds([])}
-              className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer"
-              title="Limpar seleção"
+              onClick={() => setIsBulkDeleteModalOpen(true)}
+              className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition cursor-pointer shadow-xs active:scale-95 flex items-center gap-1.5"
+              title="Excluir permanentemente todos os usuários selecionados"
             >
-              <X className="w-4 h-4" />
+              <Trash2 className="w-3.5 h-3.5 text-white" />
+              <span>Excluir Selecionados</span>
+            </button>
+
+            <button
+              onClick={() => setSelectedIds([])}
+              className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white px-2 py-1 transition cursor-pointer"
+              title="Desmarcar todos os usuários"
+            >
+              Desmarcar
             </button>
           </div>
         </div>
@@ -1130,25 +1177,47 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
             </div>
           ) : (
             filteredUsers.map((user) => {
+              const isSelected = selectedIds.includes(user.id);
               const statusBadge = getStatusBadge(user.isActive);
 
               return (
                 <div
                   key={user.id}
                   onClick={() => handleOpenGeneralModal(user)}
-                  className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-500/50 dark:hover:border-emerald-500/50 transition flex flex-col justify-between shadow-xs dark:shadow-none group w-full cursor-pointer"
+                  className={`p-4 rounded-xl bg-white dark:bg-slate-900 border transition flex flex-col justify-between shadow-xs dark:shadow-none group w-full cursor-pointer ${
+                    isSelected
+                      ? 'border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20'
+                      : 'border-slate-200 dark:border-slate-800 hover:border-emerald-500/50 dark:hover:border-emerald-500/50'
+                  }`}
                   title={`Clique para abrir os dados gerais de ${user.name}`}
                 >
                   <div>
                     {/* Top card header */}
                     <div className="flex items-start justify-between gap-2 mb-3">
-                      <div className="relative">
-                        <UserAvatar name={user.name} photoUrl={user.avatarUrl} size="lg" />
-                        <div
-                          className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-slate-900 ${
-                            user.isActive ? 'bg-emerald-500' : 'bg-rose-500'
-                          }`}
-                        />
+                      <div className="flex items-center gap-2.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleSelectOne(user.id);
+                          }}
+                          className="cursor-pointer text-slate-400 hover:text-emerald-500 transition shrink-0"
+                          title={isSelected ? 'Desmarcar' : 'Selecionar'}
+                        >
+                          {isSelected ? (
+                            <CheckSquare className="w-4 h-4 text-emerald-500" />
+                          ) : (
+                            <Square className="w-4 h-4" />
+                          )}
+                        </button>
+                        <div className="relative">
+                          <UserAvatar name={user.name} photoUrl={user.avatarUrl} size="lg" />
+                          <div
+                            className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-slate-900 ${
+                              user.isActive ? 'bg-emerald-500' : 'bg-rose-500'
+                            }`}
+                          />
+                        </div>
                       </div>
 
                       <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
@@ -1293,6 +1362,93 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                   triggerFeedback('Novo usuário cliente cadastrado com sucesso!');
                 }}
               />
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Modal de Confirmação de Exclusão em Massa (Soberano via Portal) */}
+      {isBulkDeleteModalOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+            <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-5 sm:p-6 space-y-4 animate-scaleUp">
+              <div className="flex items-start justify-between gap-3 text-rose-600 dark:text-rose-400">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-500/20 border border-rose-200 dark:border-rose-500/30 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 dark:text-white text-sm">
+                      Excluir {selectedIds.length} {selectedIds.length === 1 ? 'Usuário Selecionado' : 'Usuários Selecionados'}?
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Ação em massa irreversível no banco de dados.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsBulkDeleteModalOpen(false)}
+                  disabled={isBulkDeleting}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer shrink-0"
+                  title="Fechar"
+                  aria-label="Fechar"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs text-slate-700 dark:text-slate-300">
+                  Os seguintes <strong className="text-slate-900 dark:text-white">{selectedIds.length}</strong> usuários e todos os seus registros serão removidos permanentemente:
+                </p>
+
+                <div className="max-h-48 overflow-y-auto space-y-1.5 p-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                  {allUnifiedUsers
+                    .filter((u) => selectedIds.includes(u.id))
+                    .map((u) => (
+                      <div
+                        key={u.id}
+                        className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded-lg bg-white dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <UserAvatar name={u.name} photoUrl={u.avatarUrl} size="sm" />
+                          <div className="min-w-0">
+                            <span className="font-medium text-slate-900 dark:text-white block truncate max-w-[200px]">
+                              {u.name}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono block">
+                              {u.username}
+                            </span>
+                          </div>
+                        </div>
+                        <span className={`text-[10px] px-2 py-0.5 rounded border font-semibold shrink-0 ${u.roleBadgeClass}`}>
+                          {u.roleLabel}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsBulkDeleteModalOpen(false)}
+                  disabled={isBulkDeleting}
+                  className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs transition cursor-pointer border border-slate-200 dark:border-slate-700 shadow-xs dark:shadow-none"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmBulkDelete}
+                  disabled={isBulkDeleting}
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-lg shadow-rose-950/20 disabled:opacity-50 active:scale-95"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-white" />
+                  <span>{isBulkDeleting ? 'Excluindo...' : 'Confirmar Exclusão em Massa'}</span>
+                </button>
+              </div>
             </div>
           </div>,
           document.body

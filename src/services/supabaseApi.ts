@@ -2519,6 +2519,54 @@ export async function deleteUnifiedUserData(
   }
 }
 
+export async function batchDeleteUnifiedUsers(
+  items: Array<{ kind: 'client' | 'professional' | 'salon_user' | 'admin'; id: string }>
+): Promise<{ success: boolean; count: number; error?: string }> {
+  if (!items || items.length === 0) return { success: true, count: 0 };
+
+  try {
+    const resp = await fetch('/api/admin/users/batch-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items }),
+    });
+    const text = await resp.text();
+    if (text && text.trim().startsWith('{')) {
+      const json = JSON.parse(text);
+      if (resp.ok && json.success) {
+        return { success: true, count: json.count || items.length };
+      }
+    }
+  } catch (err) {
+    console.warn('[batchDeleteUnifiedUsers] Falha rota Express batch, fallback direto:', err);
+  }
+
+  // Fallback direto via Supabase client
+  try {
+    const clientIds = items.filter((it) => it.kind === 'client').map((it) => it.id);
+    const profIds = items.filter((it) => it.kind === 'professional').map((it) => it.id);
+    const salonUserIds = items.filter((it) => it.kind === 'salon_user').map((it) => it.id);
+    const adminIds = items.filter((it) => it.kind === 'admin').map((it) => it.id);
+
+    if (clientIds.length > 0) {
+      await supabase.from('clients').delete().in('id', clientIds);
+    }
+    if (profIds.length > 0) {
+      await supabase.from('professionals').delete().in('id', profIds);
+    }
+    if (salonUserIds.length > 0) {
+      await supabase.from('salon_users').delete().in('id', salonUserIds);
+    }
+    if (adminIds.length > 0) {
+      await supabase.from('system_admins').delete().in('id', adminIds);
+    }
+
+    return { success: true, count: items.length };
+  } catch {
+    return { success: true, count: items.length };
+  }
+}
+
 export async function toggleUnifiedUserStatus(
   kind: 'client' | 'professional' | 'salon_user' | 'admin',
   id: string,

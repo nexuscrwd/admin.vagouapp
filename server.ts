@@ -1129,6 +1129,38 @@ async function startServer() {
     }
   });
 
+  app.post('/api/admin/users/batch-delete', async (req, res) => {
+    try {
+      const { items } = req.body; // array of { kind: string, id: string }
+      if (!Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ success: false, error: 'Lista de usuários inválida.' });
+      }
+
+      const clientIds = items.filter(it => it.kind === 'client').map(it => it.id);
+      const profIds = items.filter(it => it.kind === 'professional').map(it => it.id);
+      const salonUserIds = items.filter(it => it.kind === 'salon_user').map(it => it.id);
+      const adminIds = items.filter(it => it.kind === 'admin').map(it => it.id);
+
+      if (clientIds.length > 0) {
+        await supabaseAdmin.from('clients').delete().in('id', clientIds);
+      }
+      if (profIds.length > 0) {
+        await supabaseAdmin.from('professionals').delete().in('id', profIds);
+      }
+      if (salonUserIds.length > 0) {
+        await supabaseAdmin.from('salon_users').delete().in('id', salonUserIds);
+      }
+      if (adminIds.length > 0) {
+        await supabaseAdmin.from('system_admins').delete().in('id', adminIds);
+      }
+
+      return res.json({ success: true, count: items.length });
+    } catch (err: any) {
+      console.error('[POST /api/admin/users/batch-delete] Error:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   app.patch('/api/admin/users/:kind/:id/status', async (req, res) => {
     try {
       const { kind, id } = req.params;

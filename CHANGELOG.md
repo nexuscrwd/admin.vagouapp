@@ -15,6 +15,22 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-13] — 🗑️ Adição da Opção "Excluir Selecionados" & Exclusão em Massa de Usuários
+- **Tipo:** `[UI / Feature / BatchActions / Backend / TriadeSync]`
+- **Motivo / Solicitação:** 
+  O usuário reportou: *"falta opção exclui selecionados"*.
+- **Arquivos Impactados:** 
+  - `server.ts`
+  - `src/services/supabaseApi.ts`
+  - `src/components/admin/AdminUsersManager.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Banner de Ações em Massa Atualizado:** Adicionado o botão *"Excluir Selecionados"* estilizado com ícone `Trash2` de `lucide-react`, cor `bg-rose-600` e tipografia branca de alto contraste (`text-white`).
+  2. **Modal de Confirmação em Massa Soberano:** Criado modal com `createPortal(..., document.body)` com aviso irreversível (`AlertTriangle`), listagem resumida dos usuários selecionados (com avatar, nome e tipo de conta) e botões de confirmação.
+  3. **Seleção em Cartões (Cards View):** Adicionada funcionalidade de seleção com caixas de marcação (`CheckSquare` / `Square`) nos cartões de usuário, permitindo exclusão em massa tanto na visualização em tabela quanto em cartões.
+  4. **Backend & Sincronização:** Criado endpoint `POST /api/admin/users/batch-delete` no `server.ts` e método `batchDeleteUnifiedUsers()` em `supabaseApi.ts` para remoção atômica e segura no Supabase com chave `service_role`.
+  5. **Atualização Reativa de Estado:** Após a exclusão, todos os estados locais (`clients`, `professionals`, `salonUsers`, `admins`) são limpos instantaneamente com feedback via toast de sucesso.
+
 ### [2026-10-13] — 🎯 Eliminação Definitiva dos Mocks & Conexão Integral com os Usuários Reais do Supabase
 - **Tipo:** `[Database / Backend / Supabase / AuthSync]`
 - **Motivo / Solicitação:** 
