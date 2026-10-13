@@ -317,7 +317,12 @@ export const AdminMasterApp: React.FC = () => {
           )}
 
           {/* SCREEN: USERS CRUD */}
-          {currentScreen === 'users' && <AdminUsersManager />}
+          {currentScreen === 'users' && (
+            <AdminUsersManager
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+            />
+          )}
 
           {/* SCREEN: APPOINTMENTS */}
           {currentScreen === 'appointments' && <AdminAppointmentsMonitor />}

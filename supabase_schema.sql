@@ -158,13 +158,75 @@ CREATE TABLE public.clients (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     name VARCHAR(255) NOT NULL,
+    username VARCHAR(100),
+    cpf VARCHAR(20),
     phone VARCHAR(30),
+    phone_secondary VARCHAR(30),
     email VARCHAR(255),
+    password_hash TEXT,
     avatar_url TEXT,
+    access_level VARCHAR(50) DEFAULT 'Cliente Titular',
+    is_active BOOLEAN DEFAULT TRUE,
+    address TEXT,
+    street_number VARCHAR(50),
+    complement VARCHAR(100),
+    neighborhood VARCHAR(150),
+    city VARCHAR(150),
+    state VARCHAR(10),
+    cep VARCHAR(20),
     default_address TEXT,
+    total_appointments INTEGER DEFAULT 0,
+    dependents_count INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- 7.1 TABELA: DEPENDENTS (CONTA FAMÍLIA & DEPENDENTES)
+CREATE TABLE public.dependents (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    parent_client_id UUID REFERENCES public.clients(id) ON DELETE CASCADE,
+    full_name VARCHAR(255) NOT NULL,
+    relationship VARCHAR(50) DEFAULT 'son' CHECK (relationship IN ('son', 'daughter', 'spouse', 'parent', 'other')),
+    birth_date DATE,
+    notes TEXT,
+    is_unlinked BOOLEAN DEFAULT FALSE,
+    unlinked_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 7.2 TABELA: SALON_USERS (GESTÃO, DONOS E RECEPÇÃO DO SALÃO)
+CREATE TABLE public.salon_users (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    salon_id UUID NOT NULL REFERENCES public.salons(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    full_name VARCHAR(255) NOT NULL,
+    username VARCHAR(100),
+    email VARCHAR(255) NOT NULL,
+    phone_whatsapp VARCHAR(30),
+    phone_secondary VARCHAR(30),
+    cpf VARCHAR(20),
+    password_hash TEXT,
+    role VARCHAR(50) DEFAULT 'manager',
+    access_level VARCHAR(50) DEFAULT 'Proprietário (Dono)',
+    is_active BOOLEAN DEFAULT TRUE,
+    address TEXT,
+    street_number VARCHAR(50),
+    complement VARCHAR(100),
+    neighborhood VARCHAR(150),
+    city VARCHAR(150),
+    state VARCHAR(10),
+    cep VARCHAR(20),
+    can_manage_financial BOOLEAN DEFAULT TRUE,
+    can_manage_professionals BOOLEAN DEFAULT TRUE,
+    total_appointments INTEGER DEFAULT 0,
+    dependents_count INTEGER DEFAULT 0,
+    avatar_url TEXT,
+    last_login_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 
 -- 8. TABELA: APPOINTMENTS (AGENDAMENTOS E RESERVAS REALIZADAS)
 CREATE TABLE public.appointments (
@@ -764,3 +826,82 @@ INSERT INTO public.system_admins (
     'superadmin',
     true
 ) ON CONFLICT (username) DO NOTHING;
+
+-- ============================================================================
+-- 12. COMPATIBILIDADE SOBERANA & MIGRAÇÕES IDEMPOTENTES (COLUNAS UNIFICADAS)
+-- Garante que todas as tabelas de usuários suportem os campos corporativos do Admin Master
+-- ============================================================================
+
+-- Clientes
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS username VARCHAR(100);
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS phone_secondary VARCHAR(30);
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS access_level VARCHAR(50) DEFAULT 'Cliente Titular';
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS address TEXT;
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS street_number VARCHAR(50);
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS complement VARCHAR(100);
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS neighborhood VARCHAR(150);
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS city VARCHAR(150) DEFAULT 'São Paulo';
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS state VARCHAR(10) DEFAULT 'SP';
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS cep VARCHAR(20);
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS total_appointments INTEGER DEFAULT 0;
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS dependents_count INTEGER DEFAULT 0;
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS password_hash TEXT;
+
+-- Sincroniza name e full_name em clients se um for nulo
+UPDATE public.clients SET full_name = name WHERE full_name IS NULL AND name IS NOT NULL;
+UPDATE public.clients SET name = full_name WHERE name IS NULL AND full_name IS NOT NULL;
+
+-- Profissionais
+ALTER TABLE public.professionals ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);
+ALTER TABLE public.professionals ADD COLUMN IF NOT EXISTS username VARCHAR(100);
+ALTER TABLE public.professionals ADD COLUMN IF NOT EXISTS phone_whatsapp VARCHAR(30);
+ALTER TABLE public.professionals ADD COLUMN IF NOT EXISTS phone_secondary VARCHAR(30);
+ALTER TABLE public.professionals ADD COLUMN IF NOT EXISTS cpf VARCHAR(20);
+ALTER TABLE public.professionals ADD COLUMN IF NOT EXISTS contract_type VARCHAR(50) DEFAULT 'partner_mei';
+ALTER TABLE public.professionals ADD COLUMN IF NOT EXISTS access_level VARCHAR(50) DEFAULT 'MEI Parceiro';
+ALTER TABLE public.professionals ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'active';
+ALTER TABLE public.professionals ADD COLUMN IF NOT EXISTS address TEXT;
+ALTER TABLE public.professionals ADD COLUMN IF NOT EXISTS street_number VARCHAR(50);
+ALTER TABLE public.professionals ADD COLUMN IF NOT EXISTS complement VARCHAR(100);
+ALTER TABLE public.professionals ADD COLUMN IF NOT EXISTS neighborhood VARCHAR(150);
+ALTER TABLE public.professionals ADD COLUMN IF NOT EXISTS city VARCHAR(150) DEFAULT 'São Paulo';
+ALTER TABLE public.professionals ADD COLUMN IF NOT EXISTS state VARCHAR(10) DEFAULT 'SP';
+ALTER TABLE public.professionals ADD COLUMN IF NOT EXISTS cep VARCHAR(20);
+ALTER TABLE public.professionals ADD COLUMN IF NOT EXISTS dependents_count INTEGER DEFAULT 0;
+ALTER TABLE public.professionals ADD COLUMN IF NOT EXISTS total_appointments INTEGER DEFAULT 0;
+ALTER TABLE public.professionals ADD COLUMN IF NOT EXISTS password_hash TEXT;
+
+-- Sincroniza name e full_name em professionals se um for nulo
+UPDATE public.professionals SET full_name = name WHERE full_name IS NULL AND name IS NOT NULL;
+UPDATE public.professionals SET name = full_name WHERE name IS NULL AND full_name IS NOT NULL;
+UPDATE public.professionals SET phone_whatsapp = phone WHERE phone_whatsapp IS NULL AND phone IS NOT NULL;
+
+-- Usuários de Salão (Gestores)
+ALTER TABLE public.salon_users ADD COLUMN IF NOT EXISTS username VARCHAR(100);
+ALTER TABLE public.salon_users ADD COLUMN IF NOT EXISTS phone_secondary VARCHAR(30);
+ALTER TABLE public.salon_users ADD COLUMN IF NOT EXISTS access_level VARCHAR(50) DEFAULT 'Proprietário (Dono)';
+ALTER TABLE public.salon_users ADD COLUMN IF NOT EXISTS address TEXT;
+ALTER TABLE public.salon_users ADD COLUMN IF NOT EXISTS street_number VARCHAR(50);
+ALTER TABLE public.salon_users ADD COLUMN IF NOT EXISTS complement VARCHAR(100);
+ALTER TABLE public.salon_users ADD COLUMN IF NOT EXISTS neighborhood VARCHAR(150);
+ALTER TABLE public.salon_users ADD COLUMN IF NOT EXISTS city VARCHAR(150) DEFAULT 'São Paulo';
+ALTER TABLE public.salon_users ADD COLUMN IF NOT EXISTS state VARCHAR(10) DEFAULT 'SP';
+ALTER TABLE public.salon_users ADD COLUMN IF NOT EXISTS cep VARCHAR(20);
+ALTER TABLE public.salon_users ADD COLUMN IF NOT EXISTS total_appointments INTEGER DEFAULT 0;
+ALTER TABLE public.salon_users ADD COLUMN IF NOT EXISTS dependents_count INTEGER DEFAULT 0;
+
+-- Administradores do Sistema
+ALTER TABLE public.system_admins ADD COLUMN IF NOT EXISTS phone_secondary VARCHAR(30);
+ALTER TABLE public.system_admins ADD COLUMN IF NOT EXISTS cpf VARCHAR(20);
+ALTER TABLE public.system_admins ADD COLUMN IF NOT EXISTS access_level VARCHAR(50) DEFAULT 'Superadmin Master';
+ALTER TABLE public.system_admins ADD COLUMN IF NOT EXISTS address TEXT;
+ALTER TABLE public.system_admins ADD COLUMN IF NOT EXISTS street_number VARCHAR(50);
+ALTER TABLE public.system_admins ADD COLUMN IF NOT EXISTS complement VARCHAR(100);
+ALTER TABLE public.system_admins ADD COLUMN IF NOT EXISTS neighborhood VARCHAR(150);
+ALTER TABLE public.system_admins ADD COLUMN IF NOT EXISTS city VARCHAR(150) DEFAULT 'São Paulo';
+ALTER TABLE public.system_admins ADD COLUMN IF NOT EXISTS state VARCHAR(10) DEFAULT 'SP';
+ALTER TABLE public.system_admins ADD COLUMN IF NOT EXISTS cep VARCHAR(20);
+ALTER TABLE public.system_admins ADD COLUMN IF NOT EXISTS total_appointments INTEGER DEFAULT 0;
+ALTER TABLE public.system_admins ADD COLUMN IF NOT EXISTS dependents_count INTEGER DEFAULT 0;
+

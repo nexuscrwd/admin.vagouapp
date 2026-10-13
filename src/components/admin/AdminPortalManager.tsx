@@ -25,6 +25,8 @@ import {
   Eye,
   Ban,
   CheckSquare,
+  List,
+  LayoutGrid,
 } from 'lucide-react';
 import { AdminSalonItem, SalonFilterStatus } from '../../types/admin';
 import { SalonLogo } from '../common/SalonLogo';
@@ -51,6 +53,7 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
   onOpenCategoryModal,
 }) => {
   const [activeTab, setActiveTab] = useState<'pipeline' | 'all' | 'onboarding'>('pipeline');
+  const [pipelineViewMode, setPipelineViewMode] = useState<'table' | 'cards'>('table');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<SalonFilterStatus>('all');
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
@@ -347,169 +350,372 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
       {/* ABA 1: ESTEIRA DE NOVOS SALÕES & MODERAÇÃO */}
       {activeTab === 'pipeline' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-            <span>
+          {/* Barra de Ações & Alternador de Modo de Exibição */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
+            <span className="font-medium">
               Exibindo estabelecimentos em ordem de prioridade de entrada e moderação ({pipelineSalons.length}).
             </span>
-            <button
-              type="button"
-              onClick={onOpenNewSalon}
-              className="text-emerald-600 dark:text-emerald-400 font-bold hover:underline cursor-pointer flex items-center gap-1"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Criar Estabelecimento Manualmente</span>
-            </button>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-            {pipelineSalons.map((salon) => {
-              const isPending = salon.status === 'pending' || salon.status === 'incomplete';
-              return (
-                <div
-                  key={salon.id}
-                  className={`bg-white dark:bg-slate-900 border rounded-2xl p-4 transition-all hover:shadow-md flex flex-col justify-between ${
-                    isPending
-                      ? 'border-amber-500/40 bg-amber-500/5'
-                      : 'border-slate-200 dark:border-slate-800'
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              {/* Alternador de Modo: Tabela (padrão) vs Cartões */}
+              <div className="flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-lg border border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setPipelineViewMode('table')}
+                  title="Visualização em Tabela"
+                  className={`p-1.5 rounded-md transition cursor-pointer ${
+                    pipelineViewMode === 'table'
+                      ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-xs'
+                      : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
                   }`}
                 >
-                  {/* Top info */}
-                  <div>
-                    <div className="flex items-start justify-between gap-2 mb-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <SalonLogo
-                          logoUrl={salon.logo_url}
-                          name={salon.trade_name}
-                          size="md"
-                          alwaysShow={true}
-                        />
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                              {salon.trade_name}
-                            </h3>
-                            {salon.is_verified && (
-                              <ShieldCheck
-                                className="w-4 h-4 text-emerald-500 shrink-0"
-                                title="Estabelecimento Verificado"
-                              />
-                            )}
+                  <List className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPipelineViewMode('cards')}
+                  title="Visualização em Cartões"
+                  className={`p-1.5 rounded-md transition cursor-pointer ${
+                    pipelineViewMode === 'cards'
+                      ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-xs'
+                      : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                  }`}
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={onOpenNewSalon}
+                className="px-3 py-1.5 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+              >
+                <Plus className="w-3.5 h-3.5 text-white" />
+                <span>Novo Estabelecimento</span>
+              </button>
+            </div>
+          </div>
+
+          {/* VIEW 1: TABELA (Padrão Corporativo Semelhante à Lista Pai da Seção) */}
+          {pipelineViewMode === 'table' ? (
+            <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs dark:shadow-none">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs min-w-[760px]">
+                  <thead className="bg-slate-100 dark:bg-slate-950/80 text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 select-none">
+                    <tr>
+                      <th className="py-3 px-4 font-semibold">Salão / Marca</th>
+                      <th className="py-3 px-4 font-semibold">Subdomínio</th>
+                      <th className="py-3 px-4 font-semibold">Categoria</th>
+                      <th className="py-3 px-4 font-semibold">Localização</th>
+                      <th className="py-3 px-4 font-semibold">Contato</th>
+                      <th className="py-3 px-4 font-semibold">Status</th>
+                      <th className="py-3 px-4 font-semibold text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200/80 dark:divide-slate-800/80">
+                    {pipelineSalons.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-slate-500 dark:text-slate-400">
+                          Nenhum estabelecimento encontrado na esteira.
+                        </td>
+                      </tr>
+                    ) : (
+                      pipelineSalons.map((salon) => {
+                        const isPending = salon.status === 'pending' || salon.status === 'incomplete';
+                        return (
+                          <tr
+                            key={salon.id}
+                            className={`hover:bg-slate-50/90 dark:hover:bg-slate-800/60 transition-colors ${
+                              isPending ? 'bg-amber-50/30 dark:bg-amber-950/10' : ''
+                            }`}
+                          >
+                            {/* Salão / Marca */}
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-3">
+                                <SalonLogo
+                                  logoUrl={salon.logo_url}
+                                  name={salon.trade_name}
+                                  size="sm"
+                                  alwaysShow={true}
+                                />
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-bold text-slate-900 dark:text-white truncate">
+                                      {salon.trade_name}
+                                    </span>
+                                    {salon.is_verified && (
+                                      <ShieldCheck
+                                        className="w-3.5 h-3.5 text-emerald-500 shrink-0"
+                                        title="Estabelecimento Verificado"
+                                      />
+                                    )}
+                                  </div>
+                                  <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate block">
+                                    {salon.legal_name || salon.document_number || 'Sem razão social'}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Subdomínio */}
+                            <td className="py-3 px-4">
+                              <a
+                                href={`https://${salon.slug}.vagouapp.com`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold hover:underline flex items-center gap-1"
+                              >
+                                <span>{salon.slug}</span>
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            </td>
+
+                            {/* Categoria */}
+                            <td className="py-3 px-4">
+                              <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-medium capitalize">
+                                {salon.category || 'Geral'}
+                              </span>
+                            </td>
+
+                            {/* Localização */}
+                            <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
+                              <span>{salon.city ? `${salon.city}${salon.state ? ` - ${salon.state}` : ''}` : '—'}</span>
+                            </td>
+
+                            {/* Contato */}
+                            <td className="py-3 px-4">
+                              {salon.phone_whatsapp ? (
+                                <a
+                                  href={`https://wa.me/55${salon.phone_whatsapp.replace(/\D/g, '')}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-mono text-slate-700 dark:text-slate-300 hover:text-emerald-500 flex items-center gap-1 text-[11px]"
+                                >
+                                  <Phone className="w-3 h-3 text-emerald-500" />
+                                  <span>{salon.phone_whatsapp}</span>
+                                </a>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+
+                            {/* Status */}
+                            <td className="py-3 px-4">
+                              {getStatusBadge(salon.status)}
+                            </td>
+
+                            {/* Ações */}
+                            <td className="py-3 px-4 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {salon.status !== 'active' ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => onUpdateStatus(salon.id, 'active')}
+                                    className="px-2.5 py-1 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-[11px] transition cursor-pointer shadow-xs active:scale-95 flex items-center gap-1"
+                                    title="Aprovar e Ativar Estabelecimento"
+                                  >
+                                    <CheckCircle2 className="w-3 h-3 text-white" />
+                                    <span>Aprovar</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => onUpdateStatus(salon.id, 'suspended')}
+                                    className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/50 text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 transition cursor-pointer"
+                                    title="Suspender Estabelecimento"
+                                  >
+                                    <Ban className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+
+                                {onUpdateVerified && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onUpdateVerified(salon.id, !salon.is_verified)}
+                                    className={`p-1.5 rounded-lg transition cursor-pointer ${
+                                      salon.is_verified
+                                        ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-emerald-500'
+                                    }`}
+                                    title={salon.is_verified ? 'Revogar Selo Verificado' : 'Conceder Selo Verificado'}
+                                  >
+                                    <ShieldCheck className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => onEditSalon(salon)}
+                                  className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition cursor-pointer"
+                                  title="Editar Dados Master"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => onSelectSalonDetail(salon)}
+                                  className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition cursor-pointer"
+                                  title="Abrir Detalhes do Estabelecimento"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            /* VIEW 2: CARTÕES */
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+              {pipelineSalons.map((salon) => {
+                const isPending = salon.status === 'pending' || salon.status === 'incomplete';
+                return (
+                  <div
+                    key={salon.id}
+                    className={`bg-white dark:bg-slate-900 border rounded-2xl p-4 transition-all hover:shadow-md flex flex-col justify-between ${
+                      isPending
+                        ? 'border-amber-500/40 bg-amber-500/5'
+                        : 'border-slate-200 dark:border-slate-800'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <SalonLogo
+                            logoUrl={salon.logo_url}
+                            name={salon.trade_name}
+                            size="md"
+                            alwaysShow={true}
+                          />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                                {salon.trade_name}
+                              </h3>
+                              {salon.is_verified && (
+                                <ShieldCheck
+                                  className="w-4 h-4 text-emerald-500 shrink-0"
+                                  title="Estabelecimento Verificado"
+                                />
+                              )}
+                            </div>
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate block">
+                              {salon.legal_name || salon.category || 'Estabelecimento'}
+                            </span>
                           </div>
-                          <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate block">
-                            {salon.legal_name || salon.category || 'Estabelecimento'}
-                          </span>
                         </div>
+
+                        <div className="shrink-0">{getStatusBadge(salon.status)}</div>
                       </div>
 
-                      <div className="shrink-0">{getStatusBadge(salon.status)}</div>
-                    </div>
-
-                    {/* Subdomínio e Detalhes */}
-                    <div className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300 mb-3 bg-slate-50 dark:bg-slate-950/60 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-800/60">
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400 text-[11px]">Subdomínio:</span>
-                        <a
-                          href={`https://${salon.slug}.vagouapp.com`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold hover:underline flex items-center gap-1"
-                        >
-                          <span>{salon.slug}.vagouapp.com</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </div>
-
-                      {salon.city && (
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-slate-400">Cidade:</span>
-                          <span className="text-slate-700 dark:text-slate-300 font-medium">
-                            {salon.city} {salon.state ? `- ${salon.state}` : ''}
-                          </span>
-                        </div>
-                      )}
-
-                      {salon.phone_whatsapp && (
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-slate-400">WhatsApp:</span>
+                      <div className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300 mb-3 bg-slate-50 dark:bg-slate-950/60 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-800/60">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400 text-[11px]">Subdomínio:</span>
                           <a
-                            href={`https://wa.me/55${salon.phone_whatsapp.replace(/\D/g, '')}`}
+                            href={`https://${salon.slug}.vagouapp.com`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-slate-700 dark:text-slate-300 hover:text-emerald-500 font-mono"
+                            className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold hover:underline flex items-center gap-1"
                           >
-                            {salon.phone_whatsapp}
+                            <span>{salon.slug}.vagouapp.com</span>
+                            <ExternalLink className="w-3 h-3" />
                           </a>
                         </div>
+
+                        {salon.city && (
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-slate-400">Cidade:</span>
+                            <span className="text-slate-700 dark:text-slate-300 font-medium">
+                              {salon.city} {salon.state ? `- ${salon.state}` : ''}
+                            </span>
+                          </div>
+                        )}
+
+                        {salon.phone_whatsapp && (
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-slate-400">WhatsApp:</span>
+                            <a
+                              href={`https://wa.me/55${salon.phone_whatsapp.replace(/\D/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-slate-700 dark:text-slate-300 hover:text-emerald-500 font-mono"
+                            >
+                              {salon.phone_whatsapp}
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-1.5">
+                      {salon.status !== 'active' ? (
+                        <button
+                          type="button"
+                          onClick={() => onUpdateStatus(salon.id, 'active')}
+                          className="py-1.5 px-3 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                          title="Aprovar e Ativar Estabelecimento"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                          <span>Aprovar</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => onUpdateStatus(salon.id, 'suspended')}
+                          className="py-1.5 px-2.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 text-xs font-medium transition cursor-pointer"
+                          title="Suspender Estabelecimento"
+                        >
+                          <Ban className="w-3.5 h-3.5" />
+                        </button>
                       )}
+
+                      {onUpdateVerified && (
+                        <button
+                          type="button"
+                          onClick={() => onUpdateVerified(salon.id, !salon.is_verified)}
+                          className={`py-1.5 px-2.5 rounded-lg text-xs font-medium transition cursor-pointer flex items-center gap-1 ${
+                            salon.is_verified
+                              ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-emerald-500'
+                          }`}
+                          title={salon.is_verified ? 'Revogar Selo Verificado' : 'Conceder Selo Verificado'}
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          <span>{salon.is_verified ? 'Verificado' : 'Verificar'}</span>
+                        </button>
+                      )}
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => onEditSalon(salon)}
+                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition cursor-pointer"
+                          title="Editar Dados Master"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => onSelectSalonDetail(salon)}
+                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition cursor-pointer"
+                          title="Abrir Detalhes do Estabelecimento"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
-
-                  {/* Ações Diretas da Esteira */}
-                  <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-1.5">
-                    {/* Botão de Ativação / Aprovação Rápida */}
-                    {salon.status !== 'active' ? (
-                      <button
-                        type="button"
-                        onClick={() => onUpdateStatus(salon.id, 'active')}
-                        className="py-1.5 px-3 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-                        title="Aprovar e Ativar Estabelecimento"
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-                        <span>Aprovar</span>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => onUpdateStatus(salon.id, 'suspended')}
-                        className="py-1.5 px-2.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 text-xs font-medium transition cursor-pointer"
-                        title="Suspender Estabelecimento"
-                      >
-                        <Ban className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-
-                    {/* Botão Selo Verificado */}
-                    {onUpdateVerified && (
-                      <button
-                        type="button"
-                        onClick={() => onUpdateVerified(salon.id, !salon.is_verified)}
-                        className={`py-1.5 px-2.5 rounded-lg text-xs font-medium transition cursor-pointer flex items-center gap-1 ${
-                          salon.is_verified
-                            ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-emerald-500'
-                        }`}
-                        title={salon.is_verified ? 'Revogar Selo Verificado' : 'Conceder Selo Verificado'}
-                      >
-                        <ShieldCheck className="w-3.5 h-3.5" />
-                        <span>{salon.is_verified ? 'Verificado' : 'Verificar'}</span>
-                      </button>
-                    )}
-
-                    {/* Ver Ficha / Editar */}
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => onEditSalon(salon)}
-                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition cursor-pointer"
-                        title="Editar Dados Master"
-                      >
-                        <Edit className="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => onSelectSalonDetail(salon)}
-                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition cursor-pointer"
-                        title="Abrir Detalhes do Estabelecimento"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

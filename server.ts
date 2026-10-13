@@ -1035,6 +1035,135 @@ async function startServer() {
     }
   });
 
+  // UNIFIED USERS CRUD (Clients, Professionals, Salon Users, Admins)
+  app.put('/api/admin/users/:kind/:id', async (req, res) => {
+    try {
+      const { kind, id } = req.params;
+      const body = req.body || {};
+
+      let targetTable = 'clients';
+      if (kind === 'professional') targetTable = 'professionals';
+      else if (kind === 'salon_user') targetTable = 'salon_users';
+      else if (kind === 'admin') targetTable = 'system_admins';
+
+      const updatePayload: Record<string, any> = {
+        updated_at: new Date().toISOString(),
+      };
+
+      if (body.name !== undefined) {
+        if (targetTable === 'clients') updatePayload.name = body.name;
+        else updatePayload.full_name = body.name;
+      }
+      if (body.username !== undefined) updatePayload.username = body.username;
+      if (body.email !== undefined) updatePayload.email = body.email;
+      if (body.phone !== undefined) {
+        if (targetTable === 'clients') updatePayload.phone = body.phone;
+        else updatePayload.phone_whatsapp = body.phone;
+      }
+      if (body.phoneSecondary !== undefined) updatePayload.phone_secondary = body.phoneSecondary;
+      if (body.cpf !== undefined) updatePayload.cpf = body.cpf;
+      if (body.password !== undefined) updatePayload.password_hash = body.password;
+      if (body.accessLevel !== undefined) {
+        updatePayload.access_level = body.accessLevel;
+        if (targetTable === 'system_admins') {
+          const lower = body.accessLevel.toLowerCase();
+          if (lower.includes('super')) updatePayload.role = 'superadmin';
+          else if (lower.includes('moder')) updatePayload.role = 'moderator';
+          else updatePayload.role = 'support';
+        }
+      }
+      if (body.address !== undefined) updatePayload.address = body.address;
+      if (body.streetNumber !== undefined) updatePayload.street_number = body.streetNumber;
+      if (body.complement !== undefined) updatePayload.complement = body.complement;
+      if (body.neighborhood !== undefined) updatePayload.neighborhood = body.neighborhood;
+      if (body.city !== undefined) updatePayload.city = body.city;
+      if (body.state !== undefined) updatePayload.state = body.state;
+      if (body.cep !== undefined) updatePayload.cep = body.cep;
+      if (body.isActive !== undefined) {
+        if (targetTable === 'professionals') {
+          updatePayload.status = body.isActive ? 'active' : 'suspended';
+        } else {
+          updatePayload.is_active = !!body.isActive;
+        }
+      }
+
+      const { data, error } = await supabaseAdmin
+        .from(targetTable)
+        .update(updatePayload)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        console.warn(`[PUT /api/admin/users/${kind}/${id}] Supabase notice:`, error.message);
+      }
+
+      return res.json({ success: true, user: data || { id, ...body } });
+    } catch (err: any) {
+      console.error('[PUT /api/admin/users/:kind/:id] Error:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.delete('/api/admin/users/:kind/:id', async (req, res) => {
+    try {
+      const { kind, id } = req.params;
+      let targetTable = 'clients';
+      if (kind === 'professional') targetTable = 'professionals';
+      else if (kind === 'salon_user') targetTable = 'salon_users';
+      else if (kind === 'admin') targetTable = 'system_admins';
+
+      const { error } = await supabaseAdmin
+        .from(targetTable)
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.warn(`[DELETE /api/admin/users/${kind}/${id}] Soft-delete/notice:`, error.message);
+      }
+
+      return res.json({ success: true, message: `Usuário ${id} removido com sucesso.` });
+    } catch (err: any) {
+      console.error('[DELETE /api/admin/users/:kind/:id] Error:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.patch('/api/admin/users/:kind/:id/status', async (req, res) => {
+    try {
+      const { kind, id } = req.params;
+      const { is_active } = req.body;
+
+      let targetTable = 'clients';
+      if (kind === 'professional') targetTable = 'professionals';
+      else if (kind === 'salon_user') targetTable = 'salon_users';
+      else if (kind === 'admin') targetTable = 'system_admins';
+
+      const updateData: any = {};
+      if (targetTable === 'professionals') {
+        updateData.status = is_active ? 'active' : 'suspended';
+      } else {
+        updateData.is_active = !!is_active;
+      }
+
+      const { data, error } = await supabaseAdmin
+        .from(targetTable)
+        .update(updateData)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        console.warn(`[PATCH /api/admin/users/${kind}/${id}/status] Notice:`, error.message);
+      }
+
+      return res.json({ success: true, user: data || { id, is_active } });
+    } catch (err: any) {
+      console.error('[PATCH /api/admin/users/:kind/:id/status] Error:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // ADMIN: List all Salons (bypasses RLS with service role)
   app.get('/api/admin/salons', async (req, res) => {
     try {

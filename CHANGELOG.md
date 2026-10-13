@@ -15,6 +15,126 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-13] — 🚀 Correção Crítica da Seção Usuários & Isolamento Físico de Rolagem no Modal de Dados Gerais
+- **Tipo:** `[UI / Bugfix / Database / Portal / TriadeSync]`
+- **Motivo / Solicitação:** 
+  O usuário reportou:
+  1. *"o modal esta com problema pois a rola esta passand por tras dos botoes"*
+  2. *"seçao usuario esta com defeito, nao renderisa"*
+- **Arquivos Impactados:** 
+  - `src/components/admin/AdminUsersManager.tsx`
+  - `src/components/admin/AdminUserGeneralDataModal.tsx`
+  - `src/services/supabaseApi.ts`
+  - `supabase_schema.sql`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Seção Usuários (Correção da Renderização):**
+     - Identificada a causa raiz da falha de renderização: quando o Supabase retornava registros reais das tabelas `clients` e `professionals`, o campo de nome no banco é `name` (enquanto o front esperava `full_name`), o que provocava `TypeError: Cannot read properties of undefined (reading 'toLowerCase')` durante a normalização de `@username` e na filtragem de busca.
+     - Em `src/services/supabaseApi.ts`, os métodos `fetchAdminClients`, `fetchAdminSalonUsers` e `fetchAdminProfessionals` agora normalizam de forma segura e defensiva todos os registros para possuírem tanto `name` quanto `full_name`, `phone` e `phone_whatsapp`, `is_active` e `status`, além de arrays de dependentes vazios por padrão.
+     - Em `AdminUsersManager.tsx`, o carregamento e o `useMemo` de `allUnifiedUsers` foram blindados com proteções contra nulos, impedindo qualquer quebra na renderização mesmo com registros incompletos ou problemas transitórios de rede.
+  2. **Modal de Dados Gerais (Isolamento de Rolagem & Rodapé):**
+     - O modal foi migrado para `createPortal(..., document.body)` com `z-[9999]`, desacoplando-o do fluxo de rolagem do `<main>` do painel e travando a rolagem do body durante a exibição.
+     - Definida altura estrita (`h-[90vh] max-h-[90vh]`) com três blocos flexbox perfeitamente independentes:
+       - Topo: Cabeçalho fixo (`shrink-0 border-b`).
+       - Meio: Área de rolagem estritamente interna (`flex-1 min-h-0 overflow-y-auto overscroll-contain`).
+       - Base: Rodapé fixo autônomo com fundo sólido (`shrink-0 border-t bg-slate-50 dark:bg-slate-950 p-4 sm:p-5 shadow-lg`).
+     - A barra de rolagem e os campos agora terminam rigorosamente **acima** da borda do rodapé, impedindo fisicamente que qualquer texto, cursor ou barra passe por trás dos botões.
+  3. **Revisão de Schema SQL & Conexão:**
+     - Adicionado bloco de migrações idempotentes no `supabase_schema.sql` com `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` para sincronizar `full_name`, `username`, `cpf`, `phone_secondary`, `access_level`, `address`, `street_number`, `complement`, `neighborhood`, `city`, `state`, `cep` em todas as tabelas de usuários da Tríade.
+
+### [2026-10-13] — 🛠️ Correção do Modal de Dados Gerais: Isolamento Estrito da Área de Rolagem do Rodapé
+- **Tipo:** `[UI / Bugfix / Layout]`
+- **Motivo / Solicitação:** 
+  O usuário reportou: *"o modal esta com problema pois a rola esta passand por tras dos botoes"*.
+- **Arquivos Impactados:** 
+  - `src/components/admin/AdminUserGeneralDataModal.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Desacoplado o rodapé de ação da área de rolagem interna do `<form>`, eliminando o posicionamento `sticky` com margens negativas que causava sobreposição visual dos campos e da barra de rolagem por trás dos botões.
+  - Implementada divisão flexbox em três camadas estritas:
+    1. Cabeçalho fixo (`shrink-0 border-b`).
+    2. Corpo rolante isolado (`flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-5`).
+    3. Rodapé fixo autônomo com fundo sólido (`shrink-0 border-t bg-slate-50 dark:bg-slate-950 p-4 sm:p-5`).
+  - O conteúdo e o scroll agora terminam estritamente acima do divisor do rodapé, garantindo que nenhum elemento ou barra passe por trás dos botões.
+  - Validação estrita via `lint_applet` e compilação de produção (`compile_applet`) com sucesso total.
+
+### [2026-10-13] — 👥 Reorganização Tabular da Seção Usuários, Modal de Dados Gerais & Revisão de Schema SQL
+- **Tipo:** `[UI / Schema / Database / CRUD / TriadeSync]`
+- **Motivo / Solicitação:** 
+  O usuário solicitou:
+  1. Reorganização das colunas na seção Usuários na seguinte ordem:
+     - `Nome`, `Nome Usuário`, `WhatsApp`, `Tipo`, `Nível Acesso`, `WhatsApp Sec.`, `E-mail`, `Depend.`, `Agend.`, `Status`, `Ações (editar, desativar, excluir)`.
+  2. Ao clicar na linha do usuário abrir o **Modal de Dados Gerais** contendo:
+     - `Nome`, `Nome Usuário`, `CPF (opcional)`, `WhatsApp`, `Senha`, `Tipo (Editável Lista Suspensa)`, `Nível Acesso (Editável Lista Suspensa)`, `WhatsApp Secundário`, `E-mail`, `Endereço`, `Número (residencial)`, `Compl`, `Bairro`, `Cidade`, `UF`, `CEP`, `Depend.`, `Agend.`, `Status`, `Ações (editar, desativar, excluir)`.
+  3. Revisão do código SQL no Supabase e conexão de banco de dados.
+- **Arquivos Impactados:** 
+  - `src/types/admin.ts`: Adição de campos estruturados de endereço residencial, CPF, senhas, nível de acesso e contatos secundários em `SystemAdminUser`, `UserClientItem`, `UserSalonAccessItem`, `UserProfessionalItem` e `UnifiedUserRow`.
+  - `src/components/admin/AdminUserGeneralDataModal.tsx`: Criação do modal completo de dados gerais com autocompletar de CEP (ViaCEP), alternância de senha visível, listas suspensas editáveis de Tipo e Nível de Acesso, e botões de ação fixos no rodapé.
+  - `src/components/admin/AdminUsersManager.tsx`: Reorganização de todas as colunas da tabela na ordem solicitada, acionamento do modal ao clicar na linha, e ações diretas de Editar, Desativar/Reativar e Excluir.
+  - `src/services/supabaseApi.ts`: Implementação de `updateUnifiedUserData`, `deleteUnifiedUserData`, `toggleUnifiedUserStatus` e enriquecimento de mocks com dados residenciais e username.
+  - `server.ts`: Criação de rotas API express para `PUT /api/admin/users/:kind/:id`, `DELETE /api/admin/users/:kind/:id` e `PATCH /api/admin/users/:kind/:id/status`.
+  - `supabase_schema.sql` e `supabase/migrations/20261013_users_schema_and_address_fields.sql`: Criação da migração oficial contendo todas as novas colunas e tabelas `dependents` e `salon_users`.
+  - `CHANGELOG.md`
+- **📡 Comunicado Técnico Oficial da Tríade (7º Mandamento):**
+  - **Origem:** `admvapp` (adm.vagouapp.com)
+  - **Destinos Obrigatórios:** `pvapp` (portal.vagouapp.com) & `mnvapp` (seunegocio.vagouapp.com)
+  - **Resumo do Impacto:** Tabela `clients` e `professionals` agora possuem colunas opcionais de endereço detalhado (`address`, `street_number`, `complement`, `neighborhood`, `city`, `state`, `cep`), `username`, `cpf`, `phone_secondary`, e `access_level`. Tabela `dependents` formalizada com foreign key para `clients(id)` e `salon_users` formalizada para gestão de salões parceiros. RLS configurado com leitura integral segura. Zero breaking changes para consultas existentes.
+
+### [2026-10-13] — 🗑️ Remoção da Aba e Seção "Segurança & Tríade"
+- **Tipo:** `[UI / CleanCode / ScopeReduction]`
+- **Motivo / Solicitação:** 
+  O usuário solicitou: *"remover seção e aba Segurança e Triade"*.
+- **Arquivos Impactados:** 
+  - `src/components/admin/AdminUserDetailView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Removido o botão da 3ª aba (`activeTab === 'security'`) com o rótulo "Segurança & Tríade".
+  - Removido o bloco correspondente da seção de conteúdo ("Auditoria & Conformidade com o Mandamento 7").
+  - Atualizado o tipo do estado `activeTab` para `'profile' | 'relations'`, eliminando estados desnecessários.
+  - Removido o import não utilizado do ícone `Clock` de `lucide-react` em conformidade com o 5º Mandamento (Clean Code & Zero Poluição).
+  - Validação estrita via `lint_applet` e compilação de produção (`compile_applet`) com sucesso total.
+
+### [2026-10-13] — 📊 Padronização Tabular: Transformação da Lista da Seção em Lista Tabelar Semelhante à Lista Pai
+- **Tipo:** `[UI / Refactor / DesignSystem / FocusMode]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou o elemento de lista via focus-mode e solicitou: *"faça dessa lista uma lista tabelar, semelhante a lista pai dessa seção"*.
+- **Arquivos Impactados:** 
+  - `src/components/admin/AdminPortalManager.tsx`
+  - `src/components/admin/AdminUserDetailView.tsx`
+  - `src/components/admin/AdminSalonDetailView.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - **Esteira do Portal VAPP (`AdminPortalManager.tsx`):** A lista da esteira de estabelecimentos e moderação foi transformada em uma lista tabelar completa (`table min-w-[760px]`), espelhando a estrutura da lista pai (`AdminSalonsList` / Aba 2 de Estabelecimentos), com colunas padronizadas (`Salão / Marca`, `Subdomínio`, `Categoria`, `Localização`, `Contato`, `Status`, `Ações`), mantendo alternador opcional entre Tabela (padrão) e Cartões.
+  - **Dependentes da Conta Família (`AdminUserDetailView.tsx`):** Transformada a grade de cards de dependentes em uma tabela limpa e bem tipada (`Nome do Dependente`, `Grau de Parentesco`, `Observações`, `Status do Vínculo`, `Ação`).
+  - **Equipe de Profissionais (`AdminSalonDetailView.tsx`):** A listagem de colaboradores da equipe foi unificada em formato tabelar com colunas objetivas (`Profissional`, `Cargo / Função`, `WhatsApp`, `Comissão`, `Status`).
+  - **Validação:** Checagem de tipagem (`lint_applet`) e compilação de produção (`compile_applet`) concluídas com 100% de sucesso.
+
+### [2026-10-13] — 💎 Harmonização Visual & Funcional: Seção de Usuários Semelhante à de Estabelecimentos
+- **Tipo:** `[UI / Refactor / Feature / DesignSystem]`
+- **Motivo / Solicitação:** 
+  O usuário solicitou: *"preciso que a seção 'Usuarios' seja semelhante a seção estabelecimetos"*.
+- **Arquivos Impactados:** 
+  - `src/components/admin/AdminUsersManager.tsx`
+  - `src/components/admin/AdminUserDetailView.tsx` (Criado)
+  - `src/components/admin/AdminMasterApp.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - **Barra de Controle & Header Unificado:** Implementada a mesma barra de topo compacta e elegante (`p-3 sm:p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800`), com ícone `Users` verde, título objetivo, divisores verticais e filtros compactos em `<select>` com contadores dinâmicos para Categorias/Contas e Status.
+  - **Alternador de Visualização (Tabela & Cartões):** Adicionado seletor com ícones `List` e `LayoutGrid` permitindo alternar instantaneamente entre modo Tabela corporativa e Grade de Cartões responsivos (`viewMode === 'table' | 'cards'`).
+  - **Ações em Massa (Bulk Actions Banner):** Checkbox geral e seleção individual em cada linha/card, disparando o banner verde esmeralda para ativação ou suspensão de contas em lote.
+  - **Visão Detalhada Soberana do Usuário (`AdminUserDetailView`):** Criada tela de detalhes completa acionada ao clicar em qualquer usuário (espelhando o `AdminSalonDetailView`), com abas de Cadastro & Contatos, Vínculos & Relações Familiares/Prestadores, e Auditoria da Tríade.
+  - **Exportação CSV & Ações Rápidas:** Botão de exportar dados filtrados para CSV e cadastro unificado integrado (`UnifiedRegistrationForm`).
+  - **Regra de Contraste & Zero Slop:** 100% aderente às diretrizes de alto contraste (fundo verde = texto branco), layout plano sem aninhamento excessivo e ícones estritos de `lucide-react`.
+
+### [2026-10-12] — 🧹 Remoção de Bloco Informativo Redundante via Focus-Mode
+- **Tipo:** `[UI / FocusMode / CleanCode]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou e solicitou a remoção do bloco informativo/tutorial em `AdminUsersManager.tsx` (Regra de Ouro da Tríade) em conformidade com as diretrizes de Síntese Mobile e remoção de poluição visual.
+- **Arquivos Impactados:** `src/components/admin/AdminUsersManager.tsx`, `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Removido o bloco de notificação/informação excedente na gestão de usuários.
+  - Validação de tipagem e compilação limpa (`compile_applet`) com sucesso.
+
 ### [2026-10-12] — 🎯 Correção Definitiva da Interatividade do Card de Usuários na Tela Inicial (`AdminHomeScreen`)
 - **Tipo:** `[Fix / UI / Interactivity / Focus-Mode]`
 - **Motivo / Solicitação:** 

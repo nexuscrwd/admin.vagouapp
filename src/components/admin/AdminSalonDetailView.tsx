@@ -2446,36 +2446,54 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {team.map((pro) => (
-              <div
-                key={pro.id}
-                className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-start justify-between gap-3 hover:border-slate-300 dark:hover:border-slate-700 transition"
-              >
-                <div className="flex items-center gap-3">
-                  <UserAvatar fullName={pro.name} photoUrl={pro.avatar_url} size="lg" />
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">{pro.name}</h4>
-                    <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium block">
-                      {pro.role}
-                    </span>
-                    <span className="font-mono text-[11px] text-slate-500 block mt-0.5">
-                      {pro.phone || 'Sem telefone'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="text-right shrink-0">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Comissão</span>
-                  <span className="font-mono font-bold text-xs text-slate-900 dark:text-white">
-                    {pro.commission_rate}%
-                  </span>
-                  <span className="mt-2 inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                    Ativo
-                  </span>
-                </div>
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 dark:bg-slate-950/60 text-slate-500 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800">
+                <tr>
+                  <th className="py-2.5 px-3">Profissional</th>
+                  <th className="py-2.5 px-3">Cargo / Função</th>
+                  <th className="py-2.5 px-3">WhatsApp</th>
+                  <th className="py-2.5 px-3 text-center">Comissão</th>
+                  <th className="py-2.5 px-3 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                {team.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-slate-400">
+                      Nenhum profissional cadastrado para este estabelecimento.
+                    </td>
+                  </tr>
+                ) : (
+                  team.map((pro) => (
+                    <tr key={pro.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-2.5">
+                          <UserAvatar fullName={pro.name} photoUrl={pro.avatar_url} size="sm" />
+                          <span className="font-bold text-slate-900 dark:text-white">{pro.name}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className="text-emerald-600 dark:text-emerald-400 font-medium text-[11px]">
+                          {pro.role}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 font-mono text-slate-700 dark:text-slate-300">
+                        {pro.phone || 'Sem telefone'}
+                      </td>
+                      <td className="py-3 px-3 text-center font-mono font-bold text-slate-900 dark:text-white">
+                        {pro.commission_rate}%
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                          Ativo
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
