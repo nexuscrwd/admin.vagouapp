@@ -13,7 +13,6 @@ import {
   CheckCircle2,
   X,
   RefreshCw,
-  Search,
   ExternalLink,
   ShieldCheck,
   Edit,
@@ -96,7 +95,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
   // Filtros
   const [categoryFilter, setCategoryFilter] = useState<UserCategoryFilter>('all');
   const [statusFilter, setStatusFilter] = useState<UserStatusFilter>('all');
-  const [localSearch, setLocalSearch] = useState('');
 
   // Seleção múltipla para ações em massa
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -566,8 +564,8 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
   const activeUsersCount = useMemo(() => allUnifiedUsers.filter((u) => u.isActive).length, [allUnifiedUsers]);
   const inactiveUsersCount = useMemo(() => allUnifiedUsers.filter((u) => !u.isActive).length, [allUnifiedUsers]);
 
-  // Busca ativa (sincronizada com busca local)
-  const activeSearch = (searchQuery || localSearch).trim().toLowerCase();
+  // Busca ativa (integrada à busca global do cabeçalho)
+  const activeSearch = searchQuery.trim().toLowerCase();
 
   // Filtragem
   const filteredUsers = useMemo(() => {
@@ -808,25 +806,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
             </select>
           </div>
 
-          {/* Campo de Busca Rápido */}
-          <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1.5 focus-within:border-emerald-500 transition shadow-xs dark:shadow-none max-w-[180px] sm:max-w-[220px]">
-            <Search className="w-3.5 h-3.5 text-slate-400 mr-1.5 shrink-0" />
-            <input
-              type="text"
-              placeholder="Buscar usuário..."
-              value={localSearch}
-              onChange={(e) => setLocalSearch(e.target.value)}
-              className="bg-transparent text-xs text-slate-900 dark:text-white placeholder-slate-400 outline-none w-full"
-            />
-            {localSearch && (
-              <button
-                onClick={() => setLocalSearch('')}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 cursor-pointer"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            )}
-          </div>
+
         </div>
 
         {/* Right Side: Ações Principais */}

@@ -5,6 +5,7 @@ import {
   Building2,
   Users,
   CalendarCheck,
+  FileText,
   Settings,
   X,
   PanelLeftClose,
@@ -57,6 +58,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     { id: 'users', label: 'Usuários', icon: Users },
     { id: 'portal', label: 'Portal VAPP', icon: Globe },
     { id: 'appointments', label: 'Agendamentos', icon: CalendarCheck },
+    { id: 'forms', label: 'Formulários', icon: FileText },
     { id: 'settings', label: 'Configurações', icon: Settings },
   ];
 

@@ -9,6 +9,8 @@ import {
   CheckCircle2,
   XCircle,
   Pencil,
+  FileText,
+  ArrowRight,
 } from 'lucide-react';
 import { fetchSystemAdmins, toggleAdminStatus } from '../../services/supabaseApi';
 import { SystemAdminUser } from '../../types/admin';
@@ -20,7 +22,7 @@ export interface AdminSettingsPanelProps {
   onNavigateToForms?: () => void;
 }
 
-export const AdminSettingsPanel: React.FC<AdminSettingsPanelProps> = () => {
+export const AdminSettingsPanel: React.FC<AdminSettingsPanelProps> = ({ onNavigateToForms }) => {
   // System Admins Management
   const [admins, setAdmins] = useState<SystemAdminUser[]>([]);
   const [isLoadingAdmins, setIsLoadingAdmins] = useState(false);
@@ -235,6 +237,40 @@ export const AdminSettingsPanel: React.FC<AdminSettingsPanelProps> = () => {
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* 📋 SEÇÃO: CENTRAL DE FORMULÁRIOS DA TRÍADE */}
+      <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3 shadow-xs dark:shadow-none">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-teal-50 dark:bg-teal-500/20 text-teal-600 dark:text-teal-400 flex items-center justify-center border border-teal-200 dark:border-teal-500/30">
+              <FileText className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Central de Formulários da Tríade (Canvas Lado a Lado)
+                </h3>
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-teal-50 dark:bg-teal-500/10 text-teal-700 dark:text-teal-400 border border-teal-200 dark:border-teal-500/20">
+                  Pipeline Tríade
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Visualize, teste e refatore todos os formulários reais de <code>adm</code>, <code>mnvapp</code> e <code>pvapp</code> dispostos lado a lado.
+              </p>
+            </div>
+          </div>
+
+          {onNavigateToForms && (
+            <button
+              onClick={onNavigateToForms}
+              className="px-3.5 py-1.5 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-500/20 active:scale-95 shrink-0"
+            >
+              <span>Acessar Formulários</span>
+              <ArrowRight className="w-3.5 h-3.5 text-white" />
+            </button>
+          )}
         </div>
       </div>
 

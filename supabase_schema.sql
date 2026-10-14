@@ -905,3 +905,11 @@ ALTER TABLE public.system_admins ADD COLUMN IF NOT EXISTS cep VARCHAR(20);
 ALTER TABLE public.system_admins ADD COLUMN IF NOT EXISTS total_appointments INTEGER DEFAULT 0;
 ALTER TABLE public.system_admins ADD COLUMN IF NOT EXISTS dependents_count INTEGER DEFAULT 0;
 
+-- ==============================================================================
+-- 16. ÍNDICES DE PERFORMANCE PARA LOGIN UNIVERSAL (USUÁRIO / E-MAIL / WHATSAPP)
+-- ==============================================================================
+CREATE INDEX IF NOT EXISTS idx_system_admins_phone_whatsapp ON public.system_admins (phone_whatsapp);
+CREATE INDEX IF NOT EXISTS idx_clients_username ON public.clients (LOWER(username));
+CREATE INDEX IF NOT EXISTS idx_clients_phone ON public.clients (phone);
+CREATE INDEX IF NOT EXISTS idx_clients_email ON public.clients (LOWER(email));
+

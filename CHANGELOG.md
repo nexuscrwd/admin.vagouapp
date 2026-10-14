@@ -15,6 +15,244 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-14] — 🔐 Desacoplamento do Formulário de Acesso e Recuperação, Logo Oficial VagouApp e Suporte Universal a Usuário/Email/Celular
+- **Tipo:** `[Feature / Architecture / UI / UX / CleanCode / Auth / MobileFirst]`
+- **Motivo / Solicitação:** 
+  O usuário instruiu:
+  1. *"essa aba de recuperar acesso não deve fazer parte do mesmo formulário de acesso."*
+  2. *"Em formulário de acesso: O cabeçalho deve ter o logo oficial do vagouapp; deve ter somente a aba e o texto 'Login' apenas, nada de master, nada de super nada disso!; 'Esqueceu a senha?' deve estar ao pé do input senha."*
+  3. *"Em formulário de Recuperação de Acesso: Deve ter o input de usuário com o texto 'Usuário' apenas; não deve ter os inputs de nova senha e conf. nova senha; quando adicionado o nome de usuário, o usuário receberá um código no celular, ou link de redefinição de senha no e-mail cadastrado."*
+  4. *"Possibilidade de em todos os formulários seja do admin, mnvapp o usuário ter como opção de login tanto o nome de usuário 'Fulano@' (ou @fulano), e-mail ou celular."*
+- **Ações Executadas:**
+  - 🧩 **Separação Completa dos Componentes (`TriadeAdminLoginForm` & `TriadeAdminRecoveryForm`):**
+    - Criado `TriadeAdminLoginForm.tsx`: formulário exclusivo de Login com o Logo Oficial VagouApp (quadrado verde `#20C933` com o "V" branco), título estritamente *"Login"* (sem master, sem super), campo *"Usuário"* universal e link *"Esqueceu a senha?"* posicionado diretamente ao pé do input de senha.
+    - Criado `TriadeAdminRecoveryForm.tsx`: formulário autônomo de recuperação de acesso com o Logo Oficial VagouApp, campo único *"Usuário"* e **zero campos de nova senha**, acionando o envio seguro de código de validação no WhatsApp/SMS e link de redefinição no e-mail cadastrado.
+  - 🔄 **Integração no Hub da Tríade (`AdminTriadeFormsCatalog.tsx`):**
+    - Adicionado sub-seletor no topo da aba Adminvapp: `1. Login`, `2. Recuperação de Acesso` e `Lado a Lado`, permitindo visualizar os formulários isoladamente ou em paralelo.
+    - Transição fluida: ao clicar em *"Esqueceu a senha?"* no Login, o sistema chaveia automaticamente para a Recuperação de Acesso, e ao clicar em *"Voltar para o Login"*, retorna instantaneamente.
+  - 🌐 **Suporte Universal nos Logins (Admin & Mnvapp):**
+    - `TriadeAdminLoginForm` e `TriadeMnvClientLoginForm`: os campos de login agora aceitam universalmente nome de usuário (ex: `Fulano@`, `@fulano`, `Fulano#`), e-mail corporativo ou número de celular/WhatsApp.
+    - `loginAdmin` e `recoverAdminAccess` em `supabaseApi.ts` atualizados para reconhecer e sanitizar identificadores em qualquer um dos 3 formatos.
+  - 🔗 **Compatibilidade com Embeds (`UniversalFormEmbedView.tsx`):**
+    - Suporte nativo a `form=admin`, `form=admin_login` e `form=admin_recovery`.
+- **Arquivos Impactados:**
+  - `src/components/admin/triade-forms/TriadeAdminLoginForm.tsx` (Criado)
+  - `src/components/admin/triade-forms/TriadeAdminRecoveryForm.tsx` (Criado)
+  - `src/components/admin/triade-forms/TriadeAdminAuthForm.tsx` (Refatorado)
+  - `src/components/admin/triade-forms/TriadeMnvClientLoginForm.tsx` (Atualizado)
+  - `src/components/admin/AdminTriadeFormsCatalog.tsx` (Atualizado)
+  - `src/components/embed/UniversalFormEmbedView.tsx` (Atualizado)
+  - `src/services/supabaseApi.ts` (Atualizado)
+  - `CHANGELOG.md` (Atualizado)
+- **Validação:** `lint_applet` e `compile_applet` executados com 100% de sucesso.
+
+### [2026-10-14] — 🧹 Remoção Integral de Poluição de Textos, Badges Redundantes e Slogans nos Formulários
+- **Tipo:** `[UI / UX / FocusMode / CleanCode / AntiSlop / MobileFirst]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou elementos via Focus Mode e ordenou: *"identificar e remover todas essas parnafenalhas de poluição de textos"*.
+- **Ações Executadas:**
+  - ❌ **Elemento 1 (Selector 1 - Box no Rodapé do Form):** Removido o bloco inferior *"Novos administradores corporativos só podem ser cadastrados por um administrador autenticado logado"*, eliminando o aninhamento desnecessário de caixa dentro de caixa.
+  - ❌ **Elemento 2 (Selector 2 - Cabeçalho h3):** Removido o título redundante *"Painel Corporativo Soberano" / "Recuperação de Acesso Master"*.
+  - ❌ **Elemento 3 (Selector 3 - Parágrafo explicativo):** Removido o texto redundante *"Governança soberana da Tríade e moderação global."*
+  - ❌ **Elemento 4 (Selector 4 - Badge ADM):** Removido o selo redundante *"ADMIN / admvapp"* empilhado sobre o título.
+  - ❌ **Elemento 5 (Selector 5 - Badge Soberano):** Removido o selo redundante *"Soberano"*.
+  - ❌ **Elemento 6 (Selector 6 - Host redundante):** Removido o texto solto *"adm.vagouapp.com"* que poluía o topo.
+  - ❌ **Remoção de Selo de Domínio Duplicado:** Eliminado o banner interno de aviso de domínio dentro do card (já presente e contextualizado no topo da página).
+  - 🧹 **Limpeza nos demais formulários (`TriadeEstablishmentMasterForm` & `TriadeMnvClientLoginForm`):**
+    - Removido o card de slogan *"Governança Soberana / 1 Usuário = 1 Salão"* do cabeçalho do cadastro de estabelecimentos.
+    - Removidos subtítulos redundantes nas seções de faturamento, busca de CEP e branding.
+    - Simplificado subtítulo do login de clientes para o padrão direto e conciso *"Acesse sua conta"*.
+  - 🧹 **Clean Code:** Removido import não utilizado de `ShieldAlert` em `TriadeAdminAuthForm.tsx`.
+- **Arquivos Impactados:**
+  - `src/components/admin/triade-forms/TriadeAdminAuthForm.tsx`
+  - `src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`
+  - `src/components/admin/triade-forms/TriadeMnvClientLoginForm.tsx`
+  - `src/components/admin/AdminTriadeFormsCatalog.tsx`
+  - `CHANGELOG.md`
+- **Validação:** `lint_applet` e `compile_applet` executados com 100% de sucesso.
+
+### [2026-10-14] — 🏛️ Unificação Canônica do Cadastro Master de Estabelecimentos & Remoção Definitiva do Onboarding Antigo
+- **Tipo:** `[Feature / Architecture / Refactor / SingleSourceOfTruth / CleanCode]`
+- **Motivo / Solicitação:** 
+  O usuário observou que o formulário da aba *"Cadastro de Estabelecimento"* no Hub não condizia com o formulário constante na seção *"Estabelecimentos"* (onde o estabelecimento cadastra o máximo de informações estruturadas) e ordenou: *"Sim faça isso e remova completamente o anterior do código e arquivos do app"*.
+- **Ações Executadas:**
+  1. **Criação do Componente Canônico `TriadeEstablishmentMasterForm`:**
+     - **Titular / Proprietário Responsável (1 Usuário = 1 Salão):** Nome completo do proprietário, WhatsApp/Celular e E-mail.
+     - **Dados Comerciais & Fiscais:** Nome Fantasia (`trade_name`), Razão Social (`legal_name`), Tipo de Documento (CNPJ/CPF com máscara), Chave PIX oficial, Modelo Operacional (Espaço Físico & Delivery, Apenas Físico, Apenas Delivery), Plano na Plataforma (`PRO / 5% POR AGENDAMENTO`), Categoria do Estabelecimento e Subdomínio / Slug oficial (`slug.vagouapp.com`).
+     - **Localização & Endereço Completo com API ViaCEP:** CEP com busca automática e preenchimento instantâneo de Logradouro, Bairro, Cidade, Estado (UF) e campos de Número e Complemento.
+     - **Identidade Visual & Branding:** Logotipo, Banner/Capa, Cor Temática Primária com seletor de cor nativo, Bio/Descrição comercial e Instagram oficial.
+     - **Filtros Rápidos de Seção:** Botões para alternar entre *Ficha Completa*, *Titular*, *Comercial & Fiscal*, *Endereço (ViaCEP)* e *Id. Visual*.
+  2. **Exclusão Definitiva do Arquivo Obsoleto:**
+     - 🗑️ Removido completamente `src/components/admin/triade-forms/TriadeMnvOnboardingForm.tsx`.
+     - Zero referências residuais no projeto.
+  3. **Atualização das Rotas e Embeds:**
+     - `AdminTriadeFormsCatalog.tsx`: Aba *"Cadastro de Estabelecimento"* atualizada para renderizar `TriadeEstablishmentMasterForm`.
+     - `UniversalFormEmbedView.tsx`: Embed `form=estabelecimento` sincronizado com a ficha técnica master.
+- **Arquivos Impactados:**
+  - `src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx` (Criado)
+  - `src/components/admin/triade-forms/TriadeMnvOnboardingForm.tsx` (Deletado)
+  - `src/components/admin/AdminTriadeFormsCatalog.tsx` (Atualizado)
+  - `src/components/embed/UniversalFormEmbedView.tsx` (Atualizado)
+  - `CHANGELOG.md` (Atualizado)
+- **Validação:** `lint_applet` e `compile_applet` com 100% de sucesso.
+
+### [2026-10-14] — 🔒 Remoção de Menções ao Ecossistema/Serviço no Salão & Adição de Confirmação de E-mail e Senha
+- **Tipo:** `[UI / UX / FocusMode / CleanCode / Security]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou via Focus Mode os dois elementos e ordenou: 
+  1. *"A informação de cadastro válido em todos os estabelecimentos não é necessária. Entenda! O usuário entrou no app de um salão! Não devemos mostrar isso. Essa informação só cabe no portal!"*
+  2. *"Serviço selecionado não deve aparecer, é um formulário de cadastro de usuário do ecossistema por meio do salão, após isso ele é logado diretamente ao serviço que quer agendar."*
+  3. *"Campos de e-mail e senha devem ter confirmação para evitar erros de digitação."*
+- **Ações Executadas:**
+  - ❌ **Removido Elemento 1 (Selector 1):** Caixa de aviso com texto *"Seu cadastro é válido em [Salão] e em todos os estabelecimentos do ecossistema"*.
+  - ❌ **Removido Elemento 2 (Selector 2):** Card com *"Serviço Selecionado"* e valor de preço.
+  - ❌ **Removido:** Selo *"VagouID / Conta Única"* no cabeçalho, mantendo o visual 100% exclusivo do salão parceiro (`salonName` + logo).
+  - ➕ **Adicionado Campo:** `Confirmar E-mail` com validação em tempo real e bloqueio de envio caso haja divergência.
+  - ➕ **Adicionado Campo:** `Confirmar Senha` com visualizador `Eye` / `EyeOff` e validação em tempo real de correspondência.
+  - 🟢 **Botão de Ação Direto:** `Cadastrar & Acessar` em `#20C933` com texto estritamente branco (`text-white`).
+- **Arquivos Impactados:**
+  - `src/components/admin/triade-forms/TriadeMnvClientRegisterForm.tsx`
+  - `src/components/admin/AdminTriadeFormsCatalog.tsx`
+  - `src/components/embed/UniversalFormEmbedView.tsx`
+  - `CHANGELOG.md`
+- **Validação:** `lint_applet` e `compile_applet` validados com sucesso.
+
+### [2026-10-14] — 💈 Cadastro de Usuário no Ecossistema Maquiado com Identidade do Salão & Integração com API ViaCEP
+- **Tipo:** `[Feature / UI / UX / Integration / ViaCEP / Ecossistema]`
+- **Motivo / Solicitação:** 
+  O usuário especificou a regra de negócio e fluxo cadastral: *"os forms de cadastro de usuários são diferentes, pois ao entrar num estabelecimento e não tendo cadastro o cliente estaria se cadastrando no ecossistema, porém o formulário de cadastro deveria ser do ecossistema maquiado com as identidades do salão. Em relação ao endereço a API de busca de CEP ajudaria muito, sendo que após a fase de dados iniciais como nome, nome de usuário, whats/celular, e-mail, seria endereço a começar pela digitação do CEP, onde preencheria todos os campos como endereço, bairro, cidade, uf e etc..."*
+- **Implementações Realizadas:**
+  1. **Identidade White-Label Maquiada do Salão:**
+     - O cabeçalho do formulário adapta-se à marca visual do estabelecimento (Logo, Nome do Salão, Tag "Parceiro Oficial", Resumo do Serviço selecionado).
+     - Selo transparente de "VagouID / Conta Única": o cliente cria uma conta global no ecossistema VagouApp que funciona tanto naquele salão quanto em qualquer outro estabelecimento da rede.
+     - Seletor interativo no Hub Admin para simular e testar a maquiagem da marca com diferentes salões parceiros (`Barbearia Rota 99`, `Studio Bella Donna`, `Navalha de Ouro`).
+  2. **Fase 1: Dados Pessoais Iniciais:**
+     - `Nome Completo`
+     - `Nome de Usuário (@username)` com sanitização em tempo real de slug
+     - `WhatsApp / Celular` com máscara `(00) 00000-0000`
+     - `E-mail`
+  3. **Fase 2: Endereço Inteligente com API ViaCEP:**
+     - Digitação do `CEP` com máscara `00000-000`.
+     - Busca automática via API REST pública do ViaCEP (`https://viacep.com.br/ws/${cleanCep}/json/`) ao atingir 8 dígitos ou ao clicar no botão de lupa/busca.
+     - Preenchimento instantâneo dos campos: `Logradouro / Endereço`, `Bairro`, `Cidade` e `UF (Estado)`.
+     - Campos para preenchimento de `Número` e `Complemento`.
+     - Feedback em tempo real com ícones (`Check` para sucesso e `HelpCircle` para aviso).
+  4. **Fase 3: Segurança & Confirmação:**
+     - `Crie uma Senha` com alternador visual de visibilidade (`Eye` / `EyeOff`).
+     - Checkbox de termos de uso do ecossistema.
+     - Botão de ação: `Cadastrar no Ecossistema & Agendar` em `#20C933` com texto estritamente branco (`text-white`) respeitando a regra inegociável de contraste.
+- **Arquivos Impactados:**
+  - `src/components/admin/triade-forms/TriadeMnvClientRegisterForm.tsx`
+  - `src/components/admin/AdminTriadeFormsCatalog.tsx`
+  - `CHANGELOG.md`
+- **Validação:** `lint_applet` e `compile_applet` executados com 100% de sucesso.
+
+### [2026-10-14] — 🎯 Remoção de Rodapés Técnicos e Textos Redundantes nos Cards de Formulários
+- **Tipo:** `[UI / FocusMode / CleanCode / AntiSlop]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou os elementos via Focus Mode e solicitou: *"identificar essas divs e remover"*.
+- **Elementos Identificados e Removidos:**
+  1. `Selector 1`: Rodapé técnico com telemetria (`<span>Tabela: public.clients + profiles</span>` e barra de rodapé `div`).
+  2. `Selector 2`: Parágrafo explicativo redundante (`<p>Use sua conta comum do ecossistema...</p>`).
+  3. `Selector 3`: Subtítulo e selos redundantes (`<span>Conta Unificada do Ecossistema</span>`, `App do Salão` e `Cliente`).
+- **Arquivos Impactados:**
+  - `src/components/admin/triade-forms/TriadeMnvClientLoginForm.tsx`
+  - `src/components/admin/triade-forms/TriadeMnvClientRegisterForm.tsx`
+  - `src/components/admin/triade-forms/TriadeAdminAuthForm.tsx`
+  - `CHANGELOG.md`
+- **Resultado:** Visual ultra-resumido, moderno, sem poluição de texto, sem telemetria técnica e em total conformidade com a regra de síntese mobile do projeto.
+
+
+- **Tipo:** `[Feature / Architecture / Embed / CleanCode]`
+- **Motivo / Solicitação:** 
+  O usuário confirmou a ativação da arquitetura de Embed universal ("Single Source of Truth") e solicitou: *"sim, faça isso. E gostaria de remover definitivamente todos os outros formulários semelhantes e do mesmo tipo, mantendo os que temos aqui como os principais"*.
+- **Arquivos Criados, Atualizados & Deletados:**
+  - `src/components/embed/UniversalFormEmbedView.tsx` (Componente isolado de renderização de embeds externos com suporte a postMessage para o app pai)
+  - `src/App.tsx` (Roteamento nativo das rotas `/embed`, `?embed=true` e `?form=...`)
+  - `src/components/admin/AdminTriadeFormsCatalog.tsx` (Gerador e copiador de código `<iframe>` com 1 clique)
+  - 🗑️ *Arquivos Redundantes Removidos:*
+    - `TriadeMnvAuthForm.tsx` (substituído pelo login canônico do cliente)
+    - `TriadePvAuthForm.tsx` (redundante)
+    - `TriadeMnvTeamForm.tsx` (redundante)
+    - `TriadeMnvServiceForm.tsx` (redundante)
+    - `TriadeMnvRadarPublishForm.tsx` (redundante)
+    - `TriadePvBookingForm.tsx` (redundante)
+    - `TriadeAdminSalonForm.tsx` (redundante)
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Single Source of Truth Real:** O `mnvapp` e o `pvapp` podem agora incorporar qualquer um dos 4 formulários principais via `<iframe>`. Qualquer edição feita no código aqui no Admin reflete em tempo real em todos os sites da Tríade sem necessidade de republicá-los.
+  2. **Comunicação Segura:** Disparo de eventos `window.parent.postMessage` em submissões de formulários com sucesso.
+  3. **Limpeza Pós-Obra (Mandamento 5):** Todos os formulários secundários e arquivos obsoletos foram definitivamente deletados, restando unicamente os 4 formulários canônicos principais.
+
+
+- **Tipo:** `[UI / UX / Architecture / FormsHub]`
+- **Motivo / Solicitação:** 
+  O usuário especificou a visão final para todas as frentes:
+  1. *Aba forms mnvapp:* Acesso do usuário (quando o cliente comum do salão/ecossistema for acessar o app do salão) e Cadastro de usuário (quando o cliente baixar o app e após navegar decidir agendar sem cadastro prévio).
+  2. *Aba form "cadastro de estabelecimento":* Dedicada a novos estabelecimentos no `mnvapp`.
+  3. *Aba form Adminvapp:* Form de acesso disponível somente através do domínio `admin.vapp.com` / `adm.vagouapp.com`.
+- **Arquivos Criados & Impactados:**
+  - `src/components/admin/triade-forms/TriadeMnvClientLoginForm.tsx` (Login de cliente comum com conta unificada no app do salão)
+  - `src/components/admin/triade-forms/TriadeMnvClientRegisterForm.tsx` (Cadastro ágil do novo cliente após navegar para finalizar o 1º agendamento)
+  - `src/components/admin/triade-forms/TriadeAdminAuthForm.tsx` (Adicionado selo explícito de trava soberana e domínio exclusivo `admin.vapp.com`)
+  - `src/components/admin/AdminTriadeFormsCatalog.tsx` (Reestruturação em 3 abas principais com sub-seletores e modo lado a lado)
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Aba Forms Mnvapp:** Sub-dividida em "Acesso do Usuário" (login no app do salão com celular/WhatsApp/e-mail) e "Cadastro de Usuário" (cadastro com serviço pré-selecionado para fechar o agendamento), além de visualização lado a lado.
+  2. **Aba Cadastro de Estabelecimento:** Foco exclusivo no onboarding de novos salões parceiros em 3 níveis (Básico, Fiscal e White-label) e visão soberana do Admin Master.
+  3. **Aba Adminvapp:** Destaque soberano restrito ao domínio oficial corporativo `admin.vapp.com` / `adm.vagouapp.com` com proteção de host e credenciais corporativas.
+
+
+- **Tipo:** `[UI / UX / Refactor / FormsHub]`
+- **Motivo / Solicitação:** 
+  O usuário orientou a reestruturação da navegabilidade: *"não ficou bom e não ficou navegável, porém o formulário está aparente como desejo. Prefiro que seja por exemplo: - Mnvapp (-- Acesso, -- cadastro (no caso de cadastro de usuários), -- Cadastro de estabelecimento); - Admin e pvapp (-- acesso)"*.
+- **Arquivos Criados & Impactados:**
+  - `src/components/admin/triade-forms/TriadeMnvAuthForm.tsx` (Formulário autêntico de login do parceiro no `mnvapp`)
+  - `src/components/admin/triade-forms/TriadeAdminAuthForm.tsx` (Formulário autêntico de login master no `admvapp`)
+  - `src/components/admin/triade-forms/TriadePvAuthForm.tsx` (Formulário autêntico de login do cliente no `pvapp`)
+  - `src/components/admin/AdminTriadeFormsCatalog.tsx` (Menu lateral de navegação em árvore + visualização lado a lado ou isolada)
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Árvore de Navegação Rápida:** Menu lateral estruturado exatamente na taxonomia solicitada:
+     - **Mnvapp:** Acesso (Login Parceiro), Cadastro (Usuários / Equipe) e Cadastro de Estabelecimento (Onboarding 3 Níveis).
+     - **Admin e pvapp:** Acesso (Admin Master vs Portal do Consumidor lado a lado).
+  2. **Renderização Fiel e Lado a Lado:** Os formulários preservam a identidade visual original de cada aplicação da Tríade, com suporte a visualização lado a lado para comparação relacional ou visualização focada por abas.
+  3. **Conformidade de Design:** 100% dos ícones via `lucide-react`, contraste inegociável do fundo verde (`#20C933` com `text-white`), tipografia Poppins e dark theme.
+
+
+- **Tipo:** `[Feature / UI / TriadeSync / FormsHub]`
+- **Motivo / Solicitação:** 
+  O usuário solicitou: *"Na opção de Configurações no menu sidebar insira uma opção formulário. Nesta seção deve aparecer todos os formulários de todos os sites 'admin', 'mnvapp' e 'pvapp'. E todos os forms devem ser originais e funcionais, seriam as cópias deles para eu editá-los e refatorá-los num único lugar... renderizados como são, como exatamente aparecerá nos sites, e um ao lado do outro de acordo com sua ligação, relação"*.
+- **Arquivos Criados & Impactados:** 
+  - `src/components/admin/triade-forms/TriadeAdminSalonForm.tsx` (Formulário real do Admin Master)
+  - `src/components/admin/triade-forms/TriadeMnvOnboardingForm.tsx` (Formulário real em 3 níveis do Parceiro)
+  - `src/components/admin/triade-forms/TriadeMnvTeamForm.tsx` (Formulário real de equipe e comissão)
+  - `src/components/admin/triade-forms/TriadeMnvServiceForm.tsx` (Formulário real de serviços e duração)
+  - `src/components/admin/triade-forms/TriadeMnvRadarPublishForm.tsx` (Formulário real do Radar com 5 slots de mídia)
+  - `src/components/admin/triade-forms/TriadePvBookingForm.tsx` (Motor real de agendamento em 4 etapas com voucher)
+  - `src/components/admin/AdminTriadeFormsCatalog.tsx` (Canvas Relacional Lado a Lado com alternador de trilhas e rolagem horizontal suave)
+  - `src/components/admin/AdminSidebar.tsx` (Adicionado acesso direto a "Formulários" no menu lateral)
+  - `src/components/admin/AdminSettingsPanel.tsx` (Adicionado atalho dedicado para a central de formulários)
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Canvas Relacional Lado a Lado:** Implementada a visualização horizontal contínua onde cada formulário é renderizado com sua interface real dos sites originais (`adm.vagouapp.com`, `seunegocio.vagouapp.com`, `portal.vagouapp.com`), conectados por setas de fluxo de negócio (`➔`).
+  2. **Trilhas Relacionais Organizadas:**
+     - *Trilha 1 (Salão & Atendimento):* Onboarding Master ➔ Adesão Níveis 1, 2 e 3 ➔ Equipe ➔ Serviços ➔ Publicação Radar ➔ Agendamento do Cliente com Voucher #VGA-xxxxx.
+     - *Trilha 2 (Usuários & Acessos):* Cadastro Unificado Cidadão/Profissional ➔ Novo Admin Master ➔ Autenticação Master.
+     - *Trilha 3 (Categorias & Taxonomia):* Criação de Categorias com auto-slug ➔ Segmentação no Marketplace.
+  3. **100% Interativos:** Os formulários permitem testar o preenchimento real, alternar abas de níveis, validar campos e submeter dados.
+
+### [2026-10-14] — 🎯 Remoção do Campo Redundante de Busca na Barra de Usuários
+- **Tipo:** `[UI / FocusMode / CleanCode]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou o elemento (`div:nth-of-type(5)` no cabeçalho de filtros da gestão de usuários) e solicitou: *"remover"*.
+- **Arquivos Impactados:** 
+  - `src/components/admin/AdminUsersManager.tsx`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  1. **Remoção do Elemento Focado:** Removido o campo local de busca (`input` com ícone `Search` e botão limpar `X`) da barra de filtros de usuários, unificando a pesquisa através da barra de busca global do cabeçalho superior (`AdminHeader`).
+  2. **Clean Code (Mandamento 5):** Eliminado o estado zumbi `localSearch` e o import não utilizado do ícone `Search`, preservando a busca ativa global sincronizada via `searchQuery`.
+
 ### [2026-10-13] — 🗑️ Adição da Opção "Excluir Selecionados" & Exclusão em Massa de Usuários
 - **Tipo:** `[UI / Feature / BatchActions / Backend / TriadeSync]`
 - **Motivo / Solicitação:** 

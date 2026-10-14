@@ -1,13 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { AdminMasterApp } from './components/admin/AdminMasterApp';
 import { UnifiedRegistrationForm } from './components/public/UnifiedRegistrationForm';
+import { UniversalFormEmbedView } from './components/embed/UniversalFormEmbedView';
 
 export const App: React.FC = () => {
   const [isRegistrationMode, setIsRegistrationMode] = useState(false);
+  const [isEmbedMode, setIsEmbedMode] = useState(false);
 
   useEffect(() => {
     const pathname = window.location.pathname.toLowerCase();
     const search = window.location.search.toLowerCase();
+
+    if (
+      pathname.includes('/embed') ||
+      search.includes('embed=true') ||
+      search.includes('form=mnv') ||
+      search.includes('form=estabelecimento')
+    ) {
+      setIsEmbedMode(true);
+      return;
+    }
 
     if (
       pathname.includes('/cadastro') ||
@@ -23,6 +35,17 @@ export const App: React.FC = () => {
       setIsRegistrationMode(true);
     }
   }, []);
+
+  if (isEmbedMode) {
+    return (
+      <UniversalFormEmbedView
+        onExit={() => {
+          setIsEmbedMode(false);
+          window.history.pushState({}, '', '/');
+        }}
+      />
+    );
+  }
 
   if (isRegistrationMode) {
     const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
