@@ -8,6 +8,7 @@ import {
   UserPlus,
   Sun,
   Moon,
+  Globe,
 } from 'lucide-react';
 import { AdminScreenId, SystemAdminUser, AdminAuthTab } from '../../types/admin';
 import { UserAvatar } from '../common/UserAvatar';
@@ -24,6 +25,7 @@ interface AdminHeaderProps {
   onOpenAuthModal?: (tab?: AdminAuthTab) => void;
   onLogout?: () => void;
   onNavigateScreen?: (screen: AdminScreenId) => void;
+  onOpenGateway?: () => void;
 }
 
 export const AdminHeader: React.FC<AdminHeaderProps> = ({
@@ -37,6 +39,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
   onOpenAuthModal,
   onLogout,
   onNavigateScreen,
+  onOpenGateway,
 }) => {
   const { isDark, toggleTheme } = useTheme();
 
@@ -102,6 +105,19 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
             className="w-full bg-transparent text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 outline-none"
           />
         </div>
+
+        {/* Botão Gateway Oficial vagouapp.com */}
+        {onOpenGateway && (
+          <button
+            type="button"
+            onClick={onOpenGateway}
+            title="Visualizar Gateway Oficial de Entrada (vagouapp.com)"
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-xs font-bold transition cursor-pointer shadow-xs active:scale-95"
+          >
+            <Globe className="w-3.5 h-3.5 text-emerald-500" />
+            <span>vagouapp.com</span>
+          </button>
+        )}
 
         {/* Theme Switcher Button */}
         <button

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { AdminAppointmentItem, AdminSalonItem } from '../../types/admin';
 import { fetchAdminAppointments, fetchAdminSalons } from '../../services/supabaseApi';
+import { VagouOfficialLogo } from '../common/VagouOfficialLogo';
 
 export const AdminAppointmentsMonitor: React.FC = () => {
   const [appointments, setAppointments] = useState<AdminAppointmentItem[]>([]);
@@ -389,9 +390,15 @@ export const AdminAppointmentsMonitor: React.FC = () => {
                 {/* Header do Card */}
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 group-hover:border-emerald-500/40 flex items-center justify-center font-bold text-slate-900 dark:text-white text-sm shrink-0 transition">
-                      {item.salon.trade_name.charAt(0)}
-                    </div>
+                    {item.salon.logo_url ? (
+                      <img
+                        src={item.salon.logo_url}
+                        alt={item.salon.trade_name}
+                        className="w-10 h-10 rounded-xl object-contain bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shrink-0 p-1"
+                      />
+                    ) : (
+                      <VagouOfficialLogo size="md" />
+                    )}
                     <div className="min-w-0">
                       <h3 className="font-bold text-slate-900 dark:text-white text-sm tracking-tight truncate group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition">
                         {item.salon.trade_name}
@@ -519,9 +526,15 @@ export const AdminAppointmentsMonitor: React.FC = () => {
             {/* Dados Principais do Salão */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-lg shrink-0 border border-emerald-200 dark:border-emerald-500/30">
-                  {activeSalonData.salon.trade_name.charAt(0)}
-                </div>
+                {activeSalonData.salon.logo_url ? (
+                  <img
+                    src={activeSalonData.salon.logo_url}
+                    alt={activeSalonData.salon.trade_name}
+                    className="w-12 h-12 rounded-xl object-contain bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shrink-0 p-1"
+                  />
+                ) : (
+                  <VagouOfficialLogo size="xl" />
+                )}
                 <div className="min-w-0">
                   <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight truncate">
                     {activeSalonData.salon.trade_name}

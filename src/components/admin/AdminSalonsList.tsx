@@ -21,7 +21,6 @@ import {
 } from 'lucide-react';
 import { AdminSalonItem, SalonFilterStatus } from '../../types/admin';
 import { SalonLogo } from '../common/SalonLogo';
-import { UnifiedRegistrationForm } from '../public/UnifiedRegistrationForm';
 import { AdminCategoryModal } from './AdminCategoryModal';
 import { AdminSalonDetailView } from './AdminSalonDetailView';
 import {
@@ -73,11 +72,10 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
     return () => unsubscribe();
   }, []);
 
-  // Modal de Exclusão & Cadastro de Profissional
+  // Modal de Exclusão
   const [salonToDelete, setSalonToDelete] = useState<AdminSalonItem | null>(null);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isProfessionalRegistrationOpen, setIsProfessionalRegistrationOpen] = useState(false);
 
   // Detalhes Soberanos do Estabelecimento (Interno + Sincronização com Prop)
   const [internalSelectedSalonDetail, setInternalSelectedSalonDetail] = useState<AdminSalonItem | null>(null);
@@ -395,7 +393,7 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
           </button>
 
           <button
-            onClick={onOpenNewSalon || (() => setIsProfessionalRegistrationOpen(true))}
+            onClick={onOpenNewSalon}
             className="px-3 py-1.5 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-500/20 active:scale-95"
             title="Cadastrar novo estabelecimento e vincular proprietário no ecossistema"
           >
@@ -876,24 +874,6 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                     {isDeleting ? 'Excluindo...' : 'Confirmar Exclusão em Massa'}
                   </button>
                 </div>
-              </div>
-            </div>,
-            document.body
-          )}
-
-          {/* Modal Dedicado Desvinculado para Cadastro de Profissional / Estabelecimento */}
-          {isProfessionalRegistrationOpen && createPortal(
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
-              <div className="w-full max-w-xl bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl relative my-auto max-h-[92vh] overflow-y-auto">
-                <UnifiedRegistrationForm
-                  initialType="professional"
-                  hideTypeSelector={true}
-                  onClose={() => setIsProfessionalRegistrationOpen(false)}
-                  onSuccess={() => {
-                    setIsProfessionalRegistrationOpen(false);
-                    window.location.reload();
-                  }}
-                />
               </div>
             </div>,
             document.body

@@ -23,7 +23,7 @@ import { AdminHeader } from './AdminHeader';
 import { AdminHomeScreen } from './AdminHomeScreen';
 import { AdminSalonsList } from './AdminSalonsList';
 import { AdminEditSalonModal } from './AdminEditSalonModal';
-import { AdminCreateSalonModal } from './AdminCreateSalonModal';
+import { TriadeEstablishmentModal } from './triade-forms/TriadeEstablishmentModal';
 import { AdminAppointmentsMonitor } from './AdminAppointmentsMonitor';
 import { AdminUsersManager } from './AdminUsersManager';
 import { AdminSettingsPanel } from './AdminSettingsPanel';
@@ -33,7 +33,11 @@ import { AdminCreateAdminModal } from './AdminCreateAdminModal';
 import { AdminPortalManager } from './AdminPortalManager';
 import { AdminCategoryModal } from './AdminCategoryModal';
 
-export const AdminMasterApp: React.FC = () => {
+export interface AdminMasterAppProps {
+  onOpenGateway?: () => void;
+}
+
+export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway }) => {
   const [currentScreen, setCurrentScreen] = useState<AdminScreenId>('dashboard');
   const [salons, setSalons] = useState<AdminSalonItem[]>([]);
   const [metrics, setMetrics] = useState<AdminDashboardMetrics>({
@@ -267,6 +271,7 @@ export const AdminMasterApp: React.FC = () => {
           onOpenAuthModal={handleOpenAuthModal}
           onLogout={handleLogout}
           onNavigateScreen={setCurrentScreen}
+          onOpenGateway={onOpenGateway}
         />
 
         {/* Scrollable View Container */}
@@ -362,12 +367,13 @@ export const AdminMasterApp: React.FC = () => {
         onSave={handleSaveSalonUpdates}
       />
 
-      {/* Create Salon Modal */}
-      <AdminCreateSalonModal
+      {/* Create Salon Modal Oficial da Tríade */}
+      <TriadeEstablishmentModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onCreate={handleCreateSalon}
         onViewDetails={handleOpenSalonDetail}
+        onSuccess={() => loadData()}
       />
 
       {/* Category Modal */}

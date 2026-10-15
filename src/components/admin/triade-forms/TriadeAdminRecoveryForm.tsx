@@ -8,17 +8,21 @@ import {
   Mail,
   Smartphone,
   RotateCcw,
+  X,
 } from 'lucide-react';
 import { recoverAdminAccess } from '../../../services/supabaseApi';
+import { VagouOfficialLogo } from '../../common/VagouOfficialLogo';
 
 export interface TriadeAdminRecoveryFormProps {
   onSuccess?: (info: any) => void;
   onSwitchToLogin?: () => void;
+  onClose?: () => void;
 }
 
 export const TriadeAdminRecoveryForm: React.FC<TriadeAdminRecoveryFormProps> = ({
   onSuccess,
   onSwitchToLogin,
+  onClose,
 }) => {
   // Input único: "Usuário" (aceita @usuario, fulano@, e-mail ou celular)
   const [identifier, setIdentifier] = useState('');
@@ -69,13 +73,10 @@ export const TriadeAdminRecoveryForm: React.FC<TriadeAdminRecoveryFormProps> = (
   return (
     <div className="w-full max-w-md mx-auto bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden animate-fadeIn font-['Poppins']">
       {/* Top Banner com Logo Oficial do VagouApp e "Recuperar Acesso" */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border-b border-slate-800 p-5">
-        <div className="flex items-center gap-3">
-          {/* Logo Oficial VagouApp (Fundo Verde + V Branco) */}
-          <div className="w-10 h-10 rounded-xl bg-[#20C933] flex items-center justify-center text-white font-black text-xl shadow-lg shadow-emerald-500/20 shrink-0">
-            <span className="text-white font-black text-xl tracking-tighter">V</span>
-          </div>
-          <div>
+      <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border-b border-slate-800 p-5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <VagouOfficialLogo size="lg" />
+          <div className="min-w-0">
             <h2 className="font-bold text-white text-base tracking-tight font-['Poppins']">
               VagouApp
             </h2>
@@ -84,6 +85,28 @@ export const TriadeAdminRecoveryForm: React.FC<TriadeAdminRecoveryFormProps> = (
             </span>
           </div>
         </div>
+
+        {/* Botão Fechar Oficial da Tríade */}
+        <button
+          type="button"
+          onClick={() => {
+            if (onClose) {
+              onClose();
+            } else if (typeof window !== 'undefined') {
+              window.parent?.postMessage({ source: 'VAGOUAPP_FORM', action: 'CLOSE' }, '*');
+              if (window.history.length > 1) {
+                window.history.back();
+              } else {
+                window.location.href = '/';
+              }
+            }
+          }}
+          className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer shrink-0"
+          aria-label="Fechar formulário"
+          title="Fechar"
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Alerta de Erro */}

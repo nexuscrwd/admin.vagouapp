@@ -7,20 +7,24 @@ import {
   CheckCircle2,
   AlertCircle,
   ArrowRight,
+  X,
 } from 'lucide-react';
+import { VagouOfficialLogo } from '../../common/VagouOfficialLogo';
 
 export interface TriadeMnvClientLoginFormProps {
   salonName?: string;
   onSuccess?: (data: { identifier: string }) => void;
   onSwitchToRegister?: () => void;
   onSwitchToRecovery?: () => void;
+  onClose?: () => void;
 }
 
 export const TriadeMnvClientLoginForm: React.FC<TriadeMnvClientLoginFormProps> = ({
-  salonName = 'Barbearia Rota 99',
+  salonName = 'VagouApp',
   onSuccess,
   onSwitchToRegister,
   onSwitchToRecovery,
+  onClose,
 }) => {
   // Aceita: Usuário (@fulano, fulano@, fulano#), E-mail ou Celular
   const [identifier, setIdentifier] = useState('(11) 98888-7777');
@@ -49,23 +53,52 @@ export const TriadeMnvClientLoginForm: React.FC<TriadeMnvClientLoginFormProps> =
     }, 600);
   };
 
+  const isVagouApp = salonName === 'VagouApp' || !salonName;
+
   return (
     <div className="w-full max-w-md mx-auto bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden animate-fadeIn font-['Poppins']">
-      {/* Top Banner White-label do Salão */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border-b border-slate-800 p-5">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#20C933] flex items-center justify-center text-white font-black text-xl shadow-lg shadow-emerald-500/20">
-            {salonName.charAt(0)}
-          </div>
-          <div>
-            <h2 className="font-bold text-white text-base tracking-tight truncate max-w-[240px]">
-              {salonName}
-            </h2>
-            <p className="text-xs text-slate-400">
-              Acesse sua conta
+      {/* Top Banner White-label do Salão ou VagouApp */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border-b border-slate-800 p-5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <VagouOfficialLogo size="lg" />
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <h2 className="font-extrabold text-white text-base tracking-tight truncate max-w-[200px]">
+                {isVagouApp ? 'VagouApp' : salonName}
+              </h2>
+              {isVagouApp && (
+                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.2 rounded shrink-0">
+                  Oficial
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-400 truncate">
+              {isVagouApp ? 'Ecossistema Oficial · Acesse sua conta' : 'Acesse sua conta'}
             </p>
           </div>
         </div>
+
+        {/* Botão Fechar Oficial da Tríade */}
+        <button
+          type="button"
+          onClick={() => {
+            if (onClose) {
+              onClose();
+            } else if (typeof window !== 'undefined') {
+              window.parent?.postMessage({ source: 'VAGOUAPP_FORM', action: 'CLOSE' }, '*');
+              if (window.history.length > 1) {
+                window.history.back();
+              } else {
+                window.location.href = '/';
+              }
+            }
+          }}
+          className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer shrink-0"
+          aria-label="Fechar formulário"
+          title="Fechar"
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Formulário de Acesso do Cliente */}

@@ -18,6 +18,7 @@ import {
   ShieldAlert,
   CalendarCheck,
   UserPlus,
+  UserCheck,
   Code,
   Copy,
   Check,
@@ -31,11 +32,13 @@ import { TriadeMnvClientRegisterForm } from './triade-forms/TriadeMnvClientRegis
 import { TriadeEstablishmentMasterForm } from './triade-forms/TriadeEstablishmentMasterForm';
 import { TriadeAdminLoginForm } from './triade-forms/TriadeAdminLoginForm';
 import { TriadeAdminRecoveryForm } from './triade-forms/TriadeAdminRecoveryForm';
+import { TriadeAdminRegisterForm } from './triade-forms/TriadeAdminRegisterForm';
 import { TriadeAdminAuthForm } from './triade-forms/TriadeAdminAuthForm';
 
 export type MainTabType = 'mnvapp_forms' | 'cadastro_estabelecimento' | 'adminvapp_form';
 export type MnvUserFlow = 'acesso' | 'cadastro' | 'ambos';
-export type AdminFlow = 'login' | 'recovery' | 'ambos';
+export type AdminFlow = 'login' | 'recovery' | 'cadastro' | 'ambos';
+export type EstabFlow = 'user_check' | 'user_login' | 'user_register' | 'establishment_details' | 'ambos';
 
 export interface AdminTriadeFormsCatalogProps {
   onBack?: () => void;
@@ -48,6 +51,9 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
   // Sub-fluxo da Aba Forms mnvapp: Acesso do usuário vs Cadastro de usuário vs Lado a Lado
   const [mnvUserFlow, setMnvUserFlow] = useState<MnvUserFlow>('acesso');
 
+  // Sub-fluxo da Aba Cadastro de Estabelecimento: 4 Fases do onboarding + Lado a Lado
+  const [estabFlow, setEstabFlow] = useState<EstabFlow>('ambos');
+
   // Sub-fluxo da Aba Adminvapp: Login vs Recuperação de Acesso vs Lado a Lado
   const [adminFlow, setAdminFlow] = useState<AdminFlow>('login');
 
@@ -57,6 +63,11 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
 
   // Amostras de Salões para testar a Maquiagem de Identidade do Salão
   const sampleSalons = [
+    {
+      id: 'sal-vagouapp',
+      name: 'VagouApp',
+      accentColor: '#20C933',
+    },
     {
       id: 'sal-001',
       name: 'Barbearia Rota 99',
@@ -121,9 +132,6 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
                 Single Source of Truth
               </span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Formulários oficiais e canônicos da Tríade. Edite aqui e replique instantaneamente em todos os sites via rota Embed.
-            </p>
           </div>
         </div>
 
@@ -156,7 +164,7 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
         <button
           type="button"
           onClick={() => setActiveMainTab('mnvapp_forms')}
-          className={`p-3.5 rounded-2xl border text-left transition cursor-pointer flex items-start gap-3 ${
+          className={`p-3 rounded-2xl border text-left transition cursor-pointer flex items-center gap-3 ${
             activeMainTab === 'mnvapp_forms'
               ? 'bg-[#20C933] border-emerald-500 text-white shadow-lg shadow-emerald-500/20'
               : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs'
@@ -171,36 +179,16 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
           >
             <Users className="w-5 h-5" />
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-1 mb-0.5">
-              <span className="font-bold text-sm tracking-tight truncate">
-                Aba Forms Mnvapp
-              </span>
-              <span
-                className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded ${
-                  activeMainTab === 'mnvapp_forms'
-                    ? 'bg-white/20 text-white'
-                    : 'bg-slate-100 dark:bg-slate-800 text-emerald-400'
-                }`}
-              >
-                App Salão
-              </span>
-            </div>
-            <p
-              className={`text-[11px] leading-snug line-clamp-2 ${
-                activeMainTab === 'mnvapp_forms' ? 'text-white/90' : 'text-slate-500 dark:text-slate-400'
-              }`}
-            >
-              Acesso do usuário cliente & Cadastro para novos clientes agendarem.
-            </p>
-          </div>
+          <span className="font-bold text-sm tracking-tight truncate">
+            Aba Forms Mnvapp
+          </span>
         </button>
 
         {/* ABA 2: CADASTRO DE ESTABELECIMENTO */}
         <button
           type="button"
           onClick={() => setActiveMainTab('cadastro_estabelecimento')}
-          className={`p-3.5 rounded-2xl border text-left transition cursor-pointer flex items-start gap-3 ${
+          className={`p-3 rounded-2xl border text-left transition cursor-pointer flex items-center gap-3 ${
             activeMainTab === 'cadastro_estabelecimento'
               ? 'bg-[#20C933] border-emerald-500 text-white shadow-lg shadow-emerald-500/20'
               : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs'
@@ -215,36 +203,16 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
           >
             <Building2 className="w-5 h-5" />
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-1 mb-0.5">
-              <span className="font-bold text-sm tracking-tight truncate">
-                Cadastro de Estabelecimento
-              </span>
-              <span
-                className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded ${
-                  activeMainTab === 'cadastro_estabelecimento'
-                    ? 'bg-white/20 text-white'
-                    : 'bg-slate-100 dark:bg-slate-800 text-emerald-400'
-                }`}
-              >
-                Novos Salões
-              </span>
-            </div>
-            <p
-              className={`text-[11px] leading-snug line-clamp-2 ${
-                activeMainTab === 'cadastro_estabelecimento' ? 'text-white/90' : 'text-slate-500 dark:text-slate-400'
-              }`}
-            >
-              Onboarding completo para novos estabelecimentos no mnvapp (3 Níveis).
-            </p>
-          </div>
+          <span className="font-bold text-sm tracking-tight truncate">
+            Cadastro de Estabelecimento
+          </span>
         </button>
 
         {/* ABA 3: ADMINVAPP */}
         <button
           type="button"
           onClick={() => setActiveMainTab('adminvapp_form')}
-          className={`p-3.5 rounded-2xl border text-left transition cursor-pointer flex items-start gap-3 ${
+          className={`p-3 rounded-2xl border text-left transition cursor-pointer flex items-center gap-3 ${
             activeMainTab === 'adminvapp_form'
               ? 'bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-500/20'
               : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs'
@@ -259,29 +227,9 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
           >
             <ShieldCheck className="w-5 h-5" />
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-1 mb-0.5">
-              <span className="font-bold text-sm tracking-tight truncate">
-                Aba Form Adminvapp
-              </span>
-              <span
-                className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded ${
-                  activeMainTab === 'adminvapp_form'
-                    ? 'bg-white/20 text-white'
-                    : 'bg-purple-500/10 text-purple-300 border border-purple-500/20'
-                }`}
-              >
-                admin.vapp.com
-              </span>
-            </div>
-            <p
-              className={`text-[11px] leading-snug line-clamp-2 ${
-                activeMainTab === 'adminvapp_form' ? 'text-white/90' : 'text-slate-500 dark:text-slate-400'
-              }`}
-            >
-              Form de acesso soberano disponível somente através do domínio admin.
-            </p>
-          </div>
+          <span className="font-bold text-sm tracking-tight truncate">
+            Aba Form Adminvapp
+          </span>
         </button>
       </div>
 
@@ -300,9 +248,6 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
                   Formulários do Usuário Cliente no App do Salão
                 </h2>
               </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                Gerencie tanto o login do cliente comum do ecossistema quanto o cadastro rápido de novos clientes ao agendar.
-              </p>
             </div>
 
             {/* Alternador de Sub-fluxo: Acesso vs Cadastro vs Ambos Lado a Lado */}
@@ -403,31 +348,7 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
                   </button>
                 </div>
 
-                {/* Seletor Rápido de Salão para testar o White-label Maquiado */}
-                <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                    <span className="text-[11px] font-bold text-slate-300">
-                      Simular Salão Parceiro:
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {sampleSalons.map((s) => (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => setSelectedPreviewSalon(s)}
-                        className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition cursor-pointer ${
-                          selectedPreviewSalon.id === s.id
-                            ? 'bg-[#20C933] text-white shadow-xs'
-                            : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800'
-                        }`}
-                      >
-                        {s.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+
 
                 <TriadeMnvClientRegisterForm
                   salonId={selectedPreviewSalon.id}
@@ -447,46 +368,201 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
       )}
 
       {/* ========================================================================= */}
-      {/* 📌 CONTEÚDO DA ABA 2: CADASTRO DE ESTABELECIMENTO */}
+      {/* 📌 CONTEÚDO DA ABA 2: CADASTRO DE ESTABELECIMENTO — TODAS AS FASES */}
       {/* ========================================================================= */}
       {activeMainTab === 'cadastro_estabelecimento' && (
         <div className="space-y-4 animate-fadeIn">
-          {/* Header Contextual */}
-          <div className="p-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
+          {/* Header Contextual com Seletor de Sub-fluxo */}
+          <div className="p-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col xl:flex-row xl:items-center justify-between gap-3 shadow-xs">
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-emerald-500 dark:text-emerald-400">Estabelecimentos</span>
                 <span className="text-slate-400">/</span>
                 <h2 className="text-sm font-bold text-slate-900 dark:text-white">
-                  Cadastro de Estabelecimento
+                  Cadastro de Estabelecimento (Todas as 4 Fases)
                 </h2>
               </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                Ficha cadastral oficial sincronizada com o banco Supabase.
-              </p>
             </div>
 
-            <div className="flex items-center gap-2 self-start md:self-auto">
+            <div className="flex items-center gap-2 flex-wrap self-start xl:self-auto">
+              {/* Alternador de Sub-fluxo: Fases 1 a 4 + Lado a Lado */}
+              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setEstabFlow('user_check')}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                    estabFlow === 'user_check'
+                      ? 'bg-[#20C933] text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span>1. Identificação</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setEstabFlow('user_login')}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                    estabFlow === 'user_login'
+                      ? 'bg-[#20C933] text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>2. Login</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setEstabFlow('user_register')}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                    estabFlow === 'user_register'
+                      ? 'bg-[#20C933] text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>3. Cadastro</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setEstabFlow('establishment_details')}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                    estabFlow === 'establishment_details'
+                      ? 'bg-[#20C933] text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  <span>4. Dados do Salão</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setEstabFlow('ambos')}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                    estabFlow === 'ambos'
+                      ? 'bg-[#20C933] text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Columns className="w-3.5 h-3.5" />
+                  <span>Lado a Lado (Todas)</span>
+                </button>
+              </div>
+
               <button
                 type="button"
                 onClick={() => setEmbedModalForm('estabelecimento')}
-                className="py-1.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                className="py-1.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0"
               >
                 <Code className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Embed Estabelecimento</span>
+                <span>Embed</span>
               </button>
             </div>
           </div>
 
-          {/* Card Principal: Formulário Master Completo de Estabelecimento */}
-          <div className="py-2">
-            <TriadeEstablishmentMasterForm
-              onSuccess={(data) =>
-                handleTriggerFeedback(
-                  `Estabelecimento "${data.tradeName}" (CNPJ: ${data.documentNumber}) cadastrado com sucesso! Proprietário: ${data.ownerName}.`
-                )
-              }
-            />
+          {/* Renderização das Fases / Grid Lado a Lado */}
+          <div
+            className={`grid gap-5 items-start ${
+              estabFlow === 'ambos'
+                ? 'grid-cols-1 lg:grid-cols-2 xl:grid-cols-4'
+                : 'grid-cols-1 max-w-2xl mx-auto'
+            } py-2`}
+          >
+            {/* FASE 1: PERGUNTA SE É USUÁRIO OU NÃO */}
+            {(estabFlow === 'user_check' || estabFlow === 'ambos') && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <span className="text-xs font-bold text-emerald-400">
+                      1. Modal Identificação (Sim/Não)
+                    </span>
+                  </div>
+                </div>
+
+                <TriadeEstablishmentMasterForm
+                  forcedStep="user_check"
+                  onSuccess={(data) =>
+                    handleTriggerFeedback(
+                      `Estabelecimento "${data.tradeName}" cadastrado com sucesso!`
+                    )
+                  }
+                />
+              </div>
+            )}
+
+            {/* FASE 2: LOGIN DO PROPRIETÁRIO (SE SIM) */}
+            {(estabFlow === 'user_login' || estabFlow === 'ambos') && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <span className="text-xs font-bold text-emerald-400">
+                      2. Login do Proprietário (Se SIM)
+                    </span>
+                  </div>
+                </div>
+
+                <TriadeEstablishmentMasterForm
+                  forcedStep="user_login"
+                  onSuccess={(data) =>
+                    handleTriggerFeedback(
+                      `Login e estabelecimento "${data.tradeName}" vinculados!`
+                    )
+                  }
+                />
+              </div>
+            )}
+
+            {/* FASE 3: CADASTRO DO PROPRIETÁRIO (SE NÃO) */}
+            {(estabFlow === 'user_register' || estabFlow === 'ambos') && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <span className="text-xs font-bold text-emerald-400">
+                      3. Cadastro de Proprietário (Se NÃO)
+                    </span>
+                  </div>
+                </div>
+
+                <TriadeEstablishmentMasterForm
+                  forcedStep="user_register"
+                  onSuccess={(data) =>
+                    handleTriggerFeedback(
+                      `Proprietário e estabelecimento "${data.tradeName}" criados!`
+                    )
+                  }
+                />
+              </div>
+            )}
+
+            {/* FASE 4: DADOS DO ESTABELECIMENTO */}
+            {(estabFlow === 'establishment_details' || estabFlow === 'ambos') && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <span className="text-xs font-bold text-emerald-400">
+                      4. Dados do Estabelecimento
+                    </span>
+                  </div>
+                </div>
+
+                <TriadeEstablishmentMasterForm
+                  forcedStep="establishment_details"
+                  onSuccess={(data) =>
+                    handleTriggerFeedback(
+                      `Estabelecimento "${data.tradeName}" (CNPJ: ${data.documentNumber}) cadastrado com sucesso! Proprietário: ${data.ownerName}.`
+                    )
+                  }
+                />
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -506,13 +582,10 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
                   Acesso Corporativo Adminvapp
                 </h2>
               </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                Formulários oficiais de Login e Recuperação de Acesso exclusivos para administradores.
-              </p>
             </div>
 
-            {/* Alternador de Sub-fluxo: Login vs Recuperação de Acesso vs Lado a Lado */}
-            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 self-start md:self-auto">
+            {/* Alternador de Sub-fluxo: Login vs Recuperação de Acesso vs Cadastrar Administrador vs Lado a Lado */}
+            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 self-start md:self-auto flex-wrap">
               <button
                 type="button"
                 onClick={() => setAdminFlow('login')}
@@ -541,6 +614,19 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
 
               <button
                 type="button"
+                onClick={() => setAdminFlow('cadastro')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  adminFlow === 'cadastro'
+                    ? 'bg-[#20C933] text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>3. Cadastrar Administrador</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setAdminFlow('ambos')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                   adminFlow === 'ambos'
@@ -557,7 +643,9 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
           {/* Cards Renderizados */}
           <div
             className={`grid gap-5 items-start ${
-              adminFlow === 'ambos' ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1 max-w-md mx-auto'
+              adminFlow === 'ambos'
+                ? 'grid-cols-1 lg:grid-cols-2 xl:grid-cols-3'
+                : 'grid-cols-1 max-w-lg mx-auto'
             } py-2`}
           >
             {/* SUB-ITEM 1: FORMULÁRIO DE LOGIN */}
@@ -585,6 +673,7 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
                     handleTriggerFeedback(`Acesso autorizado para: @${admin.username || admin.email}`)
                   }
                   onSwitchToRecovery={() => setAdminFlow('recovery')}
+                  onSwitchToRegister={() => setAdminFlow('cadastro')}
                 />
               </div>
             )}
@@ -612,6 +701,35 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
                 <TriadeAdminRecoveryForm
                   onSuccess={() =>
                     handleTriggerFeedback('Código no celular e link no e-mail enviados com sucesso!')
+                  }
+                  onSwitchToLogin={() => setAdminFlow('login')}
+                />
+              </div>
+            )}
+
+            {/* SUB-ITEM 3: FORMULÁRIO DE CADASTRO DE NOVO ADMINISTRADOR */}
+            {(adminFlow === 'cadastro' || adminFlow === 'ambos') && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <span className="text-xs font-bold text-emerald-400">
+                      Cadastrar Administrador
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEmbedModalForm('admin_register')}
+                    className="text-[10px] text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Code className="w-3 h-3" />
+                    <span>Embed</span>
+                  </button>
+                </div>
+
+                <TriadeAdminRegisterForm
+                  onSuccess={(newAdmin) =>
+                    handleTriggerFeedback(`Novo administrador @${newAdmin.username} cadastrado com sucesso no Supabase!`)
                   }
                   onSwitchToLogin={() => setAdminFlow('login')}
                 />

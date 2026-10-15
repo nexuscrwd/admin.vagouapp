@@ -50,7 +50,8 @@ import { AdminSalonItem, SalonServiceRecord, SalonServiceMediaItem } from '../..
 import { SalonLogo } from '../common/SalonLogo';
 import { UserAvatar } from '../common/UserAvatar';
 import { supabase } from '../../services/supabase';
-import { UnifiedRegistrationForm } from '../public/UnifiedRegistrationForm';
+import { TriadeMnvClientLoginForm } from './triade-forms/TriadeMnvClientLoginForm';
+import { TriadeMnvClientRegisterForm } from './triade-forms/TriadeMnvClientRegisterForm';
 
 interface AdminSalonDetailViewProps {
   salon: AdminSalonItem;
@@ -2647,13 +2648,8 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
               {/* Contêiner com o Formulário Real como ele é */}
               <div className="p-4 sm:p-5 bg-slate-950 flex flex-col justify-center min-h-[520px]">
                 <div className="w-full max-w-md mx-auto">
-                  <UnifiedRegistrationForm
-                    initialType="client"
-                    initialMode="login"
-                    targetSlug={salon.slug}
-                    salonInfo={salon}
-                    hideTypeSelector={true}
-                    showCloseButton={false}
+                  <TriadeMnvClientLoginForm
+                    salonName={salon.trade_name}
                     onSuccess={() => {
                       alert(`✅ Login validado com sucesso para o estabelecimento ${salon.trade_name}!`);
                     }}
@@ -2717,13 +2713,10 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
               {/* Contêiner com o Formulário Real como ele é */}
               <div className="p-4 sm:p-5 bg-slate-950 flex flex-col justify-center min-h-[520px]">
                 <div className="w-full max-w-md mx-auto">
-                  <UnifiedRegistrationForm
-                    initialType="client"
-                    initialMode="cadastro"
-                    targetSlug={salon.slug}
-                    salonInfo={salon}
-                    hideTypeSelector={true}
-                    showCloseButton={false}
+                  <TriadeMnvClientRegisterForm
+                    salonName={salon.trade_name}
+                    salonLogoUrl={salon.logo_url}
+                    salonAccentColor={salon.primary_color || '#20C933'}
                     onSuccess={() => {
                       alert(`✅ Cadastro concluído com sucesso para o estabelecimento ${salon.trade_name}!`);
                     }}
@@ -2810,19 +2803,28 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-2 sm:p-4">
-              <UnifiedRegistrationForm
-                initialType="client"
-                initialMode={simulatorMode}
-                targetSlug={salon.slug}
-                salonInfo={salon}
-                hideTypeSelector={true}
-                onClose={() => setIsSimulatorOpen(false)}
-                onSuccess={() => {
-                  alert(`✅ Sucesso! O cliente foi autenticado/cadastrado no estabelecimento ${salon.trade_name}!`);
-                  setIsSimulatorOpen(false);
-                }}
-              />
+            <div className="flex-1 overflow-y-auto p-2 sm:p-4 bg-slate-950">
+              {simulatorMode === 'login' ? (
+                <TriadeMnvClientLoginForm
+                  salonName={salon.trade_name}
+                  onSuccess={() => {
+                    alert(`✅ Sucesso! O cliente foi autenticado no estabelecimento ${salon.trade_name}!`);
+                    setIsSimulatorOpen(false);
+                  }}
+                />
+              ) : (
+                <TriadeMnvClientRegisterForm
+                  salonName={salon.trade_name}
+                  salonLogoUrl={salon.logo_url}
+                  salonAccentColor={salon.primary_color || '#20C933'}
+                  onClose={() => setIsSimulatorOpen(false)}
+                  showCloseButton={true}
+                  onSuccess={() => {
+                    alert(`✅ Sucesso! O cliente foi cadastrado no estabelecimento ${salon.trade_name}!`);
+                    setIsSimulatorOpen(false);
+                  }}
+                />
+              )}
             </div>
           </div>
         </div>

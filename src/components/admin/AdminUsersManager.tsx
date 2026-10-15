@@ -44,7 +44,7 @@ import {
 } from '../../services/supabaseApi';
 import { AdminCreateAdminModal } from './AdminCreateAdminModal';
 import { UserAvatar } from '../common/UserAvatar';
-import { UnifiedRegistrationForm } from '../public/UnifiedRegistrationForm';
+import { TriadeMnvClientRegisterForm } from './triade-forms/TriadeMnvClientRegisterForm';
 import { AdminUserDetailView, UnifiedUserDetailType } from './AdminUserDetailView';
 import { AdminUserGeneralDataModal } from './AdminUserGeneralDataModal';
 
@@ -1327,19 +1327,20 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         }}
       />
 
-      {/* Modal Dedicado para Cadastro Unificado de Usuários (Cidadão / Profissional) */}
+      {/* Modal Dedicado para Cadastro Unificado de Usuários (Oficial da Tríade) */}
       {isRegistrationModalOpen &&
         createPortal(
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
             <div className="w-full max-w-xl bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl relative my-auto max-h-[92vh] overflow-y-auto">
-              <UnifiedRegistrationForm
-                initialType="client"
-                hideTypeSelector={true}
+              <TriadeMnvClientRegisterForm
+                salonName="VagouApp"
+                salonAccentColor="#20C933"
                 onClose={() => setIsRegistrationModalOpen(false)}
+                showCloseButton={true}
                 onSuccess={() => {
                   setIsRegistrationModalOpen(false);
                   loadAll();
-                  triggerFeedback('Novo usuário cliente cadastrado com sucesso!');
+                  triggerFeedback('Novo usuário cadastrado com sucesso!');
                 }}
               />
             </div>

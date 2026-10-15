@@ -155,7 +155,7 @@ export interface SystemAdminUser {
   password?: string;
 }
 
-export type AdminAuthTab = 'login' | 'recovery';
+export type AdminAuthTab = 'login' | 'recovery' | 'register';
 export type AdminRecoveryType = 'access_data' | 'password';
 
 export interface AdminAppointmentItem {

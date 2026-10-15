@@ -12,6 +12,7 @@ import {
   PanelLeftOpen,
 } from 'lucide-react';
 import { AdminScreenId, SystemAdminUser, AdminAuthTab } from '../../types/admin';
+import { VagouOfficialLogo } from '../common/VagouOfficialLogo';
 
 interface AdminSidebarProps {
   currentScreen: AdminScreenId;
@@ -77,13 +78,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           }`}
         >
           <div className="flex items-center gap-2.5 min-w-0">
-            <div
+            <VagouOfficialLogo
+              size="md"
               onClick={toggleCollapsed}
-              className="w-9 h-9 rounded-xl bg-[#20C933] flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0 cursor-pointer hover:scale-105 transition active:scale-95"
               title={isCollapsed ? 'Expandir barra lateral' : 'Recolher para ícones'}
-            >
-              <span className="text-white font-black text-xl tracking-tighter">V</span>
-            </div>
+            />
 
             {!isCollapsed && (
               <div className="min-w-0 animate-fadeIn">

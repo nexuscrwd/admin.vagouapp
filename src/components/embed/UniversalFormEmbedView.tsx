@@ -45,7 +45,7 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
     return 'mnv_cadastro';
   });
 
-  const [salonName, setSalonName] = useState('Barbearia Rota 99');
+  const [salonName, setSalonName] = useState('VagouApp');
   const [serviceName, setServiceName] = useState('Corte Degradê & Barba');
   const [servicePrice, setServicePrice] = useState('R$ 75,00');
   const [isTransparent, setIsTransparent] = useState(false);
@@ -128,28 +128,27 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
     );
   }
 
+  const handleClose = () => {
+    dispatchPostMessage('CLOSE', {});
+    if (onExit) {
+      onExit();
+    } else if (typeof window !== 'undefined') {
+      if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        window.location.href = '/';
+      }
+    }
+  };
+
   return (
     <div
       className={`min-h-screen w-full flex flex-col items-center justify-center p-3 sm:p-4 font-['Poppins'] ${
         isTransparent ? 'bg-transparent' : 'bg-slate-950'
       }`}
     >
-      {/* Botão sutil de voltar se aberto fora do iframe */}
-      {typeof window !== 'undefined' && window.self === window.top && onExit && (
-        <div className="w-full max-w-md mb-2 flex justify-start">
-          <button
-            type="button"
-            onClick={onExit}
-            className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition cursor-pointer"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Voltar ao Painel</span>
-          </button>
-        </div>
-      )}
-
       {/* RENDERIZAÇÃO ISOLADA DO FORMULÁRIO SELECIONADO */}
-      <div className="w-full max-w-md animate-fadeIn">
+      <div className={`w-full ${formType === 'estabelecimento' ? 'max-w-4xl' : 'max-w-md'} animate-fadeIn`}>
         {formType === 'mnv_login' && (
           <TriadeMnvClientLoginForm
             salonName={salonName}
@@ -157,6 +156,7 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
               dispatchPostMessage('LOGIN_SUCCESS', data);
             }}
             onSwitchToRegister={() => setFormType('mnv_cadastro')}
+            onClose={handleClose}
           />
         )}
 
@@ -167,6 +167,7 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
               dispatchPostMessage('REGISTER_SUCCESS', data);
             }}
             onSwitchToLogin={() => setFormType('mnv_login')}
+            onClose={handleClose}
           />
         )}
 
@@ -178,6 +179,7 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
               onSuccess={(data) => {
                 dispatchPostMessage('SALON_MASTER_SUCCESS', data);
               }}
+              onClose={handleClose}
             />
           </div>
         )}
@@ -190,6 +192,7 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
             onSwitchToRecovery={() => {
               dispatchPostMessage('SWITCH_TO_RECOVERY', {});
             }}
+            onClose={handleClose}
           />
         )}
 
@@ -201,6 +204,7 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
             onSwitchToLogin={() => {
               dispatchPostMessage('SWITCH_TO_LOGIN', {});
             }}
+            onClose={handleClose}
           />
         )}
       </div>

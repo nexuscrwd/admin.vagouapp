@@ -18,7 +18,23 @@ O **Vagou** é um aplicativo mobile-first de agendamento de vagas imediatas e ho
 
 ---
 
-## 📱 2. Modos de Operação do Aplicativo
+## 🏛️ 2. A Tríade VagouApp & Pacote Oficial de Formulários (`src/triade-export`)
+
+O ecossistema oficial é composto por 3 aplicações independentes conectadas ao mesmo banco Supabase:
+1. `pvapp` (`portal.vagouapp.com`) — Marketplace do Consumidor.
+2. `mnvapp` (`seunegocio.vagouapp.com`) — Gestão do Salão Parceiro.
+3. `admvapp` (`adm.vagouapp.com`) — ESTE PROJETO: Governança Master Soberana.
+
+### 📦 Central Unificada de Formulários da Tríade (`src/triade-export/`):
+Todos os formulários legados foram eliminados (`UnifiedRegistrationForm`, `AdminCreateSalonModal`), dando lugar aos componentes canônicos e soberanos:
+- **`TriadeEstablishmentMasterForm` / `TriadeEstablishmentModal`**: Cadastro completo de estabelecimento com verificação de proprietário e modal de **"Mesmo Endereço do Usuário"** (garagens, sobrados e estúdios residenciais).
+- **`TriadeMnvClientRegisterForm`**: Cadastro progressivo em 3 etapas de clientes com suporte a white-label do parceiro.
+- **`TriadeMnvClientLoginForm`**: Acesso simplificado multi-identificador (usuário, celular ou e-mail).
+- **`UniversalFormEmbedView`**: Hub de embed com URLs parametrizadas (`/embed/estabelecimento`, `/embed/mnv-cadastro`, `/embed/mnv-acesso`) para carregamento direto em iframes no `mnvapp` e `pvapp`.
+
+---
+
+## 📱 3. Modos de Operação do Aplicativo
 
 O aplicativo possui dois modos operacionais principais controlados pelo estado global `appMode`:
 

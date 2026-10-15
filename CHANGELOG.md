@@ -15,6 +15,256 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-15] — 🛡️ Padronização do Logotipo Oficial do VagouApp em Todo o Aplicativo
+- **Tipo:** `[UI / UX / Branding / DesignSystem]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou a div do logotipo no cabeçalho do formulário (`CSS selector 1: div#root > div > div > div > div > div > div > div`) e solicitou: *"ocalize essas div em todo o app e insira o logo oficial do vagouapp"*.
+- **Ações Executadas:**
+  - 1️⃣ **Aprimoramento do Componente `VagouOfficialLogo.tsx`**:
+    - Substituição do contêiner com bordas aninhadas e do arquivo SVG intermediário por renderização vetorial pura do símbolo oficial do VagouApp com o gradiente institucional (`#087A2A` -> `#20C933` -> `#38E54B`).
+    - Eliminação completa de "box dentro de box" (layout plano e limpo).
+    - Suporte nativo e robusto para `variant="icon"` (símbolo vetorial) e `variant="full"` (logotipo completo com fallback automático).
+  - 2️⃣ **`TriadeEstablishmentMasterForm.tsx`**:
+    - Cabeçalho mestre: Exibição limpa do símbolo oficial `VagouOfficialLogo`.
+    - Etapa 2 (Login): Substituição do texto simulado pelo logotipo oficial completo `VagouOfficialLogo variant="full"`.
+    - Etapa 3 (Cadastro): Substituição da div verde com letra 'V' por `VagouOfficialLogo size="md"`.
+    - Etapa 4 (Dados do Salão): Substituição do fallback de letra inicial por `logoUrl` do salão ou `VagouOfficialLogo size="xl"`.
+  - 3️⃣ **`TriadeMnvClientRegisterForm.tsx` & `TriadeMnvClientLoginForm.tsx`**:
+    - Substituição das divs com letra inicial do salão pelo `VagouOfficialLogo` oficial quando não houver logotipo customizado da empresa.
+  - 4️⃣ **`AdminAppointmentsMonitor.tsx`**:
+    - Substituição das divs com inicial nas listagens de salões e no cabeçalho do detalhe de faturamento pelo `VagouOfficialLogo` oficial.
+  - 5️⃣ **Validação:** `lint_applet` e `compile_applet` executados e aprovados com 100% de sucesso.
+
+### [2026-10-15] — 🚫 Eliminação Definitiva de "Box dentro de Box" no Formulário Raiz (AGENTS.md)
+- **Tipo:** `[UI / UX / CleanCode / DesignConstitution]`
+- **Motivo / Solicitação:** 
+  O usuário enviou captura de tela mostrando a existência de caixas aninhadas (box dentro de box com dois botões `X` e bordas duplas) no formulário raiz e solicitou: *"no formulário raiz ha box dentro de box como mostra o print. preciso que leia o md pra evitar e corrigir isso"*.
+- **Ações Executadas:**
+  - 1️⃣ **Leitura e Aplicação Rigorosa da Diretriz do `AGENTS.md` (Zero "Box dentro de Box" & Layout Plano):**
+    - Identificada a duplicação onde o modal externo criava uma moldura `border rounded-3xl` com cabeçalho e botão `X`, envolvendo o `TriadeEstablishmentMasterForm` que criava internamente outra moldura `border rounded-2xl` com outro cabeçalho e outro botão `X`.
+  - 2️⃣ **`src/components/gateway/VagouGatewayHub.tsx`**:
+    - Removida a caixa intermediária redundante e o cabeçalho duplicado do modal.
+    - O overlay `fixed inset-0 bg-slate-950/85` agora renderiza DIRETAMENTE o `TriadeEstablishmentMasterForm`.
+  - 3️⃣ **`src/components/admin/triade-forms/TriadeEstablishmentModal.tsx`**:
+    - Aplicada a mesma eliminação de contêiner aninhado, renderizando o formulário mestre soberano de forma direta.
+  - 4️⃣ **`src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`**:
+    - Integrado o cabeçalho oficial único diretamente no formulário mestre, com logotipo oficial [V], tipografia institucional e botão `X` unificado no canto superior direito.
+    - Layout 100% plano (Flat & Clean), respirando sobre a tela com elegância visual e zero poluição de bordas aninhadas.
+  - 5️⃣ **Validação:** `lint_applet` e `compile_applet` executados e aprovados com 100% de sucesso.
+
+### [2026-10-15] — 🌐 Criação do Gateway Hub Oficial de Entrada (vagouapp.com)
+- **Tipo:** `[Feat / Architecture / GatewayHub / Triade]`
+- **Motivo / Solicitação:** 
+  O usuário propôs a criação de um aplicativo de entrada direto no domínio raiz `vagouapp.com` para os usuários acessarem o portal ou cadastrarem estabelecimentos, escolhendo a "Opção 1".
+- **Ações Executadas:**
+  - 1️⃣ **Criação do Componente `VagouGatewayHub.tsx` (`src/components/gateway/`):**
+    - Layout institucional premium em Dark Theme (`slate-950` / `#20C933`) com síntese mobile.
+    - Barra superior com identidade VagouApp, link rápido "Já é parceiro? Entrar no Salão" e acesso ao Painel Master.
+    - Hero bilateral com os 2 grandes cards de conversão:
+      - **Card Cliente:** "Quero Agendar um Horário" -> Redirecionamento para `portal.vagouapp.com`.
+      - **Card Estabelecimento:** "Cadastrar Meu Estabelecimento" -> Abre na hora o formulário oficial `TriadeEstablishmentMasterForm` em modal de alta conversão.
+    - Suporte a conclusão cadastral e encaminhamento para `seunegocio.vagouapp.com`.
+  - 2️⃣ **Integração no `src/App.tsx` & Roteamento Inteligente:**
+    - Detecta rotas `/hub`, `/gateway` e domínios `vagouapp.com` / `www.vagouapp.com` para renderizar o Gateway Hub automaticamente.
+    - Botão de atalho rápido `[🌐 vagouapp.com]` inserido no cabeçalho do Admin Master para alternância de teste em 1 clique.
+  - 3️⃣ **Validação:** `lint_applet` e `compile_applet` concluídos com sucesso.
+
+### [2026-10-15] — ❌ Botão Fechar Padronizado em 100% dos Formulários da Tríade
+- **Tipo:** `[UI / UX / MobileFirst / TriadeSync]`
+- **Motivo / Solicitação:** 
+  O usuário enviou captura de tela do formulário de cadastro de usuário e solicitou: *"preciso de u botão fechar nesse e em todos os formularios"*.
+- **Ações Executadas:**
+  - 1️⃣ **`TriadeMnvClientRegisterForm.tsx`**: Adicionado botão de Fechar (`X` da `lucide-react`) no cabeçalho superior direito, alinhado com a identidade do salão/VagouApp.
+  - 2️⃣ **`TriadeMnvClientLoginForm.tsx`**: Adicionado botão de Fechar (`X`) no cabeçalho superior direito.
+  - 3️⃣ **`TriadeEstablishmentMasterForm.tsx`**: Adicionado botão de Fechar (`X`) no topo superior direito do contêiner mestre (`absolute top-4 right-4 z-30`).
+  - 4️⃣ **`TriadeAdminLoginForm.tsx`**, **`TriadeAdminRegisterForm.tsx`**, **`TriadeAdminRecoveryForm.tsx`**: Adicionados botões de Fechar (`X`) nos respectivos cabeçalhos.
+  - 5️⃣ **`UniversalFormEmbedView.tsx`**: Implementado `handleClose` que dispara `onClose()`, emite evento `postMessage({ source: 'VAGOUAPP_FORM', action: 'CLOSE' }, '*')` para iframes e possui fallback nativo de navegação.
+  - 6️⃣ **`src/triade-export/`**: Interfaces e documentação oficial atualizadas com a diretriz obrigatória do botão Fechar.
+  - 7️⃣ **Validação:** `lint_applet` e `compile_applet` executados e aprovados com sucesso.
+
+### [2026-10-15] — 🏛️ COMUNICADO TÉCNICO OFICIAL DA TRÍADE: Exclusão de Formulários Legados e Exportação Universal dos Formulários Oficiais (mnvapp & pvapp)
+- **Tipo:** `[Refactor / Governance / TriadeSync / CleanCode]`
+- **Origem:** `admvapp` (adm.vagouapp.com)
+- **Destinatários Obrigatórios:** `pvapp` (portal.vagouapp.com) & `mnvapp` (seunegocio.vagouapp.com)
+- **Motivo / Solicitação do Usuário:** 
+  *"os formulario ficaram bons. Agora preciso que exclua todos os outros formularios de cadastro logo preciso que os formularios da seção formularios sejam disponiveis parao o mnvapp e pvapp"*
+- **Arquivos e Ações:**
+  - 🗑️ **Exclusão Definitiva dos Formulários Legados:**
+    - `src/components/public/UnifiedRegistrationForm.tsx` (1762 linhas excluídas)
+    - `src/components/admin/AdminCreateSalonModal.tsx` (1836 linhas excluídas)
+    - Diretório vazio `src/components/public` removido.
+  - 📦 **Criação do Pacote de Exportação Universal da Tríade (`src/triade-export/`):**
+    - `src/triade-export/index.ts`: Ponto único de exportação de todos os formulários oficiais unificados (`TriadeEstablishmentMasterForm`, `TriadeEstablishmentModal`, `TriadeMnvClientRegisterForm`, `TriadeMnvClientLoginForm`, `TriadeAdminAuthForm`, `UniversalFormEmbedView`) com seus tipos TypeScript completos.
+    - `src/triade-export/README.md`: Manual oficial de integração para `mnvapp` e `pvapp`, cobrindo integração via Embed Iframe (`/embed/estabelecimento`, `/embed/mnv-cadastro`, `/embed/mnv-acesso`) e importação direta React/TypeScript.
+  - 🔗 **Substituição de Modais e Fluxos no Admin Master:**
+    - `AdminMasterApp.tsx`: Criação de `TriadeEstablishmentModal` para substituir o antigo modal legado de salão, abrindo diretamente o formulário mestre oficial.
+    - `AdminSalonsList.tsx`: Removida dependência do form legado e limpo handler de cadastro.
+    - `AdminUsersManager.tsx`: Substituído modal de novo usuário para utilizar o `TriadeMnvClientRegisterForm` oficial.
+    - `AdminSalonDetailView.tsx`: Substituídos os simuladores de login e cadastro para utilizar `TriadeMnvClientLoginForm` e `TriadeMnvClientRegisterForm`.
+    - `src/App.tsx`: Rota de `/cadastro` e `/onboarding` padronizada para carregar `UniversalFormEmbedView` com os formulários oficiais.
+  - 🧹 **Clean Code & Qualidade:**
+    - `lint_applet`: 100% aprovado sem erros de compilação.
+    - `compile_applet`: Build de produção (`npm run build`) validado com sucesso.
+
+### [2026-10-14] — 🧹 Remoção do Bloco "Simular Salão Parceiro" (Focus Mode)
+- **Tipo:** `[UI / UX / CleanCode / FocusMode]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou via Focus Mode o elemento e solicitou a remoção (*"removeeeer"*), contestando a exibição de um "estabelecimento existente" / seletor de salões durante o fluxo de cadastro.
+- **Ações Executadas:**
+  - 1️⃣ Removido o bloco/card secundário `Simular Salão Parceiro:` de `AdminTriadeFormsCatalog.tsx`.
+  - 2️⃣ Mantido o fluxo padrão do cadastro com a identidade soberana do VagouApp, sem caixas secundárias nem seletores de simulação poluindo a tela.
+  - 3️⃣ Validação com `lint_applet` e `compile_applet` concluída com sucesso.
+
+### [2026-10-14] — 🧹 Remoção dos Badges e Simplificação dos Cards de Aba (Focus Mode)
+- **Tipo:** `[UI / UX / CleanCode / FocusMode]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou via Focus Mode o elemento dos cards de seleção de aba (`div#root... > div:nth-of-type(2) > div:nth-of-type(2)`) e acionou a remoção (*"remover"*).
+- **Ações Executadas:**
+  - 1️⃣ Removidas as tags e badges secundárias (`App Salão`, `Novos Salões`, `admin.vapp.com`) dos cards seletores de aba do Hub de Formulários.
+  - 2️⃣ Eliminados os `div`s aninhados e wrappers desnecessários, mantendo apenas o ícone e o título em linha única.
+  - 3️⃣ Interface ultra-sintetizada, 100% aderente às regras de UX mobile (menos texto e zero "blablabla").
+
+### [2026-10-14] — 🧹 Remoção Total de Parágrafos de Texto Explicativos (Limpeza do Hub de Formulários)
+- **Tipo:** `[UI / UX / CleanCode / FocusMode]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou via Focus Mode o parágrafo descritivo do cabeçalho e solicitou a remoção (*"remover"*).
+- **Ações Executadas:**
+  - 1️⃣ Removido o texto descritivo do cabeçalho superior no `AdminTriadeFormsCatalog.tsx`.
+  - 2️⃣ Removidos os parágrafos de instrução/subtítulo de todas as sub-barras contextuais (*Forms Mnvapp*, *Cadastro de Estabelecimento* e *Adminvapp*).
+  - 3️⃣ Mantido o layout ultra-resumido, focado em ícones, títulos e botões diretos sem poluição de texto.
+
+### [2026-10-14] — ⚡ Exibição de Todas as 4 Fases de Cadastro de Estabelecimento (Lado a Lado)
+- **Tipo:** `[Feature / UI / UX / Testability]`
+- **Motivo / Solicitação:** 
+  O usuário solicitou: *"preciso que nesta seção seja exibido todas as fazer, não quero ter de editar dados toda hora quue form fazer teste!!!!!! Copia os exemlos vizinhs!!!"*
+- **Ações Executadas:**
+  - 1️⃣ **Seletor de Sub-fluxo Contextual:** Adicionada barra de navegação superior na Aba 2 (*Cadastro de Estabelecimento*) do `AdminTriadeFormsCatalog.tsx`, espelhando a estrutura das abas vizinhas (*Forms Mnvapp* e *Adminvapp*).
+  - 2️⃣ **Exibição Lado a Lado (Todas as 4 Fases):** Criado modo `ambos` que renderiza em grid responsivo todas as 4 fases simultaneamente (*1. Identificação*, *2. Login do Proprietário*, *3. Cadastro de Proprietário* e *4. Dados do Salão*).
+  - 3️⃣ **Prop `forcedStep` no `TriadeEstablishmentMasterForm.tsx`:** Atualizado o formulário master para permitir forçar qualquer fase específica ou renderizá-las em paralelo sem necessidade de preencher etapas anteriores a cada teste.
+- **Arquivos Afetados:** `AdminTriadeFormsCatalog.tsx`, `TriadeEstablishmentMasterForm.tsx`, `CHANGELOG.md`.
+
+### [2026-10-14] — 🧹 Remoção do Texto Explicativo de Endereço & Padronização da Identidade VagouApp
+- **Tipo:** `[Fix / UI / UX / CleanCode]`
+- **Motivo / Solicitação:** 
+  O usuário solicitou: *"ja pedi pra remover soooooooooooooooo - Muitos parceiros funcionam em casa, garagem adaptada..."* e reforçou a obrigatoriedade da marca oficial **VagouApp** ao invés de nomes genéricos de salões como "Barbearia Rota 99".
+- **Ações Executadas:**
+  - 1️⃣ **Remoção de Texto Redundante:** Eliminado o parágrafo explicativo (*"Muitos parceiros funcionam em casa, garagem adaptada..."*) no modal de mesmo endereço e no painel de cadastro do `TriadeEstablishmentMasterForm.tsx`.
+  - 2️⃣ **Identidade Oficial VagouApp Padrão:** Atualizado o valor padrão de `salonName` de `"Barbearia Rota 99"` para `"VagouApp"` nos formulários de acesso e cadastro (`TriadeMnvClientLoginForm.tsx`, `TriadeMnvClientRegisterForm.tsx`, `UniversalFormEmbedView.tsx` e `AdminTriadeFormsCatalog.tsx`).
+- **Arquivos Afetados:** `TriadeEstablishmentMasterForm.tsx`, `TriadeMnvClientLoginForm.tsx`, `TriadeMnvClientRegisterForm.tsx`, `UniversalFormEmbedView.tsx`, `AdminTriadeFormsCatalog.tsx`, `CHANGELOG.md`.
+
+### [2026-10-14] — 🧹 Remoção de Texto Redundante / Poluição Visual no Cadastro de Estabelecimento
+- **Tipo:** `[Fix / UI / UX / CleanCode]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou o texto do modal via Focus Mode e solicitou: *"remover esse contrangimento"*.
+- **Ações Executadas:**
+  - Removido o parágrafo explicativo redundante (*"Todo estabelecimento precisa estar vinculado a um usuário proprietário..."*) em `TriadeEstablishmentMasterForm.tsx` e `AdminCreateSalonModal.tsx`.
+  - Simplificada a interface de decisão do proprietário, respeitando a diretriz inegociável de *"Síntese Mobile & Menos Texto"* (Zero Blablabla) e mantendo apenas a pergunta direta.
+- **Arquivos Afetados:** `TriadeEstablishmentMasterForm.tsx`, `AdminCreateSalonModal.tsx`, `CHANGELOG.md`.
+
+### [2026-10-14] — 🏠 Opção & Modal: Usar Mesmo Endereço do Proprietário (Salão em Casa, Garagem, Sobrado)
+- **Tipo:** 
+- **Motivo / Solicitação:** 
+  O usuário solicitou: *"No cadastro do estabelecimento, preciso que haja a opção modal antes do endereço do tipo mesmo endereço do usuário, pois há usuários que têm salão no mesmo endereço onde moram, no caso de converter garagem em salão, ou um sobrado e etc."*
+- **Ações Executadas:**
+  - 1️⃣ **Modal Interativo & Pergunta Direta:**
+    - Ao avançar para os dados do salão após login ou cadastro do usuário, o sistema exibe o Modal / Card: *"O salão fica no mesmo endereço do proprietário? (Para salão em casa, garagem adaptada, sobrado ou estúdio residencial)"*.
+  - 2️⃣ **Cópia Automática em 1 Clique:**
+    - Ao selecionar ****, o formulário copia instantaneamente todos os dados de logradouro, número, complemento, bairro, CEP, cidade e UF do proprietário autenticado.
+    - Exibe a notificação com sinalização visual de sucesso: .
+  - 3️⃣ **Opção de Ponto Comercial Distinto:**
+    - Ao selecionar ****, a busca por ViaCEP e digitação manual continuam disponíveis livremente.
+- **Arquivos Impactados:**
+  -  (Atualizado)
+  -  (Atualizado)
+  -  (Atualizado)
+- **Validação:**  e  aprovados sem nenhum erro.
+
+### [2026-10-14] — 🚀 Fluxo de Decisão e Cadastro de Estabelecimento em 3 Modais VagouApp Reutilizáveis
+- **Tipo:** `[Feat / UI / UX / Auth / Branding / MobileFirst]`
+- **Motivo / Solicitação:** 
+  O usuário instruiu: *"Estas são as opções de cadastramento de estabelecimento: 1- modal se é ou não usuário do ecossistema, 2- se sim formulário de login porém com a identificação do vagouapp. Após logar será redirecionado para a fase seguinte, 3- se não o modal abre o formulário de cadastro de usuário com identificação vagouapp. Todos esses formulários de cadastro de 'estabelecimento' devem ter as identificações do vagouapp. E poderíamos reaproveitar formulários prontos."*
+- **Ações Executadas:**
+  - 1️⃣ **Modal 1 (Decisão de Usuário no Ecossistema):**
+    - Renderiza a pergunta *"O estabelecimento a ser criado já possui usuário cadastrado?"* com opções lado a lado: **`SIM`** (*Selecionar usuário já cadastrado*) e **`NÃO`** (*Cadastrar novo usuário agora*).
+  - 2️⃣ **Modal 2 (Formulário de Login VagouApp se SIM):**
+    - Exibe o logotipo oficial centralizado *"Vagou app Vagou achou."*, título *"Acessar Conta"*, campos de *"Seu E-mail Cadastrado"* e *"Sua Senha"*, botão verde `#20C933` *"→ Acessar"*, link *"Ainda não possui uma conta? Cadastre-se aqui"* e rodapé *"🛡️ Ambiente Soberano Vagou"*.
+    - Ao logar com sucesso, vincula a conta e **redireciona diretamente para a Fase Seguinte** (os dados do negócio).
+  - 3️⃣ **Modal 3 (Formulário de Cadastro de Usuário VagouApp se NÃO):**
+    - Exibe a identificação oficial do VagouApp e o fluxo progressivo em 3 abas (`1. Dados`, `2. Endereço`, `3. Senha`).
+    - Link no rodapé *"Já tem conta? Entrar com meu login"* para chaveamento imediato.
+    - Ao concluir o cadastro, vincula o novo proprietário e **redireciona para a Fase Seguinte** (a ficha do estabelecimento).
+  - 💈 **Reaproveitamento & Branding Unificado:**
+    - Atualizados `AdminCreateSalonModal.tsx` e `TriadeEstablishmentMasterForm.tsx` para compartilhar e reaproveitar os formulários já construídos com identificação Soberana do VagouApp.
+- **Arquivos Impactados:**
+  - `src/components/admin/AdminCreateSalonModal.tsx` (Atualizado)
+  - `src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx` (Atualizado)
+  - `CHANGELOG.md` (Atualizado)
+- **Validação:** `lint_applet` e `compile_applet` aprovados sem nenhum erro.
+
+### [2026-10-14] — 🔐 Modal de Autenticação do Proprietário Cadastrado no Formulário de Estabelecimentos
+- **Tipo:** `[Feat / Auth / UI / UX / MobileFirst]`
+- **Motivo / Solicitação:** 
+  O usuário solicitou: *"nesse caso deve haver um modal se já é um usuário cadastrado deve logar com senha, daí então as informações dele como proprietário são pre-carregadas. Se não, deve abrir o formulário anterior como já era antes."*
+- **Ações Executadas:**
+  - 🔑 **Modal de Autenticação de Proprietário (`isOwnerLoginModalOpen`):**
+    - Ao selecionar *"Já é um usuário cadastrado"*, abre-se o modal dedicado de login com campos para `Usuário, E-mail ou Celular` e `Senha de Acesso`.
+    - Ao autenticar com sucesso, pesquisa e recupera o perfil do proprietário no Supabase, **pre-carregando automaticamente** o Nome, WhatsApp e E-mail do proprietário.
+    - Exibe banner de confirmação com badge verde indicando a conta do proprietário vinculado.
+    - Se o usuário cancelar ou escolher *"Não sou cadastrado / Preencher Manualmente"*, o modal fecha e o formulário abre os campos editáveis como antes.
+- **Arquivos Impactados:**
+  - `src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx` (Atualizado)
+  - `CHANGELOG.md` (Atualizado)
+- **Validação:** `lint_applet` e `compile_applet` aprovados sem erros.
+
+### [2026-10-14] — 🏪 Seletor de Cadastrante (Usuário vs Não Usuário) no Formulário Mestre de Estabelecimentos
+- **Tipo:** `[Feat / UI / UX / Auth / CleanCode / MobileFirst]`
+- **Motivo / Solicitação:** 
+  O usuário solicitou: *"no form de cadastro de estabelecimento, precisamos daquela opção de quem está cadastrando o novo estabelecimento, se é um usuário ou um não usuário ainda."*
+- **Ações Executadas:**
+  - 👥 **Integração de Seleção de Status do Cadastrante em `TriadeEstablishmentMasterForm.tsx`:**
+    - Adicionado o seletor dual em `Titular / Proprietário Responsável`:
+      1. **`Já é um usuário cadastrado`**: permite localizar e vincular em tempo real uma conta existente do banco de dados do ecossistema, preenchendo automaticamente os dados e exibindo o badge de vínculo.
+      2. **`Não é usuário ainda (Novo)`**: exibe os campos para cadastro direto de novo proprietário e credenciais.
+    - Integrada a busca de usuários com filtro inteligente (nome, @username, e-mail e telefone) conectada à API do Supabase.
+- **Arquivos Impactados:**
+  - `src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx` (Atualizado)
+  - `CHANGELOG.md` (Atualizado)
+- **Validação:** `lint_applet` e `compile_applet` validados com 100% de sucesso.
+
+### [2026-10-14] — 📱 Abas de Avanço Progressivo no Formulário de Cadastro de Clientes (`TriadeMnvClientRegisterForm`)
+- **Tipo:** `[UI / UX / MobileFirst / Refactor / CleanCode]`
+- **Motivo / Solicitação:** 
+  O usuário instruiu: *"no formulário de cadastro de clientes há três etapas. Configure cada etapa em abas de avanço para melhor otimizar espaço"*.
+- **Ações Executadas:**
+  - 🧭 **Otimização de Espaço com Abas de Avanço Progressivo (`activeStep: 1 | 2 | 3`):**
+    - Adicionado indicador interativo de abas (`1. Dados Pessoais`, `2. Endereço`, `3. Senha`) no topo do formulário de cadastro de cliente.
+    - Otimizada a renderização vertical: cada etapa é exibida individualmente sem poluir a tela com formulários empilhados longos.
+    - Incluídos botões de navegação e validação em tempo real: *"Avançar para Endereço"* na Etapa 1, *"Voltar"* / *"Avançar para Senha"* na Etapa 2 e *"Voltar"* / *"Cadastrar & Acessar"* na Etapa 3.
+- **Arquivos Impactados:**
+  - `src/components/admin/triade-forms/TriadeMnvClientRegisterForm.tsx` (Refatorado)
+  - `CHANGELOG.md` (Atualizado)
+- **Validação:** `lint_applet` e `compile_applet` validados com 100% de sucesso.
+
+### [2026-10-14] — 👤 Integração do Formulário de Cadastro de Novo Administrador e Ajustes no AdminAuthModal
+- **Tipo:** `[Feat / UI / UX / Auth / CleanCode / MobileFirst]`
+- **Motivo / Solicitação:** 
+  O usuário reportou: *"falta o form de cadastro de novo administrador"*, pois ao clicar em *"Cadastrar"* ou acessar a modal/gate de autenticação, o formulário de cadastro de novo administrador estava ausente e exibia apenas a mensagem de bloqueio.
+- **Ações Executadas:**
+  - 📝 **Integração Completa do Formulário de Cadastro (`TriadeAdminRegisterForm`):**
+    - Atualizado o tipo `AdminAuthTab` em `src/types/admin.ts` para suportar `'login' | 'recovery' | 'register'`.
+    - Adicionado suporte à troca para o cadastro no `TriadeAdminLoginForm` com o callback `onSwitchToRegister` e o link *"Cadastrar novo administrador"*.
+    - Refatorado `AdminAuthModal.tsx` para incorporar diretamente `TriadeAdminLoginForm`, `TriadeAdminRecoveryForm` e `TriadeAdminRegisterForm`, chaveando perfeitamente a renderização do formulário completo de cadastro de administrador ao selecionar a aba/opção de cadastro.
+    - Removido o texto residual de bloqueio que impedia o cadastro direto de administradores.
+    - Atualizado `AdminTriadeFormsCatalog.tsx` para transmitir `onSwitchToRegister` ao formulário de login.
+- **Arquivos Impactados:**
+  - `src/types/admin.ts` (Atualizado)
+  - `src/components/admin/AdminAuthModal.tsx` (Refatorado)
+  - `src/components/admin/triade-forms/TriadeAdminLoginForm.tsx` (Atualizado)
+  - `src/components/admin/triade-forms/TriadeAdminAuthForm.tsx` (Atualizado)
+  - `src/components/admin/AdminTriadeFormsCatalog.tsx` (Atualizado)
+  - `CHANGELOG.md` (Atualizado)
+- **Validação:** `lint_applet` e `compile_applet` validados com 100% de sucesso.
+
 ### [2026-10-14] — 🔐 Desacoplamento do Formulário de Acesso e Recuperação, Logo Oficial VagouApp e Suporte Universal a Usuário/Email/Celular
 - **Tipo:** `[Feature / Architecture / UI / UX / CleanCode / Auth / MobileFirst]`
 - **Motivo / Solicitação:** 
