@@ -15,6 +15,59 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-16] — 🧹 Remoção do Cabeçalho Duplicado Interno da Ficha do Estabelecimento
+- **Tipo:** `[UI / UX / CleanCode / FocusMode]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou via ferramenta visual de foco o cabeçalho secundário duplicado da Etapa 4 da ficha cadastral (`... > div:nth-of-type(2) > div:nth-of-type(1) > div:nth-of-type(1)`) com a instrução direta *"removerrrr"*.
+- **Ações Executadas:**
+  - 1️⃣ **`src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`**:
+    - Removido o cabeçalho secundário duplicado que continha logo, título redundante, badge "ATIVO" e URL slug dentro da Etapa 4.
+    - O formulário agora mantém exclusivamente o cabeçalho mestre unificado no topo e transita diretamente para a barra de seções e campos cadastrais, mantendo a experiência 100% limpa e sem caixas redundantes.
+  - 2️⃣ **Validação:** `lint_applet` e `compile_applet` executados e aprovados com 100% de sucesso.
+
+### [2026-10-16] — ✂️ Remoção do Banner Repetitivo do Proprietário no Formulário de Estabelecimento
+- **Tipo:** `[UI / UX / CleanCode / FlatLayout / FocusMode]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou via ferramenta visual de foco o primeiro container interno do formulário de estabelecimento (`form:nth-of-type(1) > div:nth-of-type(1)`) com a instrução direta *"remover"*.
+- **Ações Executadas:**
+  - 1️⃣ **`src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`**:
+    - Removido o banner decorativo redundante do proprietário autenticado (`bg-slate-950/90 border border-emerald-500/30`) que ficava no topo do formulário.
+    - Elimina a poluição visual ("box dentro de box"), permitindo que a ficha cadastral do estabelecimento se inicie de forma direta, limpa e plana a partir dos dados comerciais e fiscais.
+  - 2️⃣ **Validação:** `lint_applet` e `compile_applet` executados e aprovados com 100% de sucesso.
+
+### [2026-10-16] — 🧹 Remoção de Abas Duplicadas e Simplificação dos Cabeçalhos Contextuais dos Formulários
+- **Tipo:** `[UI / UX / CleanCode / FocusMode]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou via ferramenta visual de foco os elementos redundantes (`div:nth-of-type(2)` de navegação duplicada, o separador `/` e o subtítulo `h2:nth-of-type(1)`) com a instrução direta *"remover"*.
+- **Ações Executadas:**
+  - 1️⃣ **`src/components/admin/AdminTriadeFormsCatalog.tsx`**:
+    - Removida a barra/grid de abas duplicada do topo da visualização (`div:nth-of-type(2)`), concentrando a navegação de forma definitiva e despoluída no **submenu da barra lateral (Sidebar)**.
+    - Removidos o caractere separador (`<span className="text-slate-400">/</span>`) e os subtítulos redundantes (`<h2>...</h2>`) em todos os cabeçalhos de seção (`cadastro_estabelecimento`, `mnvapp_forms`, `adminvapp_form`).
+    - Layout agora exibe exclusivamente o badge de contexto limpo (`Estabelecimentos`, `Mnvapp`, `Admin`) junto aos seletores de sub-fluxo, alinhado 100% com a regra de **Síntese Mobile & Menos Texto**.
+  - 2️⃣ **Validação:** `lint_applet` e `compile_applet` executados e aprovados com 100% de sucesso.
+  - 3️⃣ **Dev Server:** Reiniciado com novo bundle fresco sem artefatos em cache de memória.
+
+### [2026-10-16] — 🧭 Reorganização de Formulários em Seções Dedicadas & Submenu na Sidebar
+- **Tipo:** `[UI / UX / Navigation / Architecture / FocusMode]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou o container das abas de formulários (`CSS selector 1: ... > main > div > div:nth-of-type(2)`) e solicitou: *"preciso que organize cada item dessas abas numa seção para cada, e que eseja disponivel no menu formlario no sidebar como submenu. Para melhor navegar e destumultuar"*.
+- **Ações Executadas:**
+  - 1️⃣ **`src/components/admin/AdminSidebar.tsx`**:
+    - Criado **submenu expansível/recolhível com indicador Chevron** sob o item principal "Formulários".
+    - 4 seções dedicadas disponíveis para navegação direta:
+      - 🏢 **Estabelecimento**: Onboarding oficial e dados cadastrais.
+      - 👥 **Forms Mnvapp**: Formulários de acesso e cadastro de clientes do salão.
+      - 🛡️ **Forms Admin**: Login corporativo, recuperação e cadastro de administradores.
+      - 📋 **Embeds & iFrame**: Gerador de códigos de incorporação para pvapp e mnvapp.
+    - Sincronização em tempo real do item ativo com destaque verde e borda indicadora.
+    - Ajustada a largura da sidebar expandida para acomodar os sub-itens com ergonomia.
+  - 2️⃣ **`src/components/admin/AdminMasterApp.tsx`**:
+    - Integrado o estado `formsActiveTab` sincronizando a navegação entre a barra lateral e a tela de formulários.
+  - 3️⃣ **`src/components/admin/AdminTriadeFormsCatalog.tsx`**:
+    - Reestruturado o seletor principal em **4 cards de seções dedicadas e despoluídas**, eliminando sobreposição visual e confusão ("tumulto").
+    - Adicionada a seção dedicada de **Embeds & iFrames** com cópia em 1 clique e documentação dos parâmetros de integração.
+  - 4️⃣ **Validação:** `lint_applet` e `compile_applet` executados e aprovados com 100% de sucesso.
+
 ### [2026-10-16] — ✂️ Síntese Mobile: Remoção dos Subtítulos Explicativos nos Botões SIM e NÃO
 - **Tipo:** `[UI / UX / CleanDesign / FocusMode]`
 - **Motivo / Solicitação:** 

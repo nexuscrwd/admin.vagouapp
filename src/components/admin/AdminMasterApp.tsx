@@ -18,7 +18,7 @@ import {
   SystemAdminUser,
   AdminAuthTab,
 } from '../../types/admin';
-import { AdminSidebar } from './AdminSidebar';
+import { AdminSidebar, FormsSubTabId } from './AdminSidebar';
 import { AdminHeader } from './AdminHeader';
 import { AdminHomeScreen } from './AdminHomeScreen';
 import { AdminSalonsList } from './AdminSalonsList';
@@ -57,6 +57,7 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
   const [adminUser, setAdminUser] = useState<SystemAdminUser | null>(() => getStoredAdmin());
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalInitialTab, setAuthModalInitialTab] = useState<AdminAuthTab>('login');
+  const [formsActiveTab, setFormsActiveTab] = useState<FormsSubTabId>('cadastro_estabelecimento');
   const [isCreateAdminModalOpen, setIsCreateAdminModalOpen] = useState(false);
 
   // Salon Modals
@@ -255,6 +256,11 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
           pendingCount={pendingCount}
           adminUser={adminUser}
           onOpenAuthModal={handleOpenAuthModal}
+          activeFormsTab={formsActiveTab}
+          onSelectFormsTab={(tab) => {
+            setFormsActiveTab(tab);
+            setCurrentScreen('forms');
+          }}
         />
       </div>
 
@@ -339,7 +345,11 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
 
           {/* SCREEN: FORMS (Central de Formulários da Tríade) */}
           {currentScreen === 'forms' && (
-            <AdminTriadeFormsCatalog onBack={() => setCurrentScreen('settings')} />
+            <AdminTriadeFormsCatalog
+              onBack={() => setCurrentScreen('settings')}
+              activeTab={formsActiveTab}
+              onTabChange={setFormsActiveTab}
+            />
           )}
         </main>
       </div>

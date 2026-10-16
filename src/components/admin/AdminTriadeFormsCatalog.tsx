@@ -35,18 +35,29 @@ import { TriadeAdminRecoveryForm } from './triade-forms/TriadeAdminRecoveryForm'
 import { TriadeAdminRegisterForm } from './triade-forms/TriadeAdminRegisterForm';
 import { TriadeAdminAuthForm } from './triade-forms/TriadeAdminAuthForm';
 
-export type MainTabType = 'mnvapp_forms' | 'cadastro_estabelecimento' | 'adminvapp_form';
+export type MainTabType = 'cadastro_estabelecimento' | 'mnvapp_forms' | 'adminvapp_form' | 'embeds';
 export type MnvUserFlow = 'acesso' | 'cadastro' | 'ambos';
 export type AdminFlow = 'login' | 'recovery' | 'cadastro' | 'ambos';
 export type EstabFlow = 'user_check' | 'user_login' | 'user_register' | 'establishment_details' | 'ambos';
 
 export interface AdminTriadeFormsCatalogProps {
   onBack?: () => void;
+  activeTab?: MainTabType;
+  onTabChange?: (tab: MainTabType) => void;
 }
 
-export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = ({ onBack }) => {
-  // Aba Principal Selecionada
-  const [activeMainTab, setActiveMainTab] = useState<MainTabType>('mnvapp_forms');
+export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = ({
+  onBack,
+  activeTab,
+  onTabChange,
+}) => {
+  // Aba Principal Selecionada com controle externo e interno
+  const [internalTab, setInternalTab] = useState<MainTabType>('cadastro_estabelecimento');
+  const activeMainTab = activeTab || internalTab;
+  const setActiveMainTab = (tab: MainTabType) => {
+    setInternalTab(tab);
+    onTabChange?.(tab);
+  };
 
   // Sub-fluxo da Aba Forms mnvapp: Acesso do usuário vs Cadastro de usuário vs Lado a Lado
   const [mnvUserFlow, setMnvUserFlow] = useState<MnvUserFlow>('acesso');
@@ -157,97 +168,14 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
       )}
 
       {/* ========================================================================= */}
-      {/* 🧭 SELETOR DE ABAS PRINCIPAIS (CONFORME SOLICITADO PELO USUÁRIO) */}
-      {/* ========================================================================= */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {/* ABA 1: FORMS MNVAPP */}
-        <button
-          type="button"
-          onClick={() => setActiveMainTab('mnvapp_forms')}
-          className={`p-3 rounded-2xl border text-left transition cursor-pointer flex items-center gap-3 ${
-            activeMainTab === 'mnvapp_forms'
-              ? 'bg-[#20C933] border-emerald-500 text-white shadow-lg shadow-emerald-500/20'
-              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs'
-          }`}
-        >
-          <div
-            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-              activeMainTab === 'mnvapp_forms'
-                ? 'bg-white/20 text-white'
-                : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-            }`}
-          >
-            <Users className="w-5 h-5" />
-          </div>
-          <span className="font-bold text-sm tracking-tight truncate">
-            Aba Forms Mnvapp
-          </span>
-        </button>
-
-        {/* ABA 2: CADASTRO DE ESTABELECIMENTO */}
-        <button
-          type="button"
-          onClick={() => setActiveMainTab('cadastro_estabelecimento')}
-          className={`p-3 rounded-2xl border text-left transition cursor-pointer flex items-center gap-3 ${
-            activeMainTab === 'cadastro_estabelecimento'
-              ? 'bg-[#20C933] border-emerald-500 text-white shadow-lg shadow-emerald-500/20'
-              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs'
-          }`}
-        >
-          <div
-            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-              activeMainTab === 'cadastro_estabelecimento'
-                ? 'bg-white/20 text-white'
-                : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-            }`}
-          >
-            <Building2 className="w-5 h-5" />
-          </div>
-          <span className="font-bold text-sm tracking-tight truncate">
-            Cadastro de Estabelecimento
-          </span>
-        </button>
-
-        {/* ABA 3: ADMINVAPP */}
-        <button
-          type="button"
-          onClick={() => setActiveMainTab('adminvapp_form')}
-          className={`p-3 rounded-2xl border text-left transition cursor-pointer flex items-center gap-3 ${
-            activeMainTab === 'adminvapp_form'
-              ? 'bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-500/20'
-              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs'
-          }`}
-        >
-          <div
-            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-              activeMainTab === 'adminvapp_form'
-                ? 'bg-white/20 text-white'
-                : 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
-            }`}
-          >
-            <ShieldCheck className="w-5 h-5" />
-          </div>
-          <span className="font-bold text-sm tracking-tight truncate">
-            Aba Form Adminvapp
-          </span>
-        </button>
-      </div>
-
-      {/* ========================================================================= */}
       {/* 📌 CONTEÚDO DA ABA 1: FORMS MNVAPP */}
       {/* ========================================================================= */}
       {activeMainTab === 'mnvapp_forms' && (
         <div className="space-y-4 animate-fadeIn">
           {/* Sub-barra Contextual com as 2 frentes solicitadas */}
           <div className="p-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-emerald-500 dark:text-emerald-400">Mnvapp</span>
-                <span className="text-slate-400">/</span>
-                <h2 className="text-sm font-bold text-slate-900 dark:text-white">
-                  Formulários do Usuário Cliente no App do Salão
-                </h2>
-              </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-emerald-500 dark:text-emerald-400">Mnvapp</span>
             </div>
 
             {/* Alternador de Sub-fluxo: Acesso vs Cadastro vs Ambos Lado a Lado */}
@@ -374,14 +302,8 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
         <div className="space-y-4 animate-fadeIn">
           {/* Header Contextual com Seletor de Sub-fluxo */}
           <div className="p-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col xl:flex-row xl:items-center justify-between gap-3 shadow-xs">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-emerald-500 dark:text-emerald-400">Estabelecimentos</span>
-                <span className="text-slate-400">/</span>
-                <h2 className="text-sm font-bold text-slate-900 dark:text-white">
-                  Cadastro de Estabelecimento (Todas as 4 Fases)
-                </h2>
-              </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-emerald-500 dark:text-emerald-400">Estabelecimentos</span>
             </div>
 
             <div className="flex items-center gap-2 flex-wrap self-start xl:self-auto">
@@ -574,14 +496,8 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
         <div className="space-y-4 animate-fadeIn">
           {/* Header Contextual com Seletor de Sub-fluxo */}
           <div className="p-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-emerald-500 dark:text-emerald-400">Adminvapp</span>
-                <span className="text-slate-400">/</span>
-                <h2 className="text-sm font-bold text-slate-900 dark:text-white">
-                  Acesso Corporativo Adminvapp
-                </h2>
-              </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-emerald-500 dark:text-emerald-400">Adminvapp</span>
             </div>
 
             {/* Alternador de Sub-fluxo: Login vs Recuperação de Acesso vs Cadastrar Administrador vs Lado a Lado */}
@@ -735,6 +651,178 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
                 />
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 📌 CONTEÚDO DA ABA 4: EMBEDS & IFRAMES (SEÇÃO DEDICADA & DESTUMULTUADA) */}
+      {/* ========================================================================= */}
+      {activeMainTab === 'embeds' && (
+        <div className="space-y-6 animate-fadeIn">
+          <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-md space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 dark:text-emerald-400 flex items-center justify-center">
+                  <Code className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                    Central de Códigos Embed & iFrame (Single Source of Truth)
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Gere, copie e teste os iframes para carregar os formulários reais no portal consumidor (pvapp) e salão parceiro (mnvapp).
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Grid dos 3 Formulários Principais para Embed com Cópia Direta */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Card 1: Estabelecimento */}
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3 flex flex-col justify-between">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <Building2 className="w-4 h-4 text-emerald-500" />
+                      <span>Estabelecimento</span>
+                    </span>
+                    <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded font-bold">
+                      ?form=estabelecimento
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Ficha de credenciamento oficial de novos salões e barbearias.
+                  </p>
+                  <pre className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[10px] text-emerald-600 dark:text-emerald-400 font-mono overflow-x-auto whitespace-pre">
+{`<iframe
+  src="https://adm.vagouapp.com/embed?form=estabelecimento"
+  width="100%"
+  height="750"
+  frameborder="0"
+></iframe>`}
+                  </pre>
+                </div>
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`<iframe src="https://adm.vagouapp.com/embed?form=estabelecimento" width="100%" height="750" frameborder="0"></iframe>`);
+                      handleTriggerFeedback('Código de embed de Estabelecimento copiado!');
+                    }}
+                    className="flex-1 py-2 px-3 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copiar Iframe</span>
+                  </button>
+                  <a
+                    href="/embed?form=estabelecimento"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition"
+                    title="Testar em Nova Aba"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+                </div>
+              </div>
+
+              {/* Card 2: Cadastro Cliente Mnvapp */}
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3 flex flex-col justify-between">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <Users className="w-4 h-4 text-emerald-500" />
+                      <span>Cadastro Cliente</span>
+                    </span>
+                    <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded font-bold">
+                      ?form=mnv_cadastro
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Formulário de novo cliente com suporte a maquiagem visual do salão.
+                  </p>
+                  <pre className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[10px] text-emerald-600 dark:text-emerald-400 font-mono overflow-x-auto whitespace-pre">
+{`<iframe
+  src="https://adm.vagouapp.com/embed?form=mnv_cadastro"
+  width="100%"
+  height="700"
+  frameborder="0"
+></iframe>`}
+                  </pre>
+                </div>
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`<iframe src="https://adm.vagouapp.com/embed?form=mnv_cadastro" width="100%" height="700" frameborder="0"></iframe>`);
+                      handleTriggerFeedback('Código de embed de Cadastro Cliente copiado!');
+                    }}
+                    className="flex-1 py-2 px-3 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copiar Iframe</span>
+                  </button>
+                  <a
+                    href="/embed?form=mnv_cadastro"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition"
+                    title="Testar em Nova Aba"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+                </div>
+              </div>
+
+              {/* Card 3: Login Cliente Mnvapp */}
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3 flex flex-col justify-between">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <KeyRound className="w-4 h-4 text-emerald-500" />
+                      <span>Login Cliente</span>
+                    </span>
+                    <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded font-bold">
+                      ?form=mnv_login
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Acesso rápido de clientes para agendamento no salão parceiro.
+                  </p>
+                  <pre className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[10px] text-emerald-600 dark:text-emerald-400 font-mono overflow-x-auto whitespace-pre">
+{`<iframe
+  src="https://adm.vagouapp.com/embed?form=mnv_login"
+  width="100%"
+  height="540"
+  frameborder="0"
+></iframe>`}
+                  </pre>
+                </div>
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`<iframe src="https://adm.vagouapp.com/embed?form=mnv_login" width="100%" height="540" frameborder="0"></iframe>`);
+                      handleTriggerFeedback('Código de embed de Login Cliente copiado!');
+                    }}
+                    className="flex-1 py-2 px-3 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copiar Iframe</span>
+                  </button>
+                  <a
+                    href="/embed?form=mnv_login"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition"
+                    title="Testar em Nova Aba"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

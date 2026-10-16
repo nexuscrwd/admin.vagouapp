@@ -1082,39 +1082,9 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
       {/* ========================================================================= */}
       {flowStep === 'establishment_details' && (
         <div className="animate-fadeIn">
-          {/* Topo Soberano: Cadastro Master do Estabelecimento */}
-          <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border-b border-slate-800 p-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3.5">
-                {logoUrl ? (
-                  <img
-                    src={logoUrl}
-                    alt={tradeName}
-                    className="w-12 h-12 rounded-xl object-contain bg-slate-950 p-1 border border-slate-800 shadow-md shrink-0"
-                  />
-                ) : (
-                  <VagouOfficialLogo size="xl" />
-                )}
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="font-bold text-white text-lg tracking-tight truncate max-w-[320px]">
-                      {tradeName || 'Novo Estabelecimento'}
-                    </h2>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 whitespace-nowrap">
-                      ATIVO
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
-                    <span className="font-mono text-emerald-400">{slug}.vagouapp.com</span>
-                    <span>•</span>
-                    <span>{category}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Barra de Filtro Rápido de Seções */}
-            <div className="flex items-center gap-1.5 mt-4 pt-3 border-t border-slate-800 overflow-x-auto">
+          {/* Barra de Filtro Rápido de Seções */}
+          <div className="border-b border-slate-800 p-3 sm:px-5 bg-slate-900/60">
+            <div className="flex items-center gap-1.5 overflow-x-auto">
               <button
                 type="button"
                 onClick={() => setActiveSection('all')}
@@ -1191,33 +1161,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
               </div>
             )}
 
-            {/* Banner do Proprietário Autenticado */}
-            <div className="bg-slate-950/90 border border-emerald-500/30 rounded-xl p-4 flex items-center justify-between flex-wrap gap-3 shadow-md">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#20C933] text-white font-bold flex items-center justify-center shrink-0 shadow-md">
-                  <UserCheck className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-white">{ownerName}</span>
-                    <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                      ✓ Proprietário Autenticado
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    {ownerEmail} · {ownerWhatsapp}
-                  </p>
-                </div>
-              </div>
 
-              <button
-                type="button"
-                onClick={() => setFlowStep('user_check')}
-                className="text-xs font-bold text-emerald-400 hover:underline cursor-pointer"
-              >
-                Alterar Proprietário
-              </button>
-            </div>
 
             {/* SEÇÃO 2: DADOS COMERCIAIS & FISCAIS */}
             {(activeSection === 'all' || activeSection === 'commercial') && (
