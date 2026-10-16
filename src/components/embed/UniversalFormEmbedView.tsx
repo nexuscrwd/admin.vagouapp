@@ -89,16 +89,17 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
 
   const dispatchPostMessage = (event: string, payload: any) => {
     if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
-      window.parent.postMessage(
-        {
-          source: 'VAGOUAPP_EMBED',
-          event,
-          formType,
-          payload,
-          timestamp: new Date().toISOString(),
-        },
-        '*'
-      );
+      const messageData = {
+        source: 'VAGOUAPP_EMBED',
+        event,
+        action: event,
+        formType,
+        payload,
+        timestamp: new Date().toISOString(),
+      };
+      window.parent.postMessage(messageData, '*');
+      // Envia também com source VAGOUAPP_FORM para garantir compatibilidade
+      window.parent.postMessage({ ...messageData, source: 'VAGOUAPP_FORM' }, '*');
     }
   };
 

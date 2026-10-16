@@ -13,6 +13,7 @@ import {
 import { AdminScreenId, SystemAdminUser, AdminAuthTab } from '../../types/admin';
 import { UserAvatar } from '../common/UserAvatar';
 import { useTheme } from '../../context/ThemeContext';
+import { VagouOfficialLogo } from '../common/VagouOfficialLogo';
 
 interface AdminHeaderProps {
   currentScreen: AdminScreenId;
@@ -80,6 +81,15 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
             <Menu className="w-5 h-5" />
           </button>
         )}
+
+        {/* Logotipo Oficial do VagouApp no Mobile */}
+        <div className="lg:hidden shrink-0">
+          <VagouOfficialLogo
+            size="sm"
+            onClick={() => onNavigateScreen?.('dashboard')}
+            title="Ir para o Início"
+          />
+        </div>
 
         <div>
           <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 font-medium">

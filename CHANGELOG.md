@@ -15,6 +15,55 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-16] — ✂️ Síntese Mobile: Remoção dos Subtítulos Explicativos nos Botões SIM e NÃO
+- **Tipo:** `[UI / UX / CleanDesign / FocusMode]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou via Focus Mode os spans com as legendas explicativas dentro dos botões SIM e NÃO da Etapa 1 do formulário (`CSS selector 1` e `CSS selector 2`) e solicitou: *"remover"*.
+- **Ações Executadas:**
+  - 1️⃣ **`src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`**:
+    - Removidos os subtítulos `"Selecionar usuário já cadastrado / Acessar conta"` e `"Cadastrar novo usuário agora"`.
+    - Os botões agora exibem de forma direta, limpa e sintética apenas o título principal em alto contraste e o respectivo ícone:
+      - Botão **SIM** com ícone `Check` (✓) verde.
+      - Botão **NÃO** com ícone `UserPlus` (+) em branco.
+    - Layout alinhado perfeitamente com a diretriz de **Síntese Mobile & Menos Texto** do `AGENTS.md`.
+  - 2️⃣ **Validação:** `lint_applet` e `compile_applet` executados e aprovados com 100% de sucesso.
+
+### [2026-10-16] — 🛡️ Consolidação do Logotipo Oficial do VagouApp com Asset Vetorial Nativo (/icon.svg) e Banner Executivo
+- **Tipo:** `[UI / UX / Branding / DesignSystem]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou a div do logotipo (`CSS selector 1: div#root > div > div > div > div > div > div > div`) e solicitou: *"ocalize essas div em todo o app e insira o logo oficial do vagouapp"*.
+- **Ações Executadas:**
+  - 1️⃣ **`src/components/common/VagouOfficialLogo.tsx`**:
+    - Carregamento nativo do asset oficial `/icon.svg` (Squircle oficial com o checkmark V e gradiente institucional `#087A2A` ➔ `#20C933` ➔ `#32E046`).
+    - Triplo fallback resiliente: `/icon.svg` ➔ `/logo.png` ➔ SVG inline em vetor puro com `#151A1E`.
+    - Suporte a `variant="icon"`, `variant="full"` (`/logo.svg`) e `variant="symbol"` (vetor limpo sem molduras).
+    - Eliminação de qualquer resquício de "box dentro de box" (layout plano e elegante).
+  - 2️⃣ **`src/components/admin/AdminHeader.tsx`**:
+    - Inserção do `VagouOfficialLogo` no cabeçalho mobile do painel administrativo, garantindo identidade visual oficial mesmo com a barra lateral recolhida.
+  - 3️⃣ **`src/components/admin/AdminHomeScreen.tsx`**:
+    - Inserção de banner corporativo executivo no topo da tela inicial com o logotipo oficial do VagouApp em alta definição (`size="xl"`), status da Tríade e CTA direto de criação.
+  - 4️⃣ **Validação:** `lint_applet` e `compile_applet` executados e aprovados com 100% de sucesso.
+
+### [2026-10-15] — 📊 Conversão da Seção Agendamentos para Lista Tabular (Tabela Oficial)
+- **Tipo:** `[UI / UX / TableView / AdminMaster]`
+- **Motivo / Solicitação:** 
+  O usuário enviou captura de tela do Monitor de Agendamentos e solicitou: *"essa seção Agendamentos deve ser em lista tabular. copie a ideia da seção usuários ou estabelecimentos"*.
+- **Ações Executadas:**
+  - 1️⃣ **`src/components/admin/AdminAppointmentsMonitor.tsx`**:
+    - Substituição da exibição primária em cards por uma **Tabela Lista Tabular soberana**, seguindo o mesmo padrão visual de `AdminSalonsList` e `AdminUsersManager`.
+    - **Colunas do Grid Tabular:**
+      - **Estabelecimento:** Logo oficial + Nome do Salão + Bairro/Cidade + Categoria.
+      - **Subdomínio:** Badge com `slug.vagouapp.com`.
+      - **Agendados:** Total de agendamentos no mês/competência.
+      - **Concluídos:** Agendamentos válidos e faturáveis (destaque em verde).
+      - **Cancelados:** No-shows e cancelamentos (destaque em rosa).
+      - **Volume:** Total transacionado pelo salão na moeda BRL.
+      - **Fatura Vagou:** Valor a faturar no fechamento em destaque `font-extrabold`.
+      - **Modelo:** Badge "Pay-per-Booking" ou "Assinatura".
+      - **Ação:** Botão "Ver Extrato →" para abrir a visualização detalhada.
+    - **Alternador de Visualização:** Adicionados botões na barra de busca (`Tabela` vs `Cards`), mantendo **Tabela** como padrão soberano.
+  - 2️⃣ **Validação:** `lint_applet` e `compile_applet` executados e aprovados com 100% de sucesso.
+
 ### [2026-10-15] — 🛡️ Padronização do Logotipo Oficial do VagouApp em Todo o Aplicativo
 - **Tipo:** `[UI / UX / Branding / DesignSystem]`
 - **Motivo / Solicitação:** 

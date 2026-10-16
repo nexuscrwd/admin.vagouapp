@@ -619,15 +619,10 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
             <button
               type="button"
               onClick={() => setFlowStep('user_login')}
-              className="p-5 rounded-2xl border border-emerald-500/40 bg-emerald-950/30 hover:bg-emerald-900/40 text-left transition cursor-pointer group active:scale-98 shadow-md"
+              className="p-5 rounded-2xl border border-emerald-500/40 bg-emerald-950/30 hover:bg-emerald-900/40 transition cursor-pointer group active:scale-98 shadow-md flex items-center justify-between"
             >
-              <div className="flex items-center justify-between w-full mb-2">
-                <span className="text-base font-black text-emerald-400 group-hover:text-emerald-300">SIM</span>
-                <Check className="w-5 h-5 text-emerald-400" />
-              </div>
-              <span className="text-xs text-slate-300 font-medium leading-snug block">
-                Selecionar usuário já cadastrado / Acessar conta
-              </span>
+              <span className="text-base font-black text-emerald-400 group-hover:text-emerald-300">SIM</span>
+              <Check className="w-5 h-5 text-emerald-400" />
             </button>
 
             {/* Opção NÃO */}
@@ -637,15 +632,10 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                 setRegStep(1);
                 setFlowStep('user_register');
               }}
-              className="p-5 rounded-2xl border border-slate-700 bg-slate-800/60 hover:bg-slate-800 text-left transition cursor-pointer group active:scale-98 shadow-md"
+              className="p-5 rounded-2xl border border-slate-700 bg-slate-800/60 hover:bg-slate-800 transition cursor-pointer group active:scale-98 shadow-md flex items-center justify-between"
             >
-              <div className="flex items-center justify-between w-full mb-2">
-                <span className="text-base font-black text-slate-200 group-hover:text-white">NÃO</span>
-                <UserPlus className="w-5 h-5 text-slate-400 group-hover:text-white" />
-              </div>
-              <span className="text-xs text-slate-400 group-hover:text-slate-300 font-medium leading-snug block">
-                Cadastrar novo usuário agora
-              </span>
+              <span className="text-base font-black text-slate-200 group-hover:text-white">NÃO</span>
+              <UserPlus className="w-5 h-5 text-slate-400 group-hover:text-white" />
             </button>
           </div>
 
