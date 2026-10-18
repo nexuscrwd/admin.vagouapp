@@ -118,7 +118,7 @@ export const TriadeAdminRegisterForm: React.FC<TriadeAdminRegisterFormProps> = (
       });
 
       if (res.success && res.admin) {
-        setSuccessMessage(`Administrador @${res.admin.username} cadastrado com sucesso!`);
+        setSuccessMessage(`Administrador ${res.admin.username.replace(/^@+/, '')} cadastrado com sucesso!`);
         onSuccess?.(res.admin);
       } else {
         setErrorMessage(res.error || 'Erro ao cadastrar administrador.');

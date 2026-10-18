@@ -119,6 +119,23 @@ interface TechnicalBulletin {
 
 const TRIADE_BULLETINS: TechnicalBulletin[] = [
   {
+    id: 'bol-017-visual-identity-font-favicon-slogan-sync',
+    timestamp: '2026-10-18T20:25:00.000Z',
+    sourceApp: 'admvapp',
+    targetApps: ['pvapp', 'mnvapp'],
+    title: 'Padronização Soberana da Identidade Visual do Estabelecimento: Logotipo, Favicon (PWA 1:1), Cor, Slogan e 4 Estilos de Fonte da Marca (Opção B)',
+    category: 'schema_change',
+    summary: 'Homologação Oficial da Tríade após auditoria cruzada com o repositório meunegocio.vagouapp.git (mnvapp): 1. A Etapa 4 (Identidade Visual) do Cadastro Soberano de Estabelecimento contempla os 5 pilares essenciais de marca: Logotipo (logo_url / logo_light_url / logo_dark_url), Favicon 1:1 (favicon_url / branding.salonIcon para ícone na galeria de apps mobile e abas do navegador), Cor Principal (primary_color / branding.primaryColor), Slogan curto (slogan / branding.slogan até 60 caracteres) e Estilo de Fonte da Marca (brand_font / branding.brandFont com 4 presets: Poppins, Cormorant Garamond, Oswald e Plus Jakarta Sans, mantendo a UI de agendamento e preços travada em Poppins). 2. Redes sociais e bio longa permanecem desacopladas para preenchimento pós-cadastro dentro do painel do salão (mnvapp).',
+    impactedTables: ['public.salons'],
+    sqlMigration: `-- Executar no Supabase SQL Editor para sincronizar public.salons em toda a Tríade
+ALTER TABLE public.salons
+ADD COLUMN IF NOT EXISTS favicon_url TEXT,
+ADD COLUMN IF NOT EXISTS slogan VARCHAR(120),
+ADD COLUMN IF NOT EXISTS brand_font VARCHAR(60) DEFAULT 'Poppins';`,
+    instructions: '1. MNVAPP (meunegocio.vagouapp.com): Em src/lib/supabase.ts (updateSalonSettingsInDb e syncSalonDataToSupabase) e VisualIdentityCardView.tsx, persistir e ler favicon_url (salonIcon), slogan e brand_font também no Supabase (colunas + objeto JSONB branding), eliminando a limitação atual de salvar salonIcon apenas no localStorage. Importar Oswald no index.html (Poppins, Cormorant Garamond e Plus Jakarta Sans já estão presentes). 2. PVAPP (portal.vagouapp.com): Aplicar brand_font apenas no título/nome fantasia do cabeçalho do salão, exibir o slogan abaixo do nome e injetar favicon_url no manifesto/aba.',
+    author: 'Super Administrador • admvapp (adm.vagouapp.com)',
+  },
+  {
     id: 'bol-016-dedicated-business-contacts-and-address-sync',
     timestamp: '2026-09-28T07:15:00.000Z',
     sourceApp: 'admvapp',
@@ -916,8 +933,8 @@ async function startServer() {
           return res.json({
             success: true,
             type: 'password_reset_success',
-            message: `Senha do administrador @${matchedAdmin.username} redefinida com sucesso! Você já pode realizar o login com sua nova senha.`,
-            admin_username: matchedAdmin.username,
+            message: `Senha do administrador ${matchedAdmin.username.replace(/^@+/, '')} redefinida com sucesso! Você já pode realizar o login com sua nova senha.`,
+            admin_username: matchedAdmin.username.replace(/^@+/, ''),
           });
         }
 
@@ -926,9 +943,9 @@ async function startServer() {
           success: true,
           type: 'password_user_verified',
           admin_found: true,
-          username: matchedAdmin.username,
+          username: matchedAdmin.username.replace(/^@+/, ''),
           full_name: matchedAdmin.full_name,
-          message: `Administrador @${matchedAdmin.username} localizado com sucesso. Informe a nova senha de acesso desejada.`,
+          message: `Administrador ${matchedAdmin.username.replace(/^@+/, '')} localizado com sucesso. Informe a nova senha de acesso desejada.`,
         });
       }
     } catch (err: any) {
@@ -1212,7 +1229,7 @@ async function startServer() {
       const clients = (data || []).map((c: any) => ({
         ...c,
         full_name: c.name || c.full_name || 'Cliente',
-        username: c.username || (c.email ? `@${c.email.split('@')[0]}` : `@${(c.name || 'cliente').toLowerCase().replace(/\s+/g, '')}`),
+        username: (c.username || (c.email ? c.email.split('@')[0] : (c.name || 'cliente').toLowerCase().replace(/\s+/g, ''))).replace(/^@+/, ''),
         phone: c.phone || c.phone_whatsapp || '—',
         phone_secondary: c.phone_secondary || '',
         dependents: Array.isArray(c.dependents) ? c.dependents : [],
@@ -1242,7 +1259,7 @@ async function startServer() {
       const professionals = (data || []).map((p: any) => ({
         ...p,
         full_name: p.name || p.full_name || 'Profissional',
-        username: p.username || (p.nickname ? `@${p.nickname.toLowerCase().replace(/\s+/g, '')}` : (p.email ? `@${p.email.split('@')[0]}` : `@${(p.name || 'prof').toLowerCase().replace(/\s+/g, '')}`)),
+        username: (p.username || (p.nickname ? p.nickname.toLowerCase().replace(/\s+/g, '') : (p.email ? p.email.split('@')[0] : (p.name || 'prof').toLowerCase().replace(/\s+/g, '')))).replace(/^@+/, ''),
         phone_whatsapp: p.phone || p.phone_whatsapp || '—',
         phone_secondary: p.phone_secondary || '',
         current_salon_name: p.salons?.trade_name || p.current_salon_name || 'Sem Salão Ativo',
@@ -1282,7 +1299,7 @@ async function startServer() {
         const email = authUser?.email || s.email || 'parceiro@vagouapp.com';
         const phone = meta.phone || s.phone_whatsapp || '—';
         const rawUsername = meta.username || (email ? email.split('@')[0] : s.slug);
-        const username = rawUsername.startsWith('@') ? rawUsername : `@${rawUsername}`;
+        const username = String(rawUsername || 'parceiro').replace(/^@+/, '');
 
         salonUsers.push({
           id: `su-${s.id}`,
@@ -1337,6 +1354,45 @@ async function startServer() {
     }
   });
 
+  // PUBLIC API for vagouapp.com and external clients to pull data from admin
+  app.get('/api/public/salons', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('salons')
+        .select('*')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+
+      return res.json({ success: true, salons: data || [] });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.get('/api/public/services', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    try {
+      const { data, error } = await supabaseAdmin
+        .from('services')
+        .select('*, salons(trade_name, slug)')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+
+      return res.json({ success: true, services: data || [] });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // PUBLIC / ADMIN: Obter dados e identificação visual do estabelecimento por slug
   app.get('/api/admin/salons/by-slug/:slug', async (req, res) => {
     try {
@@ -1349,7 +1405,7 @@ async function startServer() {
 
       const { data, error } = await supabaseAdmin
         .from('salons')
-        .select('id, trade_name, legal_name, slug, logo_url, logo_light_url, logo_dark_url, favicon_url, primary_color, category, address, phone_whatsapp, branding')
+        .select('*')
         .eq('slug', cleanSlug)
         .maybeSingle();
 
@@ -1361,11 +1417,49 @@ async function startServer() {
         return res.status(404).json({ success: false, error: 'Estabelecimento não encontrado.' });
       }
 
-      return res.json({ success: true, salon: data });
+      const normalizedSalon = {
+        ...data,
+        favicon_url: data.favicon_url || data.branding?.faviconUrl || data.branding?.salonIcon || data.logo_url || null,
+        slogan: data.slogan || data.branding?.slogan || '',
+        brand_font: data.brand_font || data.branding?.brandFont || 'Poppins',
+      };
+
+      return res.json({ success: true, salon: normalizedSalon });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
   });
+
+  // Helper para converter imagens Base64 de logo/favicon em URL pública do Supabase Storage
+  const uploadBase64MediaIfNeeded = async (rawUrl: string | undefined | null, prefix: string): Promise<string | null> => {
+    if (!rawUrl || typeof rawUrl !== 'string') return null;
+    const trimmed = rawUrl.trim();
+    if (!trimmed) return null;
+    if (!trimmed.startsWith('data:image/')) return trimmed;
+
+    try {
+      const matches = trimmed.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (matches && matches[2]) {
+        const contentType = matches[1] || 'image/png';
+        const ext = contentType.includes('svg') ? 'svg' : contentType.includes('jpeg') || contentType.includes('jpg') ? 'jpg' : 'png';
+        const buffer = Buffer.from(matches[2], 'base64');
+        const cleanPrefix = prefix.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 24) || 'salon';
+        const fileName = `salons/${cleanPrefix}-${Date.now()}.${ext}`;
+
+        const { error: upErr } = await supabaseAdmin.storage
+          .from('media')
+          .upload(fileName, buffer, { contentType, upsert: true });
+
+        if (!upErr) {
+          const { data: pubData } = supabaseAdmin.storage.from('media').getPublicUrl(fileName);
+          if (pubData?.publicUrl) return pubData.publicUrl;
+        }
+      }
+    } catch (e) {
+      console.warn('[uploadBase64MediaIfNeeded] Falha no upload para storage, mantendo original:', e);
+    }
+    return trimmed;
+  };
 
   // ADMIN: Create new Salon (Service Role)
   app.post('/api/admin/salons', async (req, res) => {
@@ -1376,50 +1470,135 @@ async function startServer() {
       }
 
       const cleanSlug = payload.slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+      const resolvedLogo = await uploadBase64MediaIfNeeded(payload.logo_url, `${cleanSlug}-logo`);
+      const resolvedFavicon = (await uploadBase64MediaIfNeeded(payload.favicon_url, `${cleanSlug}-favicon`)) || resolvedLogo || null;
+      const resolvedSlogan = payload.slogan?.trim() || '';
+      const resolvedBrandFont = payload.brand_font?.trim() || 'Poppins';
+      const resolvedStatus = payload.status || 'active';
 
-      // Prepara objeto limpo para evitar erros de colunas ou chaves nulas no Supabase
+      // Prepara objeto limpo compatível com o schema unificado da Tríade (admvapp + mnvapp + pvapp)
       const dbInsert: Record<string, any> = {
         trade_name: payload.trade_name.trim(),
         legal_name: payload.legal_name?.trim() || payload.trade_name.trim(),
         slug: cleanSlug,
-        phone_whatsapp: payload.phone_whatsapp?.trim() || null,
-        email: payload.email?.trim() || null,
+        subdomain: cleanSlug,
+        document_type: payload.document_type || 'CNPJ',
         document_number: payload.document_number?.trim() || null,
+        pix_key: payload.pix_key?.trim() || null,
+        operating_model: payload.operating_model || 'Espaço Físico & Delivery',
+        billing_plan: payload.billing_plan || 'PRO / 5% POR AGENDAMENTO',
+        phone_whatsapp: payload.phone_whatsapp?.trim() || null,
+        email: payload.email?.trim().toLowerCase() || null,
         address: payload.address?.trim() || null,
+        street_number: payload.street_number?.trim() || null,
+        complement: payload.complement?.trim() || null,
         neighborhood: payload.neighborhood?.trim() || null,
         city: payload.city?.trim() || 'São Paulo',
-        state: payload.state?.trim() || 'SP',
+        state: payload.state?.trim().toUpperCase() || 'SP',
         cep: payload.cep?.trim() || null,
-        logo_url: payload.logo_url?.trim() || null,
-        primary_color: payload.primary_color || '#10B981',
-        is_active: payload.status !== 'incomplete' && payload.status !== 'suspended',
-        is_verified: payload.status === 'active' || payload.is_verified === true,
+        logo_url: resolvedLogo,
+        logo_light_url: resolvedLogo,
+        logo_dark_url: resolvedLogo,
+        favicon_url: resolvedFavicon,
+        slogan: resolvedSlogan,
+        brand_font: resolvedBrandFont,
+        primary_color: payload.primary_color || '#20C933',
+        status: resolvedStatus,
+        is_active: resolvedStatus !== 'incomplete' && resolvedStatus !== 'suspended',
+        is_verified: resolvedStatus === 'active' || payload.is_verified === true,
         branding: {
-          themeMode: 'light',
-          primaryColor: payload.primary_color || '#10B981',
-          category: payload.category || 'salao',
+          themeMode: 'dark',
+          primaryColor: payload.primary_color || '#20C933',
+          category: payload.category || 'Barbearia',
+          faviconUrl: resolvedFavicon || '',
+          salonIcon: resolvedFavicon || '',
+          slogan: resolvedSlogan,
+          brandFont: resolvedBrandFont,
+          pwaName: payload.trade_name.trim(),
         },
       };
 
-      if (payload.owner_user_id) {
-        dbInsert.owner_user_id = payload.owner_user_id;
-      }
-
+      // Upsert por slug para evitar falha caso o mesmo salão seja submetido novamente em revisão
       const { data, error } = await supabaseAdmin
         .from('salons')
-        .insert([dbInsert])
+        .upsert([dbInsert], { onConflict: 'slug' })
         .select()
         .single();
 
       if (error) {
         console.error('[POST /api/admin/salons Supabase Error]:', error);
-        if (error.code === '23505' || error.message.includes('unique')) {
-          return res.status(400).json({
-            success: false,
-            error: `O subdomínio "${cleanSlug}" já está em uso por outro estabelecimento no banco. Por favor, escolha outro subdomínio.`,
-          });
-        }
         return res.status(400).json({ success: false, error: `Erro no banco: ${error.message}` });
+      }
+
+      // Garante vínculo do Proprietário em clients e professionals para listagem unificada
+      if (data?.id && (payload.email || payload.owner_name || payload.legal_name)) {
+        try {
+          const ownerName = (payload.owner_name || payload.legal_name || payload.trade_name || 'Proprietário').trim();
+          const ownerEmail = (payload.email || `${cleanSlug}@vagouapp.com`).trim().toLowerCase();
+          const ownerPhone = payload.phone_whatsapp?.trim() || '';
+          const ownerUsername = ownerEmail.split('@')[0].replace(/[^a-zA-Z0-9._-]/g, '') || cleanSlug;
+
+          // Verifica se já existe em clients
+          const { data: existingClient } = await supabaseAdmin
+            .from('clients')
+            .select('id')
+            .eq('email', ownerEmail)
+            .maybeSingle();
+
+          if (!existingClient) {
+            await supabaseAdmin.from('clients').insert([{
+              name: ownerName,
+              full_name: ownerName,
+              username: ownerUsername,
+              email: ownerEmail,
+              phone: ownerPhone,
+              cep: dbInsert.cep,
+              address: dbInsert.address,
+              street_number: dbInsert.street_number,
+              complement: dbInsert.complement,
+              neighborhood: dbInsert.neighborhood,
+              city: dbInsert.city,
+              state: dbInsert.state,
+              origin_type: 'establishment',
+              origin_salon_id: data.id,
+              is_active: true,
+              access_level: 'Proprietário (Dono)',
+            }]);
+          }
+
+          // Verifica se já existe em professionals para este salão
+          const { data: existingProf } = await supabaseAdmin
+            .from('professionals')
+            .select('id')
+            .eq('salon_id', data.id)
+            .eq('email', ownerEmail)
+            .maybeSingle();
+
+          if (!existingProf) {
+            await supabaseAdmin.from('professionals').insert([{
+              salon_id: data.id,
+              name: ownerName,
+              full_name: ownerName,
+              username: ownerUsername,
+              role: 'Proprietário',
+              access_level: 'Proprietário (Dono)',
+              phone: ownerPhone,
+              phone_whatsapp: ownerPhone,
+              email: ownerEmail,
+              status: 'active',
+              is_active: true,
+              cep: dbInsert.cep,
+              address: dbInsert.address,
+              street_number: dbInsert.street_number,
+              complement: dbInsert.complement,
+              neighborhood: dbInsert.neighborhood,
+              city: dbInsert.city,
+              state: dbInsert.state,
+            }]);
+          }
+        } catch (ownerSyncErr) {
+          console.warn('[POST /api/admin/salons] Aviso ao sincronizar proprietário:', ownerSyncErr);
+        }
       }
 
       return res.json({ success: true, salon: data });
@@ -1897,34 +2076,26 @@ async function startServer() {
 
   // UNIFIED PUBLIC REGISTRATION ENGINE (Sovereign Service Role)
   app.post('/api/public/register-user', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
     try {
+      const body = req.body || {};
       const {
         type = 'client', // 'client' | 'professional'
-        name,
         email,
         password,
         phone = '',
         documentCpf = '',
         username = '',
         avatarUrl = '',
-        // Address
-        cep = '',
-        street = '',
-        number = '',
-        complement = '',
-        neighborhood = '',
-        city = '',
-        state = '',
+        origin = 'portal',
+        salonId = undefined,
         // Dependents array
         dependents = [],
         // Salon / Business fields
         tradeName = '',
         slug = '',
         category = 'barbearia',
-        attendanceType = 'salon_only', // 'home_only' | 'hybrid' | 'salon_only'
-        targetGender = 'unisex',      // 'male' | 'female' | 'unisex'
-        targetAgeGroup = 'both',       // 'adults' | 'kids' | 'both'
-        // Dedicated Salon Address & Contacts (if different from personal)
+        attendanceType = 'salon_only',
         salonSameAsPersonalAddress = true,
         salonCep = '',
         salonStreet = '',
@@ -1937,27 +2108,26 @@ async function startServer() {
         salonPhoneLandline = '',
         salonEmail = '',
         redirectUrl = '',
-      } = req.body;
+      } = body;
 
-      if (!name || !email || !password) {
+      const resolvedName = (body.fullName || body.name || '').trim();
+      const addrObj = body.address && typeof body.address === 'object' ? body.address : {};
+      const cep = (addrObj.cep || body.cep || '').trim();
+      const street = (addrObj.street || body.street || '').trim();
+      const number = (addrObj.number || body.number || '').trim();
+      const complement = (addrObj.complement || body.complement || '').trim();
+      const neighborhood = (addrObj.neighborhood || body.neighborhood || '').trim();
+      const city = (addrObj.city || body.city || 'São Paulo').trim();
+      const state = (addrObj.state || body.state || 'SP').trim().toUpperCase();
+
+      if (!resolvedName || !email || !password) {
         return res.status(400).json({ success: false, error: 'Nome, E-mail e Senha são obrigatórios.' });
       }
 
-      // Username Validation Rule: Must have at least 1 uppercase letter and 1 special char
-      if (username) {
-        const hasUpper = /[A-Z]/.test(username);
-        const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(username);
-        if (!hasUpper || !hasSpecial) {
-          return res.status(400).json({
-            success: false,
-            error: 'O nome de perfil precisa ter pelo menos 1 letra maiúscula e 1 caractere especial (ex: Anderson#).'
-          });
-        }
-      }
-
-      const cleanEmail = email.trim().toLowerCase();
-      const cleanName = name.trim();
-      const cleanSlug = slug
+      const cleanEmail = String(email).trim().toLowerCase();
+      const cleanName = resolvedName;
+      const cleanUsername = (username || cleanEmail.split('@')[0] || 'usuario').trim().replace(/^@+/, '');
+      const cleanSlug = String(slug || '')
         .toLowerCase()
         .trim()
         .normalize('NFD')
@@ -1981,7 +2151,6 @@ async function startServer() {
 
       // 1. Create or retrieve auth user via Supabase Admin
       let authUserId: string | null = null;
-      
       const { data: authUserResp, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: cleanEmail,
         password: password,
@@ -1990,78 +2159,106 @@ async function startServer() {
           full_name: cleanName,
           phone: phone || undefined,
           avatar_url: avatarUrl || undefined,
-          username: username || undefined,
+          username: cleanUsername || undefined,
         },
       });
 
-      if (authError) {
-        if (authError.message.includes('already registered') || authError.message.includes('already exists')) {
-          const { data: existingUser } = await supabaseAdmin
-            .from('clients')
-            .select('id')
-            .eq('email', cleanEmail)
-            .maybeSingle();
-
-          if (existingUser?.id) {
-            authUserId = existingUser.id;
-          } else {
-            const { data: existingPro } = await supabaseAdmin
-              .from('professionals')
-              .select('id')
-              .eq('email', cleanEmail)
-              .maybeSingle();
-            authUserId = existingPro?.id || null;
-          }
-        } else {
-          return res.status(400).json({ success: false, error: `Erro no Auth: ${authError.message}` });
-        }
-      } else {
+      if (!authError && authUserResp?.user?.id) {
         authUserId = authUserResp.user.id;
       }
 
-      const effectiveId = authUserId || `usr-${Date.now()}`;
-
-      // 2. Upsert into public.profiles (Unified Person Profile)
-      try {
-        await supabaseAdmin.from('profiles').upsert({
-          id: effectiveId,
-          full_name: cleanName,
-          email: cleanEmail,
-          phone_whatsapp: phone || null,
-          document_number: documentCpf || null,
-          avatar_url: avatarUrl || null,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'id' });
-      } catch (profErr) {
-        console.warn('Aviso no upsert de profiles:', profErr);
+      // 2. Upsert into public.profiles ONLY if authUserId is a valid auth.users UUID
+      if (authUserId) {
+        try {
+          await supabaseAdmin.from('profiles').upsert({
+            id: authUserId,
+            full_name: cleanName,
+            email: cleanEmail,
+            phone_whatsapp: phone || null,
+            document_number: documentCpf || null,
+            avatar_url: avatarUrl || null,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'id' });
+        } catch (profErr) {
+          console.warn('Aviso no upsert de profiles:', profErr);
+        }
       }
 
-      // 3. Upsert into public.clients
+      // 3. Persist into public.clients (Verifica se já existe pelo email para atualizar ou inserir)
       const fullAddress = [street, number, complement, neighborhood, city, state, cep]
         .filter(Boolean)
         .join(', ');
 
-      await supabaseAdmin.from('clients').upsert({
-        id: effectiveId,
+      const isUuid = (val: any) =>
+        typeof val === 'string' &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
+
+      const { data: existingClient } = await supabaseAdmin
+        .from('clients')
+        .select('id')
+        .eq('email', cleanEmail)
+        .maybeSingle();
+
+      const clientPayload: Record<string, any> = {
         name: cleanName,
+        full_name: cleanName,
+        username: cleanUsername,
         email: cleanEmail,
         phone: phone || null,
+        cpf: documentCpf || null,
+        password_hash: password,
         avatar_url: avatarUrl || null,
+        cep: cep || null,
+        address: street || null,
+        street_number: number || null,
+        complement: complement || null,
+        neighborhood: neighborhood || null,
+        city: city || 'São Paulo',
+        state: state || 'SP',
         default_address: fullAddress || null,
+        origin_type: origin || 'portal',
+        origin_salon_id: isUuid(salonId) ? salonId : null,
+        is_active: true,
+        access_level: 'Cliente Titular',
         updated_at: new Date().toISOString(),
-      }, { onConflict: 'id' });
+      };
 
-      // 4. Upsert into public.professionals (Single Source of Truth)
-      await supabaseAdmin.from('professionals').upsert({
-        id: effectiveId,
-        name: cleanName,
-        email: cleanEmail,
-        phone_whatsapp: phone || null,
-        avatar_url: avatarUrl || null,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'id' });
+      if (authUserId) {
+        clientPayload.user_id = authUserId;
+      }
 
-      // 5. Save Dependents if present
+      let savedClient: any = null;
+      if (existingClient?.id) {
+        const { data: updatedClient, error: upErr } = await supabaseAdmin
+          .from('clients')
+          .update(clientPayload)
+          .eq('id', existingClient.id)
+          .select()
+          .single();
+        if (upErr) {
+          console.error('[register-user] Erro ao atualizar client:', upErr);
+          return res.status(400).json({ success: false, error: upErr.message });
+        }
+        savedClient = updatedClient;
+      } else {
+        if (authUserId) {
+          clientPayload.id = authUserId;
+        }
+        const { data: insertedClient, error: insErr } = await supabaseAdmin
+          .from('clients')
+          .insert([clientPayload])
+          .select()
+          .single();
+        if (insErr) {
+          console.error('[register-user] Erro ao inserir client:', insErr);
+          return res.status(400).json({ success: false, error: insErr.message });
+        }
+        savedClient = insertedClient;
+      }
+
+      const effectiveId = savedClient?.id || authUserId || `usr-${Date.now()}`;
+
+      // 4. Save Dependents if present
       if (Array.isArray(dependents) && dependents.length > 0) {
         for (const dep of dependents) {
           if (dep.fullName && dep.fullName.trim()) {
@@ -2082,12 +2279,10 @@ async function startServer() {
         }
       }
 
-      // 6. If professional, create salon entry
+      // 5. If professional, create salon entry and professional record
       let createdSalon = null;
       if (type === 'professional') {
         const homeDeliveryEnabled = attendanceType === 'home_only' || attendanceType === 'hybrid';
-
-        // Effective Salon Address (if different from personal residence)
         const effSalonCep = (!salonSameAsPersonalAddress && salonCep) ? salonCep : cep;
         const effSalonStreet = (!salonSameAsPersonalAddress && salonStreet) ? salonStreet : street;
         const effSalonNumber = (!salonSameAsPersonalAddress && salonNumber) ? salonNumber : number;
@@ -2095,10 +2290,6 @@ async function startServer() {
         const effSalonNeighborhood = (!salonSameAsPersonalAddress && salonNeighborhood) ? salonNeighborhood : neighborhood;
         const effSalonCity = (!salonSameAsPersonalAddress && salonCity) ? salonCity : city;
         const effSalonState = (!salonSameAsPersonalAddress && salonState) ? salonState : state;
-
-        const effSalonAddress = (!salonSameAsPersonalAddress && salonStreet)
-          ? [salonStreet, salonNumber, salonComplement, salonNeighborhood, salonCity, salonState, salonCep].filter(Boolean).join(', ')
-          : fullAddress;
 
         const effSalonPhoneWhatsapp = (!salonSameAsPersonalAddress && salonPhoneWhatsapp) ? salonPhoneWhatsapp : phone;
         const effSalonEmail = (!salonSameAsPersonalAddress && salonEmail) ? salonEmail : cleanEmail;
@@ -2110,24 +2301,29 @@ async function startServer() {
             legal_name: cleanName,
             slug: cleanSlug,
             subdomain: cleanSlug,
-            owner_id: effectiveId,
+            owner_id: authUserId || null,
             document_number: documentCpf || null,
             phone_whatsapp: effSalonPhoneWhatsapp || null,
             phone_landline: salonPhoneLandline || null,
             email: effSalonEmail,
-            category: category || 'barbearia',
             status: 'active',
             is_verified: true,
             is_active: true,
             home_delivery_enabled: homeDeliveryEnabled,
             operating_model: attendanceType,
-            address: effSalonAddress || null,
+            address: effSalonStreet || null,
             cep: effSalonCep || null,
             street_number: effSalonNumber || null,
             complement: effSalonComplement || null,
             neighborhood: effSalonNeighborhood || null,
             city: effSalonCity || 'São Paulo',
             state: effSalonState || 'SP',
+            branding: {
+              themeMode: 'dark',
+              primaryColor: '#20C933',
+              category: category || 'barbearia',
+              pwaName: tradeName.trim(),
+            },
             updated_at: new Date().toISOString(),
           }, { onConflict: 'slug' })
           .select()
@@ -2137,10 +2333,24 @@ async function startServer() {
           console.warn('Aviso no upsert do salão:', salonErr);
         } else {
           createdSalon = salonData;
+          await supabaseAdmin.from('professionals').insert([{
+            salon_id: salonData.id,
+            name: cleanName,
+            full_name: cleanName,
+            username: cleanUsername,
+            role: 'Proprietário',
+            access_level: 'Proprietário (Dono)',
+            email: cleanEmail,
+            phone: phone || null,
+            phone_whatsapp: phone || null,
+            avatar_url: avatarUrl || null,
+            status: 'active',
+            is_active: true,
+            updated_at: new Date().toISOString(),
+          }]);
         }
       }
 
-      // 7. Determine default Target Redirect
       let targetRedirect = redirectUrl;
       if (!targetRedirect) {
         if (type === 'professional' && cleanSlug) {
@@ -2157,12 +2367,13 @@ async function startServer() {
           id: effectiveId,
           name: cleanName,
           email: cleanEmail,
-          username: username || null,
+          username: cleanUsername,
           phone,
           avatarUrl: avatarUrl || null,
           type,
           dependentsCount: dependents.length,
         },
+        client: savedClient,
         salon: createdSalon,
         targetRedirect,
       });

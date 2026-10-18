@@ -43,7 +43,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
   showHeader = true,
   variant = 'card',
   title = 'Acessar Espaço',
-  subtitle = 'Ecossistema Oficial VagouApp',
+  subtitle = 'Acesso Oficial',
   submitButtonText = 'Acessar Conta',
   activePhase,
   onPhaseChange,
@@ -82,7 +82,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
       setIsLoading(false);
       setFeedback({
         type: 'success',
-        message: 'Acesso validado com sucesso no ecossistema VagouApp!',
+        message: 'Acesso validado com sucesso!',
       });
 
       // Dispara evento global para interoperabilidade (iframes e apps irmãos)
@@ -172,10 +172,10 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
             </div>
           )}
 
-          {/* Campo Identificador: Usuário, E-mail ou Celular */}
+          {/* Campo Identificador: Usuário, E-mail ou Telefone */}
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              Usuário, E-mail ou Celular <span className="text-emerald-400">*</span>
+              Usuário, E-mail ou Telefone <span className="text-emerald-400">*</span>
             </label>
             <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 focus-within:border-emerald-500 transition">
               <User className="w-4 h-4 text-slate-500 mr-2.5 shrink-0" />
@@ -183,7 +183,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
                 type="text"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="@usuario, seu@email.com ou (11) 99999-9999"
+                placeholder="Usuário, E-mail ou Telefone"
                 className="w-full bg-transparent text-sm text-white placeholder-slate-600 outline-none"
                 required
               />
@@ -249,7 +249,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
           {showSwitchToRegister && onSwitchToRegister && (
             <div className="pt-3 border-t border-slate-800 text-center">
               <p className="text-xs text-slate-400">
-                Ainda não possui conta no VagouApp?{' '}
+                Ainda não possui conta?{' '}
                 <button
                   type="button"
                   onClick={onSwitchToRegister}
@@ -285,7 +285,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
 
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              Usuário, E-mail ou Celular <span className="text-emerald-400">*</span>
+              Usuário, E-mail ou Telefone <span className="text-emerald-400">*</span>
             </label>
             <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 focus-within:border-emerald-500 transition">
               <User className="w-4 h-4 text-slate-500 mr-2.5 shrink-0" />
@@ -293,7 +293,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
                 type="text"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="@usuario, seu@email.com ou (11) 99999-9999"
+                placeholder="Usuário, E-mail ou Telefone"
                 className="w-full bg-transparent text-sm text-white placeholder-slate-600 outline-none"
                 required
               />

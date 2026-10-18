@@ -107,7 +107,7 @@ export const AdminUserDetailView: React.FC<AdminUserDetailViewProps> = ({
         return {
           id: a.id,
           name: a.full_name,
-          subTitle: `@${a.username.replace(/^@+/, '')} • Governança Tríade`,
+          subTitle: `${a.username.replace(/^@+/, '')} • Governança Tríade`,
           email: a.email,
           phone: a.phone_whatsapp,
           avatarUrl: a.avatar_url,
@@ -418,7 +418,7 @@ export const AdminUserDetailView: React.FC<AdminUserDetailViewProps> = ({
                 <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
                   <span className="text-slate-400 text-[11px] block">Nome de Usuário</span>
                   <span className="text-emerald-600 dark:text-emerald-400 font-mono font-bold">
-                    @{user.data.username.replace(/^@+/, '')}
+                    {user.data.username.replace(/^@+/, '')}
                   </span>
                 </div>
 

@@ -55,6 +55,8 @@ export interface AdminSalonItem {
   logo_dark_url?: string;
   logo_light_url?: string;
   favicon_url?: string;
+  slogan?: string;
+  brand_font?: string;
   primary_color?: string;
   secondary_color?: string;
   operating_hours?: DayOperatingHour[];

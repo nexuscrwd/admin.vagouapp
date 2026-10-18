@@ -384,7 +384,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
       setAdmins((prev) =>
         prev.map((a) => (a.id === admin.id ? { ...a, role: newRole } : a))
       );
-      triggerFeedback(`Privilégios de @${(admin.username || 'admin').replace(/^@+/, '')} alterados para ${newRole}.`);
+      triggerFeedback(`Privilégios de ${(admin.username || 'admin').replace(/^@+/, '')} alterados para ${newRole}.`);
     }
   };
 
@@ -397,11 +397,10 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
       const depCount = Array.isArray(c.dependents) ? c.dependents.length : (Number(c.dependents_count) || 0);
       const fullName = c.full_name || (c as any).name || 'Cliente';
       const cleanEmail = c.email || '';
-      let usr = c.username || '';
+      let usr = (c.username || '').replace(/^@+/, '');
       if (!usr) {
-        usr = cleanEmail ? `@${cleanEmail.split('@')[0]}` : `@${fullName.toLowerCase().replace(/\s+/g, '')}`;
+        usr = cleanEmail ? cleanEmail.split('@')[0] : fullName.toLowerCase().replace(/\s+/g, '');
       }
-      if (!usr.startsWith('@')) usr = `@${usr}`;
       list.push({
         id: `cli-${c.id}`,
         originalId: c.id,
@@ -438,11 +437,10 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
       const fullName = p.full_name || (p as any).name || 'Profissional';
       const cleanEmail = p.email || '';
       const nick = p.nickname || '';
-      let usr = p.username || '';
+      let usr = (p.username || '').replace(/^@+/, '');
       if (!usr) {
-        usr = nick ? `@${nick.toLowerCase().replace(/\s+/g, '')}` : (cleanEmail ? `@${cleanEmail.split('@')[0]}` : `@${fullName.toLowerCase().replace(/\s+/g, '')}`);
+        usr = nick ? nick.toLowerCase().replace(/\s+/g, '') : (cleanEmail ? cleanEmail.split('@')[0] : fullName.toLowerCase().replace(/\s+/g, ''));
       }
-      if (!usr.startsWith('@')) usr = `@${usr}`;
       const salonName = p.current_salon_name || (p as any).salons?.trade_name || 'Sem Salão Ativo';
       const isAct = p.status === 'active' || (p as any).is_active === true;
       list.push({
@@ -480,11 +478,10 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
     (salonUsers || []).forEach((su) => {
       const fullName = su.full_name || (su as any).name || 'Gestor de Salão';
       const cleanEmail = su.email || '';
-      let usr = su.username || '';
+      let usr = (su.username || '').replace(/^@+/, '');
       if (!usr) {
-        usr = cleanEmail ? `@${cleanEmail.split('@')[0]}` : `@${fullName.toLowerCase().replace(/\s+/g, '')}`;
+        usr = cleanEmail ? cleanEmail.split('@')[0] : fullName.toLowerCase().replace(/\s+/g, '');
       }
-      if (!usr.startsWith('@')) usr = `@${usr}`;
       const salonSlug = su.salon_slug || (su as any).salons?.slug || 'parceiro';
       list.push({
         id: `sln-${su.id}`,
@@ -521,11 +518,10 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
     (admins || []).forEach((a) => {
       const fullName = a.full_name || (a as any).name || 'Administrador Master';
       const cleanEmail = a.email || '';
-      let usr = a.username || '';
+      let usr = (a.username || '').replace(/^@+/, '');
       if (!usr) {
-        usr = cleanEmail ? `@${cleanEmail.split('@')[0]}` : `@${fullName.toLowerCase().replace(/\s+/g, '')}`;
+        usr = cleanEmail ? cleanEmail.split('@')[0] : fullName.toLowerCase().replace(/\s+/g, '');
       }
-      if (!usr.startsWith('@')) usr = `@${usr}`;
       list.push({
         id: `adm-${a.id}`,
         originalId: a.id,
@@ -1323,7 +1319,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         onClose={() => setIsCreateAdminModalOpen(false)}
         onSuccess={(newAdmin) => {
           setAdmins((prev) => [newAdmin, ...prev]);
-          triggerFeedback(`Novo administrador @${newAdmin.username.replace(/^@+/, '')} cadastrado com sucesso!`);
+          triggerFeedback(`Novo administrador ${newAdmin.username.replace(/^@+/, '')} cadastrado com sucesso!`);
         }}
       />
 

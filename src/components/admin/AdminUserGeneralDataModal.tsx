@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   X,
   User,
-  AtSign,
+  UserCheck,
   FileText,
   Phone,
   Lock,
@@ -46,7 +46,7 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
 }) => {
   // Form state
   const [name, setName] = useState(user.name || '');
-  const [username, setUsername] = useState(user.username || '');
+  const [username, setUsername] = useState((user.username || '').replace(/^@+/, ''));
   const [cpf, setCpf] = useState(user.cpf || '');
   const [phone, setPhone] = useState(user.phone || '');
   const [phoneSecondary, setPhoneSecondary] = useState(user.phoneSecondary || '');
@@ -87,7 +87,7 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
   // Sincroniza estado com o usuário selecionado
   useEffect(() => {
     setName(user.name || '');
-    setUsername(user.username || '');
+    setUsername((user.username || '').replace(/^@+/, ''));
     setCpf(user.cpf || '');
     setPhone(user.phone === '—' ? '' : user.phone || '');
     setPhoneSecondary(user.phoneSecondary === '—' ? '' : user.phoneSecondary || '');
@@ -188,7 +188,7 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
           : 'bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-500/30 font-bold';
 
       const cleanUser = username.trim().replace(/^@+/, '');
-      const finalUsername = cleanUser ? `@${cleanUser}` : `@${name.toLowerCase().replace(/\s+/g, '')}`;
+      const finalUsername = cleanUser || name.toLowerCase().replace(/\s+/g, '');
 
       const updatedRow: UnifiedUserRow = {
         ...user,
@@ -361,14 +361,14 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                 {/* 2. Nome de Usuário */}
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Nome de Usuário (@)
+                    Nome de Usuário
                   </label>
                   <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 focus-within:border-emerald-500 transition">
-                    <AtSign className="w-3.5 h-3.5 text-slate-400 mr-2 shrink-0" />
+                    <UserCheck className="w-3.5 h-3.5 text-slate-400 mr-2 shrink-0" />
                     <input
                       type="text"
                       value={username.replace(/^@+/, '')}
-                      onChange={(e) => setUsername(`@${e.target.value.trim().toLowerCase()}`)}
+                      onChange={(e) => setUsername(e.target.value.replace(/^@+/, ''))}
                       placeholder="usuario.login"
                       className="bg-transparent text-xs text-slate-900 dark:text-white outline-none w-full font-mono"
                     />

@@ -14,7 +14,6 @@ import {
   ArrowLeft,
   UserCheck,
   ShieldCheck,
-  AtSign,
   X,
   KeyRound,
   MessageSquare,
@@ -24,6 +23,7 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { VagouOfficialLogo } from '../../common/VagouOfficialLogo';
+import { registerTriadeUser } from '../../../services/supabaseApi';
 
 export interface TriadeUserData {
   id?: string;
@@ -95,7 +95,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
   const isEstablishmentMode = origin === 'establishment' || !!salonId;
   const effectiveSalonName = salonName || (isEstablishmentMode ? 'Estabelecimento Parceiro' : 'VagouApp');
   const effectiveTitle = title || (isEstablishmentMode ? `Cadastro • ${effectiveSalonName}` : 'Cadastro de Usuário');
-  const effectiveSubtitle = subtitle || (isEstablishmentMode ? `Seja cliente exclusivo de ${effectiveSalonName}` : 'Crie sua conta no ecossistema VagouApp');
+  const effectiveSubtitle = subtitle || (isEstablishmentMode ? `Seja cliente exclusivo de ${effectiveSalonName}` : 'Crie sua conta de acesso');
   const [logoLoadError, setLogoLoadError] = useState(false);
   const primaryBgStyle = isEstablishmentMode && salonAccentColor ? { backgroundColor: salonAccentColor } : undefined;
 
@@ -170,17 +170,9 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     passRules.hasSpecial &&
     passRules.matches;
 
-  // Sugestão de @username automático ao digitar nome completo
+  // Atualiza apenas o nome completo (sem injetar @ ou caracteres automáticos no nome de usuário)
   const handleFullNameChange = (val: string) => {
     setFullName(val);
-    if (!username || username === '@') {
-      const clean = val
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]/g, '.');
-      setUsername(`@${clean}`);
-    }
   };
 
   // Máscara estrita de Telefone/WhatsApp: (11) 98765-4321
@@ -351,10 +343,12 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
       setFeedback({ type: 'error', message: 'Informe seu nome completo.' });
       return;
     }
-    if (!username.trim() || username === '@') {
-      setFeedback({ type: 'error', message: 'Informe seu nome de usuário (@).' });
+    const cleanUser = username.trim().replace(/^@+/, '');
+    if (!cleanUser) {
+      setFeedback({ type: 'error', message: 'Informe seu nome de usuário.' });
       return;
     }
+    setUsername(cleanUser);
     setPhase('contacts');
   };
 
@@ -443,8 +437,8 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     setPhase('cep');
   };
 
-  // Ação 5: Submissão Final do Cadastro
-  const handleSubmit = (e: React.FormEvent) => {
+  // Ação 5: Submissão Final do Cadastro (Persistência Real no Supabase)
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFeedback(null);
 
@@ -478,7 +472,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
 
     setIsSubmitting(true);
 
-    const cleanUsername = username.startsWith('@') ? username : `@${username}`;
+    const cleanUsername = username.trim().replace(/^@+/, '');
 
     const payload: TriadeUserData = {
       id: `usr_${Date.now()}`,
@@ -501,13 +495,28 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
       salonName: isEstablishmentMode ? effectiveSalonName : undefined,
     };
 
-    setTimeout(() => {
+    try {
+      const res = await registerTriadeUser(payload);
       setIsSubmitting(false);
+
+      if (!res.success) {
+        setFeedback({
+          type: 'error',
+          message: res.error || 'Não foi possível salvar o cadastro no banco. Tente novamente.',
+        });
+        return;
+      }
+
+      const finalPayload: TriadeUserData = {
+        ...payload,
+        id: res.userId || payload.id,
+      };
+
       setFeedback({
         type: 'success',
         message: isEstablishmentMode
-          ? `Usuário "${payload.fullName}" cadastrado com sucesso e vinculado a ${effectiveSalonName}!`
-          : `Usuário "${payload.fullName}" cadastrado com sucesso no VagouApp!`,
+          ? `Usuário "${finalPayload.fullName}" cadastrado no Supabase e vinculado a ${effectiveSalonName}!`
+          : `Usuário "${finalPayload.fullName}" cadastrado e salvo no Supabase com sucesso!`,
       });
 
       // Dispara evento global de interoperabilidade da Tríade
@@ -518,7 +527,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
           origin: isEstablishmentMode ? 'establishment' : 'portal',
           salonId,
           salonName: effectiveSalonName,
-          payload,
+          payload: finalPayload,
           timestamp: new Date().toISOString(),
         };
 
@@ -532,7 +541,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
               action: 'SALON_CLIENT_REGISTERED',
               salonId,
               salonName: effectiveSalonName,
-              payload,
+              payload: finalPayload,
               timestamp: new Date().toISOString(),
             },
             '*'
@@ -540,8 +549,14 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
         }
       }
 
-      onSuccess?.(payload);
-    }, 600);
+      onSuccess?.(finalPayload);
+    } catch (err: any) {
+      setIsSubmitting(false);
+      setFeedback({
+        type: 'error',
+        message: err?.message || 'Erro de comunicação ao persistir cadastro.',
+      });
+    }
   };
 
   const isCard = variant === 'card';
@@ -681,14 +696,14 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Nome de Usuário (@) <span className="text-emerald-400">*</span>
+                  Nome de Usuário <span className="text-emerald-400">*</span>
                 </label>
                 <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 focus-within:border-emerald-500 transition">
-                  <AtSign className="w-4 h-4 text-slate-500 mr-2 shrink-0" />
+                  <UserCheck className="w-4 h-4 text-slate-500 mr-2 shrink-0" />
                   <input
                     type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    value={username.replace(/^@+/, '')}
+                    onChange={(e) => setUsername(e.target.value.replace(/^@+/, ''))}
                     placeholder="Seu nome de usuário"
                     className="w-full bg-transparent text-xs sm:text-sm text-white placeholder-slate-600 outline-none"
                     required

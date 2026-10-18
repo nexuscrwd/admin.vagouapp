@@ -57,7 +57,7 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
   const [adminUser, setAdminUser] = useState<SystemAdminUser | null>(() => getStoredAdmin());
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalInitialTab, setAuthModalInitialTab] = useState<AdminAuthTab>('login');
-  const [formsActiveTab, setFormsActiveTab] = useState<FormsSubTabId>('cadastro_estabelecimento');
+  const [formsActiveTab, setFormsActiveTab] = useState<FormsSubTabId>('estabelecimento_cadastro');
   const [isCreateAdminModalOpen, setIsCreateAdminModalOpen] = useState(false);
 
   // Salon Modals

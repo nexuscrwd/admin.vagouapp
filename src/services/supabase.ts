@@ -56,8 +56,28 @@ function resolveSupabaseAnonKey(): string {
   return DEFAULT_ANON_KEY;
 }
 
+declare const __SUPABASE_SERVICE_ROLE_KEY__: string | undefined;
+
+function resolveSupabaseServiceKey(): string {
+  const candidates = [
+    typeof __SUPABASE_SERVICE_ROLE_KEY__ !== 'undefined' ? __SUPABASE_SERVICE_ROLE_KEY__ : undefined,
+    metaEnv.VITE_SUPABASE_SERVICE_ROLE_KEY,
+    typeof process !== 'undefined' ? process.env?.SUPABASE_SERVICE_ROLE_KEY : undefined,
+    typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_SERVICE_ROLE_KEY : undefined,
+  ];
+
+  for (const key of candidates) {
+    if (typeof key === 'string' && key.trim().startsWith('eyJ')) {
+      return key.trim();
+    }
+  }
+
+  return '';
+}
+
 export const SUPABASE_URL = resolveSupabaseUrl();
 export const SUPABASE_ANON_KEY = resolveSupabaseAnonKey();
+export const SUPABASE_SERVICE_KEY = resolveSupabaseServiceKey();
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -66,3 +86,14 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     detectSessionInUrl: true,
   },
 });
+
+// Cliente Soberano do Admin Master (utiliza Service Role quando disponível para bypass de RLS em deploy estático)
+export const supabaseAdmin = SUPABASE_SERVICE_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    })
+  : supabase;
+

@@ -20,30 +20,46 @@ export const TriadeEstablishmentModal: React.FC<TriadeEstablishmentModalProps> =
 }) => {
   if (!isOpen) return null;
 
-  const handleSuccess = async (payload: EstablishmentMasterPayload) => {
+  const handleSuccess = async (payload: EstablishmentMasterPayload, createdSalon?: AdminSalonItem) => {
+    if (createdSalon) {
+      if (onViewDetails) {
+        onViewDetails(createdSalon);
+      }
+      if (onSuccess) {
+        onSuccess(payload);
+      }
+      return;
+    }
+
     if (onCreate) {
       try {
         const result = await onCreate({
           trade_name: payload.tradeName,
           legal_name: payload.legalName,
           slug: payload.slug,
-          phone: payload.ownerWhatsapp,
+          phone_whatsapp: payload.ownerWhatsapp,
           email: payload.ownerEmail,
-          cnpj_cpf: payload.documentNumber,
-          category: payload.category,
-          status: 'pending',
-          is_verified: false,
-          address_street: payload.address.street,
-          address_number: payload.address.number,
-          address_neighborhood: payload.address.neighborhood,
-          address_city: payload.address.city,
-          address_state: payload.address.state,
-          address_zip: payload.address.cep,
+          document_type: payload.documentType,
+          document_number: payload.documentNumber,
+          category: payload.category as any,
+          status: 'active',
+          is_verified: true,
+          address: payload.address.street,
+          street_number: payload.address.number,
+          complement: payload.address.complement,
+          neighborhood: payload.address.neighborhood,
+          city: payload.address.city,
+          state: payload.address.state,
+          cep: payload.address.cep,
+          logo_url: payload.logoUrl,
+          favicon_url: payload.faviconUrl,
+          slogan: payload.slogan,
+          brand_font: payload.brandFont,
           primary_color: payload.primaryColor,
         });
 
-        if (result && onViewDetails) {
-          onViewDetails(result);
+        if (result?.salon && onViewDetails) {
+          onViewDetails(result.salon);
         }
       } catch (err) {
         console.error('Erro ao persistir salão:', err);
@@ -53,8 +69,6 @@ export const TriadeEstablishmentModal: React.FC<TriadeEstablishmentModalProps> =
     if (onSuccess) {
       onSuccess(payload);
     }
-
-    onClose();
   };
 
   return createPortal(

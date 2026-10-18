@@ -56,9 +56,12 @@ CREATE TABLE public.salons (
     logo_url TEXT,
     logo_light_url TEXT,
     logo_dark_url TEXT,
+    favicon_url TEXT,                              -- Ícone 1:1 do App (PWA) e aba do navegador (salonIcon)
     cover_url TEXT,
     cover_image_url TEXT,                          -- Banner de cabeçalho do app
-    branding JSONB DEFAULT '{"primaryColor": "#20C933", "secondaryColor": "#0F172A", "themeMode": "dark"}'::jsonb,
+    slogan VARCHAR(120),                           -- Assinatura curta da marca (até 60 caracteres)
+    brand_font VARCHAR(60) DEFAULT 'Poppins',      -- Fonte de destaque da marca (Poppins, Cormorant Garamond, Oswald, Plus Jakarta Sans)
+    branding JSONB DEFAULT '{"primaryColor": "#20C933", "secondaryColor": "#0F172A", "themeMode": "dark", "brandFont": "Poppins", "slogan": "", "faviconUrl": ""}'::jsonb,
     primary_color VARCHAR(20) DEFAULT '#20C933',
     secondary_color VARCHAR(20) DEFAULT '#0F172A',
     bio TEXT,

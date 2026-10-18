@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldAlert, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { ShieldAlert } from 'lucide-react';
 import { TriadeMnvClientLoginForm } from '../admin/triade-forms/TriadeMnvClientLoginForm';
-import { TriadeMnvClientRegisterForm } from '../admin/triade-forms/TriadeMnvClientRegisterForm';
 import { TriadeEstablishmentMasterForm } from '../admin/triade-forms/TriadeEstablishmentMasterForm';
-import { TriadeAdminAuthForm, TriadeAdminLoginForm, TriadeAdminRecoveryForm } from '../admin/triade-forms/TriadeAdminAuthForm';
+import { TriadeAdminLoginForm, TriadeAdminRecoveryForm } from '../admin/triade-forms/TriadeAdminAuthForm';
 import { TriadeUserRegisterForm } from '../admin/triade-forms/TriadeUserRegisterForm';
 import { TriadeUserLoginForm } from '../admin/triade-forms/TriadeUserLoginForm';
 
@@ -34,6 +33,14 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
       const queryForm = params.get('form') || params.get('f');
 
       if (
+        queryForm === 'usuario_login' ||
+        queryForm === 'user_login' ||
+        queryForm === 'login-usuario' ||
+        pathname.includes('/embed/usuario-login')
+      ) {
+        return 'usuario_login';
+      }
+      if (
         queryForm === 'usuario' ||
         queryForm === 'user' ||
         queryForm === 'cadastro-usuario' ||
@@ -63,8 +70,6 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
   const [salonName, setSalonName] = useState('VagouApp');
   const [salonLogoUrl, setSalonLogoUrl] = useState<string | undefined>(undefined);
   const [salonAccentColor, setSalonAccentColor] = useState<string>('#20C933');
-  const [serviceName, setServiceName] = useState('Corte Degradê & Barba');
-  const [servicePrice, setServicePrice] = useState('R$ 75,00');
   const [isTransparent, setIsTransparent] = useState(false);
   const [isDomainBlocked, setIsDomainBlocked] = useState(false);
 
@@ -82,12 +87,6 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
 
       const sColor = params.get('salonColor') || params.get('color') || params.get('accentColor');
       if (sColor) setSalonAccentColor(sColor);
-
-      const sServ = params.get('service');
-      if (sServ) setServiceName(sServ);
-
-      const sPrice = params.get('price');
-      if (sPrice) setServicePrice(sPrice);
 
       const bg = params.get('bg');
       if (bg === 'transparent') setIsTransparent(true);
@@ -191,6 +190,16 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
               onClose={handleClose}
             />
           </div>
+        )}
+
+        {formType === 'usuario_login' && (
+          <TriadeUserLoginForm
+            onSuccess={(data) => {
+              dispatchPostMessage('LOGIN_SUCCESS', data);
+            }}
+            onSwitchToRegister={() => setFormType('usuario')}
+            onClose={handleClose}
+          />
         )}
 
         {formType === 'mnv_login' && (

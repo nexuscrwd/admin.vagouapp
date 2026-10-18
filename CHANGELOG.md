@@ -15,6 +15,243 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-18] — 💾 Correção Crítica de Persistência Real de Cadastros (Usuários e Estabelecimentos) no Supabase
+- **Tipo:** `[Fix / Database / SupabasePersistence]`
+- **Motivo / Solicitação:** Os cadastros de usuários e estabelecimentos realizados através dos formulários da Tríade (`TriadeUserRegisterForm` e `TriadeEstablishmentMasterForm`) não estavam sendo persistidos nas tabelas do Supabase (`public.clients`, `public.salons`, `public.professionals`).
+- **Causas Raiz Identificadas & Corrigidas:**
+  1. **Ausência de chamada real ao banco nos handlers dos formulários:** Tanto `TriadeUserRegisterForm.tsx` (`handleSubmit`) quanto `TriadeEstablishmentMasterForm.tsx` (`handleConfirmCreateSalon`) utilizavam `setTimeout` simulado de `600ms` sem invocar a persistência no Supabase quando usados na Central de Formulários, no fluxo interno do estabelecimento ou via Embed (`?embed=form`).
+  2. **Violação de Row-Level Security (RLS) e Colunas Inexistentes no Fallback Client (`supabaseApi.ts` / `server.ts`):**
+     - O endpoint `POST /api/admin/salons` tentava inserir a coluna `category` diretamente em `public.salons` (que não possui coluna `category` no schema real do PostgREST) antes do fallback.
+     - O fallback client em ambientes estáticos/Cloudflare utilizava a chave anônima (`anon`) em vez de RPC `SECURITY DEFINER` (`register_triade_user`) ou `supabaseAdmin` (`service_role`), sofrendo bloqueio de RLS (`new row violates row-level security policy`).
+- **Arquivos Impactados:**
+  - `src/components/admin/triade-forms/TriadeUserRegisterForm.tsx`
+  - `src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`
+  - `src/components/admin/triade-forms/TriadeEstablishmentModal.tsx`
+  - `src/services/supabaseApi.ts`
+  - `src/services/supabase.ts`
+  - `vite.config.ts`
+  - `server.ts`
+  - `CHANGELOG.md`
+- **Resumo Técnico:**
+  - Criada e integrada a função `registerTriadeUser` em `src/services/supabaseApi.ts` (acionando `POST /api/public/register-user`, RPC `register_triade_user` com `SECURITY DEFINER` e fallback `supabaseAdmin` em `public.clients`).
+  - Atualizado `TriadeUserRegisterForm.tsx` para aguardar `await registerTriadeUser(...)` antes de disparar `onSuccess` e `postMessage`, exibindo erros reais caso ocorram.
+  - Atualizado `TriadeEstablishmentMasterForm.tsx` para aguardar `await createAdminSalon(...)` em `handleConfirmCreateSalon`, gravando em `public.salons`, convertendo Logos/Favicons Base64 para URLs públicas no bucket `media` do Supabase Storage e vinculando automaticamente o proprietário em `public.clients` e `public.professionals`.
+
+---
+
+### [2026-10-18] — 🎉 Modal de Boas-Vindas Pós-Criação do Salão (`SalonWelcomeModal`: Mensagem Emotiva, Link, QR Code de Balcão para Impressão & Acesso ao App sem citar VagouApp nas mensagens)
+- **Tipo:** `[Feat / UX / OnboardingKit]`
+- **Motivo / Solicitação:**
+  1. Exibir modal de boas-vindas ao criar um estabelecimento (`"O {Nome do Salão} foi criado com sucesso!"`) com mensagem emotiva e orientação para inserir as demais informações nas opções do aplicativo.
+  2. Incluir link exclusivo do salão (`https://{slug}.vagouapp.com`) com botões para copiar e compartilhar (`navigator.share`).
+  3. Gerar QR Code pronto para impressão de placa de balcão/recepção (`iframe.contentWindow.print()`).
+  4. Incluir botão para instalar/baixar app (`beforeinstallprompt` PWA) ou abrir em nova aba.
+  5. Não citar "VagouApp" nos textos e mensagens exibidas ao usuário.
+- **Arquivos Impactados:**
+  - `src/components/admin/SalonWelcomeModal.tsx`
+  - `src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`
+  - `src/components/admin/triade-forms/TriadeEstablishmentModal.tsx`
+  - `src/components/admin/AdminTriadeFormsCatalog.tsx`
+  - `src/components/admin/triade-forms/TriadeUserRegisterForm.tsx`
+  - `src/components/admin/triade-forms/TriadeUserLoginForm.tsx`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-18] — 👤 Correção do Input de Nome de Usuário (Fim do `@@a` Automático e Remoção de `@` no Início de Usernames)
+- **Tipo:** `[Fix / UX / UsernameSanitization]`
+- **Motivo / Solicitação:**
+  1. Ao começar a digitar o **Nome Completo** no formulário de cadastro (`TriadeUserRegisterForm`), aparecia instantaneamente no input de Nome de Usuário o duplo `@@` seguido da primeira letra (ex: `@@a`).
+  2. Garantir que nomes de usuário nunca tenham arroba (`@`) no início, eliminando exibições como `@anderson@` em tabelas, modais e detalhes de usuário.
+- **Ações Executadas:**
+  - 1️⃣ **`TriadeUserRegisterForm.tsx`**:
+    - Removida a lógica dentro de `handleFullNameChange` que injetava `@` + a primeira letra no estado `username` assim que o usuário digitava o Nome Completo.
+    - Removido o ícone `@` (`AtSign`) e o sufixo `(@)` do rótulo, substituído pelo ícone `UserCheck` e bloqueio de `@` no início (`e.target.value.replace(/^@+/, '')`).
+  - 2️⃣ **`AdminUserGeneralDataModal.tsx`, `AdminUsersManager.tsx`, `AdminUserDetailView.tsx`, `TriadeEstablishmentMasterForm.tsx`, `TriadeAdminRegisterForm.tsx`, `supabaseApi.ts` e `server.ts`**:
+    - Removida a concatenação de `@` no início dos usernames e o `.toLowerCase()` forçado que transformava `Anderson@` em `@anderson@`.
+- **Arquivos Impactados:**
+  - `src/components/admin/triade-forms/TriadeUserRegisterForm.tsx`
+  - `src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`
+  - `src/components/admin/triade-forms/TriadeAdminRegisterForm.tsx`
+  - `src/components/admin/AdminUserGeneralDataModal.tsx`
+  - `src/components/admin/AdminUsersManager.tsx`
+  - `src/components/admin/AdminUserDetailView.tsx`
+  - `src/services/supabaseApi.ts`
+  - `server.ts`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-18] — 🌐 Correção do Subdomínio Wildcard (`nomedonegocio.vagouapp.com`) & Padronização de Placeholders de Login (`"Usuário, E-mail ou Telefone"`)
+- **Tipo:** `[Fix / UX / DNSWildcard]`
+- **Motivo / Solicitação:**
+  1. Corrigir a exibição do campo **Slug Único de Rota (Wildcard)** para refletir a arquitetura DNS real configurada no Cloudflare (`nomedonegocio.vagouapp.com` em vez de `vagouapp.com/nomedonegocio`).
+  2. Padronizar o placeholder dos campos de login e recuperação nos formulários para `"Usuário, E-mail ou Telefone"`.
+- **Ações Executadas:**
+  - 1️⃣ **`TriadeEstablishmentMasterForm.tsx` (Subdomínio Wildcard)**:
+    - No campo **Slug Único de Rota (Wildcard)**, o input agora fica à esquerda (`placeholder="nomedonegocio"`) seguido pelo sufixo fixo `.vagouapp.com` à direita.
+    - No modal de **Ficha Completa**, a Rota Oficial foi atualizada para `{slug}.vagouapp.com`.
+  - 2️⃣ **`TriadeUserLoginForm.tsx`, `TriadeAdminLoginForm.tsx` & `TriadeAdminRecoveryForm.tsx`**:
+    - Padronizados os placeholders e rótulos de identificação para `"Usuário, E-mail ou Telefone"`.
+- **Arquivos Impactados:**
+  - `src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`
+  - `src/components/admin/triade-forms/TriadeUserLoginForm.tsx`
+  - `src/components/admin/triade-forms/TriadeAdminLoginForm.tsx`
+  - `src/components/admin/triade-forms/TriadeAdminRecoveryForm.tsx`
+  - `CHANGELOG.md`
+
+### [2026-10-18] — 🏢 Condicional Fiscal (`CPF` sem Razão Social vs `CNPJ` com Razão Social & BrasilAPI) + Liberação de Múltiplas Cadeiras/Parceiros Avulsos no CPF (`TriadeEstablishmentMasterForm`)
+- **Tipo:** `[Feat / UX / FiscalRule]`
+- **Motivo / Solicitação:**
+  Na seção **2. Dados do Salão (Dados Comerciais & Fiscais)**, ocultar a opção de **Razão Social** quando o documento informado for **CPF** (Salão de Bairro / Pessoa Física) e exibi-la apenas quando for **CNPJ** (Pessoa Jurídica), garantindo que mesmo salões de bairro sem CNPJ (cadastrados no CPF) tenham permissão integral para cadastrar múltiplas cadeiras e profissionais avulsos em regime de parceria.
+- **Ações Executadas:**
+  - 1️⃣ **Ordem Lógica & Exibição Condicional (`documentType`)**:
+    - O seletor **Documento Fiscal (`CNPJ` | `CPF`)** foi posicionado no topo da grade, com máscara dinâmica (`00.000.000/0001-00` para CNPJ e `000.000.000-00` para CPF).
+    - **Se `CPF` (Salão no CPF):** Oculta completamente o campo **Razão Social** na etapa comercial e no modal de **Ficha Completa**, ajustando o campo `Slug Único de Rota` para largura total (`sm:col-span-2`) e preenchendo silenciosamente `legalName` no payload com o nome do titular/nome fantasia.
+    - **Se `CNPJ` (Empresa CNPJ):** Exibe o campo **Razão Social** e executa consulta automática na Receita Federal (`BrasilAPI`) ao completar 14 dígitos.
+  - 2️⃣ **Permissão de Equipe & Parceiros Avulsos (`CPF` ou `CNPJ`)**:
+    - Indicador claro no cabeçalho da seção confirmando que **múltiplas cadeiras e profissionais parceiros/avulsos são liberados tanto para Salão no CPF quanto Empresa no CNPJ**.
+- **Arquivos Impactados:**
+  - `src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`
+  - `CHANGELOG.md`
+
+### [2026-10-18] — 🔤 Opção B (4 Estilos de Fonte da Marca) + Auditoria & Sincronização de Código e SQL com `meunegocio.vagouapp.git` (`mnvapp`) (`TriadeEstablishmentMasterForm` / `supabase_schema.sql` / `server.ts`)
+- **Tipo:** `[Feat / Branding / SQLSync / TriadeAudit]`
+- **Motivo / Solicitação:**
+  O usuário aprovou a **Opção B** (Seletor rápido com 4 Estilos de Fonte da Marca aplicados no nome/cabeçalho do salão mantendo a interface e agenda travadas em `Poppins`) e solicitou uma consultoria completa e sincronismo de código e SQL em relação ao repositório oficial do template do salão (`https://github.com/nexuscrwd/meunegocio.vagouapp.git`).
+- **Ações Executadas:**
+  - 1️⃣ **`index.html` & `TriadeEstablishmentMasterForm.tsx` (Opção B — Tipografia de Marca)**:
+    - Importadas no `index.html` as 4 famílias tipográficas homologadas em sincronia com o `mnvapp`: **`Poppins`** (Moderna & Geométrica — Padrão Oficial), **`Cormorant Garamond`** (Elegante & Editorial — Salão, Noivas & Spa), **`Oswald`** (Clássica & Forte — Barbearia & Grooming) e **`Plus Jakarta Sans`** (Minimalista & Clean — Estética, Cílios & Unhas).
+    - Adicionado o item **`5. Fonte de Destaque da Marca (Nome & Cabeçalho)`** na etapa `4. Identidade Visual`, com preview em tempo real nos 4 cards, no Simulador do cabeçalho/ícone mobile e na Ficha Completa.
+  - 2️⃣ **Sincronização SQL & API (`supabase_schema.sql`, `server.ts`, `supabaseApi.ts`, `TriadeEstablishmentModal.tsx`)**:
+    - Adicionadas as colunas `favicon_url TEXT`, `slogan VARCHAR(120)` e `brand_font VARCHAR(60) DEFAULT 'Poppins'` na tabela `public.salons` em `supabase_schema.sql`, além do espelhamento automático dentro da coluna `branding` JSONB (`faviconUrl`, `salonIcon`, `slogan`, `brandFont`, `pwaName`) para compatibilidade imediata com `VisualIdentityCardView.tsx` e `SalonProfileView.tsx` do `mnvapp`.
+    - Emitido o Boletim Técnico Oficial `bol-017-visual-identity-font-favicon-slogan-sync` no `server.ts`.
+- **Arquivos Impactados:**
+  - `index.html`
+  - `supabase_schema.sql`
+  - `src/types/admin.ts`
+  - `src/services/supabaseApi.ts`
+  - `server.ts`
+  - `src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`
+  - `src/components/admin/triade-forms/TriadeEstablishmentModal.tsx`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-18] — 🎨 Reestruturação da Etapa 4 (Identidade Visual: Logotipo, Favicon, Cor e Slogan) & Desacoplamento de Redes Sociais/Bio para Pós-Cadastro (`TriadeEstablishmentMasterForm`)
+- **Tipo:** `[UX / Branding / PWA / TriadeGovernance / Refactor]`
+- **Motivo / Solicitação:** 
+  O usuário aprovou a Opção 1 da consultoria de Identidade Visual: manter no cadastro inicial do estabelecimento apenas os 4 pilares essenciais da marca (**Logotipo**, **Favicon/Ícone do App**, **Cor Principal** e **Slogan**), deixando informações complementares como **Bio** e **Redes Sociais** para o proprietário configurar dentro do próprio app do salão (`mnvapp`) após concluir o cadastro.
+- **Ações Executadas:**
+  - 1️⃣ **`TriadeEstablishmentMasterForm.tsx`**:
+    - **1. Logotipo da Marca**: Substituído o input de URL técnica por seletor visual de imagem direto da galeria do celular/computador (`PNG, JPG, SVG, WebP`) com preview imediato e fallback de iniciais.
+    - **2. Favicon / Ícone do App (PWA & Navegador)**: Adicionado upload de ícone 1:1 com opção inteligente de 1 toque **`"Usar mesmo do logotipo"`**.
+    - **3. Cor Principal (Harmonia com o Logotipo)**: Adicionado seletor cromático acompanhado de 5 paletas rápidas do segmento de beleza/barbearia.
+    - **4. Slogan do Estabelecimento**: Campo objetivo de até 60 caracteres para assinatura da marca.
+    - **Simulador Visual em Tempo Real**: Preview instantâneo de como o Favicon, Nome e Slogan aparecem na **Aba do Navegador** e na **Galeria de Apps do Celular (PWA)**.
+    - Removidos os campos de `Instagram Oficial` e `Bio` do fluxo inicial de cadastro e atualizada a `Ficha Completa`.
+  - 2️⃣ **Validação**:
+    - Executados `lint_applet` e `compile_applet` com 100% de aprovação.
+
+---
+
+### [2026-10-18] — 📍 Fluxo de Endereço do Estabelecimento em 2 Modais Sequenciais (Mesmo Endereço do Proprietário? → Modal CEP + Endereço Completo) (`TriadeEstablishmentMasterForm`)
+- **Tipo:** `[UX / CleanCode / Refactor]`
+- **Motivo / Solicitação:** 
+  O usuário solicitou: *"Assim como no cadastro de endereço do usuário, em que temos um modal para digitar o CEP e os dados são completados, gostaria do mesmo para o cadastro de endereço do estabelecimento porem seriam dois modais: - Modal - 'O salão fica no mesmo endereço do proprietário?' - Se sim avança para proxima faze, se não; - Modal - CEP e logica semelhante a do cadastro de usuários."*
+- **Ações Executadas:**
+  - 1️⃣ **`TriadeEstablishmentMasterForm.tsx`**:
+    - Reestruturada a etapa **`3. Endereço (ViaCEP)`** em dois modais sequenciais seguidos pelos campos completados:
+      - **Modal 1 (`same_address_modal`)**: Pergunta *"O salão fica no mesmo endereço do proprietário?"* exibindo o endereço residencial vinculado.
+        - **Se SIM**: Copia automaticamente o endereço do proprietário para o estabelecimento e **avança direto para a próxima fase (`4. Id. Visual & Branding`)**.
+        - **Se NÃO**: Abre imediatamente o **Modal 2 (`cep_modal`)**.
+      - **Modal 2 (`cep_modal`)**: Tela/modal isolado de **CEP do Estabelecimento** com busca automática no ViaCEP ao digitar os 8 dígitos e botão **"Não sei meu CEP"** (`HelpCircle`), avançando automaticamente para a conferência dos dados de endereço.
+      - **Dados do Endereço Completados (`address_form`)**: Mesmo layout e busca reversa silenciosa (`searchSalonCepByAddress` via `onBlur`) do cadastro de usuários, com foco automático no campo `Número`.
+  - 2️⃣ **Validação**:
+    - Executados `lint_applet` e `compile_applet` com 100% de aprovação.
+
+---
+
+### [2026-10-18] — 🧭 Unificação da Barra Superior de Cadastro de Estabelecimento & Sub-rotinas Transitórias de Usuário (`AdminTriadeFormsCatalog` / `TriadeEstablishmentMasterForm`)
+- **Tipo:** `[UX / Architecture / CleanCode / Refactor]`
+- **Motivo / Solicitação:** 
+  O usuário enviou o print e solicitou: *"Ao cadastrar o estabelecimento o usuário precisa passar pela 'Identificação', sendo sim ou não, o correto não seria ocultar o passo 2-login ou 3-Cadastro Proprietario por estes fazerem parte de login/cadastro de usuário, ou seja, o sistema abre os forms, porem depois retorna?"*.
+- **Ações Executadas:**
+  - 1️⃣ **`AdminTriadeFormsCatalog.tsx`**:
+    - Ocultados os botões de `Login Proprietário` e `Cadastro Proprietário` das abas fixas de **Cadastro Estabelecimento** (já que pertencem ao grupo `Usuário`).
+    - Unificada a barra superior em **uma única barra** contendo apenas as fases reais do estabelecimento:
+      - `1. Identificação (Sim/Não)`
+      - `2. Comercial & Fiscal`
+      - `3. Endereço (ViaCEP)`
+      - `4. Id. Visual & Branding`
+      - `5. Ficha Completa (Revisar)`
+  - 2️⃣ **`TriadeEstablishmentMasterForm.tsx`**:
+    - Na fase `1. Identificação (Sim/Não)`, clicar em **SIM** ou **NÃO** abre temporariamente o formulário canônico de Login ou Cadastro de Usuário (`userAuthSubFlow`) e, após concluir, retorna automaticamente para a etapa **`2. Comercial & Fiscal`** do estabelecimento.
+    - Removida a segunda barra de abas empilhada abaixo da logo, deixando o layout 100% plano e limpo.
+  - 3️⃣ **Validação**:
+    - Executados `lint_applet` e `compile_applet` com 100% de aprovação.
+
+---
+
+### [2026-10-18] — 📋 Remoção da Aba Titular/Proprietário na Etapa 4 & Transformação da "Ficha Completa" em Modal Final de Confirmação (`TriadeEstablishmentMasterForm`)
+- **Tipo:** `[UX / FocusMode / CleanCode / Refactor]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou a barra de sub-abas da etapa **4. Dados do Salão** e solicitou: *"Acredito que no cadastro do estabelecimento, onde será inserido os dados do estabelecimento, não deveria aparecer a aba titular proprietário, uma vez que já fora passada esta fase e para chegar nesta fase de cadastro já foi necessário ter o usuário. Em relação a ficha completa, este deve ser um modal final para confirmação de tudo que foi preenchido antes de criar"*.
+- **Ações Executadas:**
+  - 1️⃣ **`TriadeEstablishmentMasterForm.tsx`**:
+    - Removida a aba e a seção de inputs `Titular / Proprietário` de dentro da Etapa 4 (mantendo os dados do usuário autenticado/cadastrado vinculados em memória).
+    - Reorganizadas as sub-abas da Etapa 4 na ordem progressiva:
+      - `1. Comercial & Fiscal` *(aba padrão inicial)*
+      - `2. Endereço (ViaCEP)`
+      - `3. Id. Visual & Branding`
+      - `4. Ficha Completa (Revisar)` *(aciona o modal de confirmação)*
+    - Implementado o **Modal Final de Revisão e Confirmação ("Ficha Completa")** com layout plano (sem *box dentro de box*), exibindo o resumo consolidado (Titular Vinculado + Dados Comerciais + Endereço + Identidade Visual), botões rápidos de `Editar` por seção e rodapé fixo (`sticky bottom-0 z-20`) com o botão verde soberano **`Confirmar e Criar Estabelecimento`** (`bg-[#20C933] text-white`).
+  - 2️⃣ **Validação**:
+    - Executados `lint_applet` e `compile_applet` com 100% de aprovação.
+
+---
+
+### [2026-10-18] — 🏛️ Árvore Hierárquica em Configurações & Unificação Canônica Zero-Duplicidade dos Formulários da Tríade
+- **Tipo:** `[Architecture / Refactor / CleanCode / TriadeGovernance]`
+- **Motivo / Solicitação:** 
+  O usuário solicitou separar os itens do menu em `Configurações -> Estabelecimento (Login Estabelecimento | Cadastro Estabelecimento) / Usuário (Login Usuário | Cadastro Usuário)`, além de auditar profundamente todo o código para eliminar duplicidades e garantir que os 3 cenários de jornada (1. Novo usuário via PWA/Portal, 2. Usuário existente cadastrando salão, 3. Novo profissional sem conta cadastrando usuário + salão no mesmo fluxo/modal) reutilizem os mesmos formulários canônicos sem repetição de código.
+- **Ações Executadas:**
+  - 1️⃣ **`AdminSidebar.tsx` & `AdminMasterApp.tsx`**:
+    - Estruturada a árvore expansível dentro de **Configurações**:
+      - **Estabelecimento** (`Login Estabelecimento` | `Cadastro Estabelecimento`)
+      - **Usuário** (`Login Usuário` | `Cadastro Usuário`)
+      - **Embeds & iFrame**
+  - 2️⃣ **`AdminTriadeFormsCatalog.tsx`**:
+    - Separada cada visualização exclusivamente para o item selecionado no menu lateral, exibindo no topo apenas a sub-barra de fases daquele formulário específico e o botão `Gerar Embed (<iframe>)`.
+  - 3️⃣ **Eliminação de Duplicidade & Reuso Canônico (`TriadeMnvClientLoginForm`, `TriadeMnvClientRegisterForm`, `TriadeEstablishmentMasterForm`, `UniversalFormEmbedView`)**:
+    - `TriadeMnvClientLoginForm` e `TriadeMnvClientRegisterForm` refatorados como adaptadores enxutos que delegam 100% para `TriadeUserLoginForm` e `TriadeUserRegisterForm`.
+    - `TriadeEstablishmentMasterForm` orquestra os 3 cenários chamando diretamente `<TriadeUserLoginForm variant="flat" />` (Fase 2) e `<TriadeUserRegisterForm variant="flat" />` (Fase 3), pré-carregando os dados do proprietário e endereço na Fase 4 (`Dados do Salão`), com sincronização bidirecional (`onStepChange`) e seção `Titular / Proprietário` restaurada.
+  - 4️⃣ **Validação & Clean Code**:
+    - Removidos imports e variáveis ociosas; `lint_applet` e `compile_applet` aprovados com 0 erros.
+
+---
+
+### [2026-10-18] — 🧭 Restauração das Sub-abas das Fases de Cadastro de Usuário Abaixo do Cabeçalho Principal (`AdminTriadeFormsCatalog`)
+- **Tipo:** `[Feat / UI / Navigation / Fix]`
+- **Motivo / Solicitação:** 
+  O usuário enviou o print da seção `Usuários > 2. Cadastro de Usuário` e solicitou: *"preciso que nesta seção de cadastro de usuário tenhas as fazer de cadastro separadas em abas. essas sub-abas havia antes e por acidente foram removidas. elas devem estar abaixo das abas principais do cabeçalho"*.
+- **Ações Executadas:**
+  - 1️⃣ **`AdminTriadeFormsCatalog.tsx`**:
+    - Adicionada a sub-barra de abas das fases do cadastro de usuário posicionada logo abaixo das abas principais do cabeçalho da seção `Usuários`:
+      - `1. Identificação` (`identification`)
+      - `2. Contatos` (`contacts`)
+      - `3. Código SMS/Whats` (`verification`)
+      - `4. Criar Senha` (`password`)
+      - `5. CEP` (`cep`)
+      - `6. Endereço` (`address`)
+      - `Ficha Completa` (`all`)
+    - Adicionada também a sub-barra para a aba `1. Login de Usuário` (`1. Acesso com Senha` e `2. Recuperação de Acesso`).
+    - Inicializado o estado `registerPhase` em `'identification'` para abrir diretamente na Etapa 1 separada por fases.
+  - 2️⃣ **Validação**:
+    - Executados `lint_applet` e `compile_applet` com 100% de aprovação.
+
+---
+
 ### [2026-10-18] — 🧹 Remoção Definitiva do Card Externo Redundante (`TriadeEstablishmentMasterForm`)
 - **Tipo:** `[FocusMode / CleanCode / FlatLayout / UI]`
 - **Motivo / Solicitação:** 

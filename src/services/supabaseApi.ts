@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase, supabaseAdmin } from './supabase';
 import {
   AdminSalonItem,
   AdminDashboardMetrics,
@@ -200,7 +200,10 @@ export async function fetchAdminSalons(): Promise<AdminSalonItem[]> {
             state: row.state || 'SP',
             cep: row.cep || '',
             logo_url: row.logo_url || row.logo || row.logo_light_url || row.logo_dark_url || '',
-            primary_color: row.primary_color || row.brand_color || '#10B981',
+            favicon_url: row.favicon_url || row.branding?.faviconUrl || row.branding?.salonIcon || row.logo_url || '',
+            slogan: row.slogan || row.branding?.slogan || '',
+            brand_font: row.brand_font || row.branding?.brandFont || 'Poppins',
+            primary_color: row.primary_color || row.brand_color || row.branding?.primaryColor || '#10B981',
             created_at: row.created_at || new Date().toISOString(),
             professionals_count: row.professionals_count || 2,
             active_offers_count: row.active_offers_count || 1,
@@ -214,8 +217,8 @@ export async function fetchAdminSalons(): Promise<AdminSalonItem[]> {
       // Ignora e tenta cliente Supabase direto
     }
 
-    // 2. Fallback direto no Supabase Client
-    const { data: dbSalons, error } = await supabase
+    // 2. Fallback direto no Supabase Client (Sovereign Service Role)
+    const { data: dbSalons, error } = await supabaseAdmin
       .from('salons')
       .select('*')
       .order('created_at', { ascending: false });
@@ -249,7 +252,10 @@ export async function fetchAdminSalons(): Promise<AdminSalonItem[]> {
         state: row.state || 'SP',
         cep: row.cep || '',
         logo_url: row.logo_url || row.logo || row.logo_light_url || row.logo_dark_url || '',
-        primary_color: row.primary_color || row.brand_color || '#10B981',
+        favicon_url: row.favicon_url || row.branding?.faviconUrl || row.branding?.salonIcon || row.logo_url || '',
+        slogan: row.slogan || row.branding?.slogan || '',
+        brand_font: row.brand_font || row.branding?.brandFont || 'Poppins',
+        primary_color: row.primary_color || row.brand_color || row.branding?.primaryColor || '#10B981',
         created_at: row.created_at || new Date().toISOString(),
         professionals_count: row.professionals_count || 2,
         active_offers_count: row.active_offers_count || 1,
@@ -268,10 +274,209 @@ export async function fetchAdminSalons(): Promise<AdminSalonItem[]> {
 }
 
 /**
+ * Helper cliente para converter Base64 de logo/favicon em URL pública do Supabase Storage
+ */
+async function uploadClientBase64Media(rawUrl: string | undefined | null, prefix: string): Promise<string | null> {
+  if (!rawUrl || typeof rawUrl !== 'string') return null;
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return null;
+  if (!trimmed.startsWith('data:image/')) return trimmed;
+
+  try {
+    const res = await fetch(trimmed);
+    const blob = await res.blob();
+    const ext = blob.type.includes('svg') ? 'svg' : blob.type.includes('jpeg') || blob.type.includes('jpg') ? 'jpg' : 'png';
+    const cleanPrefix = prefix.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 24) || 'salon';
+    const fileName = `salons/${cleanPrefix}-${Date.now()}.${ext}`;
+
+    const { error: upErr } = await supabaseAdmin.storage
+      .from('media')
+      .upload(fileName, blob, { contentType: blob.type || 'image/png', upsert: true });
+
+    if (!upErr) {
+      const { data: pubData } = supabaseAdmin.storage.from('media').getPublicUrl(fileName);
+      if (pubData?.publicUrl) return pubData.publicUrl;
+    }
+  } catch (e) {
+    console.warn('[uploadClientBase64Media] Aviso no upload:', e);
+  }
+  return trimmed;
+}
+
+/**
+ * Cadastra e persiste um novo usuário/cliente no Supabase (via Backend Express ou RPC/Admin direto)
+ */
+export async function registerTriadeUser(userData: {
+  id?: string;
+  fullName: string;
+  username: string;
+  phone: string;
+  email: string;
+  password?: string;
+  address: {
+    cep: string;
+    street: string;
+    number: string;
+    complement?: string;
+    neighborhood: string;
+    city: string;
+    state: string;
+  };
+  origin?: 'portal' | 'establishment';
+  salonId?: string;
+  salonName?: string;
+}): Promise<{ success: boolean; client?: any; userId?: string; error?: string }> {
+  const cleanName = userData.fullName.trim();
+  const cleanEmail = userData.email.trim().toLowerCase();
+  const cleanUsername = userData.username.trim().replace(/^@+/, '');
+  const cleanPhone = userData.phone.trim();
+  const pass = userData.password || 'Vagou@2026';
+  const addr = userData.address || { cep: '', street: '', number: '', complement: '', neighborhood: '', city: 'São Paulo', state: 'SP' };
+  const isUuid = (val: any) =>
+    typeof val === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
+
+  // 1. Tenta via Backend Express (/api/public/register-user) com Service Role
+  try {
+    const resp = await fetch('/api/public/register-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'client',
+        fullName: cleanName,
+        name: cleanName,
+        username: cleanUsername,
+        email: cleanEmail,
+        phone: cleanPhone,
+        password: pass,
+        origin: userData.origin || 'portal',
+        salonId: isUuid(userData.salonId) ? userData.salonId : undefined,
+        address: addr,
+        cep: addr.cep,
+        street: addr.street,
+        number: addr.number,
+        complement: addr.complement || '',
+        neighborhood: addr.neighborhood,
+        city: addr.city || 'São Paulo',
+        state: addr.state || 'SP',
+      }),
+    });
+
+    const text = await resp.text();
+    if (text && text.trim().startsWith('{')) {
+      const json = JSON.parse(text);
+      if (resp.ok && json.success) {
+        return {
+          success: true,
+          client: json.client || json.user,
+          userId: json.client?.id || json.user?.id,
+        };
+      }
+      if (json.error) {
+        console.warn('[registerTriadeUser] Aviso API:', json.error);
+      }
+    }
+  } catch (apiErr) {
+    console.warn('[registerTriadeUser] Fallback para Supabase direto:', apiErr);
+  }
+
+  // 2. Fallback via RPC SECURITY DEFINER register_triade_user (funciona mesmo com anon key)
+  try {
+    const { data: rpcData, error: rpcErr } = await supabase.rpc('register_triade_user', {
+      p_full_name: cleanName,
+      p_username: cleanUsername,
+      p_phone: cleanPhone,
+      p_email: cleanEmail,
+      p_password_hash: pass,
+      p_cep: addr.cep || '',
+      p_street: addr.street || '',
+      p_number: addr.number || '',
+      p_complement: addr.complement || '',
+      p_neighborhood: addr.neighborhood || '',
+      p_city: addr.city || 'São Paulo',
+      p_state: addr.state || 'SP',
+      p_origin_type: userData.origin || 'portal',
+      p_origin_salon_id: isUuid(userData.salonId) ? userData.salonId : null,
+    });
+
+    if (!rpcErr && rpcData) {
+      return {
+        success: true,
+        client: rpcData,
+        userId: rpcData.client_id || rpcData.id,
+      };
+    }
+  } catch (rpcException) {
+    console.warn('[registerTriadeUser] Aviso RPC:', rpcException);
+  }
+
+  // 3. Fallback via supabaseAdmin direto na tabela public.clients
+  try {
+    const fullAddress = [addr.street, addr.number, addr.complement, addr.neighborhood, addr.city, addr.state, addr.cep]
+      .filter(Boolean)
+      .join(', ');
+
+    const clientRow: Record<string, any> = {
+      name: cleanName,
+      full_name: cleanName,
+      username: cleanUsername,
+      email: cleanEmail,
+      phone: cleanPhone,
+      password_hash: pass,
+      cep: addr.cep || null,
+      address: addr.street || null,
+      street_number: addr.number || null,
+      complement: addr.complement || null,
+      neighborhood: addr.neighborhood || null,
+      city: addr.city || 'São Paulo',
+      state: addr.state || 'SP',
+      default_address: fullAddress || null,
+      origin_type: userData.origin || 'portal',
+      origin_salon_id: isUuid(userData.salonId) ? userData.salonId : null,
+      is_active: true,
+      access_level: 'Cliente Titular',
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data: existing } = await supabaseAdmin
+      .from('clients')
+      .select('id')
+      .eq('email', cleanEmail)
+      .maybeSingle();
+
+    if (existing?.id) {
+      const { data: updated, error: upErr } = await supabaseAdmin
+        .from('clients')
+        .update(clientRow)
+        .eq('id', existing.id)
+        .select()
+        .single();
+      if (upErr) return { success: false, error: upErr.message };
+      return { success: true, client: updated, userId: updated?.id };
+    } else {
+      const { data: inserted, error: insErr } = await supabaseAdmin
+        .from('clients')
+        .insert([clientRow])
+        .select()
+        .single();
+      if (insErr) return { success: false, error: insErr.message };
+      return { success: true, client: inserted, userId: inserted?.id };
+    }
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Erro ao salvar cadastro no Supabase.' };
+  }
+}
+
+/**
  * Cria um novo estabelecimento com privilégios de Admin Master
  */
 export async function createAdminSalon(
-  salonData: Partial<AdminSalonItem>
+  salonData: Partial<AdminSalonItem> & {
+    owner_name?: string;
+    pix_key?: string;
+    operating_model?: string;
+    billing_plan?: string;
+  }
 ): Promise<{ success: boolean; salon?: AdminSalonItem; error?: string }> {
   try {
     // 1. Tenta via backend Service Role
@@ -281,60 +486,153 @@ export async function createAdminSalon(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(salonData),
       });
-      const json = await resp.json();
-      if (resp.ok && json.success && json.salon) {
-        return { success: true, salon: json.salon };
-      }
-      if (json.error) {
-        console.warn('[Supabase Admin] Erro da API ao criar salão:', json.error);
-        return { success: false, error: json.error };
+      const text = await resp.text();
+      if (text && text.trim().startsWith('{')) {
+        const json = JSON.parse(text);
+        if (resp.ok && json.success && json.salon) {
+          return { success: true, salon: json.salon };
+        }
+        if (json.error) {
+          console.warn('[Supabase Admin] Erro da API ao criar salão:', json.error);
+          return { success: false, error: json.error };
+        }
       }
     } catch (e: any) {
-      console.warn('[Supabase Admin] Exceção na chamada de criação:', e);
+      console.warn('[Supabase Admin] Exceção na chamada de criação via API, usando fallback direto:', e);
     }
 
-    // 2. Fallback Supabase client
+    // 2. Fallback direto via supabaseAdmin (Service Role client)
     const cleanSlug = salonData.slug?.toLowerCase().trim().replace(/[^a-z0-9-]/g, '') || `salao-${Date.now()}`;
+    const resolvedLogo = await uploadClientBase64Media(salonData.logo_url, `${cleanSlug}-logo`);
+    const resolvedFavicon =
+      (await uploadClientBase64Media(salonData.favicon_url, `${cleanSlug}-favicon`)) || resolvedLogo || null;
+    const resolvedStatus = salonData.status || 'active';
+
     const dbInsert: Record<string, any> = {
       trade_name: salonData.trade_name?.trim() || 'Novo Salão',
       legal_name: salonData.legal_name?.trim() || salonData.trade_name?.trim() || 'Novo Salão',
       slug: cleanSlug,
+      subdomain: cleanSlug,
+      document_type: salonData.document_type || 'CNPJ',
+      document_number: salonData.document_number?.trim() || null,
+      pix_key: salonData.pix_key?.trim() || null,
+      operating_model: salonData.operating_model || 'Espaço Físico & Delivery',
+      billing_plan: salonData.billing_plan || 'PRO / 5% POR AGENDAMENTO',
       phone_whatsapp: salonData.phone_whatsapp?.trim() || null,
-      email: salonData.email?.trim() || null,
+      email: salonData.email?.trim().toLowerCase() || null,
       address: salonData.address?.trim() || null,
+      street_number: salonData.street_number?.trim() || null,
+      complement: salonData.complement?.trim() || null,
       neighborhood: salonData.neighborhood?.trim() || null,
       city: salonData.city?.trim() || 'São Paulo',
-      state: salonData.state?.trim() || 'SP',
-      logo_url: salonData.logo_url?.trim() || null,
-      primary_color: salonData.primary_color || '#10B981',
-      is_active: salonData.status !== 'incomplete' && salonData.status !== 'suspended',
-      is_verified: salonData.status === 'active' || salonData.is_verified === true,
+      state: salonData.state?.trim().toUpperCase() || 'SP',
+      cep: salonData.cep?.trim() || null,
+      logo_url: resolvedLogo,
+      logo_light_url: resolvedLogo,
+      logo_dark_url: resolvedLogo,
+      favicon_url: resolvedFavicon,
+      slogan: salonData.slogan?.trim() || '',
+      brand_font: salonData.brand_font || 'Poppins',
+      primary_color: salonData.primary_color || '#20C933',
+      status: resolvedStatus,
+      branding: {
+        themeMode: 'dark',
+        primaryColor: salonData.primary_color || '#20C933',
+        category: salonData.category || 'Barbearia',
+        faviconUrl: resolvedFavicon || '',
+        salonIcon: resolvedFavicon || '',
+        slogan: salonData.slogan || '',
+        brandFont: salonData.brand_font || 'Poppins',
+        pwaName: salonData.trade_name?.trim() || 'Novo Salão',
+      },
+      is_active: resolvedStatus !== 'incomplete' && resolvedStatus !== 'suspended',
+      is_verified: resolvedStatus === 'active' || salonData.is_verified === true,
     };
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('salons')
-      .insert([dbInsert])
+      .upsert([dbInsert], { onConflict: 'slug' })
       .select()
       .single();
 
     if (error) {
       console.warn('[Supabase Admin] Warning inserção:', error.message);
-      if (error.code === '23505' || error.message.includes('unique')) {
-        return {
-          success: false,
-          error: `O subdomínio "${cleanSlug}" já está cadastrado no banco. Escolha outro subdomínio.`,
-        };
-      }
       return { success: false, error: error.message };
     }
 
-    // Persiste localmente para garantia de presença
+    // Sincroniza proprietário em clients e professionals
+    if (data?.id && (salonData.email || salonData.owner_name || salonData.legal_name)) {
+      try {
+        const ownerName = (salonData.owner_name || salonData.legal_name || salonData.trade_name || 'Proprietário').trim();
+        const ownerEmail = (salonData.email || `${cleanSlug}@vagouapp.com`).trim().toLowerCase();
+        const ownerPhone = salonData.phone_whatsapp?.trim() || '';
+        const ownerUsername = ownerEmail.split('@')[0].replace(/[^a-zA-Z0-9._-]/g, '') || cleanSlug;
+
+        const { data: existingClient } = await supabaseAdmin
+          .from('clients')
+          .select('id')
+          .eq('email', ownerEmail)
+          .maybeSingle();
+
+        if (!existingClient) {
+          await supabaseAdmin.from('clients').insert([{
+            name: ownerName,
+            full_name: ownerName,
+            username: ownerUsername,
+            email: ownerEmail,
+            phone: ownerPhone,
+            cep: dbInsert.cep,
+            address: dbInsert.address,
+            street_number: dbInsert.street_number,
+            complement: dbInsert.complement,
+            neighborhood: dbInsert.neighborhood,
+            city: dbInsert.city,
+            state: dbInsert.state,
+            origin_type: 'establishment',
+            origin_salon_id: data.id,
+            is_active: true,
+            access_level: 'Proprietário (Dono)',
+          }]);
+        }
+
+        const { data: existingProf } = await supabaseAdmin
+          .from('professionals')
+          .select('id')
+          .eq('salon_id', data.id)
+          .eq('email', ownerEmail)
+          .maybeSingle();
+
+        if (!existingProf) {
+          await supabaseAdmin.from('professionals').insert([{
+            salon_id: data.id,
+            name: ownerName,
+            full_name: ownerName,
+            username: ownerUsername,
+            role: 'Proprietário',
+            access_level: 'Proprietário (Dono)',
+            phone: ownerPhone,
+            phone_whatsapp: ownerPhone,
+            email: ownerEmail,
+            status: 'active',
+            is_active: true,
+            cep: dbInsert.cep,
+            address: dbInsert.address,
+            street_number: dbInsert.street_number,
+            complement: dbInsert.complement,
+            neighborhood: dbInsert.neighborhood,
+            city: dbInsert.city,
+            state: dbInsert.state,
+          }]);
+        }
+      } catch {}
+    }
+
     const newSalon: AdminSalonItem = {
       id: data?.id || `salon-local-${Date.now()}`,
       trade_name: salonData.trade_name || 'Novo Salão',
       slug: cleanSlug,
       category: salonData.category || 'salao',
-      status: salonData.status || 'active',
+      status: resolvedStatus,
       is_verified: salonData.is_verified ?? true,
       phone_whatsapp: salonData.phone_whatsapp || '',
       email: salonData.email || '',
@@ -342,21 +640,17 @@ export async function createAdminSalon(
       neighborhood: salonData.neighborhood || '',
       city: salonData.city || 'São Paulo',
       state: salonData.state || 'SP',
-      logo_url: salonData.logo_url || '',
-      primary_color: salonData.primary_color || '#10B981',
+      logo_url: resolvedLogo || '',
+      favicon_url: resolvedFavicon || '',
+      slogan: salonData.slogan || '',
+      brand_font: salonData.brand_font || 'Poppins',
+      primary_color: salonData.primary_color || '#20C933',
       created_at: new Date().toISOString(),
       professionals_count: 1,
       active_offers_count: 0,
       rating: 5.0,
       ...salonData,
     };
-
-    try {
-      const saved = localStorage.getItem('vagou_admin_custom_salons');
-      let customList: AdminSalonItem[] = saved ? JSON.parse(saved) : [];
-      customList.unshift(newSalon);
-      localStorage.setItem('vagou_admin_custom_salons', JSON.stringify(customList));
-    } catch {}
 
     return { success: true, salon: newSalon };
   } catch (err: any) {
@@ -387,12 +681,12 @@ export async function bulkUpdateSalons(
 
     // Fallback client
     if (action === 'update_status' && targetStatus) {
-      await supabase
+      await supabaseAdmin
         .from('salons')
         .update({ status: targetStatus, is_verified: targetStatus === 'active' })
         .in('id', ids);
     } else if (action === 'delete') {
-      await supabase.from('salons').delete().in('id', ids);
+      await supabaseAdmin.from('salons').delete().in('id', ids);
     }
 
     return { success: true, count: ids.length };
@@ -477,7 +771,7 @@ export async function updateAdminSalon(
     }
 
     if (Object.keys(dbPayload).length > 0) {
-      const { error } = await supabase.from('salons').update(dbPayload).eq('id', salonId);
+      const { error } = await supabaseAdmin.from('salons').update(dbPayload).eq('id', salonId);
       if (error) {
         console.warn('[Supabase Admin Update] Supabase warning:', error.message);
       }
@@ -515,7 +809,7 @@ export async function deleteAdminSalon(salonId: string): Promise<{ success: bool
       }
     } catch {}
 
-    const { error } = await supabase.from('salons').delete().eq('id', salonId);
+    const { error } = await supabaseAdmin.from('salons').delete().eq('id', salonId);
     if (error) {
       console.warn('[Supabase Admin Delete] Erro:', error.message);
     }
@@ -1368,7 +1662,7 @@ export const DEFAULT_MOCK_SYSTEM_ADMINS: SystemAdminUser[] = [
   {
     id: '00000000-0000-4000-8000-000000000001',
     full_name: 'Administrador Master Vagou',
-    username: '@AdminMaster',
+    username: 'AdminMaster',
     email: 'admin@vagouapp.com',
     phone_whatsapp: '(11) 99999-0000',
     phone_secondary: '(11) 99999-0001',
@@ -1391,7 +1685,7 @@ export const DEFAULT_MOCK_SYSTEM_ADMINS: SystemAdminUser[] = [
   {
     id: '00000000-0000-4000-8000-000000000002',
     full_name: 'Marcos Vinicius (Auditor Tríade)',
-    username: '@marcos.auditor',
+    username: 'marcos.auditor',
     email: 'auditoria@vagouapp.com',
     phone_whatsapp: '(11) 98888-1111',
     phone_secondary: '',
@@ -1713,7 +2007,7 @@ export const INITIAL_MOCK_CLIENTS: UserClientItem[] = [
   {
     id: 'cli-001',
     full_name: 'Roberto Ferreira da Silva',
-    username: '@roberto.silva',
+    username: 'roberto.silva',
     email: 'roberto.silva@gmail.com',
     phone: '(11) 98123-4567',
     phone_secondary: '(11) 98123-4568',
@@ -1761,7 +2055,7 @@ export const INITIAL_MOCK_CLIENTS: UserClientItem[] = [
   {
     id: 'cli-002',
     full_name: 'Mariana Duarte Costa',
-    username: '@mariana.costa',
+    username: 'mariana.costa',
     email: 'mariana.costa@outlook.com',
     phone: '(11) 97234-5678',
     phone_secondary: '(11) 97234-9988',
@@ -1798,7 +2092,7 @@ export const INITIAL_MOCK_CLIENTS: UserClientItem[] = [
   {
     id: 'cli-003',
     full_name: 'Lucas Mendes Nogueira',
-    username: '@lucas.mendes',
+    username: 'lucas.mendes',
     email: 'lucas.mendes@gmail.com',
     phone: '(11) 98877-1122',
     phone_secondary: '',
@@ -1836,7 +2130,7 @@ export const INITIAL_MOCK_CLIENTS: UserClientItem[] = [
   {
     id: 'cli-004',
     full_name: 'Camila Alcantara Rocha',
-    username: '@camila.rocha',
+    username: 'camila.rocha',
     email: 'camila.rocha@uol.com.br',
     phone: '(11) 99444-3322',
     phone_secondary: '',
@@ -1861,7 +2155,7 @@ export const INITIAL_MOCK_CLIENTS: UserClientItem[] = [
   {
     id: 'cli-elisa-pires',
     full_name: 'Elisa Pires',
-    username: '@elisa.pires',
+    username: 'elisa.pires',
     email: 'elisa.pires@gmail.com',
     phone: '(11) 98765-4321',
     phone_secondary: '(11) 98765-4300',
@@ -1893,7 +2187,7 @@ export const INITIAL_MOCK_SALON_USERS: UserSalonAccessItem[] = [
     salon_name: 'Flavi Hair • Studio & Visagismo',
     salon_slug: 'flavihair',
     full_name: 'Flavia Mendes (Proprietária)',
-    username: '@flaviamendes',
+    username: 'flaviamendes',
     email: 'flavia@flavihair.com.br',
     phone_whatsapp: '(11) 98765-4321',
     phone_secondary: '(11) 98765-9900',
@@ -1921,7 +2215,7 @@ export const INITIAL_MOCK_SALON_USERS: UserSalonAccessItem[] = [
     salon_name: 'Flavi Hair • Studio & Visagismo',
     salon_slug: 'flavihair',
     full_name: 'Juliana Paes (Recepção & Caixa)',
-    username: '@juliana.recepcao',
+    username: 'juliana.recepcao',
     email: 'recepcao@flavihair.com.br',
     phone_whatsapp: '(11) 98765-4322',
     phone_secondary: '',
@@ -1949,7 +2243,7 @@ export const INITIAL_MOCK_SALON_USERS: UserSalonAccessItem[] = [
     salon_name: 'Barbearia Dom Corleone Tradicional',
     salon_slug: 'domcorleone',
     full_name: 'Don Carlos Corleone',
-    username: '@carlos.corleone',
+    username: 'carlos.corleone',
     email: 'carlos@domcorleone.com',
     phone_whatsapp: '(11) 99123-4567',
     phone_secondary: '',
@@ -1977,7 +2271,7 @@ export const INITIAL_MOCK_SALON_USERS: UserSalonAccessItem[] = [
     salon_name: 'Barbearia Dom Corleone Tradicional',
     salon_slug: 'domcorleone',
     full_name: 'Marcio Barbeiro (Gerente Geral)',
-    username: '@marcio.gerente',
+    username: 'marcio.gerente',
     email: 'marcio.gerencia@domcorleone.com',
     phone_whatsapp: '(11) 99345-6789',
     phone_secondary: '',
@@ -2005,7 +2299,7 @@ export const INITIAL_MOCK_SALON_USERS: UserSalonAccessItem[] = [
     salon_name: 'Bella Donna Esmalteria & Spa',
     salon_slug: 'belladonna',
     full_name: 'Ana Paula Valadão',
-    username: '@anapaula.donna',
+    username: 'anapaula.donna',
     email: 'anapaula@belladonna.com.br',
     phone_whatsapp: '(11) 97654-3210',
     phone_secondary: '',
@@ -2033,7 +2327,7 @@ export const INITIAL_MOCK_PROFESSIONALS: UserProfessionalItem[] = [
   {
     id: 'prof-elisa-pires',
     full_name: 'Elisa Pires',
-    username: '@elisa.colorista',
+    username: 'elisa.colorista',
     nickname: 'Elisa Colorista & Penteados',
     avatar_url: '',
     specialties: ['Colorimetria Avançada', 'Penteados para Festas', 'Corte e Brushing'],
@@ -2065,7 +2359,7 @@ export const INITIAL_MOCK_PROFESSIONALS: UserProfessionalItem[] = [
   {
     id: 'prof-001',
     full_name: 'Flavia Mendes',
-    username: '@flavia.visagista',
+    username: 'flavia.visagista',
     nickname: 'Flavi Visagista',
     specialties: ['Corte Feminino', 'Colorimetria', 'Visagismo'],
     phone_whatsapp: '(11) 98765-4321',
@@ -2096,7 +2390,7 @@ export const INITIAL_MOCK_PROFESSIONALS: UserProfessionalItem[] = [
   {
     id: 'prof-002',
     full_name: 'Renata Lins',
-    username: '@renata.mechas',
+    username: 'renata.mechas',
     nickname: 'Renata Mechas',
     specialties: ['Mechas & Loiros', 'Cronograma Capilar'],
     phone_whatsapp: '(11) 98333-2211',
@@ -2127,7 +2421,7 @@ export const INITIAL_MOCK_PROFESSIONALS: UserProfessionalItem[] = [
   {
     id: 'prof-003',
     full_name: 'Marcio Oliveira da Silva',
-    username: '@marcio.fade',
+    username: 'marcio.fade',
     nickname: 'Marcio Fade',
     specialties: ['Degradê Americano', 'Barboterapia', 'Freestyle'],
     phone_whatsapp: '(11) 99345-6789',
@@ -2158,7 +2452,7 @@ export const INITIAL_MOCK_PROFESSIONALS: UserProfessionalItem[] = [
   {
     id: 'prof-004',
     full_name: 'Tiago Barber King',
-    username: '@tiago.navalha',
+    username: 'tiago.navalha',
     nickname: 'Tiaguinho Navalha',
     specialties: ['Corte Clássico', 'Barba Tradicional'],
     phone_whatsapp: '(11) 97111-2233',
@@ -2189,7 +2483,7 @@ export const INITIAL_MOCK_PROFESSIONALS: UserProfessionalItem[] = [
   {
     id: 'prof-005',
     full_name: 'Jessica Santos',
-    username: '@jessica.nails',
+    username: 'jessica.nails',
     nickname: 'Jess Nails',
     specialties: ['Alongamento em Fibra', 'Nail Art', 'Spa dos Pés'],
     phone_whatsapp: '(11) 98444-5566',
@@ -2233,7 +2527,7 @@ export async function fetchAdminClients(): Promise<UserClientItem[]> {
   } catch {}
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('clients')
       .select('*')
       .order('created_at', { ascending: false });
@@ -2242,7 +2536,7 @@ export async function fetchAdminClients(): Promise<UserClientItem[]> {
       return data.map((c: any) => ({
         ...c,
         full_name: c.name || c.full_name || 'Cliente',
-        username: c.username || (c.email ? `@${c.email.split('@')[0]}` : `@${(c.name || 'cliente').toLowerCase().replace(/\s+/g, '')}`),
+        username: (c.username || (c.email ? c.email.split('@')[0] : (c.name || 'cliente').toLowerCase().replace(/\s+/g, ''))).replace(/^@+/, ''),
         phone: c.phone || c.phone_whatsapp || '—',
         phone_secondary: c.phone_secondary || '',
         dependents: Array.isArray(c.dependents) ? c.dependents : [],
@@ -2292,7 +2586,7 @@ export async function fetchAdminSalonUsers(): Promise<UserSalonAccessItem[]> {
   } catch {}
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('salons')
       .select('id, trade_name, legal_name, slug, email, phone_whatsapp, address, is_active')
       .order('created_at', { ascending: false });
@@ -2304,7 +2598,7 @@ export async function fetchAdminSalonUsers(): Promise<UserSalonAccessItem[]> {
         salon_name: s.trade_name || s.legal_name || 'Salão Parceiro',
         salon_slug: s.slug || 'parceiro',
         full_name: s.legal_name || s.trade_name || 'Proprietário',
-        username: s.slug ? `@${s.slug}` : '@parceiro',
+        username: s.slug ? s.slug.replace(/^@+/, '') : 'parceiro',
         email: s.email || 'parceiro@vagouapp.com',
         phone_whatsapp: s.phone_whatsapp || '—',
         phone_secondary: '',
@@ -2337,7 +2631,7 @@ export async function fetchAdminProfessionals(): Promise<UserProfessionalItem[]>
   } catch {}
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('professionals')
       .select('*, salons(trade_name, slug)')
       .order('created_at', { ascending: false });
@@ -2346,7 +2640,7 @@ export async function fetchAdminProfessionals(): Promise<UserProfessionalItem[]>
       return data.map((p: any) => ({
         ...p,
         full_name: p.name || p.full_name || 'Profissional',
-        username: p.username || (p.nickname ? `@${p.nickname.toLowerCase().replace(/\s+/g, '')}` : (p.email ? `@${p.email.split('@')[0]}` : `@${(p.name || 'prof').toLowerCase().replace(/\s+/g, '')}`)),
+        username: (p.username || (p.nickname ? p.nickname.toLowerCase().replace(/\s+/g, '') : (p.email ? p.email.split('@')[0] : (p.name || 'prof').toLowerCase().replace(/\s+/g, '')))).replace(/^@+/, ''),
         phone_whatsapp: p.phone || p.phone_whatsapp || '—',
         phone_secondary: p.phone_secondary || '',
         current_salon_name: p.salons?.trade_name || p.current_salon_name || 'Sem Salão Ativo',
@@ -2504,7 +2798,7 @@ export async function updateUnifiedUserData(
       else dbPayload.is_active = payload.isActive;
     }
 
-    const { error } = await supabase.from(table).update(dbPayload).eq('id', id);
+    const { error } = await supabaseAdmin.from(table).update(dbPayload).eq('id', id);
     if (error) {
       console.warn('[updateUnifiedUserData] Aviso Supabase:', error.message);
     }
@@ -2539,7 +2833,7 @@ export async function deleteUnifiedUserData(
     else if (kind === 'salon_user') table = 'salon_users';
     else if (kind === 'admin') table = 'system_admins';
 
-    await supabase.from(table).delete().eq('id', id);
+    await supabaseAdmin.from(table).delete().eq('id', id);
     return { success: true };
   } catch {
     return { success: true };

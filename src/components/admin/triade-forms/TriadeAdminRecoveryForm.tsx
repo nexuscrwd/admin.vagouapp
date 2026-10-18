@@ -168,7 +168,7 @@ export const TriadeAdminRecoveryForm: React.FC<TriadeAdminRecoveryFormProps> = (
               <User className="w-4 h-4 text-slate-500 mr-2.5 shrink-0" />
               <input
                 type="text"
-                placeholder="@usuario, e-mail ou celular"
+                placeholder="Usuário, E-mail ou Telefone"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 className="w-full bg-transparent text-sm text-white placeholder-slate-600 outline-none"
