@@ -507,9 +507,10 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
         return;
       }
 
-      const finalPayload: TriadeUserData = {
+      const finalPayload: TriadeUserData & { session?: any } = {
         ...payload,
         id: res.userId || payload.id,
+        session: res.session,
       };
 
       setFeedback({
@@ -532,6 +533,31 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
         };
 
         window.parent?.postMessage(messagePayload, '*');
+
+        window.parent?.postMessage(
+          {
+            type: 'VAGOU_REGISTRATION_SUCCESS',
+            accountType: 'client',
+            role: 'client',
+            email: finalPayload.email,
+            name: finalPayload.fullName,
+            session: res.session,
+            access_token: res.session?.access_token,
+            refresh_token: res.session?.refresh_token,
+            user: {
+              id: finalPayload.id,
+              name: finalPayload.fullName,
+              email: finalPayload.email,
+              phone: finalPayload.phone,
+              role: 'client',
+              user_metadata: {
+                full_name: finalPayload.fullName,
+                phone: finalPayload.phone,
+              },
+            },
+          },
+          '*'
+        );
 
         // Se o cadastro foi via estabelecimento, emite também evento de cliente do salão
         if (isEstablishmentMode) {

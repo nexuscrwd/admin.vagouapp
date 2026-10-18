@@ -15,6 +15,24 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-18] — 👑 Correção Crítica de Identificação de Proprietário / Profissional (RBAC `salon_members` + Sessão Cross-Subdomain no `mnvapp`)
+- **Tipo:** `[Fix / RBAC / TriadeSync]`
+- **Motivo / Solicitação:** Ao entrar no app do estabelecimento (`fabio-foos.vagouapp.com`), o proprietário (`Fabio Foos`) estava sendo identificado apenas como `[CLIENTE]` (`MENU DO CLIENTE`), impedindo a inserção de serviços, equipe e gestão do estabelecimento.
+- **Causas Raiz Identificadas & Corrigidas:**
+  1. **Vínculo Soberano Ausente em `public.salon_members`:** O hook `useSalonRole.ts` do `mnvapp` consulta estritamente a tabela `public.salon_members` (`WHERE salon_id = ... AND user_id = auth.uid()`). Na criação do salão (`createAdminSalon`), o registro estava sendo gravado apenas em `salons` e `professionals` (com `owner_id: null` e `user_id: null`), deixando `salon_members` vazia.
+     - **Ação Imediata no Banco:** Vinculado `Fabio Foos` (`user_id: 0efeb065-beb3-4ee3-9b4f-f158055115e2`) ao salão `abce87d7-630c-47a5-bd0d-7a9a4d4cc4b6` em `public.salon_members` com `role = 'owner'`, além de preencher `salons.owner_id` e `professionals.user_id`.
+     - **Correção Permanente no `admvapp`:** `createAdminSalon` (`src/services/supabaseApi.ts` e `server.ts`) e `TriadeUserLoginForm.tsx` agora resolvem automaticamente o `user_id` do proprietário/profissional e garantem a inserção/reparo em `public.salon_members` (`role: 'owner' | 'professional'`).
+  2. **Propagação de Sessão JWT Cross-Subdomain (`session` via `postMessage`):** Como o login ocorre dentro do iframe (`adm.vagouapp.com` / `admin.vagouapp.com`) e o app do salão roda em `fabio-foos.vagouapp.com` (`localStorage` isolado por subdomínio), `TriadeUserLoginForm.tsx`, `TriadeUserRegisterForm.tsx` e `UniversalFormEmbedView.tsx` agora realizam login real no Supabase Auth (`signInWithPassword`) e enviam `session: { access_token, refresh_token }`, `role` e `accountType` no evento `VAGOU_REGISTRATION_SUCCESS`.
+- **Arquivos Impactados:**
+  - `src/services/supabaseApi.ts`
+  - `server.ts`
+  - `src/components/admin/triade-forms/TriadeUserLoginForm.tsx`
+  - `src/components/admin/triade-forms/TriadeUserRegisterForm.tsx`
+  - `src/components/embed/UniversalFormEmbedView.tsx`
+  - `CHANGELOG.md`
+
+---
+
 ### [2026-10-18] — 📱 Botão Permanente "QR Code & Link" nos Estabelecimentos + Correção do Modal de Login ("Entrar") no `mnvapp` (`*.vagouapp.com`)
 - **Tipo:** `[Feat / Fix / TriadeSync]`
 - **Motivo / Solicitação:**

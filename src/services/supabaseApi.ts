@@ -325,7 +325,7 @@ export async function registerTriadeUser(userData: {
   origin?: 'portal' | 'establishment';
   salonId?: string;
   salonName?: string;
-}): Promise<{ success: boolean; client?: any; userId?: string; error?: string }> {
+}): Promise<{ success: boolean; client?: any; userId?: string; session?: any; error?: string }> {
   const cleanName = userData.fullName.trim();
   const cleanEmail = userData.email.trim().toLowerCase();
   const cleanUsername = userData.username.trim().replace(/^@+/, '');
@@ -335,6 +335,37 @@ export async function registerTriadeUser(userData: {
   const isUuid = (val: any) =>
     typeof val === 'string' &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
+
+  // 0. Garante conta autenticada em auth.users e sessão ativa no cliente Supabase
+  let authUserId: string | undefined;
+  let authSession: any = undefined;
+  try {
+    const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+      email: cleanEmail,
+      password: pass,
+      options: {
+        data: {
+          full_name: cleanName,
+          name: cleanName,
+          phone: cleanPhone,
+          username: cleanUsername,
+        },
+      },
+    });
+    if (!signUpErr && signUpData?.user?.id) {
+      authUserId = signUpData.user.id;
+      authSession = signUpData.session || undefined;
+    } else {
+      const { data: signInData } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password: pass,
+      });
+      if (signInData?.user?.id) {
+        authUserId = signInData.user.id;
+        authSession = signInData.session || undefined;
+      }
+    }
+  } catch {}
 
   // 1. Tenta via Backend Express (/api/public/register-user) com Service Role
   try {
@@ -369,7 +400,8 @@ export async function registerTriadeUser(userData: {
         return {
           success: true,
           client: json.client || json.user,
-          userId: json.client?.id || json.user?.id,
+          userId: authUserId || json.client?.id || json.user?.id,
+          session: authSession,
         };
       }
       if (json.error) {
@@ -403,7 +435,8 @@ export async function registerTriadeUser(userData: {
       return {
         success: true,
         client: rpcData,
-        userId: rpcData.client_id || rpcData.id,
+        userId: authUserId || rpcData.client_id || rpcData.id,
+        session: authSession,
       };
     }
   } catch (rpcException) {
@@ -417,6 +450,7 @@ export async function registerTriadeUser(userData: {
       .join(', ');
 
     const clientRow: Record<string, any> = {
+      ...(authUserId ? { id: authUserId, user_id: authUserId } : {}),
       name: cleanName,
       full_name: cleanName,
       username: cleanUsername,
@@ -440,19 +474,23 @@ export async function registerTriadeUser(userData: {
 
     const { data: existing } = await supabaseAdmin
       .from('clients')
-      .select('id')
+      .select('id, user_id')
       .eq('email', cleanEmail)
       .maybeSingle();
 
     if (existing?.id) {
       const { data: updated, error: upErr } = await supabaseAdmin
         .from('clients')
-        .update(clientRow)
+        .update({
+          ...clientRow,
+          id: existing.id,
+          user_id: authUserId || existing.user_id || existing.id,
+        })
         .eq('id', existing.id)
         .select()
         .single();
       if (upErr) return { success: false, error: upErr.message };
-      return { success: true, client: updated, userId: updated?.id };
+      return { success: true, client: updated, userId: authUserId || updated?.user_id || updated?.id, session: authSession };
     } else {
       const { data: inserted, error: insErr } = await supabaseAdmin
         .from('clients')
@@ -460,7 +498,7 @@ export async function registerTriadeUser(userData: {
         .select()
         .single();
       if (insErr) return { success: false, error: insErr.message };
-      return { success: true, client: inserted, userId: inserted?.id };
+      return { success: true, client: inserted, userId: authUserId || inserted?.user_id || inserted?.id, session: authSession };
     }
   } catch (err: any) {
     return { success: false, error: err?.message || 'Erro ao salvar cadastro no Supabase.' };
@@ -507,8 +545,32 @@ export async function createAdminSalon(
     const resolvedFavicon =
       (await uploadClientBase64Media(salonData.favicon_url, `${cleanSlug}-favicon`)) || resolvedLogo || null;
     const resolvedStatus = salonData.status || 'active';
+    const ownerEmail = (salonData.email || `${cleanSlug}@vagouapp.com`).trim().toLowerCase();
+
+    // Resolve o user_id do proprietário a partir da sessão Auth ou da tabela clients
+    let resolvedOwnerUserId: string | null = null;
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData?.session?.user?.email?.toLowerCase() === ownerEmail) {
+        resolvedOwnerUserId = sessionData.session.user.id;
+      }
+    } catch {}
+
+    if (!resolvedOwnerUserId) {
+      try {
+        const { data: existingClientForOwner } = await supabaseAdmin
+          .from('clients')
+          .select('id, user_id')
+          .eq('email', ownerEmail)
+          .maybeSingle();
+        if (existingClientForOwner) {
+          resolvedOwnerUserId = existingClientForOwner.user_id || existingClientForOwner.id || null;
+        }
+      } catch {}
+    }
 
     const dbInsert: Record<string, any> = {
+      ...(resolvedOwnerUserId ? { owner_id: resolvedOwnerUserId } : {}),
       trade_name: salonData.trade_name?.trim() || 'Novo Salão',
       legal_name: salonData.legal_name?.trim() || salonData.trade_name?.trim() || 'Novo Salão',
       slug: cleanSlug,
@@ -560,39 +622,59 @@ export async function createAdminSalon(
       return { success: false, error: error.message };
     }
 
-    // Sincroniza proprietário em clients e professionals
+    // Sincroniza proprietário em clients, professionals e salon_members (RBAC Soberano da Tríade)
     if (data?.id && (salonData.email || salonData.owner_name || salonData.legal_name)) {
       try {
         const ownerName = (salonData.owner_name || salonData.legal_name || salonData.trade_name || 'Proprietário').trim();
-        const ownerEmail = (salonData.email || `${cleanSlug}@vagouapp.com`).trim().toLowerCase();
         const ownerPhone = salonData.phone_whatsapp?.trim() || '';
         const ownerUsername = ownerEmail.split('@')[0].replace(/[^a-zA-Z0-9._-]/g, '') || cleanSlug;
 
         const { data: existingClient } = await supabaseAdmin
           .from('clients')
-          .select('id')
+          .select('id, user_id')
           .eq('email', ownerEmail)
           .maybeSingle();
 
         if (!existingClient) {
-          await supabaseAdmin.from('clients').insert([{
-            name: ownerName,
-            full_name: ownerName,
-            username: ownerUsername,
-            email: ownerEmail,
-            phone: ownerPhone,
-            cep: dbInsert.cep,
-            address: dbInsert.address,
-            street_number: dbInsert.street_number,
-            complement: dbInsert.complement,
-            neighborhood: dbInsert.neighborhood,
-            city: dbInsert.city,
-            state: dbInsert.state,
-            origin_type: 'establishment',
-            origin_salon_id: data.id,
-            is_active: true,
-            access_level: 'Proprietário (Dono)',
-          }]);
+          const { data: insClient } = await supabaseAdmin
+            .from('clients')
+            .insert([{
+              ...(resolvedOwnerUserId ? { id: resolvedOwnerUserId, user_id: resolvedOwnerUserId } : {}),
+              name: ownerName,
+              full_name: ownerName,
+              username: ownerUsername,
+              email: ownerEmail,
+              phone: ownerPhone,
+              cep: dbInsert.cep,
+              address: dbInsert.address,
+              street_number: dbInsert.street_number,
+              complement: dbInsert.complement,
+              neighborhood: dbInsert.neighborhood,
+              city: dbInsert.city,
+              state: dbInsert.state,
+              origin_type: 'establishment',
+              origin_salon_id: data.id,
+              is_active: true,
+              access_level: 'Proprietário (Dono)',
+            }])
+            .select('id, user_id')
+            .maybeSingle();
+
+          if (!resolvedOwnerUserId && insClient) {
+            resolvedOwnerUserId = insClient.user_id || insClient.id || null;
+          }
+        } else {
+          if (!resolvedOwnerUserId) {
+            resolvedOwnerUserId = existingClient.user_id || existingClient.id || null;
+          }
+          await supabaseAdmin
+            .from('clients')
+            .update({
+              origin_type: 'establishment',
+              origin_salon_id: data.id,
+              access_level: 'Proprietário (Dono)',
+            })
+            .eq('id', existingClient.id);
         }
 
         const { data: existingProf } = await supabaseAdmin
@@ -605,6 +687,7 @@ export async function createAdminSalon(
         if (!existingProf) {
           await supabaseAdmin.from('professionals').insert([{
             salon_id: data.id,
+            user_id: resolvedOwnerUserId,
             name: ownerName,
             full_name: ownerName,
             username: ownerUsername,
@@ -623,6 +706,39 @@ export async function createAdminSalon(
             city: dbInsert.city,
             state: dbInsert.state,
           }]);
+        } else if (resolvedOwnerUserId) {
+          await supabaseAdmin
+            .from('professionals')
+            .update({ user_id: resolvedOwnerUserId, role: 'Proprietário', access_level: 'Proprietário (Dono)' })
+            .eq('id', existingProf.id);
+        }
+
+        // Vincula o proprietário na tabela soberana salon_members (exigida pelo useSalonRole do mnvapp)
+        if (resolvedOwnerUserId) {
+          await supabaseAdmin
+            .from('salons')
+            .update({ owner_id: resolvedOwnerUserId })
+            .eq('id', data.id);
+
+          try {
+            const { data: existingMember } = await supabaseAdmin
+              .from('salon_members')
+              .select('id')
+              .eq('salon_id', data.id)
+              .eq('user_id', resolvedOwnerUserId)
+              .maybeSingle();
+
+            if (!existingMember) {
+              const { error: memErr } = await supabaseAdmin
+                .from('salon_members')
+                .insert([{ salon_id: data.id, user_id: resolvedOwnerUserId, role: 'owner' }]);
+              if (memErr) {
+                await supabase
+                  .from('salon_members')
+                  .insert([{ salon_id: data.id, user_id: resolvedOwnerUserId, role: 'owner' }]);
+              }
+            }
+          } catch {}
         }
       } catch {}
     }

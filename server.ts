@@ -1530,7 +1530,7 @@ async function startServer() {
         return res.status(400).json({ success: false, error: `Erro no banco: ${error.message}` });
       }
 
-      // Garante vínculo do Proprietário em clients e professionals para listagem unificada
+      // Garante vínculo do Proprietário em clients, professionals e salon_members para RBAC Soberano da Tríade
       if (data?.id && (payload.email || payload.owner_name || payload.legal_name)) {
         try {
           const ownerName = (payload.owner_name || payload.legal_name || payload.trade_name || 'Proprietário').trim();
@@ -1538,35 +1538,69 @@ async function startServer() {
           const ownerPhone = payload.phone_whatsapp?.trim() || '';
           const ownerUsername = ownerEmail.split('@')[0].replace(/[^a-zA-Z0-9._-]/g, '') || cleanSlug;
 
-          // Verifica se já existe em clients
+          // 1. Verifica se já existe em clients
           const { data: existingClient } = await supabaseAdmin
             .from('clients')
-            .select('id')
+            .select('id, user_id')
             .eq('email', ownerEmail)
             .maybeSingle();
 
-          if (!existingClient) {
-            await supabaseAdmin.from('clients').insert([{
-              name: ownerName,
-              full_name: ownerName,
-              username: ownerUsername,
-              email: ownerEmail,
-              phone: ownerPhone,
-              cep: dbInsert.cep,
-              address: dbInsert.address,
-              street_number: dbInsert.street_number,
-              complement: dbInsert.complement,
-              neighborhood: dbInsert.neighborhood,
-              city: dbInsert.city,
-              state: dbInsert.state,
-              origin_type: 'establishment',
-              origin_salon_id: data.id,
-              is_active: true,
-              access_level: 'Proprietário (Dono)',
-            }]);
+          let resolvedOwnerUserId: string | null = existingClient?.user_id || existingClient?.id || null;
+
+          // 2. Se ainda não tem user_id, busca em auth.users
+          if (!resolvedOwnerUserId) {
+            try {
+              const { data: authList } = await supabaseAdmin.auth.admin.listUsers();
+              const matchedAuth = (authList?.users || []).find(
+                (u: any) => u.email?.toLowerCase() === ownerEmail
+              );
+              if (matchedAuth?.id) {
+                resolvedOwnerUserId = matchedAuth.id;
+              }
+            } catch {}
           }
 
-          // Verifica se já existe em professionals para este salão
+          if (!existingClient) {
+            const { data: insClient } = await supabaseAdmin
+              .from('clients')
+              .insert([{
+                ...(resolvedOwnerUserId ? { id: resolvedOwnerUserId, user_id: resolvedOwnerUserId } : {}),
+                name: ownerName,
+                full_name: ownerName,
+                username: ownerUsername,
+                email: ownerEmail,
+                phone: ownerPhone,
+                cep: dbInsert.cep,
+                address: dbInsert.address,
+                street_number: dbInsert.street_number,
+                complement: dbInsert.complement,
+                neighborhood: dbInsert.neighborhood,
+                city: dbInsert.city,
+                state: dbInsert.state,
+                origin_type: 'establishment',
+                origin_salon_id: data.id,
+                is_active: true,
+                access_level: 'Proprietário (Dono)',
+              }])
+              .select('id, user_id')
+              .maybeSingle();
+
+            if (!resolvedOwnerUserId && insClient) {
+              resolvedOwnerUserId = insClient.user_id || insClient.id || null;
+            }
+          } else {
+            await supabaseAdmin
+              .from('clients')
+              .update({
+                ...(resolvedOwnerUserId ? { user_id: resolvedOwnerUserId } : {}),
+                origin_type: 'establishment',
+                origin_salon_id: data.id,
+                access_level: 'Proprietário (Dono)',
+              })
+              .eq('id', existingClient.id);
+          }
+
+          // 3. Verifica se já existe em professionals para este salão
           const { data: existingProf } = await supabaseAdmin
             .from('professionals')
             .select('id')
@@ -1577,6 +1611,7 @@ async function startServer() {
           if (!existingProf) {
             await supabaseAdmin.from('professionals').insert([{
               salon_id: data.id,
+              user_id: resolvedOwnerUserId,
               name: ownerName,
               full_name: ownerName,
               username: ownerUsername,
@@ -1595,6 +1630,32 @@ async function startServer() {
               city: dbInsert.city,
               state: dbInsert.state,
             }]);
+          } else if (resolvedOwnerUserId) {
+            await supabaseAdmin
+              .from('professionals')
+              .update({ user_id: resolvedOwnerUserId, role: 'Proprietário', access_level: 'Proprietário (Dono)' })
+              .eq('id', existingProf.id);
+          }
+
+          // 4. Atualiza owner_id no salão e insere vínculo soberano em salon_members
+          if (resolvedOwnerUserId) {
+            await supabaseAdmin
+              .from('salons')
+              .update({ owner_id: resolvedOwnerUserId })
+              .eq('id', data.id);
+
+            const { data: existingMember } = await supabaseAdmin
+              .from('salon_members')
+              .select('id')
+              .eq('salon_id', data.id)
+              .eq('user_id', resolvedOwnerUserId)
+              .maybeSingle();
+
+            if (!existingMember) {
+              await supabaseAdmin
+                .from('salon_members')
+                .insert([{ salon_id: data.id, user_id: resolvedOwnerUserId, role: 'owner' }]);
+            }
           }
         } catch (ownerSyncErr) {
           console.warn('[POST /api/admin/salons] Aviso ao sincronizar proprietário:', ownerSyncErr);

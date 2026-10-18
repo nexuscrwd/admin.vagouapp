@@ -167,13 +167,22 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
           {
             type: 'VAGOU_REGISTRATION_SUCCESS',
             accountType,
+            role: payload?.role || accountType,
             email: userEmail,
             name: userName,
+            session: payload?.session,
+            access_token: payload?.session?.access_token || payload?.access_token,
+            refresh_token: payload?.session?.refresh_token || payload?.refresh_token,
             user: {
               id: payload?.id,
               name: userName,
               email: userEmail,
               phone: userPhone,
+              role: payload?.role || accountType,
+              user_metadata: {
+                full_name: userName,
+                phone: userPhone,
+              },
             },
           },
           '*'

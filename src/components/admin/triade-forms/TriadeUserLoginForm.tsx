@@ -13,7 +13,7 @@ import {
   KeyRound,
 } from 'lucide-react';
 import { VagouOfficialLogo } from '../../common/VagouOfficialLogo';
-import { supabaseAdmin } from '../../../services/supabase';
+import { supabase, supabaseAdmin } from '../../../services/supabase';
 
 export interface TriadeUserLoginPayload {
   identifier: string;
@@ -22,6 +22,11 @@ export interface TriadeUserLoginPayload {
   email?: string;
   phone?: string;
   accountType?: 'client' | 'professional' | 'owner';
+  role?: 'client' | 'professional' | 'owner';
+  session?: {
+    access_token: string;
+    refresh_token: string;
+  };
 }
 
 export type UserLoginPhase = 'credentials' | 'recovery';
@@ -100,7 +105,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
         const cPhone = (c.phone || '').replace(/\D/g, '');
         return (
           (cEmail && cEmail === rawId.toLowerCase()) ||
-          (cUser && cUser === cleanUsername) ||
+          (cUser && (cUser === cleanUsername || cUser.replace(/#/g, '') === cleanUsername.replace(/#/g, ''))) ||
           (digitsOnly.length >= 8 && cPhone && cPhone.endsWith(digitsOnly.slice(-8)))
         );
       });
@@ -111,33 +116,146 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
         return;
       }
 
-      // 2. Verifica se é proprietário ou profissional de algum salão
-      const userEmail = (matchedClient?.email || (rawId.includes('@') ? rawId : '')).toLowerCase();
-      const userPhone = matchedClient?.phone || rawId;
+      const resolvedEmail = (
+        matchedClient?.email ||
+        (rawId.includes('@') ? rawId : `${cleanUsername.replace(/#/g, '')}@vagouapp.com`)
+      ).toLowerCase();
+      const resolvedPhone = matchedClient?.phone || rawId;
+      const resolvedName = matchedClient?.name || matchedClient?.full_name || cleanUsername;
 
+      // 2. Autentica em Supabase Auth para obter sessão JWT real (access_token + refresh_token)
+      let authUserId: string | undefined = matchedClient?.user_id || matchedClient?.id;
+      let authSession: { access_token: string; refresh_token: string } | undefined;
+
+      try {
+        const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
+          email: resolvedEmail,
+          password,
+        });
+
+        if (!signInErr && signInData?.session) {
+          authUserId = signInData.user?.id || authUserId;
+          authSession = {
+            access_token: signInData.session.access_token,
+            refresh_token: signInData.session.refresh_token,
+          };
+        } else if (matchedClient) {
+          // Se o cliente existe em public.clients mas ainda não tinha sessão Auth, sincroniza via signUp
+          const { data: signUpData } = await supabase.auth.signUp({
+            email: resolvedEmail,
+            password,
+            options: {
+              data: {
+                full_name: resolvedName,
+                name: resolvedName,
+                phone: resolvedPhone,
+                username: cleanUsername,
+              },
+            },
+          });
+          if (signUpData?.session) {
+            authUserId = signUpData.user?.id || authUserId;
+            authSession = {
+              access_token: signUpData.session.access_token,
+              refresh_token: signUpData.session.refresh_token,
+            };
+          }
+        }
+      } catch {}
+
+      // 3. Verifica se é proprietário (salons) ou profissional (professionals) e repara vínculo em salon_members
       let accountType: 'client' | 'professional' | 'owner' =
-        matchedClient?.origin === 'estabelecimento' || matchedClient?.origin === 'profissional'
+        matchedClient?.origin_type === 'establishment' ||
+        matchedClient?.access_level?.toLowerCase().includes('propriet')
           ? 'owner'
           : 'client';
 
-      if (userEmail) {
-        const { data: ownerSalon } = await supabaseAdmin
+      try {
+        const { data: ownerSalons } = await supabaseAdmin
           .from('salons')
-          .select('id, owner_email, email')
-          .or(`owner_email.ilike.${userEmail},email.ilike.${userEmail}`)
-          .limit(1);
-        if (ownerSalon && ownerSalon.length > 0) {
+          .select('id, email, owner_id, trade_name, slug')
+          .ilike('email', resolvedEmail);
+
+        if (ownerSalons && ownerSalons.length > 0) {
           accountType = 'owner';
+          if (authUserId) {
+            for (const s of ownerSalons) {
+              if (!s.owner_id) {
+                await supabaseAdmin.from('salons').update({ owner_id: authUserId }).eq('id', s.id);
+              }
+              const { data: existingMember } = await supabaseAdmin
+                .from('salon_members')
+                .select('id')
+                .eq('salon_id', s.id)
+                .eq('user_id', authUserId)
+                .maybeSingle();
+
+              if (!existingMember) {
+                const { error: mErr } = await supabaseAdmin
+                  .from('salon_members')
+                  .insert([{ salon_id: s.id, user_id: authUserId, role: 'owner' }]);
+                if (mErr) {
+                  await supabase
+                    .from('salon_members')
+                    .insert([{ salon_id: s.id, user_id: authUserId, role: 'owner' }]);
+                }
+              }
+            }
+          }
+        } else {
+          const { data: profMatches } = await supabaseAdmin
+            .from('professionals')
+            .select('id, salon_id, user_id, email, role, access_level')
+            .ilike('email', resolvedEmail);
+
+          if (profMatches && profMatches.length > 0) {
+            const isOwnerProf = profMatches.some(
+              (p: any) =>
+                p.role?.toLowerCase().includes('propriet') ||
+                p.access_level?.toLowerCase().includes('propriet')
+            );
+            accountType = isOwnerProf ? 'owner' : 'professional';
+
+            if (authUserId) {
+              for (const p of profMatches) {
+                if (!p.user_id) {
+                  await supabaseAdmin.from('professionals').update({ user_id: authUserId }).eq('id', p.id);
+                }
+                if (p.salon_id) {
+                  const targetRole = isOwnerProf ? 'owner' : 'professional';
+                  const { data: existingMember } = await supabaseAdmin
+                    .from('salon_members')
+                    .select('id')
+                    .eq('salon_id', p.salon_id)
+                    .eq('user_id', authUserId)
+                    .maybeSingle();
+
+                  if (!existingMember) {
+                    const { error: mErr } = await supabaseAdmin
+                      .from('salon_members')
+                      .insert([{ salon_id: p.salon_id, user_id: authUserId, role: targetRole }]);
+                    if (mErr) {
+                      await supabase
+                        .from('salon_members')
+                        .insert([{ salon_id: p.salon_id, user_id: authUserId, role: targetRole }]);
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
-      }
+      } catch {}
 
       const resolvedPayload: TriadeUserLoginPayload = {
         identifier: rawId,
-        id: matchedClient?.id,
-        name: matchedClient?.name || cleanUsername,
-        email: matchedClient?.email || (rawId.includes('@') ? rawId : `${cleanUsername}@vagouapp.com`),
-        phone: userPhone,
+        id: authUserId,
+        name: resolvedName,
+        email: resolvedEmail,
+        phone: resolvedPhone,
         accountType,
+        role: accountType,
+        session: authSession,
       };
 
       setIsLoading(false);
@@ -160,13 +278,22 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
           {
             type: 'VAGOU_REGISTRATION_SUCCESS',
             accountType: resolvedPayload.accountType,
+            role: resolvedPayload.role,
             email: resolvedPayload.email,
             name: resolvedPayload.name,
+            session: resolvedPayload.session,
+            access_token: resolvedPayload.session?.access_token,
+            refresh_token: resolvedPayload.session?.refresh_token,
             user: {
               id: resolvedPayload.id,
               name: resolvedPayload.name,
               email: resolvedPayload.email,
               phone: resolvedPayload.phone,
+              role: resolvedPayload.role,
+              user_metadata: {
+                full_name: resolvedPayload.name,
+                phone: resolvedPayload.phone,
+              },
             },
           },
           '*'
@@ -181,6 +308,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
         name: rawId.replace(/^@+/, ''),
         email: rawId.includes('@') ? rawId : `${rawId.replace(/^@+/, '')}@vagouapp.com`,
         accountType: 'client',
+        role: 'client',
       };
       onSuccess?.(fallbackPayload);
     }
