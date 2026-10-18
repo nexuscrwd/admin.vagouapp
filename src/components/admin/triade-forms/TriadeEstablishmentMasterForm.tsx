@@ -33,6 +33,8 @@ import {
 } from 'lucide-react';
 import { fetchAdminClients } from '../../../services/supabaseApi';
 import { VagouOfficialLogo } from '../../common/VagouOfficialLogo';
+import { TriadeUserRegisterForm, TriadeUserData } from './TriadeUserRegisterForm';
+import { TriadeUserLoginForm, TriadeUserLoginPayload } from './TriadeUserLoginForm';
 
 export interface EstablishmentMasterPayload {
   // Titular / Proprietário
@@ -128,32 +130,9 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
     state: 'SP',
   });
 
-  // Estados de Login
-  const [loginInput, setLoginInput] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [showLoginPassword, setShowLoginPassword] = useState(false);
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
 
-  // Estados de Cadastro de Novo Usuário (3 Abas de Avanço)
-  const [regStep, setRegStep] = useState<1 | 2 | 3>(1);
-  const [regFullName, setRegFullName] = useState('Matheus Oliveira');
-  const [regUsername, setRegUsername] = useState('matheus.barba');
-  const [regPhone, setRegPhone] = useState('(11) 98765-4321');
-  const [regEmail, setRegEmail] = useState('matheus.oliveira@gmail.com');
-  const [regConfirmEmail, setRegConfirmEmail] = useState('matheus.oliveira@gmail.com');
 
-  const [regCep, setRegCep] = useState('01310-100');
-  const [regStreet, setRegStreet] = useState('Avenida Paulista');
-  const [regNumber, setRegNumber] = useState('1578');
-  const [regComplement, setRegComplement] = useState('Apto 42');
-  const [regNeighborhood, setRegNeighborhood] = useState('Bela Vista');
-  const [regCity, setRegCity] = useState('São Paulo');
-  const [regState, setRegState] = useState('SP');
 
-  const [regPassword, setRegPassword] = useState('senha1234');
-  const [regConfirmPassword, setRegConfirmPassword] = useState('senha1234');
-  const [showRegPassword, setShowRegPassword] = useState(false);
 
   // Dados do Proprietário no Formulário do Salão
   const [ownerName, setOwnerName] = useState(initialData?.ownerName || 'Lucas Gabriel Mendes');
@@ -264,13 +243,13 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
   // Função para Copiar Endereço Residencial do Proprietário
   const applyOwnerAddressToSalon = (addrData?: typeof ownerAddressData) => {
     const source = addrData || ownerAddressData;
-    setCep(source.cep || regCep || '01310-100');
-    setStreet(source.street || regStreet || 'Avenida Paulista');
-    setNumber(source.number || regNumber || '1578');
-    setComplement(source.complement || regComplement || 'Apto 42');
-    setNeighborhood(source.neighborhood || regNeighborhood || 'Bela Vista');
-    setCity(source.city || regCity || 'São Paulo');
-    setState(source.state || regState || 'SP');
+    setCep(source.cep || '01310-100');
+    setStreet(source.street || 'Avenida Paulista');
+    setNumber(source.number || '1578');
+    setComplement(source.complement || 'Apto 42');
+    setNeighborhood(source.neighborhood || 'Bela Vista');
+    setCity(source.city || 'São Paulo');
+    setState(source.state || 'SP');
     setIsSameAddressChosen(true);
     setCepStatus({
       type: 'success',
@@ -278,30 +257,16 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
     });
   };
 
-  // Submissão do Login do Proprietário (Se SIM)
-  const handleLoginSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthError(null);
-
-    if (!loginInput.trim()) {
-      setAuthError('Informe seu Usuário, E-mail ou Celular.');
-      return;
-    }
-    if (!loginPassword) {
-      setAuthError('Informe sua Senha de Acesso.');
-      return;
-    }
-
-    setIsAuthenticating(true);
-
+  // Sucesso na autenticação via formulário canônico de login de usuário
+  const handleUserLoginSuccess = async (data: TriadeUserLoginPayload) => {
     try {
-      const term = loginInput.toLowerCase().trim();
+      const term = data.identifier.toLowerCase().trim();
       let matchedUser = {
         id: 'usr-auth-01',
-        name: loginInput.includes('@') ? loginInput.split('@')[0] : loginInput,
-        email: loginInput.includes('@') ? loginInput : `${loginInput.toLowerCase().replace(/[^a-z0-9]/g, '')}@vagouapp.com`,
+        name: data.identifier.includes('@') ? data.identifier.split('@')[0] : data.identifier,
+        email: data.identifier.includes('@') ? data.identifier : `${data.identifier.toLowerCase().replace(/[^a-z0-9]/g, '')}@vagouapp.com`,
         phone: '(11) 98765-4321',
-        username: loginInput.replace(/^@+/, ''),
+        username: data.identifier.replace(/^@+/, ''),
       };
 
       try {
@@ -335,7 +300,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
 
       setFeedback({
         type: 'success',
-        message: `Proprietário "${matchedUser.name}" (@${matchedUser.username}) autenticado! Dados pre-carregados na ficha do estabelecimento.`,
+        message: `Proprietário "${matchedUser.name}" (@${matchedUser.username}) autenticado! Dados pré-carregados na ficha do estabelecimento.`,
       });
 
       // Abre modal de pergunta sobre mesmo endereço caso ainda não escolhido
@@ -345,100 +310,14 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
 
       setFlowStep('establishment_details');
     } catch {
-      setAuthError('Falha ao autenticar proprietário. Verifique suas credenciais.');
-    } finally {
-      setIsAuthenticating(false);
+      setFeedback({
+        type: 'error',
+        message: 'Falha ao autenticar proprietário. Verifique suas credenciais.',
+      });
     }
   };
 
-  // Submissão do Cadastro de Novo Usuário (Se NÃO)
-  const handleUserRegisterSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthError(null);
 
-    if (regStep === 1) {
-      if (!regFullName.trim() || !regUsername.trim() || !regEmail.trim()) {
-        setAuthError('Preencha todos os campos obrigatórios da etapa 1.');
-        return;
-      }
-      if (regEmail.toLowerCase() !== regConfirmEmail.toLowerCase()) {
-        setAuthError('Os e-mails informados não coincidem.');
-        return;
-      }
-      setRegStep(2);
-      return;
-    }
-
-    if (regStep === 2) {
-      if (!regCep.trim() || !regStreet.trim() || !regNumber.trim() || !regCity.trim()) {
-        setAuthError('Preencha todos os campos de endereço obrigatórios.');
-        return;
-      }
-      // Salva o endereço residencial digitado
-      const newAddr = {
-        cep: regCep,
-        street: regStreet,
-        number: regNumber,
-        complement: regComplement,
-        neighborhood: regNeighborhood,
-        city: regCity,
-        state: regState,
-      };
-      setOwnerAddressData(newAddr);
-      setRegStep(3);
-      return;
-    }
-
-    if (regStep === 3) {
-      if (!regPassword || regPassword.length < 6) {
-        setAuthError('A senha deve conter no mínimo 6 dígitos.');
-        return;
-      }
-      if (regPassword !== regConfirmPassword) {
-        setAuthError('As senhas não coincidem.');
-        return;
-      }
-
-      setIsAuthenticating(true);
-
-      setTimeout(() => {
-        setIsAuthenticating(false);
-        const newUser = {
-          id: `usr-new-${Date.now()}`,
-          name: regFullName,
-          email: regEmail,
-          phone: regPhone,
-          username: regUsername,
-        };
-
-        setSelectedUser(newUser);
-        setOwnerName(newUser.name);
-        setOwnerEmail(newUser.email);
-        setOwnerWhatsapp(newUser.phone);
-        setIsAuthenticatedOwner(true);
-
-        const createdAddr = {
-          cep: regCep,
-          street: regStreet,
-          number: regNumber,
-          complement: regComplement,
-          neighborhood: regNeighborhood,
-          city: regCity,
-          state: regState,
-        };
-        setOwnerAddressData(createdAddr);
-
-        setFeedback({
-          type: 'success',
-          message: `Novo proprietário "${newUser.name}" (@${newUser.username}) cadastrado com sucesso! Preenchendo dados do salão.`,
-        });
-
-        // Pergunta modal de mesmo endereço
-        setIsSameAddressModalOpen(true);
-        setFlowStep('establishment_details');
-      }, 600);
-    }
-  };
 
   // Submissão Final do Estabelecimento Comercial
   const handleSubmit = (e: React.FormEvent) => {
@@ -496,46 +375,9 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden animate-fadeIn font-['Poppins'] relative">
-      {/* 🏛️ CABEÇALHO UNIFICADO DO FORMULÁRIO DE ESTABELECIMENTO */}
-      <div className="p-4 sm:px-6 bg-slate-900 border-b border-slate-800 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <VagouOfficialLogo size="lg" />
-          <div>
-            <h2 className="font-bold text-white text-base tracking-tight flex items-center gap-2">
-              <span>Cadastro Oficial de Estabelecimento</span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500 text-white font-bold">
-                VagouApp
-              </span>
-            </h2>
-            <p className="text-xs text-slate-400">
-              Crie sua empresa e integre-se à rede do VagouApp
-            </p>
-          </div>
-        </div>
+    <div className="w-full font-['Poppins'] relative">
 
-        {/* Botão Fechar Oficial da Tríade */}
-        <button
-          type="button"
-          onClick={() => {
-            if (onClose) {
-              onClose();
-            } else if (typeof window !== 'undefined') {
-              window.parent?.postMessage({ source: 'VAGOUAPP_FORM', action: 'CLOSE' }, '*');
-              if (window.history.length > 1) {
-                window.history.back();
-              } else {
-                window.location.href = '/';
-              }
-            }
-          }}
-          className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer shrink-0"
-          aria-label="Fechar formulário"
-          title="Fechar"
-        >
-          <X className="w-5 h-5" />
-        </button>
-      </div>
+
       {/* ========================================================================= */}
       {/* 🏡 MODAL INTERATIVO DE PERGUNTA: MESMO ENDEREÇO DO PROPRIETÁRIO?         */}
       {/* ========================================================================= */}
@@ -564,10 +406,10 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                 Endereço Residencial Cadastrado:
               </span>
               <p className="font-medium text-white">
-                {ownerAddressData.street || regStreet}, {ownerAddressData.number || regNumber} {ownerAddressData.complement && `(${ownerAddressData.complement})`}
+                {ownerAddressData.street || 'Avenida Paulista'}, {ownerAddressData.number || '1578'} {ownerAddressData.complement && `(${ownerAddressData.complement})`}
               </p>
               <p className="text-slate-400 text-[11px]">
-                {ownerAddressData.neighborhood || regNeighborhood} · {ownerAddressData.city || regCity} / {ownerAddressData.state || regState} — CEP: {ownerAddressData.cep || regCep}
+                {ownerAddressData.neighborhood || 'Bela Vista'} · {ownerAddressData.city || 'São Paulo'} / {ownerAddressData.state || 'SP'} — CEP: {ownerAddressData.cep || '01310-100'}
               </p>
             </div>
 
@@ -604,9 +446,8 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
       {/* ========================================================================= */}
       {flowStep === 'user_check' && (
         <div className="p-6 sm:p-10 space-y-6 text-center animate-fadeIn">
-          <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto shadow-inner">
-            <UserCheck className="w-8 h-8 text-emerald-400" />
-          </div>
+          {/* Logo Oficial do VagouApp na Etapa 1 */}
+          <VagouOfficialLogo size="xl" variant="full" className="h-10 sm:h-12 w-auto object-contain mx-auto" />
 
           <div className="space-y-2 max-w-md mx-auto">
             <h2 className="text-lg sm:text-xl font-extrabold text-white tracking-tight">
@@ -629,7 +470,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
             <button
               type="button"
               onClick={() => {
-                setRegStep(1);
                 setFlowStep('user_register');
               }}
               className="p-5 rounded-2xl border border-slate-700 bg-slate-800/60 hover:bg-slate-800 transition cursor-pointer group active:scale-98 shadow-md flex items-center justify-between"
@@ -647,433 +487,105 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
       )}
 
       {/* ========================================================================= */}
-      {/* ETAPA 2: FORMULÁRIO DE LOGIN COM IDENTIFICAÇÃO VAGOUAPP (SE SIM)         */}
+      {/* ETAPA 2: FORMULÁRIO DE LOGIN DE USUÁRIO (CANÔNICO & REUTILIZÁVEL)         */}
       {/* ========================================================================= */}
       {flowStep === 'user_login' && (
-        <div className="p-6 sm:p-10 max-w-md mx-auto space-y-5 animate-fadeIn">
-          {/* Topo com Logo Oficial do VagouApp */}
-          <div className="text-center space-y-2">
-            <div className="flex justify-center mb-1">
-              <VagouOfficialLogo variant="full" size="lg" />
-            </div>
-
-            <h3 className="font-bold text-white text-base pt-1">Acessar Conta</h3>
-            <p className="text-xs text-slate-400">
-              Bem-vindo(a) de volta! Acesse sua conta para vincular ao estabelecimento.
-            </p>
+        <div className="p-4 sm:p-6 max-w-md mx-auto space-y-4 animate-fadeIn">
+          {/* Logo Oficial do VagouApp na Etapa 2 */}
+          <div className="pt-2 text-center">
+            <VagouOfficialLogo size="xl" variant="full" className="h-10 sm:h-12 w-auto object-contain mx-auto" />
           </div>
 
-          {authError && (
-            <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-              <span>{authError}</span>
-            </div>
-          )}
+          <TriadeUserLoginForm
+            showHeader={false}
+            variant="flat"
+            title="Acessar Espaço"
+            submitButtonText="Acessar e Continuar"
+            onSuccess={handleUserLoginSuccess}
+          />
 
-          <form onSubmit={handleLoginSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Usuário, E-mail ou Celular <span className="text-emerald-400">*</span>
-              </label>
-              <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 focus-within:border-emerald-500 transition">
-                <User className="w-4 h-4 text-slate-500 mr-2 shrink-0" />
-                <input
-                  type="text"
-                  value={loginInput}
-                  onChange={(e) => setLoginInput(e.target.value)}
-                  placeholder="Ex: Amanda Silva, e-mail ou celular"
-                  className="w-full bg-transparent text-sm text-white placeholder-slate-600 outline-none"
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Sua Senha <span className="text-emerald-400">*</span>
-              </label>
-              <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 focus-within:border-emerald-500 transition">
-                <Lock className="w-4 h-4 text-slate-500 mr-2 shrink-0" />
-                <input
-                  type={showLoginPassword ? 'text' : 'password'}
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  placeholder="Mínimo 6 dígitos"
-                  className="w-full bg-transparent text-sm text-white placeholder-slate-600 outline-none"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowLoginPassword(!showLoginPassword)}
-                  className="text-slate-500 hover:text-slate-300 ml-2 cursor-pointer"
-                >
-                  {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <div className="pt-2">
-              <button
-                type="submit"
-                disabled={isAuthenticating}
-                className="w-full py-3.5 px-4 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 disabled:opacity-50"
-              >
-                {isAuthenticating ? (
-                  <Loader2 className="w-4 h-4 text-white animate-spin" />
-                ) : (
-                  <>
-                    <ArrowRight className="w-4 h-4 text-white" />
-                    <span className="text-white font-bold">Acessar</span>
-                  </>
-                )}
-              </button>
-            </div>
-
-            <div className="text-center pt-2">
-              <span className="text-xs text-slate-400">
-                Ainda não possui uma conta?{' '}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRegStep(1);
-                    setFlowStep('user_register');
-                  }}
-                  className="text-emerald-400 font-bold hover:underline cursor-pointer"
-                >
-                  Cadastre-se aqui
-                </button>
-              </span>
-            </div>
-
-            <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
-              <button
-                type="button"
-                onClick={() => setFlowStep('user_check')}
-                className="hover:text-white transition cursor-pointer text-slate-400"
-              >
-                ← Voltar à pergunta inicial
-              </button>
-              <span className="flex items-center gap-1 font-medium text-emerald-400">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                Ambiente Soberano
-              </span>
-            </div>
-          </form>
+          <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+            <button
+              type="button"
+              onClick={() => setFlowStep('user_check')}
+              className="hover:text-white transition cursor-pointer text-slate-400"
+            >
+              ← Voltar à pergunta inicial
+            </button>
+            <span className="flex items-center gap-1 font-medium text-emerald-400">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              Ambiente Soberano
+            </span>
+          </div>
         </div>
       )}
 
       {/* ========================================================================= */}
-      {/* ETAPA 3: FORMULÁRIO DE CADASTRO DE USUÁRIO COM IDENTIFICAÇÃO VAGOUAPP (SE NÃO) */}
+      {/* ETAPA 3: FORMULÁRIO DE CADASTRO DE USUÁRIO (CANÔNICO & REUTILIZÁVEL)      */}
       {/* ========================================================================= */}
       {flowStep === 'user_register' && (
-        <div className="p-6 sm:p-8 max-w-xl mx-auto space-y-5 animate-fadeIn">
-          {/* Header VagouApp */}
-          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-            <div className="flex items-center gap-2.5">
-              <VagouOfficialLogo size="md" />
-              <div>
-                <h3 className="font-bold text-white text-sm sm:text-base">VagouApp · Painel de Admin</h3>
-                <p className="text-xs text-slate-400">Cadastro de Usuário Proprietário</p>
-              </div>
-            </div>
-
-            {/* Abas de Avanço */}
-            <div className="flex items-center gap-1 text-xs">
-              <button
-                type="button"
-                onClick={() => setRegStep(1)}
-                className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition ${
-                  regStep === 1 ? 'bg-[#20C933] text-white' : 'bg-slate-800 text-slate-400'
-                }`}
-              >
-                1. Dados
-              </button>
-              <button
-                type="button"
-                onClick={() => setRegStep(2)}
-                className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition ${
-                  regStep === 2 ? 'bg-[#20C933] text-white' : 'bg-slate-800 text-slate-400'
-                }`}
-              >
-                2. Endereço
-              </button>
-              <button
-                type="button"
-                onClick={() => setRegStep(3)}
-                className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition ${
-                  regStep === 3 ? 'bg-[#20C933] text-white' : 'bg-slate-800 text-slate-400'
-                }`}
-              >
-                3. Senha
-              </button>
-            </div>
+        <div className="p-4 sm:p-6 max-w-xl mx-auto space-y-4 animate-fadeIn">
+          {/* Logo Oficial do VagouApp na Etapa 3 */}
+          <div className="pt-2 text-center">
+            <VagouOfficialLogo size="xl" variant="full" className="h-10 sm:h-12 w-auto object-contain mx-auto" />
           </div>
 
-          {authError && (
-            <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-              <span>{authError}</span>
-            </div>
-          )}
+          <TriadeUserRegisterForm
+            showHeader={false}
+            variant="flat"
+            title="Cadastro do Proprietário"
+            subtitle="Crie sua conta para vincular ao novo estabelecimento"
+            onSuccess={(userData: TriadeUserData) => {
+              const newUser = {
+                id: userData.id || `usr-${Date.now()}`,
+                name: userData.fullName,
+                email: userData.email,
+                phone: userData.phone,
+                username: userData.username,
+              };
 
-          <form onSubmit={handleUserRegisterSubmit} className="space-y-4">
-            {/* ETAPA 1: DADOS PESSOAIS */}
-            {regStep === 1 && (
-              <div className="space-y-3.5 animate-fadeIn">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 block">
-                  1. Dados Pessoais & Acesso
-                </span>
+              setSelectedUser(newUser);
+              setOwnerName(newUser.name);
+              setOwnerEmail(newUser.email);
+              setOwnerWhatsapp(newUser.phone);
+              setIsAuthenticatedOwner(true);
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Nome Completo <span className="text-emerald-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={regFullName}
-                    onChange={(e) => setRegFullName(e.target.value)}
-                    placeholder="Matheus Oliveira"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 outline-none focus:border-emerald-500"
-                    required
-                  />
-                </div>
+              setOwnerAddressData({
+                cep: userData.address.cep,
+                street: userData.address.street,
+                number: userData.address.number,
+                complement: userData.address.complement || '',
+                neighborhood: userData.address.neighborhood,
+                city: userData.address.city,
+                state: userData.address.state,
+              });
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Nome de Usuário <span className="text-emerald-400">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={regUsername}
-                      onChange={(e) => setRegUsername(e.target.value)}
-                      placeholder="matheus.barba"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 outline-none focus:border-emerald-500"
-                      required
-                    />
-                  </div>
+              setFeedback({
+                type: 'success',
+                message: `Novo proprietário "${newUser.name}" (${newUser.username}) cadastrado com sucesso! Preenchendo dados do estabelecimento.`,
+              });
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      WhatsApp / Celular <span className="text-emerald-400">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={regPhone}
-                      onChange={(e) => setRegPhone(e.target.value)}
-                      placeholder="(11) 98765-4321"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 outline-none focus:border-emerald-500"
-                      required
-                    />
-                  </div>
-                </div>
+              if (isSameAddressChosen === null) {
+                setIsSameAddressModalOpen(true);
+              }
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      E-mail <span className="text-emerald-400">*</span>
-                    </label>
-                    <input
-                      type="email"
-                      value={regEmail}
-                      onChange={(e) => setRegEmail(e.target.value)}
-                      placeholder="matheus.oliveira@gmail.com"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 outline-none focus:border-emerald-500"
-                      required
-                    />
-                  </div>
+              setFlowStep('establishment_details');
+            }}
+          />
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Confirmar E-mail <span className="text-emerald-400">*</span>
-                    </label>
-                    <input
-                      type="email"
-                      value={regConfirmEmail}
-                      onChange={(e) => setRegConfirmEmail(e.target.value)}
-                      placeholder="matheus.oliveira@gmail.com"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 outline-none focus:border-emerald-500"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    type="submit"
-                    className="w-full py-3 px-4 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-emerald-500/20 active:scale-95"
-                  >
-                    <span className="text-white font-bold">Avançar para Endereço</span>
-                    <ArrowRight className="w-4 h-4 text-white" />
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* ETAPA 2: ENDEREÇO */}
-            {regStep === 2 && (
-              <div className="space-y-3.5 animate-fadeIn">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 block">
-                  2. Endereço Pessoal (ViaCEP)
-                </span>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">CEP</label>
-                    <input
-                      type="text"
-                      value={regCep}
-                      onChange={(e) => setRegCep(e.target.value)}
-                      placeholder="01310-100"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 outline-none focus:border-emerald-500"
-                      required
-                    />
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">Rua / Logradouro</label>
-                    <input
-                      type="text"
-                      value={regStreet}
-                      onChange={(e) => setRegStreet(e.target.value)}
-                      placeholder="Avenida Paulista"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 outline-none focus:border-emerald-500"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">Número</label>
-                    <input
-                      type="text"
-                      value={regNumber}
-                      onChange={(e) => setRegNumber(e.target.value)}
-                      placeholder="1578"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 outline-none focus:border-emerald-500"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">Bairro</label>
-                    <input
-                      type="text"
-                      value={regNeighborhood}
-                      onChange={(e) => setRegNeighborhood(e.target.value)}
-                      placeholder="Bela Vista"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 outline-none focus:border-emerald-500"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">Cidade / UF</label>
-                    <input
-                      type="text"
-                      value={`${regCity} / ${regState}`}
-                      onChange={(e) => setRegCity(e.target.value)}
-                      placeholder="São Paulo / SP"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 outline-none focus:border-emerald-500"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setRegStep(1)}
-                    className="py-2.5 px-4 rounded-xl bg-slate-800 text-slate-300 font-semibold text-xs transition cursor-pointer"
-                  >
-                    Voltar
-                  </button>
-
-                  <button
-                    type="submit"
-                    className="py-2.5 px-5 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center gap-2 cursor-pointer shadow-md shadow-emerald-500/20 active:scale-95"
-                  >
-                    <span className="text-white font-bold">Avançar para Senha</span>
-                    <ArrowRight className="w-4 h-4 text-white" />
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* ETAPA 3: SENHA */}
-            {regStep === 3 && (
-              <div className="space-y-3.5 animate-fadeIn">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 block">
-                  3. Definir Senha de Acesso
-                </span>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">Senha</label>
-                    <input
-                      type={showRegPassword ? 'text' : 'password'}
-                      value={regPassword}
-                      onChange={(e) => setRegPassword(e.target.value)}
-                      placeholder="Mínimo 6 dígitos"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 outline-none focus:border-emerald-500"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">Confirmar Senha</label>
-                    <input
-                      type={showRegPassword ? 'text' : 'password'}
-                      value={regConfirmPassword}
-                      onChange={(e) => setRegConfirmPassword(e.target.value)}
-                      placeholder="Confirmar senha"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 outline-none focus:border-emerald-500"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setRegStep(2)}
-                    className="py-2.5 px-4 rounded-xl bg-slate-800 text-slate-300 font-semibold text-xs transition cursor-pointer"
-                  >
-                    Voltar
-                  </button>
-
-                  <button
-                    type="submit"
-                    disabled={isAuthenticating}
-                    className="py-2.5 px-5 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center gap-2 cursor-pointer shadow-md shadow-emerald-500/20 active:scale-95 disabled:opacity-50"
-                  >
-                    {isAuthenticating ? (
-                      <Loader2 className="w-4 h-4 text-white animate-spin" />
-                    ) : (
-                      <>
-                        <UserCheck className="w-4 h-4 text-white" />
-                        <span className="text-white font-bold">Concluir e Ir para o Salão</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="text-center pt-2">
-              <span className="text-xs text-slate-400">
-                Já tem conta?{' '}
-                <button
-                  type="button"
-                  onClick={() => setFlowStep('user_login')}
-                  className="text-emerald-400 font-bold hover:underline cursor-pointer"
-                >
-                  Entrar com meu login
-                </button>
-              </span>
-            </div>
-          </form>
+          <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+            <button
+              type="button"
+              onClick={() => setFlowStep('user_check')}
+              className="hover:text-white transition cursor-pointer text-slate-400"
+            >
+              ← Voltar à pergunta inicial
+            </button>
+            <span className="flex items-center gap-1 font-medium text-emerald-400">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              Ambiente Soberano
+            </span>
+          </div>
         </div>
       )}
 
@@ -1082,6 +594,11 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
       {/* ========================================================================= */}
       {flowStep === 'establishment_details' && (
         <div className="animate-fadeIn">
+          {/* Logo Oficial do VagouApp na Etapa 4 */}
+          <div className="pt-5 pb-2 text-center">
+            <VagouOfficialLogo size="xl" variant="full" className="h-10 sm:h-12 w-auto object-contain mx-auto" />
+          </div>
+
           {/* Barra de Filtro Rápido de Seções */}
           <div className="border-b border-slate-800 p-3 sm:px-5 bg-slate-900/60">
             <div className="flex items-center gap-1.5 overflow-x-auto">
@@ -1344,7 +861,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                             isSameAddressChosen === true ? 'text-emerald-100' : 'text-slate-400'
                           }`}
                         >
-                          Copiar endereço do proprietário ({ownerAddressData.street || regStreet}, {ownerAddressData.number || regNumber})
+                          Copiar endereço do proprietário ({ownerAddressData.street || 'Avenida Paulista'}, {ownerAddressData.number || '1578'})
                         </span>
                       </div>
                     </button>

@@ -175,10 +175,29 @@ CREATE TABLE public.clients (
     state VARCHAR(10),
     cep VARCHAR(20),
     default_address TEXT,
+    origin_type VARCHAR(20) DEFAULT 'portal',
+    origin_salon_id UUID REFERENCES public.salons(id) ON DELETE SET NULL,
     total_appointments INTEGER DEFAULT 0,
     dependents_count INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 7.0 TABELA: SALON_CLIENTS (CARTEIRA DE CLIENTES VINCULADOS AO ESTABELECIMENTO)
+CREATE TABLE public.salon_clients (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    salon_id UUID NOT NULL REFERENCES public.salons(id) ON DELETE CASCADE,
+    client_id UUID NOT NULL REFERENCES public.clients(id) ON DELETE CASCADE,
+    source VARCHAR(50) DEFAULT 'direct_registration' CHECK (source IN ('direct_registration', 'embed_form', 'appointment', 'manual_import')),
+    status VARCHAR(30) DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'blocked')),
+    notes TEXT,
+    is_favorite BOOLEAN DEFAULT FALSE,
+    total_appointments INTEGER DEFAULT 0,
+    total_spent NUMERIC(10,2) DEFAULT 0.00,
+    last_interaction_at TIMESTAMPTZ DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT uq_salon_client UNIQUE (salon_id, client_id)
 );
 
 -- 7.1 TABELA: DEPENDENTS (CONTA FAMÍLIA & DEPENDENTES)

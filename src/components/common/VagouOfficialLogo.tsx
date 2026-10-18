@@ -26,10 +26,19 @@ const fullSizeClasses = {
   '2xl': 'h-14',
 };
 
+// Lista encadeada de fontes oficiais do logotipo no Supabase e em Assets locais
+const LOGO_OFFICIAL_SOURCES = [
+  'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/branding/vagou-logo.png',
+  'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/assets/logo.png',
+  '/logo.png',
+  '/vagou-logo.png',
+  '/logo_light.png',
+  '/icon.svg',
+];
+
 /**
  * Logotipo Oficial do VagouApp (Ícone Squircle, Full Logo Horizontal ou Símbolo Vetorial).
- * 100% alinhado com a identidade visual da Tríade VagouApp.
- * Carrega os assets oficiais (/icon.svg, /logo.svg) com triplo fallback resiliente.
+ * Carrega a imagem do logo oficial direto do Supabase Storage ou Assets com encadeamento automático.
  */
 export const VagouOfficialLogo: React.FC<VagouOfficialLogoProps> = ({
   size = 'md',
@@ -38,26 +47,29 @@ export const VagouOfficialLogo: React.FC<VagouOfficialLogoProps> = ({
   onClick,
   title = 'VagouApp Oficial',
 }) => {
-  const [hasError, setHasError] = useState(false);
+  const [sourceIndex, setSourceIndex] = useState(0);
   const containerSize = sizeClasses[size] || sizeClasses.md;
   const fullSize = fullSizeClasses[size] || fullSizeClasses.md;
+
+  const handleImageError = () => {
+    if (sourceIndex < LOGO_OFFICIAL_SOURCES.length - 1) {
+      setSourceIndex((prev) => prev + 1);
+    }
+  };
+
+  const currentSource = LOGO_OFFICIAL_SOURCES[sourceIndex];
 
   if (variant === 'full') {
     return (
       <img
-        src="/logo.svg"
+        src={currentSource}
         alt="VagouApp Oficial"
         title={title}
         className={`${fullSize} object-contain select-none shrink-0 ${
           onClick ? 'cursor-pointer hover:opacity-90 active:scale-95 transition' : ''
         } ${className}`}
         onClick={onClick}
-        onError={(e) => {
-          const target = e.currentTarget;
-          if (!target.src.endsWith('/logo.png')) {
-            target.src = '/logo.png';
-          }
-        }}
+        onError={handleImageError}
       />
     );
   }
@@ -93,43 +105,18 @@ export const VagouOfficialLogo: React.FC<VagouOfficialLogoProps> = ({
     );
   }
 
-  if (hasError) {
-    return (
-      <div
-        onClick={onClick}
-        title={title}
-        className={`${containerSize} rounded-xl overflow-hidden flex items-center justify-center shrink-0 bg-[#151A1E] shadow-sm shadow-emerald-500/10 select-none ${
-          onClick ? 'cursor-pointer hover:scale-105 active:scale-95 transition' : ''
-        } ${className}`}
-      >
-        <svg viewBox="0 0 160 160" fill="none" className="w-full h-full p-1 shrink-0">
-          <defs>
-            <linearGradient id="vagouVGradFallback" x1="10%" y1="90%" x2="90%" y2="10%">
-              <stop offset="0%" stopColor="#087A2A" />
-              <stop offset="50%" stopColor="#20C933" />
-              <stop offset="100%" stopColor="#32E046" />
-            </linearGradient>
-          </defs>
-          <path
-            d="M 25 72 C 15 60, 30 42, 46 52 L 72 82 C 80 90, 92 88, 100 78 L 142 22 C 152 8, 168 22, 158 36 L 98 126 C 86 142, 64 142, 52 126 Z"
-            fill="url(#vagouVGradFallback)"
-          />
-        </svg>
-      </div>
-    );
-  }
-
   return (
     <img
-      src="/icon.svg"
-      alt="VagouApp"
+      src={currentSource}
+      alt="VagouApp Oficial"
       title={title}
       className={`${containerSize} object-contain rounded-xl select-none shrink-0 ${
         onClick ? 'cursor-pointer hover:scale-105 active:scale-95 transition' : ''
       } ${className}`}
       onClick={onClick}
-      onError={() => setHasError(true)}
+      onError={handleImageError}
     />
   );
 };
+
 export default VagouOfficialLogo;

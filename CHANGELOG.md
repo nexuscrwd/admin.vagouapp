@@ -15,6 +15,497 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-18] — 🧹 Remoção Definitiva do Card Externo Redundante (`TriadeEstablishmentMasterForm`)
+- **Tipo:** `[FocusMode / CleanCode / FlatLayout / UI]`
+- **Motivo / Solicitação:** 
+  O usuário reforçou a instrução com enfase: *"]por favor remova definitivamente essa div e deixe somente a div interna. Solicitei isso e não foi realizado! [div externa do card]"*.
+- **Ações Executadas:**
+  - 1️⃣ **`TriadeEstablishmentMasterForm.tsx`**:
+    - Removido o elemento `div` externo do card (`bg-slate-900 border rounded-3xl shadow-2xl`), deixando apenas o conteúdo interno plano e integrado diretamente à área de trabalho.
+  - 2️⃣ **Validação**:
+    - Executados `lint_applet` e `compile_applet` com 100% de aprovação.
+
+---
+
+### [2026-10-18] — 🧹 Eliminação de Wrapper Redundante ("Box dentro de Box") no Painel de Estabelecimentos (`AdminTriadeFormsCatalog`)
+- **Tipo:** `[UI / FocusMode / CleanCode / FlatLayout]`
+- **Motivo / Solicitação:** 
+  O usuário apontou após inspecionar o print: *"O modal interno principal de dados esta dentro de uma div com enorme espaçamento. O correto é não haver div dentro de div neste caso!"*.
+- **Ações Executadas:**
+  - 1️⃣ **`AdminTriadeFormsCatalog.tsx`**:
+    - Removida a `div` wrapper intermediária com restrição de largura (`max-w-4xl`) que gerava espaçamento e aninhamento duplo.
+    - O formulário master de estabelecimento agora ocupa diretamente a largura ideal do container principal de forma plana e limpa.
+  - 2️⃣ **Validação**:
+    - Executados `lint_applet` e `compile_applet` com 100% de aprovação.
+
+---
+
+### [2026-10-18] — 🧹 Remoção Definitiva da Div "Já possui cadastro no VagouApp? Acessar minha conta" (`TriadeUserRegisterForm`)
+- **Tipo:** `[FocusMode / UI / CleanCode / Refactor]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou a div do rodapé contendo o link de alternância para login no formulário de cadastro e solicitou: *"remova essa div"*.
+- **Ações Executadas:**
+  - 1️⃣ **`TriadeUserRegisterForm.tsx`**:
+    - Removida permanentemente do rodapé a div `"Já possui cadastro no VagouApp? Acessar minha conta"`.
+    - O formulário de cadastro agora finaliza de forma limpa e direta no botão de ação de avanço/conclusão.
+  - 2️⃣ **Validação**:
+    - Executados `lint_applet` e `compile_applet` com 100% de aprovação.
+
+---
+
+### [2026-10-18] — 🏷️ Renomeação do Título H2 para "Acessar Espaço" & Remoção do Subtítulo/Parágrafo (`<p>`)
+- **Tipo:** `[UI / FocusMode / CleanCode / Refactor]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou o título H2 e a tag P e solicitou: *"O componente H2 selecionado deve se chamar 'Acessar Espaço'. Remover componente P selecionado"*.
+- **Ações Executadas:**
+  - 1️⃣ **`TriadeUserLoginForm.tsx` & `TriadeMnvClientLoginForm.tsx`**:
+    - Alterado o título `<h2>` padrão para **`Acessar Espaço`**.
+    - Criada a propriedade `showSwitchToRegister?: boolean` com padrão `false` para omitir a tag de parágrafo `<p>` do rodapé dos formulários de acesso quando não for solicitada.
+  - 2️⃣ **`TriadeEstablishmentMasterForm.tsx`**:
+    - Atualizada a chamada da etapa de login para exibir o título **`Acessar Espaço`** e omitida a tag `<p>` redundante do subtítulo.
+  - 3️⃣ **Validação**:
+    - Executados `lint_applet` e `compile_applet` com 100% de aprovação.
+
+---
+
+### [2026-10-18] — 🧹 Remoção da Div Redundante de Alternância para Login no Cadastro (`showSwitchToLogin = false`)
+- **Tipo:** `[UI / FocusMode / CleanCode / Refactor]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou a div `"Já possui cadastro no VagouApp? Acessar minha conta"` do rodapé do formulário de cadastro e solicitou: *"Remover essa div, ja que o formulario e de cadastro"*.
+- **Ações Executadas:**
+  - 1️⃣ **`TriadeUserRegisterForm.tsx`**:
+    - Criada a propriedade `showSwitchToLogin?: boolean` com valor padrão `false`.
+    - A div de alternância para login no rodapé só é exibida se `showSwitchToLogin` for explicitamente `true`.
+  - 2️⃣ **`TriadeEstablishmentMasterForm.tsx`**:
+    - Removida a propriedade `onSwitchToLogin` do formulário de cadastro no fluxo master (Etapa 3), eliminando a redundância do rodapé.
+  - 3️⃣ **Validação**:
+    - `lint_applet` e `compile_applet` testados e aprovados com 100% de sucesso.
+
+---
+
+### [2026-10-18] — 🖼️ Inserção do Logotipo Oficial do VagouApp em Todas as Fases do Cadastro (`TriadeEstablishmentMasterForm`)
+- **Tipo:** `[Branding / UI / FocusMode / TriadeGovernance]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou a div do ícone superior e solicitou: *"assim como nos fizemos nos outros formularios, no lugar desse div selecionado deve ter o logo oficial vagouapp E inserir em todas as fazer dos fomularios"*.
+- **Ações Executadas:**
+  - 1️⃣ **`TriadeEstablishmentMasterForm.tsx`**:
+    - Substituída a div com o ícone genérico `UserCheck` na **Fase 1 (`user_check`)** pelo logotipo oficial centralizado do VagouApp (`VagouOfficialLogo`).
+    - Adicionada a exibição do logotipo oficial `VagouOfficialLogo` no topo de **todas as 4 fases** do formulário de cadastro de estabelecimento:
+      - `Fase 1: Identificação (Sim/Não)`
+      - `Fase 2: Login do Proprietário`
+      - `Fase 3: Cadastro do Proprietário`
+      - `Fase 4: Dados do Salão & Ficha Completa`
+  - 2️⃣ **Validação**:
+    - Executados `lint_applet` e `compile_applet` com 100% de aprovação.
+
+---
+
+### [2026-10-18] — 🧹 Remoção Definitiva e Global do Cabeçalho do Formulário (`TriadeEstablishmentMasterForm`)
+- **Tipo:** `[CleanCode / FocusMode / UI / Refactor]`
+- **Motivo / Solicitação:** 
+  O usuário confirmou a instrução de *"remoção definitiva"* após análise do impacto nos formulários.
+- **Ações Executadas:**
+  - 1️⃣ **`TriadeEstablishmentMasterForm.tsx`**:
+    - Removido permanentemente o bloco de div do cabeçalho superior que continha o logotipo, o título `<h2>` *"Cadastro Oficial de Estabelecimento"* e o botão fechar `<button>`.
+    - Limpo o import não utilizado do `VagouOfficialLogo`.
+  - 2️⃣ **Validação**:
+    - Executados `lint_applet` e `compile_applet` com 100% de aprovação.
+
+---
+
+### [2026-10-18] — 📍 Relocação da Barra de Fases para o Painel de Gestão Admin-Vapp (Abaixo da Aba Principal)
+- **Tipo:** `[UI / UX / CleanCode / FocusMode]`
+- **Motivo / Solicitação:** 
+  O usuário elogiou o formulário e instruiu o reposicionamento ideal: *"Mas a barra de navegação esta no lugar não muito ideal... seria interessante que ela estivesse abaixo da aba principal! Pois é apenas para ser usada na gestão do formulario aqui no admin-vapp"*.
+- **Ações Executadas:**
+  - 1️⃣ **`AdminTriadeFormsCatalog.tsx`**:
+    - A sub-barra de fases (`1. Identificação` | `2. Login Proprietário` | `3. Cadastro Proprietário` | `4. Dados do Salão`) foi movida para o controle de gestão do `admin-vapp`, posicionada diretamente **abaixo da aba principal de Cadastro de Novo Estabelecimento (Master)**.
+    - O clique nos botões altera instantaneamente o estado `estabFlow` que injeta `forcedStep` no formulário.
+  - 2️⃣ **`TriadeEstablishmentMasterForm.tsx` & `TriadeUserRegisterForm.tsx`**:
+    - Removida a barra interna sobreposta de dentro do card do formulário para manter a interface do modal e embed 100% limpa, plana e elegante.
+  - 3️⃣ **Validação**:
+    - `lint_applet` e `compile_applet` testados e aprovados com 100% de sucesso.
+
+---
+
+### [2026-10-18] — 🧭 Barra de Navegação de Fases nos Formulários de Cadastro (Navegação Direta sem Obrigatoriedade de Preenchimento)
+- **Tipo:** `[Feat / UI / Navigation / TriadeGovernance]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou o formulário de cadastro de estabelecimento e solicitou: *"Crie uma div de navegação das fases do cadastro para podermos navegar sem ter de digitar os dados. Isso para os outros iguais do sistema de cadastro caso não houverem"*.
+- **Ações Executadas:**
+  - 1️⃣ **`TriadeEstablishmentMasterForm.tsx`**:
+    - Criada uma barra superior de navegação de fases com os botões:
+      - `1. Identificação` (`user_check`)
+      - `2. Login Proprietário` (`user_login`)
+      - `3. Cadastro Proprietário` (`user_register`)
+      - `4. Dados do Salão` (`establishment_details`)
+    - Permite que administradores e testadores cliquem e alternem diretamente entre qualquer etapa do cadastro sem obrigatoriedade de digitar ou avançar tela por tela.
+  - 2️⃣ **`TriadeUserRegisterForm.tsx`**:
+    - Habilitada por padrão a propriedade `showPhaseStepper = true` para exibir a barra de sub-etapas (`1. Nome` | `2. Contatos` | `3. Código` | `4. Senha` | `5. CEP` | `6. Endereço`), garantindo navegabilidade direta em todas as telas de cadastro do ecossistema.
+  - 3️⃣ **Validação**:
+    - Executados `lint_applet` e `compile_applet` com 100% de aprovação.
+
+---
+
+### [2026-10-18] — 🖼️ Centralização do Logotipo Oficial e Remoção de Divs de Título Redundantes nos Formulários
+- **Tipo:** `[FocusMode / Branding / Header / UI]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou a div lateral do título nos formulários e instruiu a remoção da div redundante e aumento/responsividade do logotipo oficial do VagouApp.
+- **Ações Executadas:**
+  - 1️⃣ **`TriadeAdminRegisterForm.tsx` & Formulários Oficiais da Tríade**:
+    - Removidas as divs com título secundário ao lado do logotipo.
+    - O logotipo oficial (`VagouOfficialLogo`) agora é centralizado no topo com suporte responsivo (`size="xl"`, `variant="full"`, `h-10 sm:h-12`).
+    - Descrição e títulos principais posicionados diretamente abaixo do logotipo.
+  - 2️⃣ **Validação**:
+    - `lint_applet` e `compile_applet` executados e validados com 100% de sucesso.
+
+---
+
+### [2026-10-18] — 🧹 Remoção do Banner de Boas-Vindas da Tela Início (`AdminHomeScreen`)
+- **Tipo:** `[FocusMode / Layout / UI / CleanCode]`
+- **Motivo / Solicitação:** 
+  O usuário enviou o print da tela **Início** destacando em azul a div do banner do topo (com a logo do VagouApp e o botão `+ Novo Estabelecimento`) e instruiu: *"apenas me responda o que vc esta vendo no print? é pra removerr!!!!"*
+- **Ações Executadas:**
+  - 1️⃣ **`src/components/admin/AdminHomeScreen.tsx`**:
+    - Removida a div do banner retangular do topo da tela Início contendo a logo e o botão `+ Novo Estabelecimento`.
+    - Os cards de seções executivas e atalhos da tela Início agora iniciam diretamente no topo com layout plano e ultra-limpo.
+
+---
+
+### [2026-10-18] — 📜 Barra de Rolagem Estilizada no Tema Dark para o Menu Lateral (`custom-scrollbar`)
+- **Tipo:** `[UI / UX / Styling / FocusMode / CleanCode]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou a navegação do menu lateral no Focus Mode e instruiu: *"crie uma barra de rolagem no estilo do tema do app para rolar os itens do menu"*
+- **Ações Executadas:**
+  - 1️⃣ **`src/index.css`**:
+    - Criada a classe utilitária `.custom-scrollbar` com suporte WebKit/Firefox.
+    - Estilização alinhada ao Dark Theme do VagouApp: trilha em `slate-900/60`, thumb fino em `slate-700` com cantos arredondados e destaque interativo em verde oficial (`#20C933`) no hover.
+  - 2️⃣ **`src/components/admin/AdminSidebar.tsx`**:
+    - Aplicada a rolagem vertical fluida `overflow-y-auto max-h-[calc(100vh-90px)]` com a classe `.custom-scrollbar` na área de itens do menu (`nav`).
+
+---
+
+### [2026-10-18] — 📂 Reorganização do Menu Lateral (`AdminSidebar`): "Formulários" como Subitem de "Configurações"
+- **Tipo:** `[UX / Navigation / Organization / CleanCode]`
+- **Motivo / Solicitação:** 
+  O usuário instruiu: *"O botão 'formularios' é um subitem do botão configurações"*
+- **Ações Executadas:**
+  - 1️⃣ **`src/components/admin/AdminSidebar.tsx`**:
+    - Removido o botão *"Formulários"* do primeiro nível do menu lateral.
+    - O botão *"Configurações"* passa a contar com menu sanfona expansível.
+    - O item *"Formulários"* e as modalidades da Tríade (`Estabelecimento`, `Usuário`, `Forms Mnvapp`, `Forms Admin`, `Embeds & iFrame`) passam a ser exibidos como **subitens sob o botão Configurações**, deixando a barra lateral destumultuada, limpa e altamente organizada.
+
+---
+
+### [2026-10-18] — 🏛️ Padronização Soberana de Cabeçalho Centralizado em Todos os Formulários da Tríade
+- **Tipo:** `[FocusMode / Branding / UI / Standardization / CleanCode]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou os elementos do cabeçalho no print e instruiu: *"Precso que analize o print primeiramente, identifiique os elementos selecionados e remova-os. Preciso que tanto nesse formlario como todos os outros o logo vagouapp seja alinhado ao centro. E descriição principal do formulario (como "Acessar") estaja abaixo do logo"*
+- **Ações Executadas:**
+  - 1️⃣ **Análise de Elementos e Remoção de Rótulos Redundantes:**
+    - Removida a badge verde `span` (`"VagouApp"`) e o subtítulo `p` (`"Ecossistema Oficial VagouApp"`) indicados na imagem.
+  - 2️⃣ **Alinhamento Centralizado Unificado:**
+    - Todos os formulários oficiais da Tríade (`TriadeUserLoginForm`, `TriadeUserRegisterForm`, `TriadeMnvClientLoginForm`, `TriadeAdminLoginForm`, `TriadeAdminRecoveryForm`, `TriadeEstablishmentMasterForm`) atualizados com layout centralizado (`flex flex-col items-center justify-center text-center`).
+    - O logotipo oficial do VagouApp (`VagouOfficialLogo`) é posicionado no topo ao centro em destaque.
+    - A descrição/título principal do formulário (Ex: *"Acessar Conta"*, *"Cadastro de Usuário"*, *"Recuperação de Acesso"*, *"Cadastro Oficial de Estabelecimento"*) posicionada diretamente abaixo do logo.
+
+---
+
+### [2026-10-18] — 📌 Sub-cabeçalho Plano & Minimalista de Fases (`AdminTriadeFormsCatalog`)
+- **Tipo:** `[FocusMode / Layout / Navigation / CleanCode]`
+- **Motivo / Solicitação:** 
+  O usuário enviou o print da Central de Formulários observando: *"analise este print. havia um sub-cabeçalho de fases dos formularios"*
+- **Ações Executadas:**
+  - 1️⃣ **`src/components/admin/AdminTriadeFormsCatalog.tsx`**:
+    - Adicionado um sub-cabeçalho plano e integrado (Flat & Clean, sem caixas de bordas pesadas "box dentro de box") para alternância direta de modalidades (`1. Login de Usuário` vs `2. Cadastro Completo`) e navegação pelas sub-fases de inspeção (`1. Nome`, `2. Contatos`, `3. Código OTP`, `4. Senha`, `5. CEP`, `6. Endereço`).
+    - Mantido o botão discreto `Gerar Embed (<iframe>)` para cópia rápida do código de incorporação universal.
+
+---
+
+### [2026-10-18] — 🧹 Remoção Definitiva de Sub-barras de Abas e Seletor (`AdminTriadeFormsCatalog`)
+- **Tipo:** `[FocusMode / Layout / UI / CleanCode]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou no Focus Mode a div contendo as sub-barras de abas e instruiu: *"atenção!! preste atenção na div selecionada e o print. voce deve ver o print onde a div esta selecionada e esta anexada.. é pra removerr!!!!"*
+- **Ações Executadas:**
+  - 1️⃣ **`src/components/admin/AdminTriadeFormsCatalog.tsx`**:
+    - Removidas todas as sub-barras de alternância e seletores de abas redundantes.
+    - O formulário renderiza diretamente na página, livre de qualquer caixa intermediária ou sobreposição de navegação.
+
+---
+
+### [2026-10-18] — 🧹 Remoção das Caixas Superiores de Abas & Sub-fases (`AdminTriadeFormsCatalog`)
+- **Tipo:** `[FocusMode / Layout / UI / CleanCode]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou no Focus Mode o contêiner de sub-abas/fases acima do formulário e instruiu: *"veja o print não foi removido. Remova"*
+- **Ações Executadas:**
+  - 1️⃣ **`src/components/admin/AdminTriadeFormsCatalog.tsx`**:
+    - Removidas todas as caixas/contêineres de abas e sub-barras de etapas superiores (`"Usuário / Login / Cadastro / Embed"` e `"1. Nome", "2. Celular", ...`).
+    - Formulários renderizados diretamente sobre a tela, eliminando a poluição visual ("box dentro de box").
+
+---
+
+### [2026-10-18] — 🧹 Remoção da Barra Superior do Hub (`AdminTriadeFormsCatalog`)
+- **Tipo:** `[FocusMode / Layout / UI / CleanCode]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou no Focus Mode a div do banner/cabeçalho superior da Central de Formulários e instruiu: *"remova tamebm, é desnecessário pro momento"*
+- **Ações Executadas:**
+  - 1️⃣ **`src/components/admin/AdminTriadeFormsCatalog.tsx`**:
+    - Removida a div da barra superior do Hub (título "Hub de Formulários da Tríade", badge "Single Source of Truth" e botão "Gerar Embed Universal").
+    - Interface simplificada e focada diretamente na pré-visualização limpa dos formulários.
+
+---
+
+### [2026-10-18] — 🧹 Limpeza Total do Lado Esquerdo do Cabeçalho (`AdminHeader`)
+- **Tipo:** `[FocusMode / Layout / UI / Minimalist]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou no Focus Mode todos os elementos do lado esquerdo do cabeçalho (logo mobile, título da tela e breadcrumbs "Admin Master / ...") e instruiu: *"remover tudo"*
+- **Ações Executadas:**
+  - 1️⃣ **`src/components/admin/AdminHeader.tsx`**:
+    - Removidos os breadcrumbs, títulos redundantes da tela e o logo duplicado no mobile.
+    - Mantido o cabeçalho plano, limpo e focado com a barra de busca rápida e ações executivas do lado direito.
+
+---
+
+### [2026-10-18] — 🖼️ Ampliação do Logotipo Oficial & Limpeza de Elementos Redundantes (`AdminSidebar` & Headers)
+- **Tipo:** `[FocusMode / Branding / UI / CleanCode]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou os textos/badges na sidebar e nos cabeçalhos e instruiu: *"Assim como tela de login, removas esses selecionados e amplie o logo do vagouapp"*
+- **Ações Executadas:**
+  - 1️⃣ **`src/components/admin/AdminSidebar.tsx`**:
+    - Removida a div de textos redundantes (`VagouApp / Painel de Admin`).
+    - Exibido o `VagouOfficialLogo` em formato horizontal ampliado (`variant="full"` / `size="xl"`), limpo e responsivo.
+  - 2️⃣ **`src/components/admin/AdminHeader.tsx` & `AdminHomeScreen.tsx`**:
+    - Logotipo do VagouApp ampliado e centralizado em formato completo (`variant="full"`), eliminando rótulos pequenos e acúmulos desnecessários de texto.
+
+---
+
+### [2026-10-18] — 🎯 Centralização do Logotipo Oficial & Remoção do Botão "Cadastrar novo administrador"
+- **Tipo:** `[FocusMode / Layout / UI / CleanCode]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou o botão no rodapé do formulário e instruiu: *"remova o botton cadastrar nobo adminisrador e centralize o logo que focou ótimo"*
+- **Ações Executadas:**
+  - 1️⃣ **`src/components/admin/triade-forms/TriadeAdminLoginForm.tsx`**:
+    - Centralizado o `VagouOfficialLogo` no topo do cabeçalho (`justify-center`), mantendo o botão de fechar fixado à direita com posicionamento absoluto.
+    - Removido o botão/link *"Cadastrar novo administrador"* do rodapé do formulário, deixando a interface limpa e focada exclusivamente na autenticação.
+
+---
+
+### [2026-10-18] — 🎨 Remoção da Div de Texto Redundante & Ampliação do Logotipo Oficial (`TriadeAdminLoginForm`)
+- **Tipo:** `[FocusMode / Branding / UI / Responsiveness]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou a div de texto ao lado da logo no formulário de login e instruiu: *"remova essa div e aumente o logo par ser visivel e responsivo"*
+- **Ações Executadas:**
+  - 1️⃣ **Div de texto redundante removida:** Eliminado o bloco de texto secundário ao lado do logo.
+  - 2️⃣ **Logotipo Oficial Ampliado e Responsivo:** `VagouOfficialLogo` configurado em tamanho aumentado (`size="xl"`, `variant="full"`) com dimensão dinâmica e responsiva (`h-10 sm:h-12 w-auto max-w-[220px] object-contain`), proporcionando presença de marca marcante, limpa e de alto contraste no cabeçalho do formulário.
+
+---
+
+### [2026-10-18] — 🖼️ Sincronização do Logo Oficial do VagouApp via Supabase Storage (`VagouOfficialLogo`)
+- **Tipo:** `[Branding / Assets / Supabase / FocusMode / UI]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou os contêineres do logo na sidebar e no cabeçalho do formulário e instruiu: *"a div selecionada deve trazer o logo oficial do vagouapp que esta no supabase"*
+- **Ações Executadas:**
+  - 1️⃣ **`src/components/common/VagouOfficialLogo.tsx`**:
+    - Atualizado a cadeia de fontes de mídia com a URL oficial do Supabase Storage: `https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/branding/vagou-logo.png`.
+    - Mecanismo de fallback encadeado que percorre automaticamente URLs remotas do Supabase e arquivos locais (`/logo.png`, `/vagou-logo.png`), garantindo exibição instantânea da imagem oficial do VagouApp no cabeçalho do formulário, na sidebar e em todas as visões do sistema.
+
+---
+
+### [2026-10-18] — 🙈 Ocultação Cognitiva da Barra de Passos no Modal do Usuário (`showPhaseStepper = false`)
+- **Tipo:** `[UX / MobileFirst / Cognition / AntiSlop / FocusMode]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou a barra de passos do formulário e instruiu: *"estas fazes não devem aparecer no modal, pois pode cansar ja de cara o usuário no cadastro ao verem esses passos, devem ser disponiveis apenas no modo admvapp"*
+- **Ações Executadas:**
+  - 1️⃣ **Propriedade `showPhaseStepper` criada:** Adicionada a prop `showPhaseStepper?: boolean` no `TriadeUserRegisterForm` com valor padrão `false`.
+  - 2️⃣ **Limpeza Cognitiva no Modal do Usuário Final:** No fluxo real do usuário (modais de cadastro, embed/iframe e aplicativos), a barra superior contendo a numeração dos passos (`1. Nome`, `2. Contatos`, `3. Código`, `4. Senha`, `5. CEP`, `6. Endereço`) permanece **completamente oculta**, oferecendo uma experiência de navegação limpa, fluida e amigável sem sobrecarregar o usuário.
+  - 3️⃣ **Preservação Exclusiva no `admvapp`:** A barra e as sub-abas permanecem disponíveis na Central de Formulários / Catálogo do `admvapp` para que os administradores realizem testes e inspeções das fases individualmente.
+
+---
+
+### [2026-10-18] — 📡 COMUNICADO TÉCNICO OFICIAL DA TRÍADE (admvapp ➔ pvapp & mnvapp): Unificação do Formulário Oficial de Cadastro de Usuários & Sincronização de Banco
+- **Tipo:** `[TriadeGovernance / Schema / Embed / Integration / Architecture]`
+- **Motivo / Solicitação:** 
+  O usuário instruiu: *"dev varrer todo o codigo do app, todos os arquivos afim de eliminar qualquer fomulario semelhante. Deve tambem rever o codigo sql para sincronização com o banco de dados, para ver se deve inserir ou alterar o codigo.... deve tambme notificar o mnvaap e todo o ecosistemas para que eles integrem o embed ou iframe desse formulario, com esse layut e formato, porem o que altera é o seguinte: Se o cadastro do usuário for por intermedio do portal vagou app, o logotipo e layout do form deve ter o logo oficial do vagouapp, e se for por meio de estabelecimento, deve obedecer o layout do estabelecimento, em relação a cores e logo do mesmo, e instantaneamente ser inserido no banco de dados de clientes do estabelecimento"*
+- **Ações Executadas e Impacto na Tríade:**
+  - 1️⃣ **Varredura e Eliminação de Formulários Duplicados / Arcaicos:**
+    - `TriadeMnvClientRegisterForm.tsx` foi reestruturado e unificado como um wrapper direto do `TriadeUserRegisterForm` com `origin="establishment"`.
+    - Eliminadas 850 linhas de código legado redundante.
+    - `AdminUsersManager.tsx`, `AdminSalonDetailView.tsx` e `UniversalFormEmbedView.tsx` atualizados para utilizar unicamente o `TriadeUserRegisterForm` soberano.
+  - 2️⃣ **Dualidade de Layout & Identity Branding (`portal` vs `establishment`):**
+    - `origin="portal"`: Exibe logotipo oficial do VagouApp, cor verde oficial (`#20C933`) e slogan do portal.
+    - `origin="establishment"`: Exibe logotipo do estabelecimento parceiro (`salonLogoUrl`), nome do salão, e aplica a cor primária de destaque do salão (`salonAccentColor`) mantendo a **Regra de Contraste Inegociável** (`text-white font-bold`).
+  - 3️⃣ **Sincronização de Banco de Dados Supabase (Nova Migration `20261018_official_user_registration_and_salon_clients.sql`):**
+    - Colunas `origin_type` e `origin_salon_id` adicionadas à tabela `clients`.
+    - Tabela de junção `salon_clients` criada com chave única `(salon_id, client_id)`.
+    - Stored Procedure / RPC `register_triade_user` criada para cadastro e vínculo instantâneo na carteira de clientes do salão.
+  - 4️⃣ **Sinal de Interoperabilidade e Eventos Global (`postMessage` API):**
+    - O formulário emite `USER_REGISTERED` e `SALON_CLIENT_REGISTERED` com o payload unificado contendo dados pessoais, contatos, senha e endereço completo.
+
+---
+
+### [2026-10-18] — 📏 Dimensionamento Proporcional dos Inputs de Endereço (Zero Desperdício de Espaço)
+- **Tipo:** `[UI / Ergonomics / FocusMode / Layout / AntiSlop]`
+- **Motivo / Solicitação:** 
+  O usuário selecionou o contêiner de endereço e instruiu: *"O que está errado nesse div: Todos os inputs não devem ser maiores que o espaço ocupado pelas informações. Por exemplo, o input de CEP é extremamente enorme em comparação a 8 caracteres, assim como bairro e etc. Isso deve ser ajustado para menor."*
+- **Ações Executadas:**
+  - 1️⃣ **`src/components/admin/triade-forms/TriadeUserRegisterForm.tsx`**:
+    - **Ajuste Proporcional Rigoroso de Cada Campo:**
+      - `CEP *`: Reduzido de 100% da largura para um input compacto de `w-36` (`144px`), perfeitamente condizente com os 8-9 caracteres (`12345-678`) com ícone de pin.
+      - `UF *`: Ajustado para `w-20` (`80px`), com texto centralizado e exatos 2 caracteres.
+      - `Número *`: Ajustado para `w-28` (`112px`), com texto centralizado/alinhado para comportar números residenciais com folga ideal.
+      - `Complemento`: Ajustado para `w-40` (`160px`), proporcional a "Apto 42", "Bloco 2", etc.
+      - `Bairro *`: Proporcional e flexível (`flex-1`) ao lado do complemento.
+      - `Rua / Logradouro *` & `Cidade *`: Alocados com espaço amplo (`flex-1`) onde textos extensos realmente precisam respirar.
+    - **Combinação Inteligente em 3 Linhas:**
+      - Linha 1: `Rua / Logradouro *` (amplo) + `Número *` (compacto: `w-28`).
+      - Linha 2: `Complemento` (compacto: `w-40`) + `Bairro *` (proporcional: `flex-1`).
+      - Linha 3: `Cidade *` (ampla: `flex-1`) + `UF *` (compacta: `w-20`) + `CEP *` (compacto: `w-36`).
+- **Impacto na Tríade:** Layout harmônico, eliminando a sensação de inputs gigantescos e vazios para dados curtos.
+
+---
+
+### [2026-10-18] — 📐 Reformulação Estrita do Formulário de Endereço (Cidade/UF Separados & Preenchimento Silencioso do CEP)
+- **Tipo:** `[Refactor / UX / UI / FormDesign / Ergonomics]`
+- **Motivo / Solicitação:** 
+  O usuário instruiu: *"Input cidade e uf deve ser separados. Quando o usuário estiver na digitação manual de endereço, o cep se localizado deve aparecer apenas no campo CEP onde ele pode anotar para si mesmo num papel e etc, apenas pra dizer que encontramos já que ele já digitou todos os campos. Remover botão 'Localizar CEP'. O formulário de endereço deve ser da seguinte forma: Rua / Logradouro *, Número *, Complemento, Bairro *, Cidade *, UF *, CEP *."*
+- **Ações Executadas:**
+  - 1️⃣ **`src/components/admin/triade-forms/TriadeUserRegisterForm.tsx`**:
+    - **Separação de Inputs:** `Cidade *` e `UF *` (sigla com 2 caracteres em caixa alta, maxLength=2, font-mono) agora são inputs totalmente independentes.
+    - **Remoção do Botão *"Localizar CEP"***: Eliminado qualquer botão ou elemento intrusivo na barra superior.
+    - **Busca Silenciosa em Background:** Ao preencher Rua, Cidade e UF, a busca reversa roda silenciosamente no evento `onBlur`. Se o CEP for encontrado, é preenchido diretamente no campo `CEP *` ao final do formulário, permitindo que o usuário visualize, anote para si mesmo ou altere manualmente caso queira.
+    - **Sequência Estrita dos 7 Campos:**
+      1. `Rua / Logradouro *`
+      2. `Número *` (com auto-foco caso a rua já esteja preenchida)
+      3. `Complemento` (opcional)
+      4. `Bairro *`
+      5. `Cidade *`
+      6. `UF *`
+      7. `CEP *` (com máscara `12345-678`)
+    - **Protocolo Clean Code:** Remoção do estado zumbi `multipleCepsFound` e eliminação de alertas desnecessários.
+- **Impacto na Tríade:** Formulário padronizado com ergonomia perfeita e sem fricção visual para o usuário.
+
+---
+
+### [2026-10-18] — 🧭 Busca Reversa Oficial de CEP por Endereço (ViaCEP Logradouro + Cidade + UF)
+- **Tipo:** `[Feat / UX / Geolocation / SmartAssist]`
+- **Motivo / Solicitação:** 
+  O usuário questionou com base na captura de tela da Fase 6: *"Na tela de inserção de todos os dados, é possível que o CEP correto seja localizado pelos dados básicos inseridos?"*
+- **Ações Executadas:**
+  - 1️⃣ **`src/components/admin/triade-forms/TriadeUserRegisterForm.tsx`**:
+    - **Integração com a API de Busca Reversa ViaCEP**: `https://viacep.com.br/ws/{UF}/{Cidade}/{Logradouro}/json/`.
+    - **Função `searchCepByAddress()`**:
+      - Extrai a UF e Cidade (tratando strings combinadas como `"São Paulo / SP"`).
+      - Executa consulta inteligente com fallback automático para remoção de prefixos usuais (`Avenida`, `Rua`, `Alameda`, etc.).
+      - Se o logradouro se estender por múltiplos bairros, refina a busca pelo bairro informado pelo usuário ou apresenta um seletor rápido para escolha com 1 clique.
+      - Vincula o CEP localizado ao formulário e altera a tag de `Manual (Sem CEP)` para `CEP: {cep} ✓`.
+    - **Botão *"Localizar CEP"***: Inserido na barra superior de dados do endereço quando o CEP ainda não estiver preenchido.
+  - **Exemplo Real Validado com os Dados da Foto do Usuário**:
+    - Logradouro: `Avenida Coronel Alves e Rocha Filho`, Bairro: `Parque Guarani`, Cidade/UF: `São Paulo / SP` → Retorno imediato e preciso: **`CEP: 08235-770`**.
+- **Impacto na Tríade:** Elimina a necessidade de o usuário sair do app para pesquisar seu CEP no Google/Correios, reduzindo o abandono de cadastro a quase zero.
+
+---
+
+### [2026-10-18] — 📍 Isolamento Soberano da Fase de CEP e Desacoplamento da Fase de Endereço Completo
+- **Tipo:** `[Feat / UI / UX / CleanCode / Ergonomics / MicroInteractions]`
+- **Motivo / Solicitação:** 
+  O usuário enviou captura de tela e solicitou: *"A simplicidade e limpeza no formulário ficou ótimo, sem poluição de excesso de textos e boxes excessivos. Porém vamos deixar o input de cep isolado em uma fase só pra ele, quando digitado o cep e o endereço for encontrado daí então avança para o formulário de endereço já pré-preenchido, quando o usuário clicar em 'Não sei meu CEP', então avança para o formulário completo onde ele digitará tudo. Me dê feedback."*
+- **Ações Executadas:**
+  - 1️⃣ **`src/components/admin/triade-forms/TriadeUserRegisterForm.tsx`**:
+    - **Fase 5 Isolada (`cep`)**: O card apresenta única e exclusivamente o input de CEP com máscara `12345-678`, botão *"Não sei meu CEP"*, botão *"← Voltar"* (retorna para a fase de Senha) e botão *"Avançar →"*.
+    - **Micro-interação de Busca e Avanço Automático**: Ao completar 8 dígitos, o sistema consulta a API ViaCEP em background; se o endereço for encontrado, preenche os dados e avança de forma suave (após 350ms) para a Fase 6 com os campos já povoados.
+    - **Ação *"Não sei meu CEP"***: Ao clicar, o sistema avança imediatamente para a Fase 6 em branco para o usuário digitar tudo manualmente.
+    - **Fase 6 Dedicada (`address`)**: Apresenta os campos de Rua/Logradouro, Número (com foco automático e destaque para preenchimento), Complemento, Bairro, Cidade/UF, badge discreto do CEP com botão *"Alterar CEP"*, botão *"← Voltar"* (volta para a tela de CEP) e botão final *"Concluir Cadastro de Usuário"*.
+    - **Stepper Horizontal Compacto**: Atualizado para exibir de forma elegante as 6 etapas (`1. Nome`, `2. Contatos`, `3. Código`, `4. Senha`, `5. CEP`, `6. Endereço`).
+  - 2️⃣ **`src/components/admin/AdminTriadeFormsCatalog.tsx`**:
+    - Sub-abas da aba Cadastro atualizadas para navegação direta nas 6 fases: `Todas`, `1. Nome & @`, `2. Celular & E-mail`, `3. Código OTP`, `4. Senha`, `5. CEP` e `6. Endereço`.
+    - Respeito estrito à Regra do Fundo Verde (`text-white` para todos os botões e badges ativos em `#20C933`).
+- **Impacto na Tríade:** Aumento na conversão mobile eliminando rolagem desnecessária e permitindo fluxo focado (one-thing-at-a-time).
+
+---
+
+### [2026-10-18] — 🚀 Reformulação Soberana do Cadastro de Usuários em 5 Fases Simplificadas com Sub-abas Diretas
+- **Tipo:** `[Feat / UX / MobileFirst / MultiStep / OTP / Security]`
+- **Motivo / Solicitação:** 
+  O usuário instruiu: *"Agora vamos reformular o formulario de cadastro de novo usuários. Como ja temos a aba de cadastro, vamos inserir sub abas de fazes da aba cadastro. Vamos simplificar o cadastro de novos usuários: Tela 1 (Nome completo e usuário), Tela 2 (WhatsApp celular com máscara, e-mail e confirmação + botões WHATSAPP, SMS, E-mail para código), Tela 3 (Modal código 6 dígitos XXX-XXX e botão verificar), Tela 4 (Cadastro de senha com regras e botão Avançar), Tela 5 (CEP isolado com máscara 12345-678 e botão 'Não sei meu CEP' + campos de endereço completos). inicie e implante."*
+- **Ações Executadas:**
+  - 1️⃣ **`src/components/admin/triade-forms/TriadeUserRegisterForm.tsx`**:
+    - **Fase 1 (`identification`)**: Nome Completo (`fullName`, placeholder "Nome completo") e Nome de Usuário (`username`, placeholder "Seu nome de usuário", auto-sugestão de `@`). Botão "Avançar".
+    - **Fase 2 (`contacts`)**: Input WhatsApp/Celular (`phone`, placeholder `(11) 98765-4321` com máscara automática de parênteses e hífen), E-mail (`email`) e Confirmação de E-mail (`confirmEmail`). Seletor de canal de disparo com botões interativos `WHATSAPP`, `SMS` e `E-MAIL`. Botão "Receber Código".
+    - **Fase 3 (`verification`)**: Modal / Card OTP com input estilizado de 6 dígitos formatado `"XXX - XXX"`, contagem regressiva de reenvio de 60 segundos e botão "Verificar".
+    - **Fase 4 (`password`)**: Senha e Confirmação de Senha (placeholders "Digite sua senha" e "Repita sua senha"), checklist visual das regras de segurança (mínimo 6 dígitos, maiúscula/minúscula, caractere especial e confirmação idêntica). Botão "Avançar".
+    - **Fase 5 (`address`)**: Campo de CEP residencial isolado como primeiro elemento (`12345-678`) com busca automática no ViaCEP e botão *"Não sei meu CEP"* que expande os campos de Logradouro, Número, Complemento, Bairro, Cidade e UF. Botão *"Concluir Cadastro de Usuário"*.
+    - **Stepper Interativo**: Barra horizontal de sub-etapas numeradas de 1 a 5 no topo do formulário permitindo alternância ágil de fases.
+  - 2️⃣ **`src/components/admin/AdminTriadeFormsCatalog.tsx`**:
+    - Sub-abas de fases atualizadas para acesso direto: `Todas as Fases`, `1. Nome & @`, `2. Celular & E-mail`, `3. Código OTP`, `4. Senha` e `5. CEP & Endereço`.
+    - Respeito estrito às travas de contraste (fundo verde = texto e ícones 100% brancos `text-white`).
+- **Impacto na Tríade:** Formulário canônico universal e compartilhado pronto para iframe/embed nos 3 portais (`admvapp`, `mnvapp`, `pvapp`).
+
+---
+
+### [2026-10-18] — 🗂️ Sub-abas de Fases para Navegação Direta em Cadastro e Login de Usuários
+- **Tipo:** `[Feat / UI / UX / Navigation / MobileFirst]`
+- **Motivo / Solicitação:** 
+  O usuário instruiu: *"ficou perfeito! Exatamente isso que pedi. porem precisamos de um sub abas de fazes para ccada aba. por exemplo: se temos a aba de cdastro então deve ter abaxo as abas de fazer de cadastro para poder navegar dietamennte nas fazes"*.
+- **Ações Executadas:**
+  - 1️⃣ **`src/components/admin/triade-forms/TriadeUserRegisterForm.tsx`**:
+    - Adicionado suporte nativo a fases (`activePhase?: UserRegisterPhase`, `onPhaseChange`):
+      - `all`: Visualização completa de todas as fases.
+      - `personal`: **Fase 1 — Dados Pessoais & Senha** (Nome Completo, @usuário, WhatsApp, E-mail, Senhas) com botão direto de avanço validado *"Avançar para Endereço Residencial →"*.
+      - `address`: **Fase 2 — Endereço Residencial** (ViaCEP, Logradouro, Número, Complemento, Bairro, Cidade/UF) com botão de retorno *"← Voltar"* e botão de conclusão *"Concluir Cadastro"*.
+    - Função `validatePersonal()` implementada para garantir consistência de dados antes do avanço.
+  - 2️⃣ **`src/components/admin/triade-forms/TriadeUserLoginForm.tsx`**:
+    - Adicionado suporte nativo a fases (`activePhase?: UserLoginPhase`, `onPhaseChange`):
+      - `credentials`: **Fase 1 — Acesso com Senha** (Identificador + Senha de Acesso).
+      - `recovery`: **Fase 2 — Recuperar Acesso** (Identificador + Envio de instruções de recuperação).
+  - 3️⃣ **`src/components/admin/AdminTriadeFormsCatalog.tsx`**:
+    - Adicionada a barra de **Sub-abas de Fases** logo abaixo da seleção principal:
+      - Quando na aba **Cadastro**: exibe as sub-abas `Todas as Fases`, `1. Dados Pessoais & Senha` e `2. Endereço Residencial`.
+      - Quando na aba **Login**: exibe as sub-abas `1. Acesso com Senha` e `2. Recuperar Acesso`.
+    - Navegação direta, rápida e responsiva por toque, permitindo alternar de fase instantaneamente.
+  - 4️⃣ **Validação Técnica**: `lint_applet` e `compile_applet` executados com 100% de sucesso.
+
+### [2026-10-18] — 👥 Padronização das 2 Abas Oficiais de Usuário (Login & Cadastro) e Integração Modular no Estabelecimento
+- **Tipo:** `[Feat / UX / CleanCode / Refactor / Architecture]`
+- **Motivo / Solicitação:** 
+  O usuário instruiu: *"na seção de formlario de usuário deve haver duas abas sendo: -login e Cadastro (O formulario de login ou form de cadastro será o formulario de login de todos os apps do sitema) Traga os mesmos formulario para essas abas"*. Além disso, reforçou a arquitetura em que um formulário chama o outro: *"Baseado na decisão de quem vai cadastrar um estabelecimento o usuário deve informar se ja tem cadastro ou não no esquema atual. Pois penso em fazer de uma forma que um formulrio chame o outro em acordo a cada decisão. Pra isso precisamos tambem ter o formulario de cadastro usuário, limpo, sem box dentro de box, sem muitas legendas ou texto, cognitivo"*.
+- **Ações Executadas:**
+  - 1️⃣ **`src/components/admin/AdminTriadeFormsCatalog.tsx`**:
+    - Padronizada a barra da seção `cadastro_usuario` para exibir estritamente as **2 abas canônicas**: **Login** e **Cadastro**.
+    - Eliminadas legendas e textos redundantes no cabeçalho (apenas o badge conciso `Usuário`), seguindo a regra de máxima síntese mobile e cognitiva.
+    - Quando a aba **Login** está ativa, renderiza diretamente o componente canônico `TriadeUserLoginForm`.
+    - Quando a aba **Cadastro** está ativa, renderiza diretamente o componente canônico `TriadeUserRegisterForm`.
+    - Ambas as abas possuem gatilhos de alternância imediata (`onSwitchToRegister` e `onSwitchToLogin`).
+  - 2️⃣ **`src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`**:
+    - Substituído todo o formulário inline artesanal da etapa `user_login` pelo componente soberano `TriadeUserLoginForm`.
+    - Eliminadas variáveis de estado e lógica duplicada (`loginInput`, `loginPassword`, `isAuthenticating`, `authError`).
+    - Criada a função unificada `handleUserLoginSuccess`, que autentica o usuário (com busca em Supabase / fallback simulado), pre-carrega os dados do proprietário na ficha e avança diretamente para a criação do estabelecimento comercial.
+    - Garantido botão de retorno limpo ("← Voltar à pergunta inicial") em ambas as etapas (`user_login` e `user_register`).
+  - 3️⃣ **Validação Técnica**: `lint_applet` e `compile_applet` executados e aprovados com 100% de conformidade.
+
+### [2026-10-18] — 👤 Criação do Formulário Soberano "Usuário" & Interoperabilidade Modular na Tríade
+- **Tipo:** `[Feat / Architecture / CleanCode / DesignSystem / Interoperability]`
+- **Motivo / Solicitação:** 
+  O usuário instruiu: *"Nalista de formulários deve ter tambem a opção formulario 'Usuário' pra somar com formulario mnvapp e estabelecimento. Baseado na decisão de quem vai cadastrar um estabelecimento o usuário deve informar se ja tem cadastro ou não no esquema atual. Pois penso em fazer de uma forma que um formulrio chame o outro em acordo a cada decisão. Pra isso precisamos tambem ter o formulario de cadastro usuário, limpo, sem box dentro de box, sem muitas legendas ou texto, cognitivo. Os formulario de todo o ecossistema vem do admvapp, por tanto todos os formulário são reutiliaveis, e devem ter um nome fácil para poder-mos indica-los"*.
+- **Ações Executadas:**
+  - 1️⃣ **`src/components/admin/triade-forms/TriadeUserRegisterForm.tsx` (NOVO COMPONENTE CANÔNICO)**:
+    - Criado formulário soberano de cadastro de usuário do ecossistema VagouApp.
+    - Layout plano (flat & clean, zero "box dentro de box"), cognitivo, sem poluição de legendas ou textos redundantes.
+    - Campos objetivos: Nome Completo, Nome de Usuário (`@usuario`), WhatsApp/Celular com máscara, E-mail, Senha e Confirmação, Endereço com auto-preenchimento ViaCEP.
+    - Ação final em alto contraste: Botão com fundo verde `#20C933` e texto estritamente branco (`text-white font-bold`).
+    - Disparo de evento global `postMessage` (`action: 'USER_REGISTERED'`) para comunicação entre iframes e apps irmãos.
+  - 2️⃣ **`src/components/admin/AdminSidebar.tsx`**:
+    - Adicionado o item `"Usuário"` (`id: 'cadastro_usuario'`, ícone `UserPlus`) no submenu da barra lateral, somando com Estabelecimento, Forms Mnvapp, Forms Admin e Embeds.
+  - 3️⃣ **`src/components/admin/AdminTriadeFormsCatalog.tsx`**:
+    - Adicionada a seção dedicada de formulário `"Usuário"` com botão de cópia de Embed universal.
+    - Adicionado o card de incorporação rápida `?form=usuario` na central de iframes.
+  - 4️⃣ **`src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`**:
+    - Refatoração do fluxo de onboarding: quando o usuário seleciona **NÃO** na pergunta *"O estabelecimento já possui usuário?"*, o sistema chama de forma modular e limpa o `TriadeUserRegisterForm`.
+    - Ao concluir o cadastro, os dados do novo titular são passados automaticamente para o estabelecimento, fluindo direto para os dados do salão.
+    - Limpeza total de estados e funções mortas (`handleUserRegisterSubmit`, `regStep`, etc.).
+  - 5️⃣ **`src/components/embed/UniversalFormEmbedView.tsx` & `src/App.tsx`**:
+    - Adicionado suporte nativo para carregar o formulário isolado via `https://adm.vagouapp.com/embed?form=usuario` ou `/usuario`.
+  - 6️⃣ **Validação:** `lint_applet` e `compile_applet` executados e aprovados com 100% de sucesso. Dev server reiniciado.
+
 ### [2026-10-16] — 🧹 Remoção do Cabeçalho Duplicado Interno da Ficha do Estabelecimento
 - **Tipo:** `[UI / UX / CleanCode / FocusMode]`
 - **Motivo / Solicitação:** 

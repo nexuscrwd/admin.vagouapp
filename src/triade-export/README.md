@@ -25,10 +25,19 @@ O `admvapp` disponibiliza rotas dedicadas e otimizadas para carregamento dentro 
    ></iframe>
    ```
 
-2. **Cadastro do Cliente (com suporte a White-label do Salão):**
+2. **Cadastro Oficial de Usuário (Modo Portal ou Modo Estabelecimento White-label):**
    ```html
+   <!-- Modo Portal VagouApp (Branding Oficial VagouApp) -->
    <iframe 
-     src="https://adm.vagouapp.com/embed/mnv-cadastro?salon=NomeDoSalao&service=Corte%20Degradê" 
+     src="https://adm.vagouapp.com/embed/usuario" 
+     width="100%" 
+     height="720" 
+     frameborder="0"
+   ></iframe>
+
+   <!-- Modo Estabelecimento Parceiro (Branding White-label do Salão) -->
+   <iframe 
+     src="https://adm.vagouapp.com/embed/mnv-cadastro?salonId=sal_123&salonName=Barbearia%20Vip&salonLogo=https://.../logo.png&salonColor=%2320C933" 
      width="100%" 
      height="720" 
      frameborder="0"

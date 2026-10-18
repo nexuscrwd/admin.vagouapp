@@ -63,41 +63,36 @@ export const TriadeAdminLoginForm: React.FC<TriadeAdminLoginFormProps> = ({
 
   return (
     <div className="w-full max-w-md mx-auto bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden animate-fadeIn font-['Poppins']">
-      {/* Top Banner com Logo Oficial do VagouApp e apenas "Login" */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border-b border-slate-800 p-5 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <VagouOfficialLogo size="lg" />
-          <div className="min-w-0">
-            <h2 className="font-bold text-white text-base tracking-tight font-['Poppins']">
-              VagouApp
-            </h2>
-            <span className="text-xs font-semibold text-emerald-400">
-              Login
-            </span>
-          </div>
-        </div>
+      {/* Top Banner com Logo Oficial do VagouApp e Título Centralizados */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border-b border-slate-800 p-5 relative flex flex-col items-center justify-center text-center">
+        <VagouOfficialLogo size="xl" variant="full" className="h-10 sm:h-12 w-auto max-w-[220px] object-contain mx-auto" />
+        <h2 className="font-bold text-white text-base sm:text-lg tracking-tight mt-2 text-center">
+          Acesso Admin
+        </h2>
 
         {/* Botão Fechar Oficial da Tríade */}
-        <button
-          type="button"
-          onClick={() => {
-            if (onClose) {
-              onClose();
-            } else if (typeof window !== 'undefined') {
-              window.parent?.postMessage({ source: 'VAGOUAPP_FORM', action: 'CLOSE' }, '*');
-              if (window.history.length > 1) {
-                window.history.back();
-              } else {
-                window.location.href = '/';
+        {onClose && (
+          <button
+            type="button"
+            onClick={() => {
+              if (onClose) {
+                onClose();
+              } else if (typeof window !== 'undefined') {
+                window.parent?.postMessage({ source: 'VAGOUAPP_FORM', action: 'CLOSE' }, '*');
+                if (window.history.length > 1) {
+                  window.history.back();
+                } else {
+                  window.location.href = '/';
+                }
               }
-            }
-          }}
-          className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer shrink-0"
-          aria-label="Fechar formulário"
-          title="Fechar"
-        >
-          <X className="w-5 h-5" />
-        </button>
+            }}
+            className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer shrink-0"
+            aria-label="Fechar formulário"
+            title="Fechar"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
       {/* Alertas */}
@@ -188,19 +183,6 @@ export const TriadeAdminLoginForm: React.FC<TriadeAdminLoginFormProps> = ({
             </>
           )}
         </button>
-
-        {/* Link para Cadastrar Novo Administrador */}
-        {onSwitchToRegister && (
-          <div className="pt-2 text-center">
-            <button
-              type="button"
-              onClick={onSwitchToRegister}
-              className="text-xs text-emerald-400 hover:text-emerald-300 font-medium cursor-pointer transition hover:underline"
-            >
-              Cadastrar novo administrador
-            </button>
-          </div>
-        )}
       </form>
     </div>
   );

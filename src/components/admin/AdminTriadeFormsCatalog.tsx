@@ -24,6 +24,10 @@ import {
   Check,
   X,
   Share2,
+  MapPin,
+  User,
+  Smartphone,
+  Search,
 } from 'lucide-react';
 
 // Os 4 Formulários Canônicos Principais da Tríade
@@ -34,8 +38,14 @@ import { TriadeAdminLoginForm } from './triade-forms/TriadeAdminLoginForm';
 import { TriadeAdminRecoveryForm } from './triade-forms/TriadeAdminRecoveryForm';
 import { TriadeAdminRegisterForm } from './triade-forms/TriadeAdminRegisterForm';
 import { TriadeAdminAuthForm } from './triade-forms/TriadeAdminAuthForm';
+import { TriadeUserRegisterForm, UserRegisterPhase } from './triade-forms/TriadeUserRegisterForm';
+import { TriadeUserLoginForm, UserLoginPhase } from './triade-forms/TriadeUserLoginForm';
 
-export type MainTabType = 'cadastro_estabelecimento' | 'mnvapp_forms' | 'adminvapp_form' | 'embeds';
+export type MainTabType =
+  | 'estabelecimento'
+  | 'usuarios'
+  | 'embeds';
+export type UserFlow = 'login' | 'cadastro' | 'ambos';
 export type MnvUserFlow = 'acesso' | 'cadastro' | 'ambos';
 export type AdminFlow = 'login' | 'recovery' | 'cadastro' | 'ambos';
 export type EstabFlow = 'user_check' | 'user_login' | 'user_register' | 'establishment_details' | 'ambos';
@@ -52,12 +62,17 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
   onTabChange,
 }) => {
   // Aba Principal Selecionada com controle externo e interno
-  const [internalTab, setInternalTab] = useState<MainTabType>('cadastro_estabelecimento');
+  const [internalTab, setInternalTab] = useState<MainTabType>('estabelecimento');
   const activeMainTab = activeTab || internalTab;
   const setActiveMainTab = (tab: MainTabType) => {
     setInternalTab(tab);
     onTabChange?.(tab);
   };
+
+  // Sub-fluxo da Aba Usuário: Login vs Cadastro
+  const [userFlow, setUserFlow] = useState<UserFlow>('cadastro');
+  const [registerPhase, setRegisterPhase] = useState<UserRegisterPhase>('all');
+  const [loginPhase, setLoginPhase] = useState<UserLoginPhase>('credentials');
 
   // Sub-fluxo da Aba Forms mnvapp: Acesso do usuário vs Cadastro de usuário vs Lado a Lado
   const [mnvUserFlow, setMnvUserFlow] = useState<MnvUserFlow>('acesso');
@@ -120,44 +135,7 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
 
   return (
     <div className="space-y-5 animate-fadeIn font-['Poppins']">
-      {/* Barra Superior do Hub */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
-        <div className="flex items-center gap-3">
-          {onBack && (
-            <button
-              type="button"
-              onClick={onBack}
-              className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-xl transition cursor-pointer active:scale-95 shadow-xs"
-            >
-              <ArrowLeft className="w-3.5 h-3.5 text-[#20C933]" />
-              <span>Voltar</span>
-            </button>
-          )}
 
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight">
-                Hub de Formulários da Tríade
-              </h1>
-              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                Single Source of Truth
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Botão de Integração Universal Embed */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setEmbedModalForm(activeMainTab === 'mnvapp_forms' ? (mnvUserFlow === 'cadastro' ? 'mnv_cadastro' : 'mnv_login') : activeMainTab === 'cadastro_estabelecimento' ? 'estabelecimento' : 'admin')}
-            className="py-2 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs transition flex items-center gap-2 cursor-pointer shadow-xs active:scale-95"
-          >
-            <Code className="w-4 h-4 text-[#20C933]" />
-            <span>Gerar Embed Universal (&lt;iframe&gt;)</span>
-          </button>
-        </div>
-      </div>
 
       {/* Alerta de Feedback de Ação */}
       {actionFeedback && (
@@ -168,137 +146,197 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
       )}
 
       {/* ========================================================================= */}
-      {/* 📌 CONTEÚDO DA ABA 1: FORMS MNVAPP */}
+      {/* 📌 DOMÍNIO 1: ESTABELECIMENTO (LOGIN DO PARCEIRO & CADASTRO DE NOVO SALÃO) */}
       {/* ========================================================================= */}
-      {activeMainTab === 'mnvapp_forms' && (
+      {activeMainTab === 'estabelecimento' && (
         <div className="space-y-4 animate-fadeIn">
-          {/* Sub-barra Contextual com as 2 frentes solicitadas */}
-          <div className="p-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-emerald-500 dark:text-emerald-400">Mnvapp</span>
-            </div>
-
-            {/* Alternador de Sub-fluxo: Acesso vs Cadastro vs Ambos Lado a Lado */}
-            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 self-start md:self-auto">
+          {/* Sub-cabeçalho Plano e Minimalista do Domínio Estabelecimento */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-800/80">
+            <div className="flex items-center gap-1.5 overflow-x-auto max-w-full py-0.5">
               <button
                 type="button"
-                onClick={() => setMnvUserFlow('acesso')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                  mnvUserFlow === 'acesso'
+                onClick={() => setEstabFlow('user_login')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  estabFlow === 'user_login'
                     ? 'bg-[#20C933] text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800'
                 }`}
               >
                 <KeyRound className="w-3.5 h-3.5" />
-                <span>1. Acesso do Usuário</span>
+                <span>1. Login do Estabelecimento (Dono / Profissionais)</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => setMnvUserFlow('cadastro')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                  mnvUserFlow === 'cadastro'
+                onClick={() => setEstabFlow(estabFlow === 'user_login' ? 'user_check' : estabFlow)}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  estabFlow !== 'user_login'
                     ? 'bg-[#20C933] text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                <Building2 className="w-3.5 h-3.5" />
+                <span>2. Cadastro de Novo Estabelecimento (Master)</span>
+              </button>
+            </div>
+
+            {/* Ação de Embed */}
+            <button
+              type="button"
+              onClick={() => setEmbedModalForm(estabFlow === 'user_login' ? 'mnv_login' : 'estabelecimento')}
+              className="py-1.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0 self-start sm:self-auto"
+            >
+              <Code className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Gerar Embed (&lt;iframe&gt;)</span>
+            </button>
+          </div>
+
+          {/* Sub-barra de Navegação de Fases do Cadastro (Exibida diretamente abaixo da Aba Principal no Admin-Vapp) */}
+          {estabFlow !== 'user_login' && (
+            <div className="p-2 bg-slate-900/90 border border-slate-800 rounded-2xl flex items-center justify-start sm:justify-center gap-1.5 overflow-x-auto max-w-full animate-fadeIn">
+              {[
+                { id: 'user_check', num: '1', label: 'Identificação (Sim/Não)', icon: UserCheck },
+                { id: 'user_login', num: '2', label: 'Login Proprietário', icon: KeyRound },
+                { id: 'user_register', num: '3', label: 'Cadastro Proprietário', icon: UserPlus },
+                { id: 'establishment_details', num: '4', label: 'Dados do Salão', icon: Building2 },
+              ].map((step) => {
+                const isActive = estabFlow === step.id;
+                const IconComponent = step.icon;
+                return (
+                  <button
+                    key={step.id}
+                    type="button"
+                    onClick={() => setEstabFlow(step.id as any)}
+                    className={`py-1.5 px-3 rounded-xl text-center transition cursor-pointer flex items-center justify-center gap-1.5 border whitespace-nowrap shrink-0 ${
+                      isActive
+                        ? 'bg-[#20C933] text-white font-bold border-emerald-400 shadow-sm'
+                        : 'bg-slate-950/60 text-slate-400 hover:text-white hover:bg-slate-800 border-slate-800 text-xs'
+                    }`}
+                  >
+                    <IconComponent className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+                    <span className="text-xs">
+                      {step.num}. {step.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Renderização do Form Selecionado */}
+          {estabFlow === 'user_login' ? (
+            <div className="max-w-md mx-auto w-full py-2">
+              <TriadeMnvClientLoginForm
+                salonName={selectedPreviewSalon.name}
+                onSuccess={(data) =>
+                  handleTriggerFeedback(`Login do profissional/dono validado para "${data.identifier}" no salão ${selectedPreviewSalon.name}`)
+                }
+                onSwitchToRegister={() => setEstabFlow('user_check')}
+              />
+            </div>
+          ) : (
+            <div className="py-2">
+              <TriadeEstablishmentMasterForm
+                forcedStep={estabFlow as any}
+                onSuccess={(salonData) =>
+                  handleTriggerFeedback(
+                    `Novo estabelecimento "${salonData.tradeName}" (CNPJ: ${salonData.documentNumber}) cadastrado com sucesso!`
+                  )
+                }
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 📌 DOMÍNIO 2: USUÁRIOS (LOGIN DO CLIENTE & CADASTRO DO CLIENTE)          */}
+      {/* ========================================================================= */}
+      {activeMainTab === 'usuarios' && (
+        <div className="space-y-4 animate-fadeIn">
+          {/* Sub-cabeçalho Plano e Minimalista do Domínio Usuários */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-800/80">
+            <div className="flex items-center gap-1.5 overflow-x-auto max-w-full py-0.5">
+              <button
+                type="button"
+                onClick={() => setUserFlow('login')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  userFlow === 'login'
+                    ? 'bg-[#20C933] text-white shadow-xs'
+                    : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                <span>1. Login de Usuário</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setUserFlow('cadastro');
+                  setRegisterPhase('all');
+                }}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                  userFlow === 'cadastro'
+                    ? 'bg-[#20C933] text-white shadow-xs'
+                    : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800'
                 }`}
               >
                 <UserPlus className="w-3.5 h-3.5" />
-                <span>2. Cadastro de Usuário</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setMnvUserFlow('ambos')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                  mnvUserFlow === 'ambos'
-                    ? 'bg-[#20C933] text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Columns className="w-3.5 h-3.5" />
-                <span>Lado a Lado</span>
+                <span>2. Cadastro de Usuário (com Vínculo Automático ao Salão)</span>
               </button>
             </div>
+
+            {/* Ação de Embed */}
+            <button
+              type="button"
+              onClick={() => setEmbedModalForm(userFlow === 'cadastro' ? 'usuario' : 'usuario_login')}
+              className="py-1.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0 self-start sm:self-auto"
+            >
+              <Code className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Gerar Embed (&lt;iframe&gt;)</span>
+            </button>
           </div>
 
           {/* Cards Renderizados */}
-          <div
-            className={`grid gap-5 items-start ${
-              mnvUserFlow === 'ambos' ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1 max-w-lg mx-auto'
-            }`}
-          >
-            {/* SUB-ITEM 1: ACESSO DO USUÁRIO CLIENTE */}
-            {(mnvUserFlow === 'acesso' || mnvUserFlow === 'ambos') && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between px-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                    <span className="text-xs font-bold text-emerald-400">
-                      Acesso do Usuário
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setEmbedModalForm('mnv_login')}
-                    className="text-[10px] text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <Code className="w-3 h-3" />
-                    <span>Embed</span>
-                  </button>
-                </div>
-
-                <TriadeMnvClientLoginForm
-                  onSuccess={(data) =>
-                    handleTriggerFeedback(`Login do cliente validado no ecossistema: ${data.identifier}`)
-                  }
-                  onSwitchToRegister={() => setMnvUserFlow('cadastro')}
-                />
-              </div>
-            )}
-
-            {/* SUB-ITEM 2: CADASTRO DE NOVO USUÁRIO AO AGENDAR (DO ECOSSISTEMA MAQUIADO COM IDENTIDADE DO SALÃO) */}
-            {(mnvUserFlow === 'cadastro' || mnvUserFlow === 'ambos') && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between px-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                    <span className="text-xs font-bold text-emerald-400">
-                      Cadastro de Usuário (App do Salão)
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setEmbedModalForm('mnv_cadastro')}
-                    className="text-[10px] text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <Code className="w-3 h-3" />
-                    <span>Embed</span>
-                  </button>
-                </div>
-
-
-
-                <TriadeMnvClientRegisterForm
-                  salonId={selectedPreviewSalon.id}
-                  salonName={selectedPreviewSalon.name}
-                  salonAccentColor={selectedPreviewSalon.accentColor}
-                  onSuccess={(data) =>
-                    handleTriggerFeedback(
-                      `Cliente "${data.fullName}" (${data.username}) cadastrado via ${data.salonName}! CEP: ${data.address.cep} (${data.address.city}/${data.address.state}).`
-                    )
-                  }
-                  onSwitchToLogin={() => setMnvUserFlow('acesso')}
-                />
-              </div>
+          <div className="grid grid-cols-1 max-w-xl mx-auto py-2">
+            {userFlow === 'login' ? (
+              <TriadeUserLoginForm
+                activePhase={loginPhase}
+                onPhaseChange={setLoginPhase}
+                onSuccess={(data) =>
+                  handleTriggerFeedback(
+                    `Acesso validado com sucesso para o usuário "${data.identifier}"!`
+                  )
+                }
+                onSwitchToRegister={() => {
+                  setUserFlow('cadastro');
+                  setRegisterPhase('all');
+                }}
+              />
+            ) : (
+              <TriadeUserRegisterForm
+                activePhase={registerPhase}
+                onPhaseChange={setRegisterPhase}
+                onSuccess={(data) =>
+                  handleTriggerFeedback(
+                    `Usuário "${data.fullName}" (${data.username}) cadastrado com sucesso! E-mail: ${data.email} | Celular: ${data.phone}`
+                  )
+                }
+                onSwitchToLogin={() => {
+                  setUserFlow('login');
+                  setLoginPhase('credentials');
+                }}
+              />
             )}
           </div>
         </div>
       )}
 
       {/* ========================================================================= */}
-      {/* 📌 CONTEÚDO DA ABA 2: CADASTRO DE ESTABELECIMENTO — TODAS AS FASES */}
+      {/* 📌 CONTEÚDO DA ABA 2: ESTABELECIMENTOS */}
       {/* ========================================================================= */}
-      {activeMainTab === 'cadastro_estabelecimento' && (
+      {activeMainTab === 'establishment' && (
         <div className="space-y-4 animate-fadeIn">
           {/* Header Contextual com Seletor de Sub-fluxo */}
           <div className="p-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col xl:flex-row xl:items-center justify-between gap-3 shadow-xs">
@@ -677,8 +715,55 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
               </div>
             </div>
 
-            {/* Grid dos 3 Formulários Principais para Embed com Cópia Direta */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Grid dos Formulários Principais para Embed com Cópia Direta */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+              {/* Card 0: Cadastro de Usuário (Novo Soberano) */}
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3 flex flex-col justify-between">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <UserPlus className="w-4 h-4 text-emerald-500" />
+                      <span>Usuário</span>
+                    </span>
+                    <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded font-bold">
+                      ?form=usuario
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Formulário canônico de novo usuário do ecossistema VagouApp.
+                  </p>
+                  <pre className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[10px] text-emerald-600 dark:text-emerald-400 font-mono overflow-x-auto whitespace-pre">
+{`<iframe
+  src="https://adm.vagouapp.com/embed?form=usuario"
+  width="100%"
+  height="720"
+  frameborder="0"
+></iframe>`}
+                  </pre>
+                </div>
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`<iframe src="https://adm.vagouapp.com/embed?form=usuario" width="100%" height="720" frameborder="0"></iframe>`);
+                      handleTriggerFeedback('Código de embed de Usuário copiado!');
+                    }}
+                    className="flex-1 py-2 px-3 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copiar Iframe</span>
+                  </button>
+                  <a
+                    href="/embed?form=usuario"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition"
+                    title="Testar em Nova Aba"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+                </div>
+              </div>
               {/* Card 1: Estabelecimento */}
               <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3 flex flex-col justify-between">
                 <div className="space-y-2">

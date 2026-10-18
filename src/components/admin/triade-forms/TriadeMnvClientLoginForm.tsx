@@ -57,48 +57,43 @@ export const TriadeMnvClientLoginForm: React.FC<TriadeMnvClientLoginFormProps> =
 
   return (
     <div className="w-full max-w-md mx-auto bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden animate-fadeIn font-['Poppins']">
-      {/* Top Banner White-label do Salão ou VagouApp */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border-b border-slate-800 p-5 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <VagouOfficialLogo size="lg" />
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <h2 className="font-extrabold text-white text-base tracking-tight truncate max-w-[200px]">
-                {isVagouApp ? 'VagouApp' : salonName}
-              </h2>
-              {isVagouApp && (
-                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.2 rounded shrink-0">
-                  Oficial
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-slate-400 truncate">
-              {isVagouApp ? 'Ecossistema Oficial · Acesse sua conta' : 'Acesse sua conta'}
-            </p>
+      {/* Top Banner White-label do Salão ou VagouApp Soberano Centralizado */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border-b border-slate-800 p-5 relative flex flex-col items-center justify-center text-center">
+        {isVagouApp ? (
+          <VagouOfficialLogo size="xl" variant="full" className="h-10 sm:h-12 w-auto object-contain mx-auto" />
+        ) : (
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white text-lg shrink-0 shadow-md border border-white/10 mx-auto bg-emerald-500">
+            {salonName.charAt(0).toUpperCase()}
           </div>
-        </div>
+        )}
+
+        <h2 className="font-bold text-white text-base sm:text-lg tracking-tight mt-2 text-center">
+          {isVagouApp ? 'Acessar Espaço' : `Acessar ${salonName}`}
+        </h2>
 
         {/* Botão Fechar Oficial da Tríade */}
-        <button
-          type="button"
-          onClick={() => {
-            if (onClose) {
-              onClose();
-            } else if (typeof window !== 'undefined') {
-              window.parent?.postMessage({ source: 'VAGOUAPP_FORM', action: 'CLOSE' }, '*');
-              if (window.history.length > 1) {
-                window.history.back();
-              } else {
-                window.location.href = '/';
+        {onClose && (
+          <button
+            type="button"
+            onClick={() => {
+              if (onClose) {
+                onClose();
+              } else if (typeof window !== 'undefined') {
+                window.parent?.postMessage({ source: 'VAGOUAPP_FORM', action: 'CLOSE' }, '*');
+                if (window.history.length > 1) {
+                  window.history.back();
+                } else {
+                  window.location.href = '/';
+                }
               }
-            }
-          }}
-          className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer shrink-0"
-          aria-label="Fechar formulário"
-          title="Fechar"
-        >
-          <X className="w-5 h-5" />
-        </button>
+            }}
+            className="absolute right-4 top-4 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer shrink-0"
+            aria-label="Fechar formulário"
+            title="Fechar"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
       {/* Formulário de Acesso do Cliente */}

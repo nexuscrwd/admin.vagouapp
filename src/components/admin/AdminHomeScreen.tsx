@@ -117,34 +117,7 @@ export const AdminHomeScreen: React.FC<AdminHomeScreenProps> = ({
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      {/* 🏛️ Banner de Boas-Vindas Executivo com Logotipo Oficial */}
-      <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900/95 to-slate-950 border border-slate-800 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <VagouOfficialLogo size="xl" className="shadow-lg shadow-emerald-500/20" />
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight font-['Poppins']">
-                Painel Corporativo Soberano
-              </h2>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#20C933] text-white">
-                VagouApp
-              </span>
-            </div>
-            <p className="text-xs text-slate-400 mt-1">
-              Governança em tempo real dos ecossistemas <span className="text-emerald-400 font-mono">portal.vagouapp.com</span> e <span className="text-emerald-400 font-mono">seunegocio.vagouapp.com</span>
-            </p>
-          </div>
-        </div>
 
-        <div className="flex items-center gap-2 self-end sm:self-auto">
-          <button
-            onClick={onOpenCreateSalon}
-            className="px-3.5 py-2 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-emerald-500/20 active:scale-95 cursor-pointer"
-          >
-            <span>+ Novo Estabelecimento</span>
-          </button>
-        </div>
-      </div>
 
       {/* Grid Principal com Todas as Seções do Sistema em Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">

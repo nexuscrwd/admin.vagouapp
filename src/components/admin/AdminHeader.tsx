@@ -71,36 +71,17 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
 
   return (
     <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 lg:px-6 flex items-center justify-between gap-4 sticky top-0 z-20 shadow-xs dark:shadow-none transition-colors">
-      {/* Left: Mobile trigger & Breadcrumbs */}
+      {/* Left: Mobile trigger */}
       <div className="flex items-center gap-3">
         {onOpenMobileSidebar && (
           <button
             onClick={onOpenMobileSidebar}
             className="lg:hidden p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition cursor-pointer"
+            aria-label="Abrir menu lateral"
           >
             <Menu className="w-5 h-5" />
           </button>
         )}
-
-        {/* Logotipo Oficial do VagouApp no Mobile */}
-        <div className="lg:hidden shrink-0">
-          <VagouOfficialLogo
-            size="sm"
-            onClick={() => onNavigateScreen?.('dashboard')}
-            title="Ir para o Início"
-          />
-        </div>
-
-        <div>
-          <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-            <span>Admin Master</span>
-            <span>/</span>
-            <span className="text-emerald-600 dark:text-emerald-400 capitalize">{currentScreen}</span>
-          </div>
-          <h1 className="text-sm lg:text-base font-bold text-slate-900 dark:text-white tracking-tight">
-            {getScreenTitle(currentScreen)}
-          </h1>
-        </div>
       </div>
 
       {/* Center/Right: Search bar, Theme toggle & Quick actions */}

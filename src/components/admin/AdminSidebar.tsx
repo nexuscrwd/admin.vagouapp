@@ -14,11 +14,15 @@ import {
   ChevronRight,
   Code,
   ShieldCheck,
+  UserPlus,
 } from 'lucide-react';
 import { AdminScreenId, SystemAdminUser, AdminAuthTab } from '../../types/admin';
 import { VagouOfficialLogo } from '../common/VagouOfficialLogo';
 
-export type FormsSubTabId = 'cadastro_estabelecimento' | 'mnvapp_forms' | 'adminvapp_form' | 'embeds';
+export type FormsSubTabId =
+  | 'estabelecimento'
+  | 'usuarios'
+  | 'embeds';
 
 interface AdminSidebarProps {
   currentScreen: AdminScreenId;
@@ -37,7 +41,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   currentScreen,
   onSelectScreen,
   onCloseMobile,
-  activeFormsTab = 'cadastro_estabelecimento',
+  activeFormsTab = 'estabelecimento',
   onSelectFormsTab,
 }) => {
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
@@ -48,7 +52,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     }
   });
 
-  const [isFormsMenuOpen, setIsFormsMenuOpen] = useState<boolean>(true);
+  const [isSettingsMenuOpen, setIsSettingsMenuOpen] = useState<boolean>(true);
 
   const toggleCollapsed = () => {
     setIsCollapsed((prev) => {
@@ -65,9 +69,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     label: string;
     icon: React.ComponentType<{ className?: string }>;
   }[] = [
-    { id: 'cadastro_estabelecimento', label: 'Estabelecimento', icon: Building2 },
-    { id: 'mnvapp_forms', label: 'Forms Mnvapp', icon: Users },
-    { id: 'adminvapp_form', label: 'Forms Admin', icon: ShieldCheck },
+    { id: 'estabelecimento', label: 'Estabelecimento', icon: Building2 },
+    { id: 'usuarios', label: 'Usuários', icon: UserPlus },
     { id: 'embeds', label: 'Embeds & iFrame', icon: Code },
   ];
 
@@ -82,7 +85,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     { id: 'users', label: 'Usuários', icon: Users },
     { id: 'portal', label: 'Portal VAPP', icon: Globe },
     { id: 'appointments', label: 'Agendamentos', icon: CalendarCheck },
-    { id: 'forms', label: 'Formulários', icon: FileText },
     { id: 'settings', label: 'Configurações', icon: Settings },
   ];
 
@@ -100,25 +102,14 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             isCollapsed ? 'flex-col gap-3 justify-center' : 'justify-between'
           }`}
         >
-          <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex items-center min-w-0">
             <VagouOfficialLogo
-              size="md"
+              size={isCollapsed ? 'md' : 'xl'}
+              variant={isCollapsed ? 'icon' : 'full'}
+              className={isCollapsed ? '' : 'h-10 sm:h-11 w-auto max-w-[190px] object-contain'}
               onClick={toggleCollapsed}
               title={isCollapsed ? 'Expandir barra lateral' : 'Recolher para ícones'}
             />
-
-            {!isCollapsed && (
-              <div className="min-w-0 animate-fadeIn">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-sm tracking-tight text-slate-900 dark:text-white font-['Poppins'] truncate">
-                    VagouApp
-                  </span>
-                </div>
-                <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium truncate">
-                  Painel de Admin
-                </span>
-              </div>
-            )}
           </div>
 
           {/* Toggle Button (Desktop & Mobile) */}
@@ -147,8 +138,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           </div>
         </div>
 
-        {/* Navigation Items */}
-        <nav className="space-y-1">
+        {/* Navigation Items com Scrollbar Customizada no Estilo do App */}
+        <nav className="space-y-1 overflow-y-auto max-h-[calc(100vh-90px)] custom-scrollbar pr-1">
           {!isCollapsed && (
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-3 block mb-2 animate-fadeIn">
               Gestão Soberana
@@ -157,21 +148,17 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
 
           {menuItems.map((item) => {
             const Icon = item.icon;
-            const isActive = currentScreen === item.id;
-            const isFormsItem = item.id === 'forms';
+            const isSettingsItem = item.id === 'settings';
+            const isActive = currentScreen === item.id || (isSettingsItem && currentScreen === 'forms');
 
             return (
               <div key={item.id} className="space-y-1">
                 <button
                   type="button"
                   onClick={() => {
-                    if (isFormsItem && !isCollapsed) {
-                      if (currentScreen === 'forms') {
-                        setIsFormsMenuOpen((prev) => !prev);
-                      } else {
-                        setIsFormsMenuOpen(true);
-                        onSelectScreen('forms');
-                      }
+                    if (isSettingsItem && !isCollapsed) {
+                      setIsSettingsMenuOpen((prev) => !prev);
+                      onSelectScreen('settings');
                     } else {
                       onSelectScreen(item.id);
                     }
@@ -191,19 +178,16 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                     {!isCollapsed && <span className="truncate">{item.label}</span>}
                   </div>
 
-                  {!isCollapsed && isFormsItem && (
+                  {!isCollapsed && isSettingsItem && (
                     <div
                       onClick={(e) => {
                         e.stopPropagation();
-                        setIsFormsMenuOpen((prev) => !prev);
-                        if (currentScreen !== 'forms') {
-                          onSelectScreen('forms');
-                        }
+                        setIsSettingsMenuOpen((prev) => !prev);
                       }}
                       className="p-0.5 rounded hover:bg-white/20 transition cursor-pointer"
-                      title={isFormsMenuOpen ? 'Recolher submenu' : 'Expandir submenu'}
+                      title={isSettingsMenuOpen ? 'Recolher subitens de configurações' : 'Expandir subitens de configurações'}
                     >
-                      {isFormsMenuOpen ? (
+                      {isSettingsMenuOpen ? (
                         <ChevronDown className="w-3.5 h-3.5 text-white/90" />
                       ) : (
                         <ChevronRight className={`w-3.5 h-3.5 ${isActive ? 'text-white/90' : 'text-slate-400'}`} />
@@ -212,34 +196,55 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                   )}
                 </button>
 
-                {/* Submenu de Formulários (Destumultuado & Organizado) */}
-                {isFormsItem && !isCollapsed && isFormsMenuOpen && (
-                  <div className="pl-4 pr-1 py-1 space-y-0.5 animate-fadeIn border-l-2 border-emerald-500/30 ml-4 my-1">
-                    {formsSubMenuItems.map((sub) => {
-                      const isSubActive = currentScreen === 'forms' && activeFormsTab === sub.id;
-                      const SubIcon = sub.icon;
+                {/* Subitem: Formulários dentro do Botão Configurações */}
+                {isSettingsItem && !isCollapsed && isSettingsMenuOpen && (
+                  <div className="pl-3 pr-1 py-1 space-y-1 animate-fadeIn border-l-2 border-emerald-500/30 ml-3 my-1">
+                    {/* Botão Principal de Formulários como Subitem de Configurações */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectScreen('forms');
+                        onCloseMobile?.();
+                      }}
+                      className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-bold transition cursor-pointer text-left ${
+                        currentScreen === 'forms'
+                          ? 'bg-emerald-500/20 text-emerald-500 dark:text-emerald-400 border border-emerald-500/40 shadow-xs'
+                          : 'text-slate-400 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                      }`}
+                    >
+                      <FileText className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+                      <span className="truncate">Formulários</span>
+                    </button>
 
-                      return (
-                        <button
-                          key={sub.id}
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onSelectFormsTab?.(sub.id);
-                            onSelectScreen('forms');
-                            onCloseMobile?.();
-                          }}
-                          className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] transition cursor-pointer text-left ${
-                            isSubActive
-                              ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/30 shadow-xs'
-                              : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
-                          }`}
-                        >
-                          <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-emerald-500' : 'text-slate-400'}`} />
-                          <span className="truncate">{sub.label}</span>
-                        </button>
-                      );
-                    })}
+                    {/* Subitens das Fases de Formulários */}
+                    <div className="pl-3 space-y-0.5 border-l border-slate-700/60 ml-2">
+                      {formsSubMenuItems.map((sub) => {
+                        const isSubActive = currentScreen === 'forms' && activeFormsTab === sub.id;
+                        const SubIcon = sub.icon;
+
+                        return (
+                          <button
+                            key={sub.id}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectFormsTab?.(sub.id);
+                              onSelectScreen('forms');
+                              onCloseMobile?.();
+                            }}
+                            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] transition cursor-pointer text-left ${
+                              isSubActive
+                                ? 'bg-emerald-500/15 text-emerald-500 dark:text-emerald-400 font-bold border border-emerald-500/30 shadow-xs'
+                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                            }`}
+                          >
+                            <SubIcon className={`w-3 h-3 shrink-0 ${isSubActive ? 'text-emerald-400' : 'text-slate-400'}`} />
+                            <span className="truncate">{sub.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>

@@ -72,19 +72,12 @@ export const TriadeAdminRecoveryForm: React.FC<TriadeAdminRecoveryFormProps> = (
 
   return (
     <div className="w-full max-w-md mx-auto bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden animate-fadeIn font-['Poppins']">
-      {/* Top Banner com Logo Oficial do VagouApp e "Recuperar Acesso" */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border-b border-slate-800 p-5 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <VagouOfficialLogo size="lg" />
-          <div className="min-w-0">
-            <h2 className="font-bold text-white text-base tracking-tight font-['Poppins']">
-              VagouApp
-            </h2>
-            <span className="text-xs font-semibold text-emerald-400">
-              Recuperar Acesso
-            </span>
-          </div>
-        </div>
+      {/* Top Banner com Logo Oficial do VagouApp e Título Centralizados */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border-b border-slate-800 p-5 relative flex flex-col items-center justify-center text-center">
+        <VagouOfficialLogo size="xl" variant="full" className="h-10 sm:h-12 w-auto max-w-[220px] object-contain mx-auto" />
+        <h2 className="font-bold text-white text-base sm:text-lg tracking-tight mt-2 text-center">
+          Recuperar Acesso
+        </h2>
 
         {/* Botão Fechar Oficial da Tríade */}
         <button

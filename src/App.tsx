@@ -33,7 +33,9 @@ export const App: React.FC = () => {
       pathname.includes('/embed') ||
       search.includes('embed=true') ||
       search.includes('form=mnv') ||
-      search.includes('form=estabelecimento')
+      search.includes('form=estabelecimento') ||
+      search.includes('form=usuario') ||
+      search.includes('form=user')
     ) {
       setIsEmbedMode(true);
       return;
@@ -44,11 +46,14 @@ export const App: React.FC = () => {
       pathname.includes('/onboarding') ||
       pathname.includes('/registrar') ||
       pathname.includes('/login') ||
+      pathname.includes('/usuario') ||
       search.includes('mode=cadastro') ||
       search.includes('mode=onboarding') ||
       search.includes('mode=login') ||
       search.includes('type=client') ||
-      search.includes('type=professional')
+      search.includes('type=professional') ||
+      search.includes('type=user') ||
+      search.includes('type=usuario')
     ) {
       setIsRegistrationMode(true);
     }
@@ -58,10 +63,19 @@ export const App: React.FC = () => {
     const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
     const modeParam = searchParams?.get('mode');
     const typeParam = searchParams?.get('type');
+    const formParam = searchParams?.get('form');
     const pathname = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
 
     let targetForm: EmbedFormType = 'mnv_cadastro';
-    if (typeParam === 'professional' || pathname.includes('/onboarding') || pathname.includes('/estabelecimento')) {
+    if (
+      formParam === 'usuario' ||
+      formParam === 'user' ||
+      typeParam === 'user' ||
+      typeParam === 'usuario' ||
+      pathname.includes('/usuario')
+    ) {
+      targetForm = 'usuario';
+    } else if (typeParam === 'professional' || pathname.includes('/onboarding') || pathname.includes('/estabelecimento')) {
       targetForm = 'estabelecimento';
     } else if (modeParam === 'login' || pathname.includes('/login')) {
       targetForm = 'mnv_login';
