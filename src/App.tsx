@@ -74,10 +74,12 @@ export const App: React.FC = () => {
       typeParam === 'usuario' ||
       pathname.includes('/usuario')
     ) {
-      targetForm = 'usuario';
+      targetForm = modeParam === 'login' ? 'usuario_login' : 'usuario';
     } else if (typeParam === 'professional' || pathname.includes('/onboarding') || pathname.includes('/estabelecimento')) {
       targetForm = 'estabelecimento';
     } else if (modeParam === 'login' || pathname.includes('/login')) {
+      targetForm = 'mnv_login';
+    } else if (typeParam === 'client' && modeParam !== 'cadastro') {
       targetForm = 'mnv_login';
     }
 

@@ -45,6 +45,8 @@ import {
   Folder,
   Layout,
   Bookmark,
+  QrCode,
+  Printer,
 } from 'lucide-react';
 import { AdminSalonItem, SalonServiceRecord, SalonServiceMediaItem } from '../../types/admin';
 import { SalonLogo } from '../common/SalonLogo';
@@ -52,6 +54,7 @@ import { UserAvatar } from '../common/UserAvatar';
 import { supabase } from '../../services/supabase';
 import { TriadeMnvClientLoginForm } from './triade-forms/TriadeMnvClientLoginForm';
 import { TriadeMnvClientRegisterForm } from './triade-forms/TriadeMnvClientRegisterForm';
+import { SalonWelcomeModal } from './SalonWelcomeModal';
 
 interface AdminSalonDetailViewProps {
   salon: AdminSalonItem;
@@ -107,6 +110,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'branding' | 'media' | 'services' | 'team' | 'clients' | 'forms'>('general');
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const [isWelcomeQrModalOpen, setIsWelcomeQrModalOpen] = useState(false);
 
   // Acervo Central de Mídias do Estabelecimento (Galeria Geral com Abas Fotos / Videos / Imagens)
   const [salonMedia, setSalonMedia] = useState<SalonMediaItem[]>([]);
@@ -1388,6 +1392,16 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
 
           {/* Lado Direito: Ações Rápidas */}
           <div className="flex items-center gap-2 self-start md:self-auto shrink-0 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setIsWelcomeQrModalOpen(true)}
+              className="px-3 py-1.5 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+              title="Visualizar Link do App e QR Code para Balcão"
+            >
+              <QrCode className="w-3.5 h-3.5 text-white" />
+              <span className="text-white">QR Code &amp; Link</span>
+            </button>
+
             <a
               href={fullVitrineUrl}
               target="_blank"
@@ -1630,6 +1644,64 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                   {salon.billing_plan || 'Pro / 5% por agendamento'}
                 </span>
               </div>
+            </div>
+          </div>
+
+          {/* Linha Inferior Completa: Link Exclusivo do App & Placa QR Code de Balcão */}
+          <div className="md:col-span-2 p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-4 w-full sm:w-auto">
+              <div className="bg-white p-2 rounded-xl border border-slate-200 shrink-0">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(
+                    fullVitrineUrl
+                  )}&format=png&margin=6`}
+                  alt={`QR Code ${salon.trade_name}`}
+                  className="w-16 h-16 object-contain"
+                />
+              </div>
+              <div className="space-y-1 min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <QrCode className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+                    Link Exclusivo &amp; QR Code de Balcão
+                  </h4>
+                </div>
+                <p className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 truncate">
+                  {fullVitrineUrl}
+                </p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Compartilhe o link com clientes ou imprima a placa de QR Code para recepção.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end shrink-0 flex-wrap">
+              <button
+                type="button"
+                onClick={() => handleCopy(fullVitrineUrl, 'vitrine-main-link')}
+                className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+              >
+                {copiedUrl === 'vitrine-main-link' ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-500" />
+                    <span className="text-emerald-500">Link Copiado!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copiar Link</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsWelcomeQrModalOpen(true)}
+                className="px-3.5 py-2 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+              >
+                <Printer className="w-3.5 h-3.5 text-white" />
+                <span className="text-white">Abrir QR Code &amp; Imprimir Placa</span>
+              </button>
             </div>
           </div>
         </div>
@@ -4474,6 +4546,20 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         </div>,
         document.body
       )}
+
+      {/* MODAL OFICIAL DE LINK DO APP & QR CODE DE BALCÃO */}
+      <SalonWelcomeModal
+        isOpen={isWelcomeQrModalOpen}
+        onClose={() => setIsWelcomeQrModalOpen(false)}
+        data={{
+          tradeName: salon.trade_name,
+          slug: salon.slug,
+          slogan: salon.description,
+          logoUrl: salon.logo_url,
+          primaryColor: salon.primary_color || '#20C933',
+          ownerName: salon.owner_name,
+        }}
+      />
     </div>
   );
 };

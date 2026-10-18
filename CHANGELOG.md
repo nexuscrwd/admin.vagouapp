@@ -15,6 +15,30 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-18] — 📱 Botão Permanente "QR Code & Link" nos Estabelecimentos + Correção do Modal de Login ("Entrar") no `mnvapp` (`*.vagouapp.com`)
+- **Tipo:** `[Feat / Fix / TriadeSync]`
+- **Motivo / Solicitação:**
+  1. Disponibilizar acesso permanente ao **Link Exclusivo do App e QR Code para Balcão** (`SalonWelcomeModal`) após a conclusão do cadastro do estabelecimento (ex: Fabio Foos).
+  2. Corrigir o problema em que clicar em **"Entrar"** no app do estabelecimento (`fabio-foos.vagouapp.com`) abria um modal carregando o próprio app (`MEU ESTABELECIMENTO`) dentro do iframe em vez do formulário oficial de Login/Cadastro do Admin Master.
+- **Causas Raiz & Soluções Aplicadas:**
+  - **Acesso Permanente ao Link & QR Code:** Adicionado o botão verde **`QR Code & Link`** no cabeçalho de detalhes do estabelecimento (`AdminSalonDetailView.tsx`), um card dedicado com preview do QR Code na aba **Dados**, e um botão rápido de QR Code na tabela e nos cards da lista de **Estabelecimentos** (`AdminSalonsList.tsx`).
+  - **Causa do App dentro do Modal ao clicar em "Entrar" (`fabio-foos.vagouapp.com`):** O repositório `meunegocio.vagouapp` (`SalonClientAuthModal.tsx`, `UnifiedRegisterEmbedModal.tsx` e `PartnerAuthView.tsx`) apontava o iframe para `https://admin.vagouapp.com/cadastro?...` (com `admin`), enquanto o Worker do Admin Master atendia apenas `adm.vagouapp.com` (com `adm`). Com isso, o wildcard `*.vagouapp.com` do Cloudflare interceptava `admin.vagouapp.com` como se fosse um salão chamado `"admin"`, carregando o próprio `mnvapp` dentro do modal.
+  - **Solução Completa:**
+    1. Adicionada a rota `admin.vagouapp.com/*` junto com `adm.vagouapp.com/*` no `wrangler.toml` do `admvapp`.
+    2. Atualizado `App.tsx` e `UniversalFormEmbedView.tsx` para abrir diretamente o formulário de Login (`mnv_login`, com alternância para "Cadastrar agora") quando invocado por `/cadastro?embed=true&type=client&slug=...`, buscando automaticamente o nome, logo e cor do salão pelo `slug` no Supabase e emitindo os eventos `VAGOU_REGISTRATION_SUCCESS` e `VAGOU_MODAL_CLOSE`.
+    3. Atualizado `TriadeUserLoginForm.tsx` para autenticar contra `public.clients` e `public.salons` no Supabase, identificando automaticamente se quem entrou é proprietário (`owner`) ou cliente (`client`).
+- **Arquivos Impactados:**
+  - `src/components/admin/AdminSalonDetailView.tsx`
+  - `src/components/admin/AdminSalonsList.tsx`
+  - `src/App.tsx`
+  - `src/components/embed/UniversalFormEmbedView.tsx`
+  - `src/components/admin/triade-forms/TriadeUserLoginForm.tsx`
+  - `src/components/admin/triade-forms/TriadeMnvClientLoginForm.tsx`
+  - `wrangler.toml`
+  - `CHANGELOG.md`
+
+---
+
 ### [2026-10-18] — 💾 Correção Crítica de Persistência Real de Cadastros (Usuários e Estabelecimentos) no Supabase
 - **Tipo:** `[Fix / Database / SupabasePersistence]`
 - **Motivo / Solicitação:** Os cadastros de usuários e estabelecimentos realizados através dos formulários da Tríade (`TriadeUserRegisterForm` e `TriadeEstablishmentMasterForm`) não estavam sendo persistidos nas tabelas do Supabase (`public.clients`, `public.salons`, `public.professionals`).

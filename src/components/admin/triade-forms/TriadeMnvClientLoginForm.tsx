@@ -8,7 +8,7 @@ import {
 export interface TriadeMnvClientLoginFormProps {
   salonName?: string;
   salonColor?: string;
-  onSuccess?: (payload: { identifier: string }) => void;
+  onSuccess?: (payload: TriadeUserLoginPayload) => void;
   onSwitchToRegister?: () => void;
   onSwitchToRecovery?: () => void;
   onClose?: () => void;
@@ -43,9 +43,10 @@ export const TriadeMnvClientLoginForm: React.FC<TriadeMnvClientLoginFormProps> =
       onPhaseChange={onPhaseChange}
       onClose={onClose}
       onSwitchToRegister={onSwitchToRegister}
+      showSwitchToRegister={Boolean(onSwitchToRegister)}
       onSwitchToRecovery={onSwitchToRecovery}
       onSuccess={(payload: TriadeUserLoginPayload) => {
-        onSuccess?.({ identifier: payload.identifier });
+        onSuccess?.(payload);
       }}
     />
   );

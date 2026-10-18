@@ -18,11 +18,13 @@ import {
   Tag,
   Filter,
   X,
+  QrCode,
 } from 'lucide-react';
 import { AdminSalonItem, SalonFilterStatus } from '../../types/admin';
 import { SalonLogo } from '../common/SalonLogo';
 import { AdminCategoryModal } from './AdminCategoryModal';
 import { AdminSalonDetailView } from './AdminSalonDetailView';
+import { SalonWelcomeModal } from './SalonWelcomeModal';
 import {
   SalonCategory,
   fetchCategories,
@@ -72,8 +74,9 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
     return () => unsubscribe();
   }, []);
 
-  // Modal de Exclusão
+  // Modal de Exclusão e Modal de QR Code & Link
   const [salonToDelete, setSalonToDelete] = useState<AdminSalonItem | null>(null);
+  const [salonForQrModal, setSalonForQrModal] = useState<AdminSalonItem | null>(null);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -643,6 +646,17 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
 
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSalonForQrModal(salon);
+                                  }}
+                                  className="p-1.5 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white transition cursor-pointer shadow-xs active:scale-95"
+                                  title="Link do App & QR Code de Balcão"
+                                >
+                                  <QrCode className="w-3.5 h-3.5 text-white" />
+                                </button>
+
                                 <a
                                   href={`https://${salon.slug}.vagouapp.com`}
                                   target="_blank"
@@ -748,12 +762,24 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
+                          setSalonForQrModal(salon);
+                        }}
+                        className="flex-1 py-1.5 px-2 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1.5 shadow-xs active:scale-95"
+                        title="Link do App & QR Code de Balcão"
+                      >
+                        <QrCode className="w-3.5 h-3.5 text-white" />
+                        <span className="text-white">QR Code & Link</span>
+                      </button>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
                           onEditSalon(salon);
                         }}
-                        className="flex-1 py-1.5 px-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-700 shadow-xs dark:shadow-none"
+                        className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold transition cursor-pointer border border-slate-200 dark:border-slate-700 shadow-xs dark:shadow-none"
+                        title="Editar Dados"
                       >
-                        <Edit className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                        <span>Editar Dados</span>
+                        <Edit className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                       </button>
 
                       <button
@@ -887,6 +913,24 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
             onCategoryCreated={(newCat) => {
               setSegmentFilter(newCat.slug);
             }}
+          />
+
+          {/* Modal de Link do App & QR Code de Balcão */}
+          <SalonWelcomeModal
+            isOpen={Boolean(salonForQrModal)}
+            onClose={() => setSalonForQrModal(null)}
+            data={
+              salonForQrModal
+                ? {
+                    tradeName: salonForQrModal.trade_name,
+                    slug: salonForQrModal.slug,
+                    slogan: salonForQrModal.description,
+                    logoUrl: salonForQrModal.logo_url,
+                    primaryColor: salonForQrModal.primary_color || '#20C933',
+                    ownerName: salonForQrModal.owner_name,
+                  }
+                : null
+            }
           />
     </div>
   );

@@ -5,6 +5,7 @@ import { TriadeEstablishmentMasterForm } from '../admin/triade-forms/TriadeEstab
 import { TriadeAdminLoginForm, TriadeAdminRecoveryForm } from '../admin/triade-forms/TriadeAdminAuthForm';
 import { TriadeUserRegisterForm } from '../admin/triade-forms/TriadeUserRegisterForm';
 import { TriadeUserLoginForm } from '../admin/triade-forms/TriadeUserLoginForm';
+import { supabaseAdmin } from '../../services/supabase';
 
 export type EmbedFormType =
   | 'usuario'
@@ -88,6 +89,23 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
       const sColor = params.get('salonColor') || params.get('color') || params.get('accentColor');
       if (sColor) setSalonAccentColor(sColor);
 
+      const slugParam = params.get('slug')?.trim().toLowerCase();
+      if (slugParam) {
+        supabaseAdmin
+          .from('salons')
+          .select('id, trade_name, name, logo_url, primary_color')
+          .eq('slug', slugParam)
+          .maybeSingle()
+          .then(({ data }) => {
+            if (data) {
+              if (!sId && data.id) setSalonId(data.id);
+              if (!sName && (data.trade_name || data.name)) setSalonName(data.trade_name || data.name);
+              if (!sLogo && data.logo_url) setSalonLogoUrl(data.logo_url);
+              if (!sColor && data.primary_color) setSalonAccentColor(data.primary_color);
+            }
+          });
+      }
+
       const bg = params.get('bg');
       if (bg === 'transparent') setIsTransparent(true);
 
@@ -97,6 +115,7 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
         const allowedHosts = [
           'admin.vapp.com',
           'adm.vagouapp.com',
+          'admin.vagouapp.com',
           'localhost',
           '127.0.0.1',
         ];
@@ -123,8 +142,43 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
         timestamp: new Date().toISOString(),
       };
       window.parent.postMessage(messageData, '*');
-      // Envia também com source VAGOUAPP_FORM para garantir compatibilidade
       window.parent.postMessage({ ...messageData, source: 'VAGOUAPP_FORM' }, '*');
+
+      if (event === 'CLOSE') {
+        window.parent.postMessage({ type: 'VAGOU_MODAL_CLOSE' }, '*');
+        window.parent.postMessage({ type: 'CLOSE_MODAL' }, '*');
+      } else if (
+        event === 'LOGIN_SUCCESS' ||
+        event === 'REGISTER_SUCCESS' ||
+        event === 'USER_REGISTER_SUCCESS' ||
+        event === 'SALON_CLIENT_REGISTERED' ||
+        event === 'SALON_MASTER_SUCCESS'
+      ) {
+        const userName = payload?.fullName || payload?.name || payload?.ownerName || payload?.identifier || 'Usuário';
+        const userEmail = payload?.email || payload?.ownerEmail || payload?.identifier || '';
+        const userPhone = payload?.phone || payload?.ownerPhone || '';
+        const accountType =
+          payload?.accountType ||
+          (formType === 'estabelecimento' || payload?.origin === 'estabelecimento' || payload?.origin === 'profissional'
+            ? 'owner'
+            : 'client');
+
+        window.parent.postMessage(
+          {
+            type: 'VAGOU_REGISTRATION_SUCCESS',
+            accountType,
+            email: userEmail,
+            name: userName,
+            user: {
+              id: payload?.id,
+              name: userName,
+              email: userEmail,
+              phone: userPhone,
+            },
+          },
+          '*'
+        );
+      }
     }
   };
 

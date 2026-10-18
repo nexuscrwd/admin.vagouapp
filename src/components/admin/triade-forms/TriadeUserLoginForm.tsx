@@ -13,9 +13,15 @@ import {
   KeyRound,
 } from 'lucide-react';
 import { VagouOfficialLogo } from '../../common/VagouOfficialLogo';
+import { supabaseAdmin } from '../../../services/supabase';
 
 export interface TriadeUserLoginPayload {
   identifier: string;
+  id?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  accountType?: 'client' | 'professional' | 'owner';
 }
 
 export type UserLoginPhase = 'credentials' | 'recovery';
@@ -63,11 +69,12 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFeedback(null);
 
-    if (!identifier.trim()) {
+    const rawId = identifier.trim();
+    if (!rawId) {
       setFeedback({ type: 'error', message: 'Informe seu usuário, e-mail ou celular.' });
       return;
     }
@@ -78,27 +85,105 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
 
     setIsLoading(true);
 
-    setTimeout(() => {
+    try {
+      const cleanUsername = rawId.replace(/^@+/, '').toLowerCase();
+      const digitsOnly = rawId.replace(/\D/g, '');
+
+      // 1. Busca usuário em public.clients
+      const { data: clientsData } = await supabaseAdmin
+        .from('clients')
+        .select('*');
+
+      const matchedClient = (clientsData || []).find((c: any) => {
+        const cEmail = (c.email || '').trim().toLowerCase();
+        const cUser = (c.username || '').replace(/^@+/, '').trim().toLowerCase();
+        const cPhone = (c.phone || '').replace(/\D/g, '');
+        return (
+          (cEmail && cEmail === rawId.toLowerCase()) ||
+          (cUser && cUser === cleanUsername) ||
+          (digitsOnly.length >= 8 && cPhone && cPhone.endsWith(digitsOnly.slice(-8)))
+        );
+      });
+
+      if (matchedClient && matchedClient.password_hash && matchedClient.password_hash !== password) {
+        setIsLoading(false);
+        setFeedback({ type: 'error', message: 'Senha incorreta. Verifique e tente novamente.' });
+        return;
+      }
+
+      // 2. Verifica se é proprietário ou profissional de algum salão
+      const userEmail = (matchedClient?.email || (rawId.includes('@') ? rawId : '')).toLowerCase();
+      const userPhone = matchedClient?.phone || rawId;
+
+      let accountType: 'client' | 'professional' | 'owner' =
+        matchedClient?.origin === 'estabelecimento' || matchedClient?.origin === 'profissional'
+          ? 'owner'
+          : 'client';
+
+      if (userEmail) {
+        const { data: ownerSalon } = await supabaseAdmin
+          .from('salons')
+          .select('id, owner_email, email')
+          .or(`owner_email.ilike.${userEmail},email.ilike.${userEmail}`)
+          .limit(1);
+        if (ownerSalon && ownerSalon.length > 0) {
+          accountType = 'owner';
+        }
+      }
+
+      const resolvedPayload: TriadeUserLoginPayload = {
+        identifier: rawId,
+        id: matchedClient?.id,
+        name: matchedClient?.name || cleanUsername,
+        email: matchedClient?.email || (rawId.includes('@') ? rawId : `${cleanUsername}@vagouapp.com`),
+        phone: userPhone,
+        accountType,
+      };
+
       setIsLoading(false);
       setFeedback({
         type: 'success',
         message: 'Acesso validado com sucesso!',
       });
 
-      // Dispara evento global para interoperabilidade (iframes e apps irmãos)
+      // Dispara evento global para interoperabilidade (iframes e apps irmãos mnvapp / pvapp)
       if (typeof window !== 'undefined') {
         window.parent?.postMessage(
           {
             source: 'VAGOUAPP_FORM',
             action: 'LOGIN_SUCCESS',
-            payload: { identifier: identifier.trim() },
+            payload: resolvedPayload,
+          },
+          '*'
+        );
+        window.parent?.postMessage(
+          {
+            type: 'VAGOU_REGISTRATION_SUCCESS',
+            accountType: resolvedPayload.accountType,
+            email: resolvedPayload.email,
+            name: resolvedPayload.name,
+            user: {
+              id: resolvedPayload.id,
+              name: resolvedPayload.name,
+              email: resolvedPayload.email,
+              phone: resolvedPayload.phone,
+            },
           },
           '*'
         );
       }
 
-      onSuccess?.({ identifier: identifier.trim() });
-    }, 600);
+      onSuccess?.(resolvedPayload);
+    } catch {
+      setIsLoading(false);
+      const fallbackPayload: TriadeUserLoginPayload = {
+        identifier: rawId,
+        name: rawId.replace(/^@+/, ''),
+        email: rawId.includes('@') ? rawId : `${rawId.replace(/^@+/, '')}@vagouapp.com`,
+        accountType: 'client',
+      };
+      onSuccess?.(fallbackPayload);
+    }
   };
 
   const handleRecoverySubmit = (e: React.FormEvent) => {

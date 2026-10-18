@@ -9,3 +9,8 @@ not_found_handling = "single-page-application"
 [[routes]]
 pattern = "adm.vagouapp.com/*"
 zone_name = "vagouapp.com"
+
+[[routes]]
+pattern = "admin.vagouapp.com/*"
+zone_name = "vagouapp.com"
+
