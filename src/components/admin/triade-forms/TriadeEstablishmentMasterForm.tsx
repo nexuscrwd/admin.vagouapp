@@ -115,6 +115,10 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
   const [addressSubPhase, setAddressSubPhase] = useState<'same_address_modal' | 'cep_modal' | 'address_form'>('same_address_modal');
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
+  const [createdSalonResult, setCreatedSalonResult] = useState<{
+    payload: EstablishmentMasterPayload;
+    salon: any;
+  } | null>(null);
 
   const applyPhase = (phase: EstabMasterPhase) => {
     if (phase === 'user_check') {
@@ -671,6 +675,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         return;
       }
 
+      setCreatedSalonResult({ payload, salon: res.salon });
       setIsReviewModalOpen(false);
       setIsWelcomeModalOpen(true);
       onStepChange?.('welcome');
@@ -678,21 +683,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         type: 'success',
         message: `O estabelecimento "${tradeName}" foi criado e salvo no Supabase com sucesso!`,
       });
-
-      if (typeof window !== 'undefined') {
-        window.parent?.postMessage(
-          {
-            source: 'VAGOUAPP_FORM',
-            action: 'SALON_MASTER_SUCCESS',
-            payload,
-            salon: res.salon,
-            timestamp: new Date().toISOString(),
-          },
-          '*'
-        );
-      }
-
-      onSuccess?.(payload, res.salon);
     } catch (err: any) {
       setIsLoading(false);
       setIsReviewModalOpen(false);
@@ -782,6 +772,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
             variant="flat"
             title="Acessar Espaço"
             submitButtonText="Acessar e Continuar para o Salão"
+            suppressParentPostMessage={true}
             onSuccess={handleUserLoginSuccess}
           />
 
@@ -813,6 +804,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
             variant="flat"
             title="Cadastro do Proprietário"
             subtitle="Crie sua conta para vincular ao novo estabelecimento"
+            suppressParentPostMessage={true}
             onSuccess={(userData: TriadeUserData) => {
               const newUser = {
                 id: userData.id || `usr-${Date.now()}`,
@@ -1963,6 +1955,21 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         isOpen={isWelcomeModalOpen}
         onClose={() => {
           setIsWelcomeModalOpen(false);
+          if (createdSalonResult) {
+            if (typeof window !== 'undefined') {
+              window.parent?.postMessage(
+                {
+                  source: 'VAGOUAPP_FORM',
+                  action: 'SALON_MASTER_SUCCESS',
+                  payload: createdSalonResult.payload,
+                  salon: createdSalonResult.salon,
+                  timestamp: new Date().toISOString(),
+                },
+                '*'
+              );
+            }
+            onSuccess?.(createdSalonResult.payload, createdSalonResult.salon);
+          }
           onStepChange?.('visual');
           onClose?.();
         }}

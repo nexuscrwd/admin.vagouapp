@@ -432,10 +432,19 @@ export async function registerTriadeUser(userData: {
     });
 
     if (!rpcErr && rpcData) {
+      const rpcClientId = rpcData.client_id || rpcData.id;
+      if (authUserId && rpcClientId) {
+        try {
+          await supabaseAdmin
+            .from('clients')
+            .update({ user_id: authUserId })
+            .eq('id', rpcClientId);
+        } catch {}
+      }
       return {
         success: true,
         client: rpcData,
-        userId: authUserId || rpcData.client_id || rpcData.id,
+        userId: authUserId || rpcClientId,
         session: authSession,
       };
     }
@@ -670,6 +679,7 @@ export async function createAdminSalon(
           await supabaseAdmin
             .from('clients')
             .update({
+              ...(resolvedOwnerUserId ? { user_id: resolvedOwnerUserId } : {}),
               origin_type: 'establishment',
               origin_salon_id: data.id,
               access_level: 'Proprietário (Dono)',

@@ -72,6 +72,7 @@ export interface TriadeUserRegisterFormProps {
   salonAccentColor?: string;
   showPhaseStepper?: boolean;
   showSwitchToLogin?: boolean;
+  suppressParentPostMessage?: boolean;
 }
 
 export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
@@ -91,6 +92,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
   salonAccentColor = '#20C933',
   showPhaseStepper = false,
   showSwitchToLogin = false,
+  suppressParentPostMessage = false,
 }) => {
   const isEstablishmentMode = origin === 'establishment' || !!salonId;
   const effectiveSalonName = salonName || (isEstablishmentMode ? 'Estabelecimento Parceiro' : 'VagouApp');
@@ -521,7 +523,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
       });
 
       // Dispara evento global de interoperabilidade da Tríade
-      if (typeof window !== 'undefined') {
+      if (typeof window !== 'undefined' && !suppressParentPostMessage) {
         const messagePayload = {
           source: 'VAGOUAPP_FORM',
           action: 'USER_REGISTERED',

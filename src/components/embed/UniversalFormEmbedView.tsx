@@ -297,7 +297,7 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
         {formType === 'estabelecimento' && (
           <div className="w-full max-w-4xl mx-auto">
             <TriadeEstablishmentMasterForm
-              initialData={{ tradeName: salonName }}
+              initialData={salonName && salonName !== 'VagouApp' ? { tradeName: salonName } : undefined}
               isStandalonePreview
               onSuccess={(data) => {
                 dispatchPostMessage('SALON_MASTER_SUCCESS', data);

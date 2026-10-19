@@ -12,12 +12,11 @@ import {
   ExternalLink,
   CheckCircle2,
   Lock,
-  X,
   Store,
   HelpCircle,
   Phone,
 } from 'lucide-react';
-import { TriadeEstablishmentMasterForm, EstablishmentMasterPayload } from '../admin/triade-forms/TriadeEstablishmentMasterForm';
+import { TriadeEstablishmentMasterForm } from '../admin/triade-forms/TriadeEstablishmentMasterForm';
 import { VagouOfficialLogo } from '../common/VagouOfficialLogo';
 
 export interface VagouGatewayHubProps {
@@ -26,11 +25,6 @@ export interface VagouGatewayHubProps {
 
 export const VagouGatewayHub: React.FC<VagouGatewayHubProps> = ({ onOpenAdmin }) => {
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
-  const [registeredSalon, setRegisteredSalon] = useState<EstablishmentMasterPayload | null>(null);
-
-  const handleSalonSuccess = (data: EstablishmentMasterPayload) => {
-    setRegisteredSalon(data);
-  };
 
   return (
     <div className="min-h-screen w-full bg-slate-950 text-slate-100 font-['Poppins'] flex flex-col justify-between selection:bg-[#20C933] selection:text-white">
@@ -263,77 +257,10 @@ export const VagouGatewayHub: React.FC<VagouGatewayHubProps> = ({ onOpenAdmin })
       {/* ========================================================================= */}
       {isRegisterModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-fadeIn overflow-y-auto">
-          {registeredSalon ? (
-            <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 text-center space-y-6 shadow-2xl my-auto relative animate-fadeIn">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsRegisterModalOpen(false);
-                  setRegisteredSalon(null);
-                }}
-                className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
-                aria-label="Fechar"
-              >
-                <X className="w-5 h-5" />
-              </button>
-
-              <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center mx-auto shadow-xl">
-                <CheckCircle2 className="w-8 h-8 text-emerald-400" />
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="text-2xl font-bold text-white">
-                  Estabelecimento Cadastrado com Sucesso!
-                </h4>
-                <p className="text-sm text-slate-300 leading-relaxed">
-                  O salão <strong className="text-white">"{registeredSalon.tradeName}"</strong> foi registrado no ecossistema VagouApp.
-                </p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-left text-xs text-slate-400 space-y-1.5">
-                <div className="flex justify-between">
-                  <span>Responsável:</span>
-                  <strong className="text-white">{registeredSalon.ownerName}</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span>WhatsApp:</span>
-                  <strong className="text-white">{registeredSalon.ownerWhatsapp}</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span>Cidade:</span>
-                  <strong className="text-white">{registeredSalon.address.city} / {registeredSalon.address.state}</strong>
-                </div>
-              </div>
-
-              <div className="pt-2 flex flex-col sm:flex-row gap-3">
-                <a
-                  href="https://seunegocio.vagouapp.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 py-3 px-4 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20"
-                >
-                  <span className="text-white font-bold">Acessar Meu Negócio</span>
-                  <ArrowRight className="w-4 h-4 text-white" />
-                </a>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsRegisterModalOpen(false);
-                    setRegisteredSalon(null);
-                  }}
-                  className="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition cursor-pointer"
-                >
-                  Fechar
-                </button>
-              </div>
-            </div>
-          ) : (
-            <TriadeEstablishmentMasterForm
-              onSuccess={handleSalonSuccess}
-              onClose={() => setIsRegisterModalOpen(false)}
-            />
-          )}
+          <TriadeEstablishmentMasterForm
+            onSuccess={() => setIsRegisterModalOpen(false)}
+            onClose={() => setIsRegisterModalOpen(false)}
+          />
         </div>
       )}
     </div>

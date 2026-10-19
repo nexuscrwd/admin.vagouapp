@@ -63,24 +63,48 @@ export const App: React.FC = () => {
     const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
     const modeParam = searchParams?.get('mode');
     const typeParam = searchParams?.get('type');
-    const formParam = searchParams?.get('form');
+    const formParam = searchParams?.get('form') || searchParams?.get('f');
     const pathname = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
 
     let targetForm: EmbedFormType = 'mnv_cadastro';
     if (
+      formParam === 'estabelecimento' ||
+      formParam === 'salao' ||
+      typeParam === 'professional' ||
+      pathname.includes('/onboarding') ||
+      pathname.includes('/estabelecimento')
+    ) {
+      targetForm = 'estabelecimento';
+    } else if (
+      formParam === 'usuario_login' ||
+      formParam === 'user_login' ||
+      formParam === 'login-usuario' ||
+      pathname.includes('/embed/usuario-login')
+    ) {
+      targetForm = 'usuario_login';
+    } else if (
       formParam === 'usuario' ||
       formParam === 'user' ||
+      formParam === 'cadastro-usuario' ||
+      formParam === 'cadastro_usuario' ||
       typeParam === 'user' ||
       typeParam === 'usuario' ||
       pathname.includes('/usuario')
     ) {
       targetForm = modeParam === 'login' ? 'usuario_login' : 'usuario';
-    } else if (typeParam === 'professional' || pathname.includes('/onboarding') || pathname.includes('/estabelecimento')) {
-      targetForm = 'estabelecimento';
-    } else if (modeParam === 'login' || pathname.includes('/login')) {
+    } else if (
+      formParam === 'mnv_login' ||
+      formParam === 'mnv-login' ||
+      formParam === 'mnv-acesso' ||
+      modeParam === 'login' ||
+      pathname.includes('/login') ||
+      (typeParam === 'client' && modeParam !== 'cadastro')
+    ) {
       targetForm = 'mnv_login';
-    } else if (typeParam === 'client' && modeParam !== 'cadastro') {
-      targetForm = 'mnv_login';
+    } else if (formParam === 'admin' || formParam === 'admin_login' || pathname.includes('/embed/admin')) {
+      targetForm = 'admin';
+    } else if (formParam === 'admin_recovery') {
+      targetForm = 'admin_recovery';
     }
 
     return (

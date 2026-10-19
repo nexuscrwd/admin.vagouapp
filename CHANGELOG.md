@@ -15,6 +15,28 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-19] — 🏢 Correção do Fluxo de Criação de Estabelecimento via `vagouapp.com` (`?form=estabelecimento`) + Exibição Garantida do Kit de Lançamento (`SalonWelcomeModal`)
+- **Tipo:** `[Fix / Gateway / TriadeSync]`
+- **Motivo / Solicitação:** Ao clicar em **"Criar Meu Negócio"** no portal `vagouapp.com`, o modal abria o formulário, porém ao concluir o cadastro do usuário inicial (ex.: Maria Luiza), o modal simplesmente fechava sem avançar para os dados do estabelecimento e sem exibir o Kit de Lançamento (Link Oficial do App e QR Code para Balcão).
+- **Causas Raiz Identificadas & Corrigidas:**
+  1. **Roteamento de `?form=estabelecimento` em `src/App.tsx`:** O portal `vagouapp.com` (`VagouRegisterModal.tsx`) carrega o iframe `https://adm.vagouapp.com/embed?embed=true&form=estabelecimento&bg=transparent`. Porém, o resolvedor de `targetForm` em `src/App.tsx` verificava apenas `modeParam` e `typeParam` para estabelecimentos, ignorando `formParam === 'estabelecimento'` e caindo no fallback `mnv_cadastro` (Cadastro Simples de Usuário Cliente). Com isso, o usuário preenchia apenas as 6 fases de cadastro pessoal e o fluxo encerrava sem iniciar a criação do salão.
+     - **Correção:** `src/App.tsx` agora resolve explicitamente `form=estabelecimento` (e todos os tipos canônicos de `form=`) para `TriadeEstablishmentMasterForm`.
+  2. **Fechamento Prematuro do Modal Pai antes do Kit de Lançamento (`SalonWelcomeModal`):**
+     - Na Etapa 1 do `TriadeEstablishmentMasterForm`, os sub-formulários `TriadeUserRegisterForm` e `TriadeUserLoginForm` disparavam `postMessage` (`USER_REGISTER_SUCCESS` / `VAGOU_REGISTRATION_SUCCESS`) diretamente para `window.parent`, o que fazia o `VagouRegisterModal` do `vagouapp.com` fechar o modal imediatamente após a Etapa 1. Adicionada a prop `suppressParentPostMessage={true}` quando executados como sub-fluxo da Etapa 1.
+     - Na Etapa 5 (`handleConfirmCreateSalon`), o evento `SALON_MASTER_SUCCESS` e o callback `onSuccess` eram disparados no mesmo instante em que `SalonWelcomeModal` abria, fazendo o `vagouapp.com` e o `VagouGatewayHub` desmontarem o componente antes que o usuário visse o Link e o QR Code. Agora `SALON_MASTER_SUCCESS` e `onSuccess` só são emitidos quando o usuário fecha o `SalonWelcomeModal` (Etapa 6).
+  3. **Limpeza de Prefill Indevido:** `UniversalFormEmbedView.tsx` não pré-preenche mais `tradeName` com `"VagouApp"` quando nenhum `salonName` customizado é enviado na URL.
+- **Arquivos Impactados:**
+  - `src/App.tsx`
+  - `src/components/embed/UniversalFormEmbedView.tsx`
+  - `src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`
+  - `src/components/admin/triade-forms/TriadeUserRegisterForm.tsx`
+  - `src/components/admin/triade-forms/TriadeUserLoginForm.tsx`
+  - `src/components/gateway/VagouGatewayHub.tsx`
+  - `src/services/supabaseApi.ts`
+  - `CHANGELOG.md`
+
+---
+
 ### [2026-10-18] — 👑 Correção Crítica de Identificação de Proprietário / Profissional (RBAC `salon_members` + Sessão Cross-Subdomain no `mnvapp`)
 - **Tipo:** `[Fix / RBAC / TriadeSync]`
 - **Motivo / Solicitação:** Ao entrar no app do estabelecimento (`fabio-foos.vagouapp.com`), o proprietário (`Fabio Foos`) estava sendo identificado apenas como `[CLIENTE]` (`MENU DO CLIENTE`), impedindo a inserção de serviços, equipe e gestão do estabelecimento.

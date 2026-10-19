@@ -44,6 +44,7 @@ export interface TriadeUserLoginFormProps {
   activePhase?: UserLoginPhase;
   onPhaseChange?: (phase: UserLoginPhase) => void;
   showSwitchToRegister?: boolean;
+  suppressParentPostMessage?: boolean;
 }
 
 export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
@@ -59,6 +60,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
   activePhase,
   onPhaseChange,
   showSwitchToRegister = false,
+  suppressParentPostMessage = false,
 }) => {
   // Controle de Fases do Login
   const [internalPhase, setInternalPhase] = useState<UserLoginPhase>('credentials');
@@ -265,7 +267,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
       });
 
       // Dispara evento global para interoperabilidade (iframes e apps irmãos mnvapp / pvapp)
-      if (typeof window !== 'undefined') {
+      if (typeof window !== 'undefined' && !suppressParentPostMessage) {
         window.parent?.postMessage(
           {
             source: 'VAGOUAPP_FORM',
