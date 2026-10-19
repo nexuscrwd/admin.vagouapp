@@ -71,10 +71,20 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
   const [salonName, setSalonName] = useState('VagouApp');
   const [salonLogoUrl, setSalonLogoUrl] = useState<string | undefined>(undefined);
   const [salonAccentColor, setSalonAccentColor] = useState<string>('#20C933');
-  const [isTransparent] = useState<boolean>(() => {
+  const [isTransparent, setIsTransparent] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     const search = window.location.search.toLowerCase();
     return search.includes('bg=transparent') || search.includes('embed=true');
+  });
+  const [skipUserCheck] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const params = new URLSearchParams(window.location.search);
+    return (
+      params.get('skip_user_check') === 'true' ||
+      params.get('direct') === 'true' ||
+      params.get('step') === 'details' ||
+      params.get('mode') === 'direct'
+    );
   });
   const [isDomainBlocked, setIsDomainBlocked] = useState(false);
 
@@ -325,6 +335,7 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
             <TriadeEstablishmentMasterForm
               initialData={salonName && salonName !== 'VagouApp' ? { tradeName: salonName } : undefined}
               isStandalonePreview
+              initialStep={skipUserCheck ? 'establishment_details' : 'user_check'}
               onSuccess={(data) => {
                 dispatchPostMessage('SALON_MASTER_SUCCESS', data);
               }}

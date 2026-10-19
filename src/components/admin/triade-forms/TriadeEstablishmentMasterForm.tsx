@@ -1077,6 +1077,8 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         </button>
       )}
 
+
+
       {/* ========================================================================= */}
       {/* ETAPA 1: IDENTIFICAÇÃO (SIM/NÃO) + SUB-ROTINA TRANSITÓRIA DE USUÁRIO      */}
       {/* ========================================================================= */}
@@ -1115,12 +1117,10 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
 
           <div className="pt-3 border-t border-slate-800/60 flex items-center justify-center gap-1.5 text-[11px] text-slate-500">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Ambiente Seguro · Governança Oficial</span>
+            <span>Seu app de forma facil!</span>
           </div>
         </div>
       )}
-
-      {/* SUB-ROTINA TRANSITÓRIA (OPÇÃO SIM): LOGIN DE USUÁRIO E RETORNO AO SALÃO */}
       {flowStep === 'user_check' && userAuthSubFlow === 'login' && (
         <div className="p-4 sm:p-5 max-w-md mx-auto space-y-3.5 animate-fadeIn">
           <div className="pt-1 text-center">
@@ -1146,7 +1146,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
             </button>
             <span className="flex items-center gap-1 font-medium text-emerald-400">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              Ambiente Soberano
+              Seu app de forma facil!
             </span>
           </div>
         </div>
@@ -1269,7 +1269,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
             </button>
             <span className="flex items-center gap-1 font-medium text-emerald-400">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              Ambiente Soberano
+              Seu app de forma facil!
             </span>
           </div>
         </div>

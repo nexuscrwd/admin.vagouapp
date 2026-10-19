@@ -15,6 +15,46 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-19] — 🧹 Exclusão Definitiva da Etapa de Pergunta (SIM/NÃO) do Cadastro de Estabelecimento
+- **Tipo:** `[Refactor / Clean Code / UX Direct Access / Sovereign Standard]`
+- **Motivo / Solicitação:**
+  1. **Remoção Total da Tela Trava (`user_check`):** Removido permanentemente o bloco JSX da pergunta *"O estabelecimento a ser criado já possui usuário cadastrado?" [ SIM ] [ NÃO ]* (`flowStep === 'user_check'`).
+  2. **Abertura Direta no Formulário do Salão (`establishment_details`):** O formulário `TriadeEstablishmentMasterForm` agora abre de forma nativa e imediata na **Aba 1 (Dados Comerciais do Salão)**, permitindo acesso direto sem etapas intermediárias.
+  3. **Atualização do Stepper no Catálogo:** Atualizado o `AdminTriadeFormsCatalog` para iniciar a contagem diretamente em `1. Dados Comerciais`, renumerando os passos subsequentes.
+- **Arquivos Impactados:**
+  - `src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`
+  - `src/components/admin/AdminTriadeFormsCatalog.tsx`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-19] — 🏛️ Homologação Oficial: Vidro Jateado (Frosted Glass) & Eliminação de Flicker nos Modais Embed
+- **Tipo:** `[Feat / UI Design System / Embed / Zero Flicker / Sovereign Standard]`
+- **Motivo / Solicitação:**
+  1. **Inicialização Síncrona no Frame 0 (Eliminação do Flicker):** Atualizado `src/App.tsx` para inicializar os estados `isEmbedMode` e `isRegistrationMode` de forma síncrona no `useState(() => ...)`. Elimina a exibição de 1 frame do form de login/admin antes de renderizar os formulários embutidos.
+  2. **Suporte a Fundo 100% Transparente (`bg=transparent`):** Injetado script no `<head>` do `index.html` para remover `bg-slate-950` do `<body>` no Frame 0 ao detectar `bg=transparent` ou `embed=true`. Adicionadas regras de CSS `html.bg-transparent, body.bg-transparent, #root:has(.is-embed-transparent)` com `!important`.
+  3. **Container Oficial Vidro Jateado (Frosted Glass):** Aplicado no container mestre `UniversalFormEmbedView`:
+     - Fundo: `bg-slate-950/45` (45% de opacidade).
+     - Desfoque: `backdrop-blur-xl`.
+     - Borda: `border border-white/20`.
+     - Cantos: `rounded-2xl sm:rounded-3xl`.
+     - Sombra: `shadow-[0_16px_56px_rgba(0,0,0,0.75)]`.
+  4. **Padronização do Botão Fechar (X):** Botão circular posicionado em `absolute top-3.5 right-3.5` com disparo universal do evento `window.parent.postMessage({ source: 'VAGOUAPP_EMBED', event: 'CLOSE' }, '*')`.
+- **Arquivos Impactados:**
+  - `src/App.tsx`
+  - `index.html`
+  - `src/index.css`
+  - `src/components/embed/UniversalFormEmbedView.tsx`
+  - `src/components/admin/triade-forms/TriadeUserRegisterForm.tsx`
+  - `src/components/admin/triade-forms/TriadeUserLoginForm.tsx`
+  - `src/components/admin/triade-forms/TriadeMnvClientLoginForm.tsx`
+  - `src/components/admin/triade-forms/TriadeAdminLoginForm.tsx`
+  - `src/components/admin/triade-forms/TriadeAdminRecoveryForm.tsx`
+  - `src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`
+  - `CHANGELOG.md`
+
+---
+
 ### [2026-10-19] — 🧹 Remoção Total de Mocks & Ativação de Banco 100% Real no Supabase (Seed Script Oficial)
 - **Tipo:** `[Refactor / Database / Clean Code / Single Source of Truth]`
 - **Motivo / Solicitação:**
