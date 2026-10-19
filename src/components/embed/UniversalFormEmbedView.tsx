@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldAlert } from 'lucide-react';
+import { ShieldAlert, X } from 'lucide-react';
 import { TriadeMnvClientLoginForm } from '../admin/triade-forms/TriadeMnvClientLoginForm';
 import { TriadeEstablishmentMasterForm } from '../admin/triade-forms/TriadeEstablishmentMasterForm';
 import { TriadeAdminLoginForm, TriadeAdminRecoveryForm } from '../admin/triade-forms/TriadeAdminAuthForm';
@@ -71,7 +71,11 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
   const [salonName, setSalonName] = useState('VagouApp');
   const [salonLogoUrl, setSalonLogoUrl] = useState<string | undefined>(undefined);
   const [salonAccentColor, setSalonAccentColor] = useState<string>('#20C933');
-  const [isTransparent, setIsTransparent] = useState(false);
+  const [isTransparent] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const search = window.location.search.toLowerCase();
+    return search.includes('bg=transparent') || search.includes('embed=true');
+  });
   const [isDomainBlocked, setIsDomainBlocked] = useState(false);
 
   useEffect(() => {
@@ -218,6 +222,9 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
   }
 
   const handleClose = () => {
+    if (typeof window !== 'undefined') {
+      window.parent.postMessage({ source: 'VAGOUAPP_EMBED', event: 'CLOSE' }, '*');
+    }
     dispatchPostMessage('CLOSE', {});
     if (onExit) {
       onExit();
@@ -233,11 +240,26 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
   return (
     <div
       className={`min-h-screen w-full flex flex-col items-center justify-center p-3 sm:p-4 font-['Poppins'] ${
-        isTransparent ? 'bg-transparent' : 'bg-slate-950'
+        isTransparent ? 'bg-transparent is-embed-transparent' : 'bg-slate-950'
       }`}
     >
-      {/* RENDERIZAÇÃO ISOLADA DO FORMULÁRIO SELECIONADO */}
-      <div className={`w-full ${formType === 'estabelecimento' ? 'max-w-lg' : 'max-w-md'} animate-fadeIn`}>
+      {/* 🔹 Container Oficial do Design System Corporativo — Vidro Jateado (Frosted Glass) */}
+      <div className="w-full max-w-lg mx-auto p-6 sm:p-8 rounded-2xl sm:rounded-3xl bg-slate-950/45 backdrop-blur-xl border border-white/20 shadow-[0_16px_56px_rgba(0,0,0,0.75)] text-slate-100 font-['Poppins'] relative animate-fadeIn">
+        {/* 🔹 Botão de Fechar Padronizado Oficial da Tríade */}
+        <button
+          type="button"
+          onClick={() => {
+            // Comunicação universal com a janela pai
+            window.parent.postMessage({ source: 'VAGOUAPP_EMBED', event: 'CLOSE' }, '*');
+            handleClose();
+          }}
+          className="absolute top-3.5 right-3.5 p-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer z-30"
+          title="Fechar"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        {/* Formulários Internos em Layout Plano (Flat & Clean — Sem Box Dentro de Box) */}
         {formType === 'usuario' && (
           <div className="w-full max-w-md mx-auto">
             <TriadeUserRegisterForm
@@ -246,33 +268,36 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
               salonName={salonName}
               salonLogoUrl={salonLogoUrl}
               salonAccentColor={salonAccentColor}
+              variant="flat"
+              showHeader={true}
               onSuccess={(data) => {
                 dispatchPostMessage('USER_REGISTER_SUCCESS', data);
               }}
               onSwitchToLogin={() => setFormType('mnv_login')}
-              onClose={handleClose}
             />
           </div>
         )}
 
         {formType === 'usuario_login' && (
           <TriadeUserLoginForm
+            variant="flat"
+            showHeader={true}
             onSuccess={(data) => {
               dispatchPostMessage('LOGIN_SUCCESS', data);
             }}
             onSwitchToRegister={() => setFormType('usuario')}
-            onClose={handleClose}
           />
         )}
 
         {formType === 'mnv_login' && (
           <TriadeMnvClientLoginForm
             salonName={salonName}
+            variant="flat"
+            showHeader={true}
             onSuccess={(data) => {
               dispatchPostMessage('LOGIN_SUCCESS', data);
             }}
             onSwitchToRegister={() => setFormType('mnv_cadastro')}
-            onClose={handleClose}
           />
         )}
 
@@ -284,12 +309,13 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
               salonName={salonName}
               salonLogoUrl={salonLogoUrl}
               salonAccentColor={salonAccentColor}
+              variant="flat"
+              showHeader={true}
               onSuccess={(data) => {
                 dispatchPostMessage('REGISTER_SUCCESS', data);
                 dispatchPostMessage('SALON_CLIENT_REGISTERED', data);
               }}
               onSwitchToLogin={() => setFormType('mnv_login')}
-              onClose={handleClose}
             />
           </div>
         )}
@@ -302,32 +328,31 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
               onSuccess={(data) => {
                 dispatchPostMessage('SALON_MASTER_SUCCESS', data);
               }}
-              onClose={handleClose}
             />
           </div>
         )}
 
         {(formType === 'admin' || formType === 'admin_login') && (
           <TriadeAdminLoginForm
+            variant="flat"
             onSuccess={(admin) => {
               dispatchPostMessage('ADMIN_AUTH_SUCCESS', admin);
             }}
             onSwitchToRecovery={() => {
               dispatchPostMessage('SWITCH_TO_RECOVERY', {});
             }}
-            onClose={handleClose}
           />
         )}
 
         {formType === 'admin_recovery' && (
           <TriadeAdminRecoveryForm
+            variant="flat"
             onSuccess={(info) => {
               dispatchPostMessage('ADMIN_RECOVERY_SUCCESS', info);
             }}
             onSwitchToLogin={() => {
               dispatchPostMessage('SWITCH_TO_LOGIN', {});
             }}
-            onClose={handleClose}
           />
         )}
       </div>

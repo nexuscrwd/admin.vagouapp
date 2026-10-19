@@ -40,6 +40,14 @@ html, body, #root {
   min-height: 100vh;
 }
 
+/* Suporte Oficial a Embed com Fundo Transparente (Vidro Jateado) */
+html.bg-transparent,
+body.bg-transparent,
+#root:has(.is-embed-transparent) {
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
 html::-webkit-scrollbar,
 body::-webkit-scrollbar,
 #root::-webkit-scrollbar {

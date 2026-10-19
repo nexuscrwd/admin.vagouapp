@@ -620,7 +620,11 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     >
       {/* Cabeçalho Soberano Centralizado (Logo no topo, Título abaixo, Sem Badges Redundantes) */}
       {showHeader && (
-        <div className="p-4 bg-slate-900 border-b border-slate-800 relative flex flex-col items-center justify-center text-center shrink-0">
+        <div
+          className={`p-4 ${
+            isCard ? 'bg-slate-900 border-b border-slate-800' : 'bg-transparent border-b border-white/10'
+          } relative flex flex-col items-center justify-center text-center shrink-0`}
+        >
           {isEstablishmentMode ? (
             salonLogoUrl && !logoLoadError ? (
               <img
@@ -648,11 +652,16 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
           {onClose && (
             <button
               type="button"
-              onClick={onClose}
-              className="absolute right-3 top-3 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  window.parent.postMessage({ source: 'VAGOUAPP_EMBED', event: 'CLOSE' }, '*');
+                }
+                onClose();
+              }}
+              className="absolute top-3.5 right-3.5 p-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
               title="Fechar"
             >
-              <X className="w-4 h-4" />
+              <X className="w-5 h-5" />
             </button>
           )}
         </div>

@@ -1064,11 +1064,16 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
       {onClose && (
         <button
           type="button"
-          onClick={onClose}
-          className="absolute top-2.5 right-2.5 z-20 p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/80 transition cursor-pointer"
+          onClick={() => {
+            if (typeof window !== 'undefined') {
+              window.parent.postMessage({ source: 'VAGOUAPP_EMBED', event: 'CLOSE' }, '*');
+            }
+            onClose();
+          }}
+          className="absolute top-3.5 right-3.5 p-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer z-30"
           title="Fechar"
         >
-          <X className="w-4 h-4" />
+          <X className="w-5 h-5" />
         </button>
       )}
 

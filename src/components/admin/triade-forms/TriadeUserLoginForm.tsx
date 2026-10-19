@@ -372,7 +372,11 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
     >
       {/* Cabeçalho Soberano Centralizado (Logo no topo, Título abaixo, Sem Badges Redundantes) */}
       {showHeader && (
-        <div className="p-5 bg-slate-900 border-b border-slate-800 relative flex flex-col items-center justify-center text-center shrink-0">
+        <div
+          className={`p-5 ${
+            isCard ? 'bg-slate-900 border-b border-slate-800' : 'bg-transparent border-b border-white/10'
+          } relative flex flex-col items-center justify-center text-center shrink-0`}
+        >
           <VagouOfficialLogo size="xl" variant="full" className="h-10 sm:h-12 w-auto object-contain mx-auto" />
           <h2 className="font-bold text-white text-base sm:text-lg tracking-tight mt-2 text-center">
             {currentPhase === 'recovery' ? 'Recuperação de Acesso' : title}
@@ -381,8 +385,13 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
           {onClose && (
             <button
               type="button"
-              onClick={onClose}
-              className="absolute right-4 top-4 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  window.parent.postMessage({ source: 'VAGOUAPP_EMBED', event: 'CLOSE' }, '*');
+                }
+                onClose();
+              }}
+              className="absolute top-3.5 right-3.5 p-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
               title="Fechar"
             >
               <X className="w-5 h-5" />

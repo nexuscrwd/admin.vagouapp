@@ -4,8 +4,37 @@ import { UniversalFormEmbedView, EmbedFormType } from './components/embed/Univer
 import { VagouGatewayHub } from './components/gateway/VagouGatewayHub';
 
 export const App: React.FC = () => {
-  const [isRegistrationMode, setIsRegistrationMode] = useState(false);
-  const [isEmbedMode, setIsEmbedMode] = useState(false);
+  const [isEmbedMode, setIsEmbedMode] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const search = window.location.search.toLowerCase();
+    const path = window.location.pathname.toLowerCase();
+    return (
+      search.includes("embed=true") ||
+      search.includes("form=") ||
+      path.includes("/embed")
+    );
+  });
+
+  const [isRegistrationMode, setIsRegistrationMode] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const search = window.location.search.toLowerCase();
+    const path = window.location.pathname.toLowerCase();
+    return (
+      path.includes('/cadastro') ||
+      path.includes('/onboarding') ||
+      path.includes('/registrar') ||
+      path.includes('/login') ||
+      path.includes('/usuario') ||
+      search.includes('mode=cadastro') ||
+      search.includes('mode=onboarding') ||
+      search.includes('mode=login') ||
+      search.includes('type=client') ||
+      search.includes('type=professional') ||
+      search.includes('type=user') ||
+      search.includes('type=usuario')
+    );
+  });
+
   const [currentView, setCurrentView] = useState<'admin' | 'gateway'>(() => {
     if (typeof window !== 'undefined') {
       const pathname = window.location.pathname.toLowerCase();
@@ -26,37 +55,34 @@ export const App: React.FC = () => {
   });
 
   useEffect(() => {
-    const pathname = window.location.pathname.toLowerCase();
-    const search = window.location.search.toLowerCase();
+    const handleLocationSync = () => {
+      const pathname = window.location.pathname.toLowerCase();
+      const search = window.location.search.toLowerCase();
 
-    if (
-      pathname.includes('/embed') ||
-      search.includes('embed=true') ||
-      search.includes('form=mnv') ||
-      search.includes('form=estabelecimento') ||
-      search.includes('form=usuario') ||
-      search.includes('form=user')
-    ) {
-      setIsEmbedMode(true);
-      return;
-    }
+      setIsEmbedMode(
+        search.includes("embed=true") ||
+        search.includes("form=") ||
+        pathname.includes("/embed")
+      );
 
-    if (
-      pathname.includes('/cadastro') ||
-      pathname.includes('/onboarding') ||
-      pathname.includes('/registrar') ||
-      pathname.includes('/login') ||
-      pathname.includes('/usuario') ||
-      search.includes('mode=cadastro') ||
-      search.includes('mode=onboarding') ||
-      search.includes('mode=login') ||
-      search.includes('type=client') ||
-      search.includes('type=professional') ||
-      search.includes('type=user') ||
-      search.includes('type=usuario')
-    ) {
-      setIsRegistrationMode(true);
-    }
+      setIsRegistrationMode(
+        pathname.includes('/cadastro') ||
+        pathname.includes('/onboarding') ||
+        pathname.includes('/registrar') ||
+        pathname.includes('/login') ||
+        pathname.includes('/usuario') ||
+        search.includes('mode=cadastro') ||
+        search.includes('mode=onboarding') ||
+        search.includes('mode=login') ||
+        search.includes('type=client') ||
+        search.includes('type=professional') ||
+        search.includes('type=user') ||
+        search.includes('type=usuario')
+      );
+    };
+
+    window.addEventListener('popstate', handleLocationSync);
+    return () => window.removeEventListener('popstate', handleLocationSync);
   }, []);
 
   if (isEmbedMode || isRegistrationMode) {

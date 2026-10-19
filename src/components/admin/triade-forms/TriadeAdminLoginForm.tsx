@@ -17,6 +17,7 @@ export interface TriadeAdminLoginFormProps {
   onSwitchToRecovery?: () => void;
   onSwitchToRegister?: () => void;
   onClose?: () => void;
+  variant?: 'card' | 'flat';
 }
 
 export const TriadeAdminLoginForm: React.FC<TriadeAdminLoginFormProps> = ({
@@ -24,6 +25,7 @@ export const TriadeAdminLoginForm: React.FC<TriadeAdminLoginFormProps> = ({
   onSwitchToRecovery,
   onSwitchToRegister,
   onClose,
+  variant = 'card',
 }) => {
   // Identificador aceita: Usuário (@fulano, fulano@, fulano#), E-mail ou Celular
   const [identifier, setIdentifier] = useState('Anderson@');
@@ -61,10 +63,24 @@ export const TriadeAdminLoginForm: React.FC<TriadeAdminLoginFormProps> = ({
     }
   };
 
+  const isCard = variant === 'card';
+
   return (
-    <div className="w-full max-w-md mx-auto bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden animate-fadeIn font-['Poppins']">
+    <div
+      className={`w-full max-w-md mx-auto ${
+        isCard
+          ? 'bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden'
+          : 'bg-transparent border-0 shadow-none'
+      } animate-fadeIn font-['Poppins'] relative`}
+    >
       {/* Top Banner com Logo Oficial do VagouApp e Título Centralizados */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border-b border-slate-800 p-5 relative flex flex-col items-center justify-center text-center">
+      <div
+        className={`${
+          isCard
+            ? 'bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border-b border-slate-800'
+            : 'bg-transparent border-b border-white/10'
+        } p-5 relative flex flex-col items-center justify-center text-center`}
+      >
         <VagouOfficialLogo size="xl" variant="full" className="h-10 sm:h-12 w-auto max-w-[220px] object-contain mx-auto" />
         <h2 className="font-bold text-white text-base sm:text-lg tracking-tight mt-2 text-center">
           Acesso Admin
@@ -75,10 +91,12 @@ export const TriadeAdminLoginForm: React.FC<TriadeAdminLoginFormProps> = ({
           <button
             type="button"
             onClick={() => {
+              if (typeof window !== 'undefined') {
+                window.parent?.postMessage({ source: 'VAGOUAPP_EMBED', event: 'CLOSE' }, '*');
+              }
               if (onClose) {
                 onClose();
               } else if (typeof window !== 'undefined') {
-                window.parent?.postMessage({ source: 'VAGOUAPP_FORM', action: 'CLOSE' }, '*');
                 if (window.history.length > 1) {
                   window.history.back();
                 } else {
@@ -86,7 +104,7 @@ export const TriadeAdminLoginForm: React.FC<TriadeAdminLoginFormProps> = ({
                 }
               }
             }}
-            className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer shrink-0"
+            className="absolute top-3.5 right-3.5 p-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer shrink-0"
             aria-label="Fechar formulário"
             title="Fechar"
           >

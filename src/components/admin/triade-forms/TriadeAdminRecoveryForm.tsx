@@ -17,12 +17,14 @@ export interface TriadeAdminRecoveryFormProps {
   onSuccess?: (info: any) => void;
   onSwitchToLogin?: () => void;
   onClose?: () => void;
+  variant?: 'card' | 'flat';
 }
 
 export const TriadeAdminRecoveryForm: React.FC<TriadeAdminRecoveryFormProps> = ({
   onSuccess,
   onSwitchToLogin,
   onClose,
+  variant = 'card',
 }) => {
   // Input único: "Usuário" (aceita @usuario, fulano@, e-mail ou celular)
   const [identifier, setIdentifier] = useState('');
@@ -70,36 +72,54 @@ export const TriadeAdminRecoveryForm: React.FC<TriadeAdminRecoveryFormProps> = (
     setSentSuccess(null);
   };
 
+  const isCard = variant === 'card';
+
   return (
-    <div className="w-full max-w-md mx-auto bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden animate-fadeIn font-['Poppins']">
+    <div
+      className={`w-full max-w-md mx-auto ${
+        isCard
+          ? 'bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden'
+          : 'bg-transparent border-0 shadow-none'
+      } animate-fadeIn font-['Poppins'] relative`}
+    >
       {/* Top Banner com Logo Oficial do VagouApp e Título Centralizados */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border-b border-slate-800 p-5 relative flex flex-col items-center justify-center text-center">
+      <div
+        className={`${
+          isCard
+            ? 'bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border-b border-slate-800'
+            : 'bg-transparent border-b border-white/10'
+        } p-5 relative flex flex-col items-center justify-center text-center`}
+      >
         <VagouOfficialLogo size="xl" variant="full" className="h-10 sm:h-12 w-auto max-w-[220px] object-contain mx-auto" />
         <h2 className="font-bold text-white text-base sm:text-lg tracking-tight mt-2 text-center">
           Recuperar Acesso
         </h2>
 
         {/* Botão Fechar Oficial da Tríade */}
-        <button
-          type="button"
-          onClick={() => {
-            if (onClose) {
-              onClose();
-            } else if (typeof window !== 'undefined') {
-              window.parent?.postMessage({ source: 'VAGOUAPP_FORM', action: 'CLOSE' }, '*');
-              if (window.history.length > 1) {
-                window.history.back();
-              } else {
-                window.location.href = '/';
+        {onClose && (
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                window.parent?.postMessage({ source: 'VAGOUAPP_EMBED', event: 'CLOSE' }, '*');
               }
-            }
-          }}
-          className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer shrink-0"
-          aria-label="Fechar formulário"
-          title="Fechar"
-        >
-          <X className="w-5 h-5" />
-        </button>
+              if (onClose) {
+                onClose();
+              } else if (typeof window !== 'undefined') {
+                if (window.history.length > 1) {
+                  window.history.back();
+                } else {
+                  window.location.href = '/';
+                }
+              }
+            }}
+            className="absolute top-3.5 right-3.5 p-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer shrink-0"
+            aria-label="Fechar formulário"
+            title="Fechar"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
       {/* Alerta de Erro */}

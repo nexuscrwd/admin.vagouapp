@@ -14,6 +14,8 @@ export interface TriadeMnvClientLoginFormProps {
   onClose?: () => void;
   activePhase?: UserLoginPhase;
   onPhaseChange?: (phase: UserLoginPhase) => void;
+  variant?: 'card' | 'flat';
+  showHeader?: boolean;
 }
 
 /**
@@ -30,13 +32,15 @@ export const TriadeMnvClientLoginForm: React.FC<TriadeMnvClientLoginFormProps> =
   onClose,
   activePhase,
   onPhaseChange,
+  variant = 'card',
+  showHeader = true,
 }) => {
   const isVagouApp = salonName === 'VagouApp' || !salonName;
 
   return (
     <TriadeUserLoginForm
-      showHeader={true}
-      variant="card"
+      showHeader={showHeader}
+      variant={variant}
       title={isVagouApp ? 'Acessar Espaço' : `Acessar ${salonName}`}
       submitButtonText="Entrar no App do Salão"
       activePhase={activePhase}
