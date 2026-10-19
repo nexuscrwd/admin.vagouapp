@@ -67,9 +67,9 @@ export const TriadeAdminLoginForm: React.FC<TriadeAdminLoginFormProps> = ({
 
   return (
     <div
-      className={`w-full max-w-md mx-auto ${
+      className={`w-full ${
         isCard
-          ? 'bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden'
+          ? 'max-w-md mx-auto bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden'
           : 'bg-transparent border-0 shadow-none'
       } animate-fadeIn font-['Poppins'] relative`}
     >

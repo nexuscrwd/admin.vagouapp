@@ -615,7 +615,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
       className={`w-full font-['Poppins'] ${
         isCard
           ? 'max-w-md mx-auto bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden'
-          : 'max-w-md mx-auto bg-transparent'
+          : 'w-full bg-transparent'
       } animate-fadeIn`}
     >
       {/* Cabeçalho Soberano Centralizado (Logo no topo, Título abaixo, Sem Badges Redundantes) */}

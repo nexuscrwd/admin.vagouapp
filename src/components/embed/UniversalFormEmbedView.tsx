@@ -253,8 +253,8 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
         isTransparent ? 'bg-transparent is-embed-transparent' : 'bg-slate-950'
       }`}
     >
-      {/* 🔹 Container Oficial do Design System Corporativo — Vidro Jateado (Frosted Glass) */}
-      <div className="w-full max-w-lg mx-auto p-6 sm:p-8 rounded-2xl sm:rounded-3xl bg-slate-950/45 backdrop-blur-xl border border-white/20 shadow-[0_16px_56px_rgba(0,0,0,0.75)] text-slate-100 font-['Poppins'] relative animate-fadeIn">
+      {/* 🔹 Container Oficial do Design System Corporativo — Vidro Jateado (Fullwidth) */}
+      <div className="w-full max-w-4xl mx-auto p-6 sm:p-10 rounded-2xl sm:rounded-3xl bg-slate-950/45 backdrop-blur-xl border border-white/20 shadow-[0_16px_56px_rgba(0,0,0,0.75)] text-slate-100 font-['Poppins'] relative animate-fadeIn">
         {/* 🔹 Botão de Fechar Padronizado Oficial da Tríade */}
         <button
           type="button"
@@ -271,7 +271,7 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
 
         {/* Formulários Internos em Layout Plano (Flat & Clean — Sem Box Dentro de Box) */}
         {formType === 'usuario' && (
-          <div className="w-full max-w-md mx-auto">
+          <div className="w-full">
             <TriadeUserRegisterForm
               origin={salonId ? 'establishment' : 'portal'}
               salonId={salonId}
@@ -289,30 +289,34 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
         )}
 
         {formType === 'usuario_login' && (
-          <TriadeUserLoginForm
-            variant="flat"
-            showHeader={true}
-            onSuccess={(data) => {
-              dispatchPostMessage('LOGIN_SUCCESS', data);
-            }}
-            onSwitchToRegister={() => setFormType('usuario')}
-          />
+          <div className="w-full">
+            <TriadeUserLoginForm
+              variant="flat"
+              showHeader={true}
+              onSuccess={(data) => {
+                dispatchPostMessage('LOGIN_SUCCESS', data);
+              }}
+              onSwitchToRegister={() => setFormType('usuario')}
+            />
+          </div>
         )}
 
         {formType === 'mnv_login' && (
-          <TriadeMnvClientLoginForm
-            salonName={salonName}
-            variant="flat"
-            showHeader={true}
-            onSuccess={(data) => {
-              dispatchPostMessage('LOGIN_SUCCESS', data);
-            }}
-            onSwitchToRegister={() => setFormType('mnv_cadastro')}
-          />
+          <div className="w-full">
+            <TriadeMnvClientLoginForm
+              salonName={salonName}
+              variant="flat"
+              showHeader={true}
+              onSuccess={(data) => {
+                dispatchPostMessage('LOGIN_SUCCESS', data);
+              }}
+              onSwitchToRegister={() => setFormType('mnv_cadastro')}
+            />
+          </div>
         )}
 
         {formType === 'mnv_cadastro' && (
-          <div className="w-full max-w-md mx-auto">
+          <div className="w-full">
             <TriadeUserRegisterForm
               origin="establishment"
               salonId={salonId}
@@ -331,7 +335,7 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
         )}
 
         {formType === 'estabelecimento' && (
-          <div className="w-full max-w-lg mx-auto">
+          <div className="w-full">
             <TriadeEstablishmentMasterForm
               initialData={salonName && salonName !== 'VagouApp' ? { tradeName: salonName } : undefined}
               isStandalonePreview
