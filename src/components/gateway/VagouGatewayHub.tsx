@@ -256,11 +256,13 @@ export const VagouGatewayHub: React.FC<VagouGatewayHubProps> = ({ onOpenAdmin })
       {/* 🏢 MODAL DEDICADO: CADASTRO MASTER DO ESTABELECIMENTO (LAYOUT PLANO) */}
       {/* ========================================================================= */}
       {isRegisterModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-fadeIn overflow-y-auto">
-          <TriadeEstablishmentMasterForm
-            onSuccess={() => setIsRegisterModalOpen(false)}
-            onClose={() => setIsRegisterModalOpen(false)}
-          />
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fadeIn overflow-y-auto">
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[92vh] overflow-y-auto">
+            <TriadeEstablishmentMasterForm
+              onSuccess={() => setIsRegisterModalOpen(false)}
+              onClose={() => setIsRegisterModalOpen(false)}
+            />
+          </div>
         </div>
       )}
     </div>

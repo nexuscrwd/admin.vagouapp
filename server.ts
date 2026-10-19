@@ -1393,6 +1393,102 @@ async function startServer() {
     }
   });
 
+  // PUBLIC / ADMIN: Verificar disponibilidade de slug personalizado sem hífen em tempo real
+  const RESERVED_SYSTEM_SLUGS = new Set([
+    'adm', 'admin', 'portal', 'app', 'www', 'api', 'meunegocio', 'seunegocio',
+    'mail', 'smtp', 'pop', 'imap', 'ftp', 'vagou', 'vagouapp', 'suporte',
+    'ajuda', 'painel', 'sistema', 'master', 'radar', 'cadastro', 'login',
+    'auth', 'cdn', 'static', 'assets', 'dev', 'staging', 'prod'
+  ]);
+
+  app.get('/api/public/check-slug/:slug', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    try {
+      const rawSlug = String(req.params.slug || '');
+      const ownerEmail = String(req.query.email || '').trim().toLowerCase();
+      const cleanSlug = rawSlug
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]/g, '');
+
+      if (cleanSlug.length < 3) {
+        return res.json({
+          success: true,
+          available: false,
+          reason: 'too_short',
+          cleanSlug,
+          suggestions: [],
+        });
+      }
+
+      const { data: allSalons } = await supabaseAdmin
+        .from('salons')
+        .select('id, slug, subdomain, trade_name, email');
+
+      const takenSlugs = new Set<string>(RESERVED_SYSTEM_SLUGS);
+      let matchedSalon: any = null;
+
+      (allSalons || []).forEach((s: any) => {
+        const sSlug = String(s.slug || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const sSub = String(s.subdomain || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const isSameOwner = ownerEmail && s.email && String(s.email).trim().toLowerCase() === ownerEmail;
+        if (!isSameOwner) {
+          if (sSlug) takenSlugs.add(sSlug);
+          if (sSub) takenSlugs.add(sSub);
+          if (sSlug === cleanSlug || sSub === cleanSlug || s.slug === cleanSlug) {
+            matchedSalon = s;
+          }
+        }
+      });
+
+      const buildSuggestions = (base: string): string[] => {
+        const candidates = [
+          `${base}oficial`,
+          `${base}vip`,
+          `${base}studio`,
+          `${base}app`,
+          `${base}br`,
+          `${base}pro`,
+          `${base}1`,
+          `${base}2`,
+        ];
+        return candidates.filter((c) => !takenSlugs.has(c)).slice(0, 4);
+      };
+
+      if (RESERVED_SYSTEM_SLUGS.has(cleanSlug)) {
+        return res.json({
+          success: true,
+          available: false,
+          reason: 'reserved',
+          cleanSlug,
+          suggestions: buildSuggestions(cleanSlug),
+        });
+      }
+
+      if (matchedSalon || takenSlugs.has(cleanSlug)) {
+        return res.json({
+          success: true,
+          available: false,
+          reason: 'taken',
+          cleanSlug,
+          existingTradeName: matchedSalon?.trade_name || '',
+          suggestions: buildSuggestions(cleanSlug),
+        });
+      }
+
+      return res.json({
+        success: true,
+        available: true,
+        reason: 'ok',
+        cleanSlug,
+        suggestions: [],
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // PUBLIC / ADMIN: Obter dados e identificação visual do estabelecimento por slug
   app.get('/api/admin/salons/by-slug/:slug', async (req, res) => {
     try {
@@ -1469,7 +1565,40 @@ async function startServer() {
         return res.status(400).json({ success: false, error: 'Nome Fantasia e Subdomínio são obrigatórios.' });
       }
 
-      const cleanSlug = payload.slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+      const cleanSlug = payload.slug
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]/g, '');
+
+      if (cleanSlug.length < 3 || RESERVED_SYSTEM_SLUGS.has(cleanSlug)) {
+        return res.status(400).json({
+          success: false,
+          error: `O endereço "${cleanSlug}.vagouapp.com" é reservado ou inválido. Escolha outro link personalizado.`,
+        });
+      }
+
+      // Verifica se já existe outro estabelecimento com o mesmo slug de outro titular
+      const { data: existingSlugSalon } = await supabaseAdmin
+        .from('salons')
+        .select('id, email, trade_name')
+        .eq('slug', cleanSlug)
+        .maybeSingle();
+
+      const incomingEmail = payload.email?.trim().toLowerCase() || '';
+      if (
+        existingSlugSalon &&
+        existingSlugSalon.email &&
+        incomingEmail &&
+        existingSlugSalon.email.trim().toLowerCase() !== incomingEmail
+      ) {
+        return res.status(409).json({
+          success: false,
+          error: `O link "${cleanSlug}.vagouapp.com" já pertence a outro estabelecimento. Escolha um slug personalizado diferente.`,
+        });
+      }
+
       const resolvedLogo = await uploadBase64MediaIfNeeded(payload.logo_url, `${cleanSlug}-logo`);
       const resolvedFavicon = (await uploadBase64MediaIfNeeded(payload.favicon_url, `${cleanSlug}-favicon`)) || resolvedLogo || null;
       const resolvedSlogan = payload.slogan?.trim() || '';

@@ -8,11 +8,11 @@ import {
   Printer,
   ExternalLink,
   Download,
-  Smartphone,
   Building2,
   X,
   QrCode,
   Info,
+  ArrowRight,
 } from 'lucide-react';
 
 export interface SalonWelcomeData {
@@ -24,19 +24,89 @@ export interface SalonWelcomeData {
   ownerName?: string;
 }
 
+export interface SalonWelcomeTemplateConfig {
+  titleTemplate: string;
+  subtitleText: string;
+  sectionTitle: string;
+  welcomeMessage: string;
+  instructionNote: string;
+  linkLabel: string;
+  qrTitle: string;
+  qrDescription: string;
+  printButtonLabel: string;
+  openPartnerAppLabel: string;
+  openClientAppLabel: string;
+  finishButtonLabel: string;
+  showInstructionNote: boolean;
+  showQrSection: boolean;
+}
+
+export const WELCOME_MODAL_CONFIG_STORAGE_KEY = 'vagou_welcome_modal_config_v1';
+
+export const DEFAULT_WELCOME_MODAL_CONFIG: SalonWelcomeTemplateConfig = {
+  titleTemplate: 'O {nome} foi criado com sucesso!',
+  subtitleText: 'Parabéns por dar este grande passo para o futuro do seu negócio!',
+  sectionTitle: 'Sua nova vitrine digital já está ativa',
+  welcomeMessage:
+    'Que este novo ciclo traga agenda cheia, clientes encantados e muito mais tempo livre para você focar no seu talento.',
+  instructionNote:
+    'Acesse as opções do aplicativo para inserir as demais informações: serviços, valores, equipe de profissionais, fotos e horários de atendimento.',
+  linkLabel: 'Link Exclusivo de Agendamento',
+  qrTitle: 'QR Code para Balcão',
+  qrDescription:
+    'Imprima e deixe no balcão ou recepção para que seus clientes apontem a câmera e agendem facilmente.',
+  printButtonLabel: 'Imprimir QR Code para Balcão',
+  openPartnerAppLabel: 'Abrir / Baixar App',
+  openClientAppLabel: 'Abrir Vitrine em Nova Aba',
+  finishButtonLabel: 'Concluir e Começar',
+  showInstructionNote: true,
+  showQrSection: true,
+};
+
+export function getWelcomeModalConfig(): SalonWelcomeTemplateConfig {
+  if (typeof window === 'undefined') return DEFAULT_WELCOME_MODAL_CONFIG;
+  try {
+    const raw = localStorage.getItem(WELCOME_MODAL_CONFIG_STORAGE_KEY);
+    if (!raw) return DEFAULT_WELCOME_MODAL_CONFIG;
+    return { ...DEFAULT_WELCOME_MODAL_CONFIG, ...JSON.parse(raw) };
+  } catch {
+    return DEFAULT_WELCOME_MODAL_CONFIG;
+  }
+}
+
+export function saveWelcomeModalConfig(config: SalonWelcomeTemplateConfig): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(WELCOME_MODAL_CONFIG_STORAGE_KEY, JSON.stringify(config));
+  } catch {}
+}
+
 export interface SalonWelcomeModalProps {
   isOpen: boolean;
   onClose: () => void;
   data: SalonWelcomeData | null;
+  customConfig?: SalonWelcomeTemplateConfig;
+  inlinePreview?: boolean;
 }
 
 export const SalonWelcomeModal: React.FC<SalonWelcomeModalProps> = ({
   isOpen,
   onClose,
   data,
+  customConfig,
+  inlinePreview = false,
 }) => {
   const [copied, setCopied] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [storedConfig, setStoredConfig] = useState<SalonWelcomeTemplateConfig>(() =>
+    getWelcomeModalConfig()
+  );
+
+  useEffect(() => {
+    if (isOpen) {
+      setStoredConfig(getWelcomeModalConfig());
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: Event) => {
@@ -52,10 +122,15 @@ export const SalonWelcomeModal: React.FC<SalonWelcomeModalProps> = ({
   if (!isOpen || !data) return null;
 
   const { tradeName, slug, slogan, logoUrl, primaryColor = '#20C933' } = data;
+  const activeConfig = customConfig || storedConfig;
+  const resolvedTitle = (activeConfig.titleTemplate || DEFAULT_WELCOME_MODAL_CONFIG.titleTemplate).replace(
+    /\{nome\}/gi,
+    tradeName || 'Estabelecimento'
+  );
 
   const cleanSlug = slug || 'meu-espaco';
   const clientUrl = `https://${cleanSlug}.vagouapp.com`;
-  const partnerUrl = `https://seunegocio.vagouapp.com`;
+  const partnerUrl = `https://${cleanSlug}.vagouapp.com`;
   const qrCodeImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(
     clientUrl
   )}&format=png&margin=10`;
@@ -260,58 +335,57 @@ export const SalonWelcomeModal: React.FC<SalonWelcomeModalProps> = ({
     }
   };
 
-  return createPortal(
-    <div className="fixed inset-0 z-[9999] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 animate-fadeIn overflow-y-auto font-['Poppins']">
-      <div className="w-full max-w-xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[92vh]">
+  const modalCard = (
+      <div className={`w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col font-['Poppins'] ${inlinePreview ? 'mx-auto' : 'my-auto max-h-[90vh]'}`}>
         {/* Cabeçalho de Boas-Vindas */}
-        <div className="relative p-6 text-center bg-slate-950/60 border-b border-slate-800 shrink-0">
+        <div className="relative p-4 sm:p-5 text-center bg-slate-950/60 border-b border-slate-800 shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+            className="absolute top-3 right-3 p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
             title="Fechar"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
 
-          <div className="w-14 h-14 rounded-2xl bg-[#20C933] text-white flex items-center justify-center mx-auto mb-3 shadow-lg shadow-emerald-500/20">
-            <Sparkles className="w-7 h-7 text-white" />
+          <div className="w-11 h-11 rounded-2xl bg-[#20C933] text-white flex items-center justify-center mx-auto mb-2.5 shadow-lg shadow-emerald-500/20">
+            <Sparkles className="w-5 h-5 text-white" />
           </div>
 
-          <h2 className="text-lg sm:text-xl font-black text-white tracking-tight">
-            O {tradeName} foi criado com sucesso!
+          <h2 className="text-base sm:text-lg font-black text-white tracking-tight">
+            {resolvedTitle}
           </h2>
 
-          <p className="text-xs text-emerald-400 font-semibold mt-1">
-            Parabéns por dar este grande passo para o futuro do seu negócio!
+          <p className="text-[11px] text-emerald-400 font-semibold mt-0.5">
+            {activeConfig.subtitleText}
           </p>
         </div>
 
         {/* Corpo Plano (Flat Layout sem Box-dentro-de-Box) */}
-        <div className="p-5 sm:p-6 space-y-5 overflow-y-auto divide-y divide-slate-800/80 text-xs">
+        <div className="p-4 sm:p-5 space-y-4 overflow-y-auto divide-y divide-slate-800/80 text-xs">
           {/* 1. Mensagem Emotiva & Orientação */}
-          <div className="space-y-2.5">
-            <div className="flex items-center gap-2 text-white font-bold text-sm">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-white font-bold text-xs sm:text-sm">
               <Building2 className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>Sua nova vitrine digital já está ativa</span>
+              <span>{activeConfig.sectionTitle}</span>
             </div>
             <p className="text-slate-300 leading-relaxed text-xs">
-              Que este novo ciclo traga agenda cheia, clientes encantados e muito mais tempo livre para você focar no seu talento.
+              {activeConfig.welcomeMessage}
             </p>
-            <div className="flex items-start gap-2 pt-1 text-[11px] text-amber-300 font-medium">
-              <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-              <span>
-                Acesse as opções do aplicativo para inserir as demais informações: serviços, valores, equipe de profissionais, fotos e horários de atendimento.
-              </span>
-            </div>
+            {activeConfig.showInstructionNote && activeConfig.instructionNote && (
+              <div className="flex items-start gap-2 pt-0.5 text-[11px] text-amber-300 font-medium">
+                <Info className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                <span>{activeConfig.instructionNote}</span>
+              </div>
+            )}
           </div>
 
           {/* 2. Link do App para Copiar ou Compartilhar */}
-          <div className="pt-4 space-y-2">
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-emerald-400">
-              Link Exclusivo de Agendamento
+          <div className="pt-3.5 space-y-1.5">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+              {activeConfig.linkLabel}
             </label>
-            <div className="flex items-center gap-2 bg-slate-950 rounded-xl p-1.5 pl-3.5">
+            <div className="flex items-center gap-1.5 bg-slate-950 rounded-xl p-1.5 pl-3">
               <span className="text-xs font-mono font-bold text-white truncate flex-1">
                 {clientUrl}
               </span>
@@ -319,16 +393,16 @@ export const SalonWelcomeModal: React.FC<SalonWelcomeModalProps> = ({
               <button
                 type="button"
                 onClick={handleCopyClientUrl}
-                className="py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap"
+                className="py-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-[11px] transition flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap"
               >
                 {copied ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <Check className="w-3 h-3 text-emerald-400" />
                     <span className="text-emerald-400">Copiado</span>
                   </>
                 ) : (
                   <>
-                    <Copy className="w-3.5 h-3.5 text-slate-300" />
+                    <Copy className="w-3 h-3 text-slate-300" />
                     <span>Copiar</span>
                   </>
                 )}
@@ -337,55 +411,57 @@ export const SalonWelcomeModal: React.FC<SalonWelcomeModalProps> = ({
               <button
                 type="button"
                 onClick={handleShare}
-                className="py-2 px-3 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap"
+                className="py-1.5 px-2.5 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-[11px] transition flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap"
               >
-                <Share2 className="w-3.5 h-3.5 text-white" />
+                <Share2 className="w-3 h-3 text-white" />
                 <span className="text-white">Compartilhar</span>
               </button>
             </div>
           </div>
 
           {/* 3. QR Code para Imprimir (Para Balcão) */}
-          <div className="pt-4 flex flex-col sm:flex-row items-center gap-4">
-            <div className="bg-white p-2.5 rounded-2xl shrink-0 text-center">
-              <img
-                src={qrCodeImgUrl}
-                alt={`QR Code ${tradeName}`}
-                className="w-28 h-28 object-contain mx-auto"
-              />
-            </div>
-
-            <div className="space-y-2.5 flex-1 text-center sm:text-left">
-              <div>
-                <h4 className="text-xs sm:text-sm font-bold text-white flex items-center justify-center sm:justify-start gap-1.5">
-                  <QrCode className="w-4 h-4 text-emerald-400" />
-                  <span>QR Code para Balcão</span>
-                </h4>
-                <p className="text-[11px] text-slate-400 mt-0.5 leading-normal">
-                  Imprima e deixe no balcão ou recepção para que seus clientes apontem a câmera e agendem facilmente.
-                </p>
+          {activeConfig.showQrSection && (
+            <div className="pt-3.5 flex flex-col sm:flex-row items-center gap-3.5">
+              <div className="bg-white p-2 rounded-xl shrink-0 text-center">
+                <img
+                  src={qrCodeImgUrl}
+                  alt={`QR Code ${tradeName}`}
+                  className="w-24 h-24 object-contain mx-auto"
+                />
               </div>
 
-              <button
-                type="button"
-                onClick={handlePrintQRCode}
-                className="w-full sm:w-auto py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
-              >
-                <Printer className="w-4 h-4 text-emerald-400" />
-                <span>Imprimir QR Code para Balcão</span>
-              </button>
-            </div>
-          </div>
+              <div className="space-y-2 flex-1 text-center sm:text-left">
+                <div>
+                  <h4 className="text-xs font-bold text-white flex items-center justify-center sm:justify-start gap-1.5">
+                    <QrCode className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>{activeConfig.qrTitle}</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5 leading-normal">
+                    {activeConfig.qrDescription}
+                  </p>
+                </div>
 
-          {/* 4. Botões Baixar / Abrir App em Nova Aba */}
+                <button
+                  type="button"
+                  onClick={handlePrintQRCode}
+                  className="w-full sm:w-auto py-2 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+                >
+                  <Printer className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>{activeConfig.printButtonLabel}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 4. Botões Baixar App & Concluir e Começar (Abre o App criado no lugar do vagouapp.com) */}
           <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {deferredPrompt ? (
               <button
                 type="button"
                 onClick={handleInstallPwa}
-                className="p-3 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-emerald-500/15 whitespace-nowrap"
+                className="p-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
               >
-                <Download className="w-4 h-4 text-white shrink-0" />
+                <Download className="w-4 h-4 text-emerald-400 shrink-0" />
                 <span className="text-white">Baixar e Instalar App</span>
               </button>
             ) : (
@@ -393,38 +469,53 @@ export const SalonWelcomeModal: React.FC<SalonWelcomeModalProps> = ({
                 href={partnerUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-3 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-emerald-500/15 whitespace-nowrap"
+                className="p-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
               >
-                <Download className="w-4 h-4 text-white shrink-0" />
-                <span className="text-white">Abrir / Baixar App</span>
-                <ExternalLink className="w-3.5 h-3.5 text-white shrink-0" />
+                <Download className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="text-white">{activeConfig.openPartnerAppLabel}</span>
+                <ExternalLink className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               </a>
             )}
 
-            <a
-              href={clientUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
-            >
-              <Smartphone className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>Abrir Vitrine em Nova Aba</span>
-              <ExternalLink className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            </a>
+            {inlinePreview ? (
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-3 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-emerald-500/20 whitespace-nowrap"
+              >
+                <span className="text-white">{activeConfig.finishButtonLabel}</span>
+                <ArrowRight className="w-4 h-4 text-white shrink-0" />
+              </button>
+            ) : (
+              <a
+                href={clientUrl}
+                target="_top"
+                onClick={() => {
+                  onClose();
+                  try {
+                    if (window.top && window.top !== window) {
+                      window.top.location.href = clientUrl;
+                    }
+                  } catch {}
+                }}
+                className="p-3 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-emerald-500/20 whitespace-nowrap"
+              >
+                <span className="text-white">{activeConfig.finishButtonLabel}</span>
+                <ArrowRight className="w-4 h-4 text-white shrink-0" />
+              </a>
+            )}
           </div>
         </div>
-
-        {/* Rodapé Fixo de Ação (sticky bottom-0 z-20) */}
-        <div className="sticky bottom-0 z-20 p-4 bg-slate-950 border-t border-slate-800 flex items-center justify-end gap-3 shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-full sm:w-auto py-3 px-6 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition cursor-pointer shadow-md shadow-emerald-500/20 whitespace-nowrap"
-          >
-            <span className="text-white">Concluir e Começar</span>
-          </button>
-        </div>
       </div>
+  );
+
+  if (inlinePreview) {
+    return modalCard;
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 animate-fadeIn overflow-y-auto font-['Poppins']">
+      {modalCard}
     </div>,
     document.body
   );

@@ -681,6 +681,12 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
 
           {/* VIEW 2: CARDS GRID */}
           {viewMode === 'cards' && (
+            filteredSalons.length === 0 ? (
+              <div className="py-12 text-center text-slate-500 dark:text-slate-400 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-2">
+                <p className="font-semibold text-slate-700 dark:text-slate-300">Nenhum estabelecimento encontrado no banco de dados.</p>
+                <p className="text-[11px] text-slate-400">Cadastre um novo salão ou execute os registros iniciais no Supabase.</p>
+              </div>
+            ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
               {filteredSalons.map((salon) => {
                 const statusBadge = getStatusBadge(salon.status);
@@ -797,6 +803,7 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                 );
               })}
             </div>
+            )
           )}
 
           {/* MODAL: Confirmação de Exclusão Individual */}

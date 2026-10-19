@@ -22,6 +22,10 @@ import {
   Palette,
   FileText,
   Sparkles,
+  Eye,
+  Save,
+  Receipt,
+  Wallet,
 } from 'lucide-react';
 
 import { TriadeMnvClientLoginForm } from './triade-forms/TriadeMnvClientLoginForm';
@@ -29,6 +33,13 @@ import { TriadeEstablishmentMasterForm, EstabMasterPhase } from './triade-forms/
 import { TriadeUserRegisterForm, UserRegisterPhase } from './triade-forms/TriadeUserRegisterForm';
 import { TriadeUserLoginForm, UserLoginPhase } from './triade-forms/TriadeUserLoginForm';
 import { FormsSubTabId } from './AdminSidebar';
+import {
+  SalonWelcomeModal,
+  SalonWelcomeTemplateConfig,
+  DEFAULT_WELCOME_MODAL_CONFIG,
+  getWelcomeModalConfig,
+  saveWelcomeModalConfig,
+} from './SalonWelcomeModal';
 
 export type MainTabType = FormsSubTabId;
 export type EstabMasterStep = EstabMasterPhase;
@@ -61,12 +72,31 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
   const [embedModalForm, setEmbedModalForm] = useState<string | null>(null);
   const [hasCopiedEmbed, setHasCopiedEmbed] = useState(false);
 
+  // Estado do Estúdio do Modal de Boas-Vindas (Configurações -> Modal Boas-Vindas)
+  const [welcomeConfig, setWelcomeConfig] = useState<SalonWelcomeTemplateConfig>(() =>
+    getWelcomeModalConfig()
+  );
+  const [previewSalonName, setPreviewSalonName] = useState('Fabio Foos');
+  const [previewSalonSlug, setPreviewSalonSlug] = useState('fabio-foos');
+  const [isFullscreenWelcomeOpen, setIsFullscreenWelcomeOpen] = useState(false);
+
   // Feedback de teste / submissão
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
 
   const handleTriggerFeedback = (text: string) => {
     setActionFeedback(text);
     setTimeout(() => setActionFeedback(null), 3500);
+  };
+
+  const handleSaveWelcomeModal = () => {
+    saveWelcomeModalConfig(welcomeConfig);
+    handleTriggerFeedback('Alterações do Modal de Boas-Vindas salvas e aplicadas em todo o ecossistema!');
+  };
+
+  const handleResetWelcomeModal = () => {
+    setWelcomeConfig(DEFAULT_WELCOME_MODAL_CONFIG);
+    saveWelcomeModalConfig(DEFAULT_WELCOME_MODAL_CONFIG);
+    handleTriggerFeedback('Modal de Boas-Vindas restaurado para o padrão original!');
   };
 
   const currentEmbedCode = embedModalForm
@@ -164,12 +194,14 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
           <div className="p-2 bg-slate-900/90 border border-slate-800 rounded-2xl flex flex-col xl:flex-row xl:items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 overflow-x-auto max-w-full">
               {[
-                { id: 'user_check', num: '1', label: 'Identificação (Sim/Não)', icon: UserCheck },
-                { id: 'commercial', num: '2', label: 'Comercial & Fiscal', icon: Building2 },
-                { id: 'address', num: '3', label: 'Endereço (ViaCEP)', icon: MapPin },
-                { id: 'visual', num: '4', label: 'Id. Visual & Branding', icon: Palette },
-                { id: 'review', num: '5', label: 'Ficha Completa (Revisar)', icon: FileText },
-                { id: 'welcome', num: '6', label: 'Boas-Vindas & QR Code', icon: Sparkles },
+                { id: 'user_check', num: '1', label: 'Identificação (Titular + CPF)', icon: UserCheck },
+                { id: 'commercial', num: '2', label: 'Dados Comerciais', icon: Building2 },
+                { id: 'fiscal', num: '3', label: 'Dados Fiscais (CNPJ)', icon: Receipt },
+                { id: 'pix_billing', num: '4', label: 'Faturamento & PIX (QR Code)', icon: Wallet },
+                { id: 'address', num: '5', label: 'Endereço (ViaCEP)', icon: MapPin },
+                { id: 'visual', num: '6', label: 'Id. Visual & Branding', icon: Palette },
+                { id: 'review', num: '7', label: 'Ficha Completa', icon: FileText },
+                { id: 'welcome', num: '8', label: 'Boas-Vindas & Placa', icon: Sparkles },
               ].map((step) => {
                 const isActive = estabMasterPhase === step.id;
                 const IconComponent = step.icon;
@@ -203,7 +235,7 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
             </button>
           </div>
 
-          <div className="py-1">
+          <div className="max-w-lg mx-auto w-full py-1">
             <TriadeEstablishmentMasterForm
               forcedStep={estabMasterPhase}
               onStepChange={setEstabMasterPhase}
@@ -325,7 +357,7 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
             </button>
           </div>
 
-          <div className="max-w-xl mx-auto w-full py-1">
+          <div className="max-w-md mx-auto w-full py-1">
             <TriadeUserRegisterForm
               activePhase={userRegisterPhase}
               onPhaseChange={setUserRegisterPhase}
@@ -561,11 +593,314 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
       )}
 
       {/* ========================================================================= */}
+      {/* 🎉 6. MODAL DE BOAS-VINDAS & KIT DE LANÇAMENTO (EDIÇÃO + PREVIEW REAL)    */}
+      {/* ========================================================================= */}
+      {activeMainTab === 'welcome_modal' && (
+        <div className="space-y-4 animate-fadeIn">
+          {/* Cabeçalho da Aba Modal de Boas-Vindas */}
+          <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#20C933] text-white flex items-center justify-center shadow-md shadow-emerald-500/20 shrink-0">
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-white">
+                  Modal de Boas-Vindas & Kit de Lançamento (Link + QR Code)
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Visualize o modal real ao lado e edite todos os textos, avisos e botões exibidos após a conclusão do cadastro.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={handleResetWelcomeModal}
+                className="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+                <span>Restaurar Padrão</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsFullscreenWelcomeOpen(true)}
+                className="py-2 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+              >
+                <Eye className="w-4 h-4 text-emerald-400" />
+                <span>Ver em Tela Cheia</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveWelcomeModal}
+                className="py-2 px-4 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-500/20 active:scale-95 whitespace-nowrap"
+              >
+                <Save className="w-4 h-4 text-white" />
+                <span className="text-white">Salvar Alterações</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Grid Lado a Lado: Editor à Esquerda + Modal Real à Direita */}
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+            {/* Coluna 1: Painel de Edição do Modal */}
+            <div className="xl:col-span-6 p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                  Editor de Conteúdo & Botões
+                </span>
+                <span className="text-[11px] text-slate-400">
+                  Variável dinâmica: <code className="text-emerald-400">{'{nome}'}</code>
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Nome do Salão (Simulação)
+                  </label>
+                  <input
+                    type="text"
+                    value={previewSalonName}
+                    onChange={(e) => setPreviewSalonName(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 text-white text-xs border border-slate-800 focus:border-emerald-500 outline-none"
+                    placeholder="Ex: Fabio Foos"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Slug / Subdomínio (Simulação)
+                  </label>
+                  <input
+                    type="text"
+                    value={previewSalonSlug}
+                    onChange={(e) =>
+                      setPreviewSalonSlug(
+                        e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')
+                      )
+                    }
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 text-emerald-400 font-mono text-xs border border-slate-800 focus:border-emerald-500 outline-none"
+                    placeholder="Ex: fabio-foos"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  Título Principal de Sucesso
+                </label>
+                <input
+                  type="text"
+                  value={welcomeConfig.titleTemplate}
+                  onChange={(e) =>
+                    setWelcomeConfig((prev) => ({ ...prev, titleTemplate: e.target.value }))
+                  }
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 text-white text-xs border border-slate-800 focus:border-emerald-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  Subtítulo (Frase de Destaque)
+                </label>
+                <input
+                  type="text"
+                  value={welcomeConfig.subtitleText}
+                  onChange={(e) =>
+                    setWelcomeConfig((prev) => ({ ...prev, subtitleText: e.target.value }))
+                  }
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 text-white text-xs border border-slate-800 focus:border-emerald-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  Título da Seção Interna
+                </label>
+                <input
+                  type="text"
+                  value={welcomeConfig.sectionTitle}
+                  onChange={(e) =>
+                    setWelcomeConfig((prev) => ({ ...prev, sectionTitle: e.target.value }))
+                  }
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 text-white text-xs border border-slate-800 focus:border-emerald-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  Mensagem de Boas-Vindas
+                </label>
+                <textarea
+                  rows={2}
+                  value={welcomeConfig.welcomeMessage}
+                  onChange={(e) =>
+                    setWelcomeConfig((prev) => ({ ...prev, welcomeMessage: e.target.value }))
+                  }
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 text-white text-xs border border-slate-800 focus:border-emerald-500 outline-none resize-none"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    Aviso de Orientação (Cadastrar Serviços / Equipe / Horários)
+                  </label>
+                  <label className="inline-flex items-center gap-1.5 text-[11px] text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={welcomeConfig.showInstructionNote}
+                      onChange={(e) =>
+                        setWelcomeConfig((prev) => ({
+                          ...prev,
+                          showInstructionNote: e.target.checked,
+                        }))
+                      }
+                      className="accent-[#20C933]"
+                    />
+                    <span>Exibir</span>
+                  </label>
+                </div>
+                <textarea
+                  rows={2}
+                  value={welcomeConfig.instructionNote}
+                  onChange={(e) =>
+                    setWelcomeConfig((prev) => ({ ...prev, instructionNote: e.target.value }))
+                  }
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 text-white text-xs border border-slate-800 focus:border-emerald-500 outline-none resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Título do Bloco QR Code
+                  </label>
+                  <input
+                    type="text"
+                    value={welcomeConfig.qrTitle}
+                    onChange={(e) =>
+                      setWelcomeConfig((prev) => ({ ...prev, qrTitle: e.target.value }))
+                    }
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 text-white text-xs border border-slate-800 focus:border-emerald-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Texto do Botão Imprimir QR
+                  </label>
+                  <input
+                    type="text"
+                    value={welcomeConfig.printButtonLabel}
+                    onChange={(e) =>
+                      setWelcomeConfig((prev) => ({ ...prev, printButtonLabel: e.target.value }))
+                    }
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 text-white text-xs border border-slate-800 focus:border-emerald-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  Instrução do QR Code de Balcão
+                </label>
+                <input
+                  type="text"
+                  value={welcomeConfig.qrDescription}
+                  onChange={(e) =>
+                    setWelcomeConfig((prev) => ({ ...prev, qrDescription: e.target.value }))
+                  }
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 text-white text-xs border border-slate-800 focus:border-emerald-500 outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Botão Esquerdo (Abrir / Baixar App)
+                  </label>
+                  <input
+                    type="text"
+                    value={welcomeConfig.openPartnerAppLabel}
+                    onChange={(e) =>
+                      setWelcomeConfig((prev) => ({
+                        ...prev,
+                        openPartnerAppLabel: e.target.value,
+                      }))
+                    }
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 text-white text-xs border border-slate-800 focus:border-emerald-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Botão Direito (Concluir e Começar)
+                  </label>
+                  <input
+                    type="text"
+                    value={welcomeConfig.finishButtonLabel}
+                    onChange={(e) =>
+                      setWelcomeConfig((prev) => ({
+                        ...prev,
+                        finishButtonLabel: e.target.value,
+                      }))
+                    }
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 text-white text-xs border border-slate-800 focus:border-emerald-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleSaveWelcomeModal}
+                  className="w-full sm:w-auto py-2.5 px-6 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-emerald-500/20 active:scale-95 whitespace-nowrap"
+                >
+                  <Save className="w-4 h-4 text-white" />
+                  <span className="text-white">Salvar Alterações no Modal</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Coluna 2: O Modal Real Renderizado ao Vivo na Tela */}
+            <div className="xl:col-span-6">
+              <SalonWelcomeModal
+                isOpen={true}
+                inlinePreview={true}
+                onClose={() => handleTriggerFeedback('Botão "Concluir e Começar" acionado com sucesso!')}
+                customConfig={welcomeConfig}
+                data={{
+                  tradeName: previewSalonName || 'Fabio Foos',
+                  slug: previewSalonSlug || 'fabio-foos',
+                  slogan: 'Excelência em estética e bem-estar',
+                  primaryColor: '#20C933',
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Versão Fullscreen se clicar em "Ver em Tela Cheia" */}
+          <SalonWelcomeModal
+            isOpen={isFullscreenWelcomeOpen}
+            onClose={() => setIsFullscreenWelcomeOpen(false)}
+            customConfig={welcomeConfig}
+            data={{
+              tradeName: previewSalonName || 'Fabio Foos',
+              slug: previewSalonSlug || 'fabio-foos',
+              slogan: 'Excelência em estética e bem-estar',
+              primaryColor: '#20C933',
+            }}
+          />
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* 🪟 MODAL / DRAWER DE CÓDIGO EMBED UNIVERSAL (SINGLE SOURCE OF TRUTH) */}
       {/* ========================================================================= */}
       {embedModalForm && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 font-['Poppins']">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-3.5 font-['Poppins']">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center">

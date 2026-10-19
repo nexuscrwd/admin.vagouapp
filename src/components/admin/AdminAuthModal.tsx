@@ -43,11 +43,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
         isGate ? 'bg-slate-950' : 'bg-slate-950/85 backdrop-blur-md animate-fadeIn'
       }`}
     >
-      <div
-        className={`relative w-full ${
-          activeTab === 'register' ? 'max-w-lg' : 'max-w-md'
-        } my-auto transition-all duration-200`}
-      >
+      <div className="relative w-full max-w-md my-auto transition-all duration-200">
         {/* Botão de Fechar flutuante se não for Gate */}
         {!isGate && typeof onClose === 'function' && (
           <button

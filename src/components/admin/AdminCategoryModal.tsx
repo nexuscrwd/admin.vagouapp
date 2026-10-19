@@ -149,22 +149,22 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
-      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col my-auto max-h-[90vh] overflow-hidden">
+      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col my-auto max-h-[88vh] overflow-hidden">
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/90">
+        <div className="p-3.5 sm:p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/90">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
-              <FolderPlus className="w-5 h-5 text-emerald-400" />
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
+              <FolderPlus className="w-4 h-4 text-emerald-400" />
             </div>
             <div>
-              <h2 className="text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-2">
+              <h2 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
                 Gestão de Categorias
                 <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                  {categories.length} cadastradas
+                  {categories.length}
                 </span>
               </h2>
-              <p className="text-xs text-slate-400">
-                Segmentos comerciais dos estabelecimentos da plataforma
+              <p className="text-[11px] text-slate-400">
+                Segmentos comerciais dos estabelecimentos
               </p>
             </div>
           </div>
@@ -174,15 +174,15 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
             onClick={onClose}
             className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Feedback Message */}
         {feedback && (
-          <div className="px-4 pt-4">
+          <div className="px-4 pt-3">
             <div
-              className={`p-3 rounded-xl text-xs font-medium flex items-center gap-2.5 ${
+              className={`p-2.5 rounded-xl text-xs font-medium flex items-center gap-2 ${
                 feedback.type === 'success'
                   ? 'bg-emerald-950/90 border border-emerald-500/40 text-emerald-300'
                   : 'bg-rose-950/90 border border-rose-500/40 text-rose-300'
@@ -199,33 +199,33 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
         )}
 
         {/* Body */}
-        <div className="p-4 sm:p-5 overflow-y-auto space-y-5 flex-1">
+        <div className="p-4 overflow-y-auto space-y-4 flex-1">
           {/* Formulário de Criação */}
-          <form onSubmit={handleCreate} className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
-              <Plus className="w-4 h-4 text-emerald-400" />
+          <form onSubmit={handleCreate} className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
+              <Plus className="w-3.5 h-3.5 text-emerald-400" />
               <span>Criar Nova Categoria</span>
             </div>
 
-            <div className="space-y-3">
-              <div>
-                <label className="text-[11px] font-semibold text-slate-300 block mb-1">
-                  Nome da Categoria *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: Podologia, Tatuagem & Piercing, Esmalteria..."
-                  value={name}
-                  onChange={(e) => handleNameChange(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-lg px-3 py-2 text-xs text-white placeholder:text-slate-500 outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
+            <div className="space-y-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                <div className="sm:col-span-7">
                   <label className="text-[11px] font-semibold text-slate-300 block mb-1">
-                    Slug / Identificador *
+                    Nome da Categoria *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: Podologia, Esmalteria..."
+                    value={name}
+                    onChange={(e) => handleNameChange(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-slate-500 outline-none"
+                  />
+                </div>
+
+                <div className="sm:col-span-5">
+                  <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                    Slug *
                   </label>
                   <input
                     type="text"
@@ -233,18 +233,20 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
                     placeholder="podologia"
                     value={slug}
                     onChange={(e) => handleSlugChange(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-lg px-3 py-2 text-xs text-emerald-400 font-mono outline-none lowercase"
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-emerald-400 font-mono outline-none lowercase"
                   />
                 </div>
+              </div>
 
-                <div>
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                <div className="sm:col-span-5">
                   <label className="text-[11px] font-semibold text-slate-300 block mb-1">
                     Ícone Temático
                   </label>
                   <select
                     value={icon}
                     onChange={(e) => setIcon(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-lg px-3 py-2 text-xs text-white outline-none cursor-pointer"
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none cursor-pointer"
                   >
                     <option value="Tag">🏷️ Etiqueta Geral</option>
                     <option value="Scissors">✂️ Tesoura / Cabelo</option>
@@ -254,19 +256,19 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
                     <option value="Layers">📑 Especialidades</option>
                   </select>
                 </div>
-              </div>
 
-              <div>
-                <label className="text-[11px] font-semibold text-slate-300 block mb-1">
-                  Descrição (Opcional)
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ex: Cuidados específicos para os pés e unhas..."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 rounded-lg px-3 py-2 text-xs text-white placeholder:text-slate-500 outline-none"
-                />
+                <div className="sm:col-span-7">
+                  <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                    Descrição (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Cuidados para os pés..."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-slate-500 outline-none"
+                  />
+                </div>
               </div>
 
               <div className="pt-1 flex justify-end">

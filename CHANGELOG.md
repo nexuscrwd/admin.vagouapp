@@ -15,6 +15,134 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-19] — 🧹 Remoção Total de Mocks & Ativação de Banco 100% Real no Supabase (Seed Script Oficial)
+- **Tipo:** `[Refactor / Database / Clean Code / Single Source of Truth]`
+- **Motivo / Solicitação:**
+  1. **Remoção de Salões Mockados:** Removido o array estático em memória `INITIAL_MOCK_ADMIN_SALONS` e eliminado o fallback que injetava salões sintéticos (Flavi Hair, Dom Corleone, Bella Donna, etc.) quando o banco estava vazio.
+  2. **Single Source of Truth:** A aplicação agora lê estritamente os registros existentes na tabela `public.salons` do Supabase. Caso a tabela tenha 0 registros, exibe o estado limpo nativo (*"Nenhum estabelecimento encontrado no banco de dados"*).
+  3. **Script Oficial de Seed no Supabase:** Criado o script `supabase/migrations/20261019_seed_real_salons.sql` para inserção de 4 estabelecimentos oficiais de teste completos (`Salão X Prime`, `Barbearia Primo Retrô`, `Studio Mabe Nails & Spa`, `Don Studio Facial & Estética`) com `owner_cpf`, `pix_keys` estruturado, branding, avaliações e geolocalização.
+- **Arquivos Criados & Impactados:**
+  - `src/services/supabaseApi.ts`
+  - `src/components/admin/AdminSalonsList.tsx`
+  - `supabase/migrations/20261019_seed_real_salons.sql`
+  - `CHANGELOG.md`
+
+---
+- **Tipo:** `[Feat / UX / Mobile / Payments / Single Source of Truth]`
+- **Motivo / Solicitação:**
+  1. **Separação Obrigatória entre Fiscal e PIX em Abas Distintas:** A parte tributária (Autônomo vs CNPJ da empresa e Razão Social) deve ficar 100% isolada da parte de recebimentos bancários (chaves PIX).
+  2. **Geração Automática de QR Code PIX em Tempo Real:** Ao digitar ou selecionar a chave PIX principal, o sistema gera instantaneamente o QR Code e o payload BACEN (BR Code EMVCo) correspondente.
+  3. **Plaquinha PIX de Balcão para Impressão:** Disponibilização de um modal estilizado (`SalonPixPrintModal`) pronto para impressão em papel ou display de acrílico para o balcão ou bancada de cada profissional com 1 clique.
+  4. **Cobrança Pós-Serviço e Envio ao Cliente:** Caso o profissional não tenha a plaquinha impressa na bancada, ao concluir o atendimento ele dispõe da ação "Cobrar PIX" (`PixCheckoutModal`), permitindo exibir o QR Code na tela do aparelho ou enviar a chave com PIX Copia e Cola diretamente para o WhatsApp do cliente.
+- **Arquivos Criados & Impactados:**
+  - `src/services/pixGenerator.ts` (Criado: Gerador de payload BACEN BR Code EMVCo, cálculo de CRC16, gerador de QR Code URL e construtor de mensagens de cobrança para WhatsApp).
+  - `src/components/admin/SalonPixPrintModal.tsx` (Criado: Modal de visualização e impressão da plaquinha de balcão).
+  - `src/components/admin/PixCheckoutModal.tsx` (Criado: Modal de cobrança pós-serviço com QR Code na tela e disparo via WhatsApp).
+  - `src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx` (Separou etapas `fiscal` e `pix_billing`, adicionou preview de QR Code e botões de ação).
+  - `src/components/admin/AdminEditSalonModal.tsx` (Separou abas `fiscal` e `pix_billing`, adicionou QR Code em tempo real e atalhos de impressão e cobrança).
+  - `src/components/admin/AdminTriadeFormsCatalog.tsx` (Atualizou o stepper do catálogo oficial da Tríade com abas independentes `3. Dados Fiscais` e `4. Faturamento & PIX`).
+  - `src/components/admin/AdminAppointmentsMonitor.tsx` (Adicionou botão "Cobrar PIX" na tabela de agendamentos concluídos para envio direto ao cliente).
+  - `CHANGELOG.md`
+
+---
+- **Tipo:** `[Feat / Architecture / DataModel / UX]`
+- **Motivo / Solicitação:**
+  1. **CPF vinculado ao Cadastro Pessoal (sem assustar o cliente final):** O cliente común que se cadastra apenas para agendar não deve ser obrigado a informar o CPF inicialmente (será solicitado apenas no futuro quando o Vagou operar como intermediador de pagamentos). Porém, o usuário que abre um negócio ou migra para parceiro deve obrigatoriamente informar o seu **CPF Pessoal**, vinculado aos seus **Dados Pessoais** (`public.clients.cpf` / `owner_cpf`), e **jamais** misturado aos Dados Fiscais do espaço.
+  2. **Isolamento Estrito entre Dados Comerciais, Dados Fiscais e Faturamento:**
+     - **Dados Comerciais (`commercial`):** Isolados apenas para Nome Fantasia, Categoria e Link Oficial (`slug.vagouapp.com`).
+     - **Dados Fiscais (`fiscal_billing` - Bloco 1):** O CPF nunca aparece como documento fiscal do salão. Se o parceiro atuar como Autônomo (`Sem CNPJ`), opera vinculado ao CPF pessoal do titular. Se optar por `Possuo CNPJ (Empresa)`, abre o CNPJ (com consulta automática na Receita Federal via BrasilAPI) e a **Razão Social**.
+     - **Dados de Faturamento (`fiscal_billing` - Bloco 2):** Suporte a **múltiplas chaves PIX** (`pix_keys: SalonPixKeyItem[]`), escolha da chave `Principal`, atalhos de 1 clique (Usar CPF do Titular, WhatsApp, E-mail ou CNPJ) e **consulta/validação automática ao digitar a chave PIX** (detecção inteligente do tipo de chave, validação matemática Mod-11 para CPF/CNPJ e busca automática do titular/instituição na Receita Federal via BrasilAPI e base Supabase).
+- **Arquivos Impactados:**
+  - `src/types/admin.ts`
+  - `src/services/supabaseApi.ts`
+  - `src/components/admin/triade-forms/TriadeUserRegisterForm.tsx`
+  - `src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`
+  - `src/components/admin/AdminEditSalonModal.tsx`
+  - `src/components/admin/AdminUserGeneralDataModal.tsx`
+  - `src/components/admin/AdminTriadeFormsCatalog.tsx`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-19] — 🧹 Remoção dos Dados Mockados Fixos ("Lucas Barber") e Vínculo Limpo com o Usuário Selecionado/Criado
+- **Tipo:** `[Fix / DataBinding / UX]`
+- **Motivo / Solicitação:** Ao criar ou autenticar um usuário na Etapa 1 da criação do estabelecimento (`TriadeEstablishmentMasterForm.tsx`), o formulário sempre vinha preenchido com os dados estáticos de "Lucas Barber" (`Lucas Gabriel Mendes Barbearia ME`, CNPJ `45.123.890/0001-44`, PIX `11999991111`, slug `lucasbarber` e endereço `Rua Bela Cintra / Avenida Paulista`).
+- **Causas Raiz Identificadas & Corrigidas:**
+  1. **Valores Fixos nos `useState` Iniciais:** Os estados `tradeName`, `legalName`, `documentNumber`, `pixKey`, `slug`, `slogan`, `cep`, `street`, `number`, `complement`, `neighborhood`, `city`, `state` e `ownerAddressData` em `TriadeEstablishmentMasterForm.tsx` estavam inicializados com strings fixas de demonstração ("Lucas Barber"). Todos foram alterados para iniciar limpos (`''`).
+  2. **Sincronização Real pós-Login / pós-Cadastro na Etapa 1:**
+     - `TriadeUserLoginForm.tsx` agora retorna no `TriadeUserLoginPayload` o `username`, `cpf` e o objeto `address` completo do usuário autenticado em `public.clients`.
+     - Ao autenticar (`handleUserLoginSuccess`) ou cadastrar (`TriadeUserRegisterForm onSuccess`) um proprietário na Etapa 1, o formulário vincula os dados reais do titular (`ownerName`, `ownerEmail`, `ownerWhatsapp`, `ownerAddressData`, `pixKey` com o WhatsApp/E-mail real do titular e `CPF` se cadastrado) e mantém `tradeName`, `legalName` e `slug` limpos para o novo estabelecimento.
+- **Arquivos Impactados:**
+  - `src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`
+  - `src/components/admin/triade-forms/TriadeUserLoginForm.tsx`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-19] — 📐 Redesign Global de Modais & Proporcionalidade de Inputs em Todo o Ecossistema
+- **Tipo:** `[Refactor / UI / UX]`
+- **Motivo / Solicitação:** Reduzir a largura excessiva dos modais em telas de computador e dispositivos móveis em todo o aplicativo (`max-w-xl` a `max-w-6xl` → `max-w-md` / `max-w-lg`) e eliminar inputs de poucos dados agressivamente extensos (CEP, Número, UF, CPF/CNPJ, WhatsApp, Cor HEX), adotando grades proporcionais de 12 colunas (`grid-cols-12`) e campos compactos.
+- **Resumo Técnico:**
+  - **Padronização de Largura dos Modais (`max-w-md` e `max-w-lg`):**
+    - `TriadeEstablishmentMasterForm.tsx` e `TriadeEstablishmentModal.tsx`: Reduzidos de `max-w-4xl` para `max-w-lg` (`512px`), com Etapa 1 e sub-fluxos em `max-w-md` e modal de CEP isolado em `max-w-sm` (`220px` para o campo de 8 dígitos).
+    - `TriadeUserRegisterForm.tsx` e `UniversalFormEmbedView.tsx`: Reduzidos para `max-w-md` (`448px`), com CEP isolado compacto (`max-w-[220px]`) e grade de 12 colunas para Contatos e Endereço (`Rua 9 cols + Nº 3 cols`, `Complemento 4 cols + Bairro 8 cols`, `Cidade 6 cols + UF 2 cols + CEP 4 cols`).
+    - `AdminEditSalonModal.tsx` e `AdminUserGeneralDataModal.tsx`: Reduzidos de `max-w-3xl` para `max-w-lg` com inputs compactos de 12 colunas.
+    - `AdminCategoryModal.tsx`, `AdminCreateAdminModal.tsx`, `AdminEditAdminModal.tsx`, `SalonWelcomeModal.tsx`: Reduzidos para `max-w-md` com campos agrupados proporcionalmente (`Nome 7 cols + Usuário 5 cols`, `Categoria 7 cols + Slug 5 cols`).
+    - `AdminSalonDetailView.tsx`: Todos os 12 modais internos (Edição Geral, Equipe, Serviços, Galeria de Fotos, Simulador de App, Confirmação de Exclusão) compactados para `max-w-md` ou `max-w-lg`.
+    - `AdminSalonsList.tsx`, `AdminUsersManager.tsx`, `AdminPortalManager.tsx`, `AdminSettingsPanel.tsx`, `AdminTriadeFormsCatalog.tsx`, `VagouGatewayHub.tsx`: Todos os modais e containers de formulários compactados para `max-w-md` / `max-w-lg`.
+- **Arquivos Impactados:**
+  - `src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`
+  - `src/components/admin/triade-forms/TriadeEstablishmentModal.tsx`
+  - `src/components/admin/triade-forms/TriadeUserRegisterForm.tsx`
+  - `src/components/admin/triade-forms/TriadeAdminRegisterForm.tsx`
+  - `src/components/admin/SalonWelcomeModal.tsx`
+  - `src/components/admin/AdminEditSalonModal.tsx`
+  - `src/components/admin/AdminUserGeneralDataModal.tsx`
+  - `src/components/admin/AdminCategoryModal.tsx`
+  - `src/components/admin/AdminCreateAdminModal.tsx`
+  - `src/components/admin/AdminEditAdminModal.tsx`
+  - `src/components/admin/AdminSalonDetailView.tsx`
+  - `src/components/admin/AdminSalonsList.tsx`
+  - `src/components/admin/AdminUsersManager.tsx`
+  - `src/components/admin/AdminPortalManager.tsx`
+  - `src/components/admin/AdminSettingsPanel.tsx`
+  - `src/components/admin/AdminTriadeFormsCatalog.tsx`
+  - `src/components/embed/UniversalFormEmbedView.tsx`
+  - `src/components/gateway/VagouGatewayHub.tsx`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-19] — 🔗 Link / Slug Personalizado Sem Hífen com Pesquisa Automática de Disponibilidade em Tempo Real
+- **Tipo:** `[Feat / UX / Supabase]`
+- **Motivo / Solicitação:** Eliminar a geração automática de hífens no slug do estabelecimento (que dificultava a digitação da URL) e permitir a criação de slug personalizado contínuo (`nomedonegocio.vagouapp.com`) com pesquisa automática em tempo real no banco Supabase para impedir repetição, além de sugerir opções livres clicáveis caso já exista.
+- **Resumo Técnico:**
+  - Criados os utilitários `sanitizeSalonSlug` (remove acentos, espaços e hífens, mantendo apenas letras e números contínuos) e `checkSalonSlugAvailability` em `src/services/supabaseApi.ts`, além do endpoint `GET /api/public/check-slug/:slug` em `server.ts`.
+  - Em `TriadeEstablishmentMasterForm.tsx`, a digitação do Nome Fantasia gera um slug limpo sem hífen (ex.: `Lucas Barber` → `lucasbarber`), preservando o texto caso o usuário personalize manualmente o campo.
+  - Pesquisa automática com *debounce* (280ms) verifica no Supabase se o slug já pertence a outro salão ou se é reservado pelo sistema, exibindo selo de status em tempo real (`✓ Disponível` / `✕ Já está em uso`) e chips clicáveis de sugestões livres (`oficial`, `vip`, `studio`, `app`).
+  - Bloqueio preventivo no avanço da Etapa 2 e em `POST /api/admin/salons` / `createAdminSalon` para garantir que nenhum salão sobrescreva o link de outro titular.
+- **Arquivos Impactados:**
+  - `src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`
+  - `src/services/supabaseApi.ts`
+  - `server.ts`
+  - `src/components/admin/AdminSettingsPanel.tsx`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-19] — 🎉 Estúdio de Edição e Preview do Modal de Boas-Vindas (`SalonWelcomeModal`) na Aba Configurações
+- **Tipo:** `[Feat / UI / Settings]`
+- **Motivo / Solicitação:** Disponibilizar o Modal de Boas-Vindas & Kit de Lançamento dentro da aba **Configurações** (`AdminSettingsPanel.tsx`) para visualização imediata em tela cheia, testes com diferentes nomes/subdomínios e edição ao vivo de todos os textos, avisos e botões.
+- **Resumo Técnico:**
+  - `SalonWelcomeModal.tsx` agora suporta `SalonWelcomeTemplateConfig` com persistência em `localStorage` (`vagou_welcome_modal_config_v1`) e substituição dinâmica da variável `{nome}`.
+  - `AdminSettingsPanel.tsx` recebeu a seção **"Modal de Boas-Vindas & Kit de Lançamento (Link + QR Code)"** no topo da aba **Configurações**, com editor lado a lado, preview em tempo real do QR Code/textos e botão **"Abrir Modal de Boas-Vindas"** em tela cheia.
+- **Arquivos Impactados:**
+  - `src/components/admin/SalonWelcomeModal.tsx`
+  - `src/components/admin/AdminSettingsPanel.tsx`
+  - `CHANGELOG.md`
+
+---
+
 ### [2026-10-19] — 🏢 Correção do Fluxo de Criação de Estabelecimento via `vagouapp.com` (`?form=estabelecimento`) + Exibição Garantida do Kit de Lançamento (`SalonWelcomeModal`)
 - **Tipo:** `[Fix / Gateway / TriadeSync]`
 - **Motivo / Solicitação:** Ao clicar em **"Criar Meu Negócio"** no portal `vagouapp.com`, o modal abria o formulário, porém ao concluir o cadastro do usuário inicial (ex.: Maria Luiza), o modal simplesmente fechava sem avançar para os dados do estabelecimento e sem exibir o Kit de Lançamento (Link Oficial do App e QR Code para Balcão).

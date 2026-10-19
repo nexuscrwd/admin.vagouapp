@@ -14,6 +14,7 @@ import {
   Code,
   KeyRound,
   UserPlus,
+  Sparkles,
 } from 'lucide-react';
 import { AdminScreenId, SystemAdminUser, AdminAuthTab } from '../../types/admin';
 import { VagouOfficialLogo } from '../common/VagouOfficialLogo';
@@ -21,6 +22,7 @@ import { VagouOfficialLogo } from '../common/VagouOfficialLogo';
 export type FormsSubTabId =
   | 'estabelecimento_login'
   | 'estabelecimento_cadastro'
+  | 'welcome_modal'
   | 'usuario_login'
   | 'usuario_cadastro'
   | 'embeds'
@@ -88,6 +90,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     currentScreen === 'forms' &&
     (activeFormsTab === 'estabelecimento_login' ||
       activeFormsTab === 'estabelecimento_cadastro' ||
+      activeFormsTab === 'welcome_modal' ||
       activeFormsTab === 'estabelecimento');
 
   const isUserActive =
@@ -97,6 +100,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       activeFormsTab === 'usuarios');
 
   const isEmbedsActive = currentScreen === 'forms' && activeFormsTab === 'embeds';
+  const isWelcomeActive = currentScreen === 'forms' && activeFormsTab === 'welcome_modal';
 
   return (
     <aside
@@ -285,6 +289,28 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                             />
                             <span className="truncate">Cadastro Estabelecimento</span>
                           </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelectFormsTab?.('welcome_modal');
+                              onSelectScreen('forms');
+                              onCloseMobile?.();
+                            }}
+                            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] transition cursor-pointer text-left ${
+                              isWelcomeActive
+                                ? 'bg-[#20C933] text-white font-bold shadow-xs'
+                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                            }`}
+                          >
+                            <Sparkles
+                              className={`w-3 h-3 shrink-0 ${
+                                isWelcomeActive ? 'text-white' : 'text-emerald-400'
+                              }`}
+                            />
+                            <span className="truncate">Modal Boas-Vindas</span>
+                          </button>
                         </div>
                       )}
                     </div>
@@ -386,6 +412,25 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                     >
                       <Code className={`w-3.5 h-3.5 shrink-0 ${isEmbedsActive ? 'text-white' : 'text-emerald-400'}`} />
                       <span className="truncate">Embeds & iFrame</span>
+                    </button>
+
+                    {/* ITEM 4: MODAL DE BOAS-VINDAS (ACESSO DIRETO) */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectFormsTab?.('welcome_modal');
+                        onSelectScreen('forms');
+                        onCloseMobile?.();
+                      }}
+                      className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer text-left ${
+                        isWelcomeActive
+                          ? 'bg-[#20C933] text-white shadow-xs'
+                          : 'text-slate-400 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                      }`}
+                    >
+                      <Sparkles className={`w-3.5 h-3.5 shrink-0 ${isWelcomeActive ? 'text-white' : 'text-emerald-400'}`} />
+                      <span className="truncate">Modal Boas-Vindas</span>
                     </button>
                   </div>
                 )}

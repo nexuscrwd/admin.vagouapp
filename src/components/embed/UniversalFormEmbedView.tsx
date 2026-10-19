@@ -237,9 +237,9 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
       }`}
     >
       {/* RENDERIZAÇÃO ISOLADA DO FORMULÁRIO SELECIONADO */}
-      <div className={`w-full ${formType === 'estabelecimento' ? 'max-w-4xl' : formType === 'usuario' ? 'max-w-xl' : 'max-w-md'} animate-fadeIn`}>
+      <div className={`w-full ${formType === 'estabelecimento' ? 'max-w-lg' : 'max-w-md'} animate-fadeIn`}>
         {formType === 'usuario' && (
-          <div className="w-full max-w-xl mx-auto">
+          <div className="w-full max-w-md mx-auto">
             <TriadeUserRegisterForm
               origin={salonId ? 'establishment' : 'portal'}
               salonId={salonId}
@@ -277,7 +277,7 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
         )}
 
         {formType === 'mnv_cadastro' && (
-          <div className="w-full max-w-xl mx-auto">
+          <div className="w-full max-w-md mx-auto">
             <TriadeUserRegisterForm
               origin="establishment"
               salonId={salonId}
@@ -295,7 +295,7 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
         )}
 
         {formType === 'estabelecimento' && (
-          <div className="w-full max-w-4xl mx-auto">
+          <div className="w-full max-w-lg mx-auto">
             <TriadeEstablishmentMasterForm
               initialData={salonName && salonName !== 'VagouApp' ? { tradeName: salonName } : undefined}
               isStandalonePreview

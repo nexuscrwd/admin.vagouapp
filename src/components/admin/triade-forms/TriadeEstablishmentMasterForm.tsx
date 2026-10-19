@@ -24,30 +24,57 @@ import {
   Globe,
   Sparkles,
   Type,
+  Plus,
+  Trash2,
+  Receipt,
+  Wallet,
+  Star,
+  Printer,
+  QrCode,
+  MessageCircle,
+  Send,
 } from 'lucide-react';
-import { fetchAdminClients, createAdminSalon } from '../../../services/supabaseApi';
-import { AdminSalonItem } from '../../../types/admin';
+import {
+  fetchAdminClients,
+  createAdminSalon,
+  sanitizeSalonSlug,
+  checkSalonSlugAvailability,
+  formatPixKeyByType,
+  detectPixKeyType,
+  lookupPixKeyHolder,
+} from '../../../services/supabaseApi';
+import { AdminSalonItem, PixKeyType, SalonPixKeyItem } from '../../../types/admin';
+import { getPixQrCodeUrl, generatePixPayload } from '../../../services/pixGenerator';
+import { SalonPixPrintModal } from '../SalonPixPrintModal';
+import { PixCheckoutModal } from '../PixCheckoutModal';
 import { VagouOfficialLogo } from '../../common/VagouOfficialLogo';
 import { TriadeUserRegisterForm, TriadeUserData } from './TriadeUserRegisterForm';
 import { TriadeUserLoginForm, TriadeUserLoginPayload } from './TriadeUserLoginForm';
 import { SalonWelcomeModal } from '../SalonWelcomeModal';
 
 export interface EstablishmentMasterPayload {
-  // Titular / Proprietário
+  // Titular / Proprietário (Dados Pessoais — CPF pertence exclusivamente à Pessoa Física)
   ownerName: string;
   ownerWhatsapp: string;
   ownerEmail: string;
+  ownerCpf?: string;
 
-  // Dados Comerciais & Fiscais
+  // Dados Comerciais (Isolados)
   tradeName: string;
+  category: string;
+  slug: string;
+
+  // Dados Fiscais (Pessoa Jurídica — Opcional)
+  hasCnpj?: boolean;
   legalName: string;
   documentType: 'CNPJ' | 'CPF';
   documentNumber: string;
+
+  // Dados de Faturamento (Múltiplas Chaves PIX)
   pixKey: string;
+  pixKeys?: SalonPixKeyItem[];
   operationalModel: string;
   platformPlan: string;
-  category: string;
-  slug: string;
 
   // Localização & Endereço
   address: {
@@ -75,6 +102,8 @@ export interface EstablishmentMasterPayload {
 export type EstabMasterPhase =
   | 'user_check'
   | 'commercial'
+  | 'fiscal'
+  | 'pix_billing'
   | 'address'
   | 'visual'
   | 'review'
@@ -106,8 +135,8 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
   // Sub-rotina transitória de Login/Cadastro de Usuário dentro de 1. Identificação (Sim/Não)
   const [userAuthSubFlow, setUserAuthSubFlow] = useState<'none' | 'login' | 'register'>('none');
 
-  // Abas do formulário de dados do salão (Padrão inicial: Comercial & Fiscal)
-  const [activeSection, setActiveSection] = useState<'commercial' | 'address' | 'visual'>('commercial');
+  // Abas do formulário de dados do salão (Comercial, Fiscal e PIX totalmente isolados)
+  const [activeSection, setActiveSection] = useState<'commercial' | 'fiscal' | 'pix_billing' | 'address' | 'visual'>('commercial');
   // Sub-fases do Endereço do Estabelecimento:
   // 1) 'same_address_modal' ("O salão fica no mesmo endereço do proprietário?")
   // 2) 'cep_modal' (Modal isolado de CEP idêntico ao cadastro de usuário)
@@ -115,6 +144,8 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
   const [addressSubPhase, setAddressSubPhase] = useState<'same_address_modal' | 'cep_modal' | 'address_form'>('same_address_modal');
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
+  const [isPrintPlaqueOpen, setIsPrintPlaqueOpen] = useState(false);
+  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [createdSalonResult, setCreatedSalonResult] = useState<{
     payload: EstablishmentMasterPayload;
     salon: any;
@@ -177,64 +208,98 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
     city: string;
     state: string;
   }>({
-    cep: '01310-100',
-    street: 'Avenida Paulista',
-    number: '1578',
-    complement: 'Apto 42',
-    neighborhood: 'Bela Vista',
-    city: 'São Paulo',
-    state: 'SP',
+    cep: initialData?.address?.cep || '',
+    street: initialData?.address?.street || '',
+    number: initialData?.address?.number || '',
+    complement: initialData?.address?.complement || '',
+    neighborhood: initialData?.address?.neighborhood || '',
+    city: initialData?.address?.city || '',
+    state: initialData?.address?.state || '',
   });
 
+  // Dados Pessoais do Proprietário no Formulário do Salão (CPF pertence ao cadastro pessoal do titular)
+  const [ownerName, setOwnerName] = useState(initialData?.ownerName || '');
+  const [ownerWhatsapp, setOwnerWhatsapp] = useState(initialData?.ownerWhatsapp || '');
+  const [ownerEmail, setOwnerEmail] = useState(initialData?.ownerEmail || '');
+  const [ownerCpf, setOwnerCpf] = useState(
+    initialData?.ownerCpf ||
+      (initialData?.documentType === 'CPF' ? initialData?.documentNumber || '' : '')
+  );
 
+  // 1. Dados Comerciais (Isolados)
+  const [tradeName, setTradeName] = useState(initialData?.tradeName || '');
+  const [category, setCategory] = useState(initialData?.category || 'Barbearia');
+  const [slug, setSlug] = useState(
+    initialData?.slug ? sanitizeSalonSlug(initialData.slug) : ''
+  );
+  const [isCustomSlug, setIsCustomSlug] = useState(false);
+  const [slugCheckStatus, setSlugCheckStatus] = useState<
+    'idle' | 'checking' | 'available' | 'taken' | 'reserved' | 'too_short'
+  >('idle');
+  const [slugSuggestions, setSlugSuggestions] = useState<string[]>([]);
+  const [takenByTradeName, setTakenByTradeName] = useState<string>('');
 
+  // 2. Dados Fiscais (Pessoa Jurídica — CNPJ Opcional; CPF não aparece aqui)
+  const [hasCnpj, setHasCnpj] = useState<boolean>(
+    initialData?.hasCnpj ?? (initialData?.documentType === 'CNPJ' && Boolean(initialData?.documentNumber))
+  );
+  const [cnpjNumber, setCnpjNumber] = useState(
+    initialData?.documentType === 'CNPJ' ? initialData?.documentNumber || '' : ''
+  );
+  const [legalName, setLegalName] = useState(initialData?.legalName || '');
+  const [isSearchingCnpj, setIsSearchingCnpj] = useState(false);
 
+  // 3. Dados de Faturamento & Recebimento (Múltiplas Chaves PIX com Auto-Preenchimento)
+  const [pixKeys, setPixKeys] = useState<SalonPixKeyItem[]>(() => {
+    if (Array.isArray(initialData?.pixKeys) && initialData.pixKeys.length > 0) {
+      return initialData.pixKeys;
+    }
+    if (initialData?.pixKey) {
+      const detected = detectPixKeyType(initialData.pixKey, 'phone');
+      return [
+        {
+          id: 'pix-1',
+          type: detected,
+          key: formatPixKeyByType(initialData.pixKey, detected),
+          holderName: initialData?.ownerName || '',
+          institution: 'Chave Principal',
+          isPrimary: true,
+          verified: true,
+        },
+      ];
+    }
+    return [
+      {
+        id: 'pix-1',
+        type: 'cpf',
+        key: '',
+        holderName: '',
+        institution: '',
+        isPrimary: true,
+        verified: false,
+      },
+    ];
+  });
+  const [lookingUpPixId, setLookingUpPixId] = useState<string | null>(null);
 
-  // Dados do Proprietário no Formulário do Salão
-  const [ownerName, setOwnerName] = useState(initialData?.ownerName || 'Lucas Gabriel Mendes');
-  const [ownerWhatsapp, setOwnerWhatsapp] = useState(initialData?.ownerWhatsapp || '(11) 99999-1111');
-  const [ownerEmail, setOwnerEmail] = useState(initialData?.ownerEmail || 'lucas.mendes@gmail.com');
-
-  // Dados Comerciais & Fiscais do Salão
-  const [tradeName, setTradeName] = useState(initialData?.tradeName || 'Lucas Barber');
-  const [legalName, setLegalName] = useState(initialData?.legalName || 'Lucas Gabriel Mendes Barbearia ME');
-  const [documentType, setDocumentType] = useState<'CNPJ' | 'CPF'>(initialData?.documentType || 'CNPJ');
-  const [documentNumber, setDocumentNumber] = useState(initialData?.documentNumber || '45.123.890/0001-44');
-  const [pixKey, setPixKey] = useState(initialData?.pixKey || '11999991111');
   const operationalModel = initialData?.operationalModel || 'Espaço Físico & Delivery';
   const platformPlan = initialData?.platformPlan || 'PRO / 5% POR AGENDAMENTO';
-  const [category, setCategory] = useState(initialData?.category || 'Barbearia');
-  const [slug, setSlug] = useState(initialData?.slug || 'lucas-barber');
 
   // Endereço do Salão com ViaCEP
-  const [cep, setCep] = useState(initialData?.address?.cep || '01415-000');
-  const [street, setStreet] = useState(initialData?.address?.street || 'Rua Bela Cintra');
-  const [number, setNumber] = useState(initialData?.address?.number || '1234');
-  const [complement, setComplement] = useState(initialData?.address?.complement || 'Loja 2');
-  const [neighborhood, setNeighborhood] = useState(initialData?.address?.neighborhood || 'Consolação');
-  const [city, setCity] = useState(initialData?.address?.city || 'São Paulo');
-  const [state, setState] = useState(initialData?.address?.state || 'SP');
+  const [cep, setCep] = useState(initialData?.address?.cep || '');
+  const [street, setStreet] = useState(initialData?.address?.street || '');
+  const [number, setNumber] = useState(initialData?.address?.number || '');
+  const [complement, setComplement] = useState(initialData?.address?.complement || '');
+  const [neighborhood, setNeighborhood] = useState(initialData?.address?.neighborhood || '');
+  const [city, setCity] = useState(initialData?.address?.city || '');
+  const [state, setState] = useState(initialData?.address?.state || '');
 
   const [isSearchingCep, setIsSearchingCep] = useState(false);
   const [isSearchingCepByAddress, setIsSearchingCepByAddress] = useState(false);
-  const [isSearchingCnpj, setIsSearchingCnpj] = useState(false);
 
   // Máscara dinâmica de CPF (11 dígitos) e CNPJ (14 dígitos)
   const formatFiscalDocument = (value: string, type: 'CNPJ' | 'CPF') => {
-    const digits = value.replace(/\D/g, '');
-    if (type === 'CPF') {
-      const d = digits.slice(0, 11);
-      if (d.length <= 3) return d;
-      if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
-      if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
-      return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9, 11)}`;
-    }
-    const d = digits.slice(0, 14);
-    if (d.length <= 2) return d;
-    if (d.length <= 5) return `${d.slice(0, 2)}.${d.slice(2)}`;
-    if (d.length <= 8) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5)}`;
-    if (d.length <= 12) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8)}`;
-    return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12, 14)}`;
+    return formatPixKeyByType(value, type === 'CPF' ? 'cpf' : 'cnpj');
   };
 
   // Busca automática de Razão Social / Nome Fantasia ao informar CNPJ de 14 dígitos (BrasilAPI)
@@ -249,7 +314,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
       if (data.razao_social) {
         setLegalName(data.razao_social);
       }
-      if (data.nome_fantasia && (!tradeName.trim() || tradeName === 'Lucas Barber')) {
+      if (data.nome_fantasia && !tradeName.trim()) {
         handleTradeNameChange(data.nome_fantasia);
       }
     } catch {
@@ -259,21 +324,140 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
     }
   };
 
-  const handleDocumentTypeSwitch = (nextType: 'CNPJ' | 'CPF') => {
-    setDocumentType(nextType);
-    const formatted = formatFiscalDocument(documentNumber, nextType);
-    setDocumentNumber(formatted);
-    if (nextType === 'CPF') {
-      setLegalName('');
+  const handleCnpjNumberChange = (val: string) => {
+    const formatted = formatFiscalDocument(val, 'CNPJ');
+    setCnpjNumber(formatted);
+    if (formatted.replace(/\D/g, '').length === 14) {
+      handleCnpjLookup(formatted);
     }
   };
 
-  const handleDocumentNumberChange = (val: string) => {
-    const formatted = formatFiscalDocument(val, documentType);
-    setDocumentNumber(formatted);
-    if (documentType === 'CNPJ' && formatted.replace(/\D/g, '').length === 14) {
-      handleCnpjLookup(formatted);
+  const handleOwnerCpfChange = (val: string) => {
+    setOwnerCpf(formatFiscalDocument(val, 'CPF'));
+  };
+
+  // Funções de Gerenciamento de Múltiplas Chaves PIX & Consulta Automática de Titular
+  const triggerPixAutoLookup = async (id: string, keyVal: string, keyType: PixKeyType) => {
+    setLookingUpPixId(id);
+    try {
+      const result = await lookupPixKeyHolder(keyVal, keyType, {
+        ownerName,
+        ownerCpf,
+        ownerPhone: ownerWhatsapp,
+        ownerEmail,
+        legalName: hasCnpj ? legalName : '',
+      });
+      setPixKeys((prev) =>
+        prev.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                holderName: result.valid ? result.holderName : '',
+                institution: result.valid ? result.institution : '',
+                verified: result.valid,
+              }
+            : item
+        )
+      );
+    } finally {
+      setLookingUpPixId(null);
     }
+  };
+
+  const handlePixKeyItemChange = (id: string, rawVal: string, explicitType?: PixKeyType) => {
+    setPixKeys((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        const resolvedType = explicitType || detectPixKeyType(rawVal, item.type);
+        const formatted = formatPixKeyByType(rawVal, resolvedType);
+        const cleanDigits = formatted.replace(/\D/g, '');
+        const shouldAutoLookup =
+          (resolvedType === 'cpf' && cleanDigits.length === 11) ||
+          (resolvedType === 'cnpj' && cleanDigits.length === 14) ||
+          (resolvedType === 'phone' && cleanDigits.length >= 10) ||
+          (resolvedType === 'email' && formatted.includes('@') && formatted.includes('.')) ||
+          (resolvedType === 'evp' && formatted.replace(/[^a-f0-9]/g, '').length === 32);
+
+        if (shouldAutoLookup) {
+          setTimeout(() => {
+            triggerPixAutoLookup(id, formatted, resolvedType);
+          }, 120);
+        }
+
+        return {
+          ...item,
+          type: resolvedType,
+          key: formatted,
+          verified: false,
+        };
+      })
+    );
+  };
+
+  const handleAddPixKeyRow = (presetType: PixKeyType = 'phone', presetValue = '') => {
+    const newId = `pix-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
+    const formatted = presetValue ? formatPixKeyByType(presetValue, presetType) : '';
+    setPixKeys((prev) => [
+      ...prev,
+      {
+        id: newId,
+        type: presetType,
+        key: formatted,
+        holderName: presetValue ? ownerName || legalName : '',
+        institution: presetValue ? 'Titular Vinculado' : '',
+        isPrimary: prev.length === 0,
+        verified: Boolean(presetValue),
+      },
+    ]);
+    if (formatted) {
+      setTimeout(() => {
+        triggerPixAutoLookup(newId, formatted, presetType);
+      }, 80);
+    }
+  };
+
+  const handleQuickFillPix = (type: PixKeyType, rawValue: string) => {
+    if (!rawValue.trim()) return;
+    const formatted = formatPixKeyByType(rawValue, type);
+    const existingEmpty = pixKeys.find((k) => !k.key.trim());
+    if (existingEmpty) {
+      handlePixKeyItemChange(existingEmpty.id, formatted, type);
+      triggerPixAutoLookup(existingEmpty.id, formatted, type);
+    } else if (!pixKeys.some((k) => k.key === formatted)) {
+      handleAddPixKeyRow(type, formatted);
+    }
+  };
+
+  const handleRemovePixKeyRow = (id: string) => {
+    setPixKeys((prev) => {
+      const filtered = prev.filter((k) => k.id !== id);
+      if (filtered.length === 0) {
+        return [
+          {
+            id: `pix-${Date.now()}`,
+            type: 'cpf',
+            key: '',
+            holderName: '',
+            institution: '',
+            isPrimary: true,
+            verified: false,
+          },
+        ];
+      }
+      if (!filtered.some((k) => k.isPrimary)) {
+        filtered[0].isPrimary = true;
+      }
+      return [...filtered];
+    });
+  };
+
+  const handleSetPrimaryPixKey = (id: string) => {
+    setPixKeys((prev) =>
+      prev.map((k) => ({
+        ...k,
+        isPrimary: k.id === id,
+      }))
+    );
   };
 
   // Identidade Visual & Branding (Essenciais: Logotipo, Favicon, Cor, Slogan e Fonte da Marca)
@@ -281,9 +465,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
   const [faviconUrl, setFaviconUrl] = useState(initialData?.faviconUrl || '');
   const [useLogoAsFavicon, setUseLogoAsFavicon] = useState(true);
   const [primaryColor, setPrimaryColor] = useState(initialData?.primaryColor || '#20C933');
-  const [slogan, setSlogan] = useState(
-    initialData?.slogan || 'Cortes modernos, degradê navalhado e barba terapia.'
-  );
+  const [slogan, setSlogan] = useState(initialData?.slogan || '');
   const [brandFont, setBrandFont] = useState<string>(initialData?.brandFont || 'Poppins');
 
   const BRAND_FONT_PRESETS = [
@@ -486,26 +668,76 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
 
   const handleTradeNameChange = (val: string) => {
     setTradeName(val);
-    const generatedSlug = val
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '');
-    setSlug(generatedSlug);
+    if (!isCustomSlug) {
+      const generatedSlug = sanitizeSalonSlug(val);
+      setSlug(generatedSlug);
+    }
   };
+
+  const handleCustomSlugChange = (val: string) => {
+    setIsCustomSlug(true);
+    setSlug(sanitizeSalonSlug(val));
+  };
+
+  const handleResetSlugToAuto = () => {
+    setIsCustomSlug(false);
+    setSlug(sanitizeSalonSlug(tradeName));
+  };
+
+  // Pesquisa automática em tempo real para impedir repetição de slug no banco Supabase
+  useEffect(() => {
+    const clean = sanitizeSalonSlug(slug);
+    if (!clean || clean.length < 3) {
+      setSlugCheckStatus('too_short');
+      setSlugSuggestions([]);
+      setTakenByTradeName('');
+      return;
+    }
+
+    let cancelled = false;
+    setSlugCheckStatus('checking');
+
+    const timer = setTimeout(async () => {
+      const res = await checkSalonSlugAvailability(clean, ownerEmail);
+      if (cancelled) return;
+      if (res.available) {
+        setSlugCheckStatus('available');
+        setSlugSuggestions([]);
+        setTakenByTradeName('');
+      } else {
+        setSlugCheckStatus(
+          res.reason === 'reserved'
+            ? 'reserved'
+            : res.reason === 'too_short'
+              ? 'too_short'
+              : 'taken'
+        );
+        setSlugSuggestions(res.suggestions || []);
+        setTakenByTradeName(res.existingTradeName || '');
+      }
+    }, 280);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [slug, ownerEmail]);
 
   // Função para Copiar Endereço Residencial do Proprietário e Avançar para Próxima Fase
   const applyOwnerAddressToSalon = (addrData?: typeof ownerAddressData) => {
     const source = addrData || ownerAddressData;
-    setCep(source.cep || '01310-100');
-    setStreet(source.street || 'Avenida Paulista');
-    setNumber(source.number || '1578');
-    setComplement(source.complement || 'Apto 42');
-    setNeighborhood(source.neighborhood || 'Bela Vista');
-    setCity(source.city || 'São Paulo');
-    setState(source.state || 'SP');
+    if (!source.street && !source.cep) {
+      setIsSameAddressChosen(false);
+      setAddressSubPhase('cep_modal');
+      return;
+    }
+    setCep(source.cep || '');
+    setStreet(source.street || '');
+    setNumber(source.number || '');
+    setComplement(source.complement || '');
+    setNeighborhood(source.neighborhood || '');
+    setCity(source.city || '');
+    setState(source.state || '');
     setIsSameAddressChosen(true);
     setFeedback({
       type: 'success',
@@ -519,11 +751,22 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
     try {
       const term = data.identifier.toLowerCase().trim();
       let matchedUser = {
-        id: 'usr-auth-01',
-        name: data.identifier.includes('@') ? data.identifier.split('@')[0] : data.identifier,
-        email: data.identifier.includes('@') ? data.identifier : `${data.identifier.toLowerCase().replace(/[^a-z0-9]/g, '')}@vagouapp.com`,
-        phone: '(11) 98765-4321',
-        username: data.identifier.replace(/^@+/, ''),
+        id: data.id || 'usr-auth-01',
+        name: data.name || (data.identifier.includes('@') ? data.identifier.split('@')[0] : data.identifier),
+        email: data.email || (data.identifier.includes('@') ? data.identifier : `${data.identifier.toLowerCase().replace(/[^a-z0-9]/g, '')}@vagouapp.com`),
+        phone: data.phone || '',
+        username: (data.username || data.identifier).replace(/^@+/, ''),
+        cpf: data.cpf || '',
+      };
+
+      let resolvedOwnerAddr = {
+        cep: data.address?.cep || '',
+        street: data.address?.street || '',
+        number: data.address?.number || '',
+        complement: data.address?.complement || '',
+        neighborhood: data.address?.neighborhood || '',
+        city: data.address?.city || '',
+        state: data.address?.state || '',
       };
 
       try {
@@ -531,44 +774,104 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         if (cliList && Array.isArray(cliList)) {
           const found = cliList.find(
             (u) =>
+              (data.email && u.email?.toLowerCase() === data.email.toLowerCase()) ||
               u.email?.toLowerCase() === term ||
-              u.username?.toLowerCase() === term ||
-              u.phone?.replace(/\D/g, '') === term.replace(/\D/g, '')
+              u.username?.replace(/^@+/, '').toLowerCase() === term.replace(/^@+/, '') ||
+              (term.replace(/\D/g, '').length >= 8 &&
+                u.phone?.replace(/\D/g, '').endsWith(term.replace(/\D/g, '').slice(-8)))
           );
           if (found) {
             matchedUser = {
               id: found.id,
-              name: found.full_name || found.username || 'Proprietário',
+              name: found.full_name || found.username || matchedUser.name,
               email: found.email || matchedUser.email,
               phone: found.phone || matchedUser.phone,
-              username: found.username || matchedUser.username,
+              username: (found.username || matchedUser.username).replace(/^@+/, ''),
+              cpf: found.cpf || '',
             };
             if (found.address || found.cep) {
-              setOwnerAddressData({
-                cep: found.cep || '01310-100',
-                street: found.address || 'Avenida Paulista',
-                number: found.street_number || '1578',
+              resolvedOwnerAddr = {
+                cep: found.cep || '',
+                street: found.address || '',
+                number: found.street_number || '',
                 complement: found.complement || '',
-                neighborhood: found.neighborhood || 'Bela Vista',
-                city: found.city || 'São Paulo',
-                state: found.state || 'SP',
-              });
+                neighborhood: found.neighborhood || '',
+                city: found.city || '',
+                state: found.state || '',
+              };
             }
           }
         }
       } catch {
-        console.warn('Uso do fallback simulado para login do proprietário');
+        // Continua com os dados retornados pelo payload de login
       }
 
       setSelectedUser(matchedUser);
       setOwnerName(matchedUser.name);
       setOwnerEmail(matchedUser.email);
       setOwnerWhatsapp(matchedUser.phone);
+      setOwnerAddressData(resolvedOwnerAddr);
       setIsAuthenticatedOwner(true);
+
+      // Limpa qualquer dado residual e vincula dados pessoais reais do titular autenticado
+      setTradeName('');
+      setSlug('');
+      setIsCustomSlug(false);
+      setHasCnpj(false);
+      setCnpjNumber('');
+      setLegalName('');
+      setOwnerCpf(matchedUser.cpf ? formatFiscalDocument(matchedUser.cpf, 'CPF') : '');
+
+      const initialPixList: SalonPixKeyItem[] = [];
+      if (matchedUser.cpf) {
+        initialPixList.push({
+          id: 'pix-cpf',
+          type: 'cpf',
+          key: formatPixKeyByType(matchedUser.cpf, 'cpf'),
+          holderName: matchedUser.name,
+          institution: 'Titular Proprietário Verificado',
+          isPrimary: true,
+          verified: true,
+        });
+      }
+      if (matchedUser.phone) {
+        initialPixList.push({
+          id: 'pix-phone',
+          type: 'phone',
+          key: formatPixKeyByType(matchedUser.phone, 'phone'),
+          holderName: matchedUser.name,
+          institution: 'WhatsApp Oficial do Titular',
+          isPrimary: initialPixList.length === 0,
+          verified: true,
+        });
+      }
+      setPixKeys(
+        initialPixList.length > 0
+          ? initialPixList
+          : [
+              {
+                id: 'pix-1',
+                type: 'cpf',
+                key: '',
+                holderName: matchedUser.name,
+                institution: '',
+                isPrimary: true,
+                verified: false,
+              },
+            ]
+      );
+
+      setCep(resolvedOwnerAddr.cep);
+      setStreet(resolvedOwnerAddr.street);
+      setNumber(resolvedOwnerAddr.number);
+      setComplement(resolvedOwnerAddr.complement);
+      setNeighborhood(resolvedOwnerAddr.neighborhood);
+      setCity(resolvedOwnerAddr.city);
+      setState(resolvedOwnerAddr.state);
 
       setFeedback({
         type: 'success',
-        message: `Proprietário "${matchedUser.name}" (${matchedUser.username.replace(/^@+/, '')}) autenticado! Dados pré-carregados na ficha do estabelecimento.`,
+        message: `Proprietário "${matchedUser.name}" (${matchedUser.username}) autenticado! Confira seus dados e preencha os dados comerciais.`,
       });
 
       setUserAuthSubFlow('none');
@@ -591,6 +894,43 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
       return;
     }
 
+    if (ownerCpf.replace(/\D/g, '').length !== 11) {
+      updatePhase('commercial');
+      setFeedback({
+        type: 'error',
+        message: 'Informe o CPF pessoal do titular (11 dígitos) nos Dados Pessoais.',
+      });
+      return;
+    }
+
+    const cleanSlugForSubmit = sanitizeSalonSlug(slug);
+    if (cleanSlugForSubmit.length < 3) {
+      updatePhase('commercial');
+      setFeedback({
+        type: 'error',
+        message: 'O link personalizado deve ter pelo menos 3 letras ou números.',
+      });
+      return;
+    }
+
+    if (slugCheckStatus === 'taken' || slugCheckStatus === 'reserved') {
+      updatePhase('commercial');
+      setFeedback({
+        type: 'error',
+        message: `O link "${cleanSlugForSubmit}.vagouapp.com" já está em uso. Escolha outro link ou selecione uma das sugestões disponíveis.`,
+      });
+      return;
+    }
+
+    if (hasCnpj && cnpjNumber.replace(/\D/g, '').length !== 14) {
+      updatePhase('fiscal');
+      setFeedback({
+        type: 'error',
+        message: 'Informe os 14 dígitos do CNPJ ou selecione a opção Sem CNPJ.',
+      });
+      return;
+    }
+
     if (!cep.trim() || !street.trim() || !number.trim() || !city.trim() || !state.trim()) {
       updatePhase('address');
       setFeedback({ type: 'error', message: 'Preencha o endereço completo do estabelecimento.' });
@@ -598,10 +938,15 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
     }
 
     setIsLoading(true);
-    const resolvedLegalName =
-      documentType === 'CNPJ'
-        ? legalName.trim() || tradeName.trim()
-        : ownerName.trim() || tradeName.trim();
+    const resolvedDocType: 'CNPJ' | 'CPF' = hasCnpj ? 'CNPJ' : 'CPF';
+    const resolvedDocNumber = hasCnpj ? cnpjNumber.trim() : ownerCpf.trim();
+    const resolvedLegalName = hasCnpj
+      ? legalName.trim() || tradeName.trim()
+      : ownerName.trim() || tradeName.trim();
+
+    const validPixKeys = pixKeys.filter((k) => k.key.trim().length > 0);
+    const primaryPixObj = validPixKeys.find((k) => k.isPrimary) || validPixKeys[0];
+    const resolvedPrimaryPixKey = primaryPixObj ? primaryPixObj.key.trim() : '';
 
     const effectiveFavicon = useLogoAsFavicon ? logoUrl || faviconUrl : faviconUrl;
 
@@ -609,11 +954,14 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
       ownerName,
       ownerWhatsapp,
       ownerEmail,
+      ownerCpf,
       tradeName,
+      hasCnpj,
       legalName: resolvedLegalName,
-      documentType,
-      documentNumber,
-      pixKey,
+      documentType: resolvedDocType,
+      documentNumber: resolvedDocNumber,
+      pixKey: resolvedPrimaryPixKey,
+      pixKeys: validPixKeys,
       operationalModel,
       platformPlan,
       category,
@@ -641,9 +989,12 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         slug: slug.trim(),
         phone_whatsapp: ownerWhatsapp.trim(),
         email: ownerEmail.trim().toLowerCase(),
-        document_type: documentType,
-        document_number: documentNumber.trim(),
-        pix_key: pixKey.trim(),
+        document_type: resolvedDocType,
+        document_number: resolvedDocNumber,
+        has_cnpj: hasCnpj,
+        owner_cpf: ownerCpf.trim(),
+        pix_key: resolvedPrimaryPixKey,
+        pix_keys: validPixKeys,
         operating_model: operationalModel,
         billing_plan: platformPlan,
         owner_name: ownerName.trim(),
@@ -696,6 +1047,10 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (activeSection === 'commercial') {
+      updatePhase('fiscal');
+    } else if (activeSection === 'fiscal') {
+      updatePhase('pix_billing');
+    } else if (activeSection === 'pix_billing') {
       updatePhase('address');
     } else if (activeSection === 'address') {
       updatePhase('visual');
@@ -705,15 +1060,15 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
   };
 
   return (
-    <div className="w-full font-['Poppins'] relative">
+    <div className="w-full max-w-lg mx-auto font-['Poppins'] relative">
       {onClose && (
         <button
           type="button"
           onClick={onClose}
-          className="absolute top-3 right-3 z-20 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/80 transition cursor-pointer"
+          className="absolute top-2.5 right-2.5 z-20 p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/80 transition cursor-pointer"
           title="Fechar"
         >
-          <X className="w-5 h-5" />
+          <X className="w-4 h-4" />
         </button>
       )}
 
@@ -721,40 +1076,40 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
       {/* ETAPA 1: IDENTIFICAÇÃO (SIM/NÃO) + SUB-ROTINA TRANSITÓRIA DE USUÁRIO      */}
       {/* ========================================================================= */}
       {flowStep === 'user_check' && userAuthSubFlow === 'none' && (
-        <div className="p-6 sm:p-10 space-y-6 text-center animate-fadeIn">
+        <div className="p-5 sm:p-6 space-y-5 text-center animate-fadeIn max-w-md mx-auto">
           {/* Logo Oficial do VagouApp na Etapa 1 */}
-          <VagouOfficialLogo size="xl" variant="full" className="h-10 sm:h-12 w-auto object-contain mx-auto" />
+          <VagouOfficialLogo size="xl" variant="full" className="h-9 sm:h-10 w-auto object-contain mx-auto" />
 
-          <div className="space-y-2 max-w-md mx-auto">
-            <h2 className="text-lg sm:text-xl font-extrabold text-white tracking-tight">
+          <div className="space-y-1.5">
+            <h2 className="text-base sm:text-lg font-extrabold text-white tracking-tight">
               O estabelecimento a ser criado já possui usuário cadastrado?
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg mx-auto pt-2">
+          <div className="grid grid-cols-2 gap-3 pt-1">
             {/* Opção SIM -> Chama Form Canônico de Login de Usuário e retorna aos Dados do Salão */}
             <button
               type="button"
               onClick={() => setUserAuthSubFlow('login')}
-              className="p-5 rounded-2xl border border-emerald-500/40 bg-emerald-950/30 hover:bg-emerald-900/40 transition cursor-pointer group active:scale-98 shadow-md flex items-center justify-between"
+              className="p-4 rounded-xl border border-emerald-500/40 bg-emerald-950/30 hover:bg-emerald-900/40 transition cursor-pointer group active:scale-98 shadow-md flex items-center justify-between"
             >
-              <span className="text-base font-black text-emerald-400 group-hover:text-emerald-300">SIM</span>
-              <Check className="w-5 h-5 text-emerald-400" />
+              <span className="text-sm font-black text-emerald-400 group-hover:text-emerald-300">SIM</span>
+              <Check className="w-4 h-4 text-emerald-400" />
             </button>
 
             {/* Opção NÃO -> Chama Form Canônico de Cadastro de Usuário e retorna aos Dados do Salão */}
             <button
               type="button"
               onClick={() => setUserAuthSubFlow('register')}
-              className="p-5 rounded-2xl border border-slate-700 bg-slate-800/60 hover:bg-slate-800 transition cursor-pointer group active:scale-98 shadow-md flex items-center justify-between"
+              className="p-4 rounded-xl border border-slate-700 bg-slate-800/60 hover:bg-slate-800 transition cursor-pointer group active:scale-98 shadow-md flex items-center justify-between"
             >
-              <span className="text-base font-black text-slate-200 group-hover:text-white">NÃO</span>
-              <UserPlus className="w-5 h-5 text-slate-400 group-hover:text-white" />
+              <span className="text-sm font-black text-slate-200 group-hover:text-white">NÃO</span>
+              <UserPlus className="w-4 h-4 text-slate-400 group-hover:text-white" />
             </button>
           </div>
 
-          <div className="pt-4 border-t border-slate-800/60 max-w-lg mx-auto flex items-center justify-center gap-2 text-xs text-slate-500">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+          <div className="pt-3 border-t border-slate-800/60 flex items-center justify-center gap-1.5 text-[11px] text-slate-500">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
             <span>Ambiente Seguro · Governança Oficial</span>
           </div>
         </div>
@@ -762,9 +1117,9 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
 
       {/* SUB-ROTINA TRANSITÓRIA (OPÇÃO SIM): LOGIN DE USUÁRIO E RETORNO AO SALÃO */}
       {flowStep === 'user_check' && userAuthSubFlow === 'login' && (
-        <div className="p-4 sm:p-6 max-w-md mx-auto space-y-4 animate-fadeIn">
-          <div className="pt-2 text-center">
-            <VagouOfficialLogo size="xl" variant="full" className="h-10 sm:h-12 w-auto object-contain mx-auto" />
+        <div className="p-4 sm:p-5 max-w-md mx-auto space-y-3.5 animate-fadeIn">
+          <div className="pt-1 text-center">
+            <VagouOfficialLogo size="xl" variant="full" className="h-9 sm:h-10 w-auto object-contain mx-auto" />
           </div>
 
           <TriadeUserLoginForm
@@ -776,7 +1131,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
             onSuccess={handleUserLoginSuccess}
           />
 
-          <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+          <div className="pt-2.5 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
             <button
               type="button"
               onClick={() => setUserAuthSubFlow('none')}
@@ -794,17 +1149,18 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
 
       {/* SUB-ROTINA TRANSITÓRIA (OPÇÃO NÃO): CADASTRO DE USUÁRIO E RETORNO AO SALÃO */}
       {flowStep === 'user_check' && userAuthSubFlow === 'register' && (
-        <div className="p-4 sm:p-6 max-w-xl mx-auto space-y-4 animate-fadeIn">
-          <div className="pt-2 text-center">
-            <VagouOfficialLogo size="xl" variant="full" className="h-10 sm:h-12 w-auto object-contain mx-auto" />
+        <div className="p-4 sm:p-5 max-w-md mx-auto space-y-3.5 animate-fadeIn">
+          <div className="pt-1 text-center">
+            <VagouOfficialLogo size="xl" variant="full" className="h-9 sm:h-10 w-auto object-contain mx-auto" />
           </div>
 
           <TriadeUserRegisterForm
             showHeader={false}
             variant="flat"
             title="Cadastro do Proprietário"
-            subtitle="Crie sua conta para vincular ao novo estabelecimento"
+            subtitle="Crie sua conta pessoal para vincular ao estabelecimento"
             suppressParentPostMessage={true}
+            requireCpf={true}
             onSuccess={(userData: TriadeUserData) => {
               const newUser = {
                 id: userData.id || `usr-${Date.now()}`,
@@ -818,21 +1174,79 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
               setOwnerName(newUser.name);
               setOwnerEmail(newUser.email);
               setOwnerWhatsapp(newUser.phone);
+              const formattedCpf = userData.cpf ? formatFiscalDocument(userData.cpf, 'CPF') : '';
+              setOwnerCpf(formattedCpf);
               setIsAuthenticatedOwner(true);
 
-              setOwnerAddressData({
-                cep: userData.address.cep,
-                street: userData.address.street,
-                number: userData.address.number,
+              const newOwnerAddr = {
+                cep: userData.address.cep || '',
+                street: userData.address.street || '',
+                number: userData.address.number || '',
                 complement: userData.address.complement || '',
-                neighborhood: userData.address.neighborhood,
-                city: userData.address.city,
-                state: userData.address.state,
-              });
+                neighborhood: userData.address.neighborhood || '',
+                city: userData.address.city || '',
+                state: userData.address.state || '',
+              };
+              setOwnerAddressData(newOwnerAddr);
+
+              // Limpa dados comerciais e fiscais para que o novo proprietário cadastre seu próprio estabelecimento
+              setTradeName('');
+              setSlug('');
+              setIsCustomSlug(false);
+              setHasCnpj(false);
+              setCnpjNumber('');
+              setLegalName('');
+
+              const initialPixList: SalonPixKeyItem[] = [];
+              if (formattedCpf) {
+                initialPixList.push({
+                  id: 'pix-cpf',
+                  type: 'cpf',
+                  key: formattedCpf,
+                  holderName: newUser.name,
+                  institution: 'Titular Proprietário Verificado',
+                  isPrimary: true,
+                  verified: true,
+                });
+              }
+              if (newUser.phone) {
+                initialPixList.push({
+                  id: 'pix-phone',
+                  type: 'phone',
+                  key: formatPixKeyByType(newUser.phone, 'phone'),
+                  holderName: newUser.name,
+                  institution: 'WhatsApp Oficial do Titular',
+                  isPrimary: initialPixList.length === 0,
+                  verified: true,
+                });
+              }
+              setPixKeys(
+                initialPixList.length > 0
+                  ? initialPixList
+                  : [
+                      {
+                        id: 'pix-1',
+                        type: 'cpf',
+                        key: '',
+                        holderName: newUser.name,
+                        institution: '',
+                        isPrimary: true,
+                        verified: false,
+                      },
+                    ]
+              );
+
+              setCep(newOwnerAddr.cep);
+              setStreet(newOwnerAddr.street);
+              setNumber(newOwnerAddr.number);
+              setComplement(newOwnerAddr.complement);
+              setNeighborhood(newOwnerAddr.neighborhood);
+              setCity(newOwnerAddr.city);
+              setState(newOwnerAddr.state);
 
               setFeedback({
                 type: 'success',
-                message: `Novo proprietário "${newUser.name}" (${newUser.username}) cadastrado com sucesso! Preenchendo dados do estabelecimento.`,
+                message: `Proprietário "${newUser.name}" (${newUser.username}) vinculado! Agora informe os dados comerciais do espaço.`,
               });
 
               setUserAuthSubFlow('none');
@@ -840,7 +1254,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
             }}
           />
 
-          <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+          <div className="pt-2.5 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
             <button
               type="button"
               onClick={() => setUserAuthSubFlow('none')}
@@ -857,27 +1271,46 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
       )}
 
       {/* ========================================================================= */}
-      {/* ETAPAS DO ESTABELECIMENTO COMERCIAL (SEM DUPLA BARRA INTERNA)             */}
+      {/* ETAPAS DO ESTABELECIMENTO COMERCIAL (COMPACTO & PROPORCIONAL)             */}
       {/* ========================================================================= */}
       {flowStep === 'establishment_details' && (
         <div className="animate-fadeIn">
-          {/* Logo Oficial do VagouApp + Selo de Titular Vinculado */}
-          <div className="pt-5 pb-1 text-center space-y-2">
-            <VagouOfficialLogo size="xl" variant="full" className="h-10 sm:h-12 w-auto object-contain mx-auto" />
-            {isAuthenticatedOwner && selectedUser && (
-              <div>
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                  <UserCheck className="w-3 h-3 text-emerald-400" />
-                  <span>Titular vinculado: {selectedUser.username.replace(/^@+/, '')}</span>
-                </span>
-              </div>
-            )}
+          {/* Logo Oficial do VagouApp + Navegação Rápida das Seções */}
+          <div className="pt-4 pb-1 text-center space-y-2">
+            <VagouOfficialLogo size="xl" variant="full" className="h-9 sm:h-10 w-auto object-contain mx-auto" />
+            <div className="flex items-center justify-center gap-1.5 flex-wrap px-4">
+              {(
+                [
+                  { id: 'commercial', label: '1. Comercial' },
+                  { id: 'fiscal', label: '2. Fiscal' },
+                  { id: 'pix_billing', label: '3. PIX & QR Code' },
+                  { id: 'address', label: '4. Endereço' },
+                  { id: 'visual', label: '5. Visual' },
+                ] as const
+              ).map((tab) => {
+                const active = activeSection === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => updatePhase(tab.id)}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer whitespace-nowrap ${
+                      active
+                        ? 'bg-[#20C933] text-white shadow-sm'
+                        : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-6">
+          <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4">
             {feedback && (
               <div
-                className={`p-3.5 rounded-xl text-xs flex items-center gap-2.5 animate-fadeIn ${
+                className={`p-3 rounded-xl text-xs flex items-center gap-2 animate-fadeIn ${
                   feedback.type === 'success'
                     ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300'
                     : 'bg-rose-500/15 border border-rose-500/30 text-rose-300'
@@ -892,130 +1325,554 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
               </div>
             )}
 
-            {/* ETAPA 1 DO SALÃO: DADOS COMERCIAIS & FISCAIS */}
+            {/* ========================================================================= */}
+            {/* ETAPA 1 DO SALÃO: DADOS PESSOAIS DO TITULAR + DADOS COMERCIAIS (ISOLADOS) */}
+            {/* ========================================================================= */}
             {activeSection === 'commercial' && (
-              <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-4 sm:p-5 space-y-3.5">
-                <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-emerald-400" />
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-white">
-                      Dados Comerciais & Fiscais
-                    </h3>
-                  </div>
-                  <span className="text-[11px] font-medium text-emerald-400 flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span>Múltiplas cadeiras & parceiros avulsos liberados ({documentType})</span>
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Documento Fiscal ({documentType === 'CPF' ? 'Salão no CPF' : 'Empresa CNPJ'})
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={documentType}
-                        onChange={(e) => handleDocumentTypeSwitch(e.target.value as 'CNPJ' | 'CPF')}
-                        className="bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-2 text-xs font-bold text-white outline-none focus:border-emerald-500 transition cursor-pointer shrink-0"
-                      >
-                        <option value="CNPJ">CNPJ</option>
-                        <option value="CPF">CPF</option>
-                      </select>
-                      <div className="relative flex-1">
-                        <input
-                          type="text"
-                          value={documentNumber}
-                          onChange={(e) => handleDocumentNumberChange(e.target.value)}
-                          placeholder={
-                            documentType === 'CNPJ' ? '00.000.000/0001-00' : '000.000.000-00'
-                          }
-                          maxLength={documentType === 'CNPJ' ? 18 : 14}
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition font-mono"
-                        />
-                        {isSearchingCnpj && documentType === 'CNPJ' && (
-                          <Loader2 className="w-4 h-4 text-emerald-400 animate-spin absolute right-3 top-2.5" />
-                        )}
-                      </div>
+              <div className="space-y-3.5 animate-fadeIn">
+                {/* BLOCO 1: DADOS PESSOAIS DO PROPRIETÁRIO (CPF vinculado à pessoa física) */}
+                <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3.5 sm:p-4 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-white">
+                        Dados Pessoais do Titular
+                      </h3>
                     </div>
+                    <span className="text-[10px] font-medium text-emerald-400">
+                      Cadastro Pessoal (Pessoa Física)
+                    </span>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Nome Fantasia <span className="text-emerald-400">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={tradeName}
-                      onChange={(e) => handleTradeNameChange(e.target.value)}
-                      placeholder="Ex: Lucas Barber"
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition"
-                      required
-                    />
-                  </div>
-
-                  {documentType === 'CNPJ' && (
-                    <div className="animate-fadeIn">
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        Razão Social
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
+                    <div className="sm:col-span-7">
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        Proprietário Responsável <span className="text-emerald-400">*</span>
                       </label>
                       <input
                         type="text"
-                        value={legalName}
-                        onChange={(e) => setLegalName(e.target.value)}
-                        placeholder="Ex: Lucas Barber Ltda"
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition"
-                      />
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Chave PIX
-                    </label>
-                    <input
-                      type="text"
-                      value={pixKey}
-                      onChange={(e) => setPixKey(e.target.value)}
-                      placeholder="Ex: pix@lucasbarber.com.br"
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Categoria do Estabelecimento
-                    </label>
-                    <select
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-emerald-500 transition cursor-pointer"
-                    >
-                      <option value="Barbearia">Barbearia</option>
-                      <option value="Salão de Beleza">Salão de Beleza</option>
-                      <option value="Esmalteria">Esmalteria</option>
-                      <option value="Estética">Estética</option>
-                      <option value="Spa">Spa</option>
-                      <option value="Sobrancelhas & Cílios">Sobrancelhas & Cílios</option>
-                    </select>
-                  </div>
-
-                  <div className={documentType === 'CPF' ? 'sm:col-span-2' : ''}>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Slug Único de Rota (Wildcard)
-                    </label>
-                    <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm focus-within:border-emerald-500 transition">
-                      <input
-                        type="text"
-                        value={slug}
-                        onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                        placeholder="nomedonegocio"
-                        className="w-full bg-transparent text-white font-mono text-sm outline-none"
+                        value={ownerName}
+                        onChange={(e) => setOwnerName(e.target.value)}
+                        placeholder="Nome completo do titular"
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition"
                         required
                       />
-                      <span className="text-slate-500 text-xs ml-1 font-mono shrink-0">.vagouapp.com</span>
+                    </div>
+
+                    <div className="sm:col-span-5">
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        CPF Pessoal do Titular <span className="text-emerald-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={ownerCpf}
+                        onChange={(e) => handleOwnerCpfChange(e.target.value)}
+                        placeholder="000.000.000-00"
+                        maxLength={14}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition font-mono"
+                        required
+                      />
                     </div>
                   </div>
+                </div>
+
+                {/* BLOCO 2: DADOS COMERCIAIS DO ESTABELECIMENTO (ISOLADO DE FISCAL E PIX) */}
+                <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3.5 sm:p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-white">
+                        Dados Comerciais da Vitrine
+                      </h3>
+                    </div>
+                    <span className="text-[10px] font-medium text-slate-400">
+                      Identidade comercial e endereço web
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                    {/* 1. Nome Fantasia (7 colunas) */}
+                    <div className="sm:col-span-7">
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        Nome Fantasia <span className="text-emerald-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={tradeName}
+                        onChange={(e) => handleTradeNameChange(e.target.value)}
+                        placeholder="Nome do seu espaço"
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition"
+                        required
+                      />
+                    </div>
+
+                    {/* 2. Categoria do Estabelecimento (5 colunas) */}
+                    <div className="sm:col-span-5">
+                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                        Categoria <span className="text-emerald-400">*</span>
+                      </label>
+                      <select
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-2 text-xs sm:text-sm text-white outline-none focus:border-emerald-500 transition cursor-pointer"
+                      >
+                        <option value="Barbearia">Barbearia</option>
+                        <option value="Salão de Beleza">Salão de Beleza</option>
+                        <option value="Esmalteria">Esmalteria</option>
+                        <option value="Estética">Estética</option>
+                        <option value="Spa">Spa</option>
+                        <option value="Sobrancelhas & Cílios">Sobrancelhas & Cílios</option>
+                      </select>
+                    </div>
+
+                    {/* 3. Link Personalizado do App (Sem hífen) */}
+                    <div className="sm:col-span-12 pt-0.5">
+                      <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
+                        <label className="block text-[11px] font-semibold text-slate-300">
+                          Link Personalizado do App (Sem hífen) <span className="text-emerald-400">*</span>
+                        </label>
+                        <div className="flex items-center gap-2">
+                          {isCustomSlug && (
+                            <button
+                              type="button"
+                              onClick={handleResetSlugToAuto}
+                              className="text-[10px] font-semibold text-slate-400 hover:text-emerald-400 transition cursor-pointer underline"
+                            >
+                              Usar Nome Fantasia
+                            </button>
+                          )}
+                          {slugCheckStatus === 'checking' && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400">
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                              <span>Verificando...</span>
+                            </span>
+                          )}
+                          {slugCheckStatus === 'available' && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>Disponível</span>
+                            </span>
+                          )}
+                          {(slugCheckStatus === 'taken' || slugCheckStatus === 'reserved') && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-400">
+                              <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                              <span>
+                                {slugCheckStatus === 'reserved' ? 'Reservado' : 'Indisponível'}
+                              </span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div
+                        className={`flex items-center bg-slate-900 border rounded-xl px-3 py-2 text-xs sm:text-sm transition ${
+                          slugCheckStatus === 'taken' || slugCheckStatus === 'reserved'
+                            ? 'border-rose-500/70 focus-within:border-rose-500'
+                            : slugCheckStatus === 'available'
+                              ? 'border-emerald-500/50 focus-within:border-emerald-500'
+                              : 'border-slate-800 focus-within:border-emerald-500'
+                        }`}
+                      >
+                        <span className="text-slate-500 text-xs font-mono shrink-0 select-none">https://</span>
+                        <input
+                          type="text"
+                          value={slug}
+                          onChange={(e) => handleCustomSlugChange(e.target.value)}
+                          placeholder="nomedonegocio"
+                          className="w-full bg-transparent text-white font-mono text-xs sm:text-sm font-bold outline-none px-0.5"
+                          required
+                        />
+                        <span className="text-slate-400 text-xs ml-1 font-mono shrink-0 select-none">
+                          .vagouapp.com
+                        </span>
+                        <div className="ml-2 shrink-0 flex items-center">
+                          {slugCheckStatus === 'checking' && (
+                            <Loader2 className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
+                          )}
+                          {slugCheckStatus === 'available' && (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          )}
+                          {(slugCheckStatus === 'taken' || slugCheckStatus === 'reserved') && (
+                            <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                          )}
+                        </div>
+                      </div>
+
+                      {slugCheckStatus === 'available' && (
+                        <p className="text-[10px] text-emerald-400/90 mt-1 flex items-center gap-1 font-medium">
+                          <span>✓ Link exclusivo:</span>
+                          <strong className="font-mono text-white">{slug}.vagouapp.com</strong>
+                        </p>
+                      )}
+
+                      {slugCheckStatus === 'too_short' && (
+                        <p className="text-[10px] text-amber-400 mt-1">
+                          Mínimo de 3 caracteres (apenas letras e números, sem hífen).
+                        </p>
+                      )}
+
+                      {(slugCheckStatus === 'taken' || slugCheckStatus === 'reserved') && (
+                        <div className="mt-1.5 space-y-1 animate-fadeIn">
+                          <p className="text-[10px] text-rose-300 font-medium">
+                            {slugCheckStatus === 'reserved'
+                              ? `O endereço "${slug}" é reservado. Escolha uma opção livre:`
+                              : `O link "${slug}.vagouapp.com" já está em uso${
+                                  takenByTradeName ? ` (${takenByTradeName})` : ''
+                                }. Sugestões livres:`}
+                          </p>
+                          {slugSuggestions.length > 0 && (
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {slugSuggestions.map((sug) => (
+                                <button
+                                  key={sug}
+                                  type="button"
+                                  onClick={() => {
+                                    setIsCustomSlug(true);
+                                    setSlug(sug);
+                                  }}
+                                  className="px-2 py-0.5 rounded-lg bg-emerald-500/15 hover:bg-[#20C933] text-emerald-300 hover:text-white border border-emerald-500/30 text-[11px] font-mono font-bold transition cursor-pointer"
+                                >
+                                  {sug}.vagouapp.com
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ========================================================================= */}
+            {/* ETAPA 2 DO SALÃO: DADOS FISCAIS (ISOLADO — APENAS CNPJ / AUTÔNOMO)        */}
+            {/* ========================================================================= */}
+            {activeSection === 'fiscal' && (
+              <div className="space-y-3.5 animate-fadeIn">
+                <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3.5 sm:p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      <Receipt className="w-3.5 h-3.5 text-emerald-400" />
+                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-white">
+                        Dados Fiscais do Estabelecimento
+                      </h3>
+                    </div>
+                    <span className="text-[10px] font-medium text-slate-400">
+                      Tributação e Pessoa Jurídica
+                    </span>
+                  </div>
+
+                  {/* Seletor: Opera sem CNPJ vs Possui CNPJ */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHasCnpj(false);
+                        setCnpjNumber('');
+                        setLegalName('');
+                      }}
+                      className={`py-2.5 px-3 rounded-xl text-xs font-bold transition cursor-pointer flex items-center justify-between border ${
+                        !hasCnpj
+                          ? 'bg-[#20C933] text-white border-emerald-400 shadow-sm'
+                          : 'bg-slate-900 text-slate-300 hover:text-white border-slate-800'
+                      }`}
+                    >
+                      <span className={!hasCnpj ? 'text-white' : ''}>Sem CNPJ (Autônomo)</span>
+                      {!hasCnpj && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setHasCnpj(true)}
+                      className={`py-2.5 px-3 rounded-xl text-xs font-bold transition cursor-pointer flex items-center justify-between border ${
+                        hasCnpj
+                          ? 'bg-[#20C933] text-white border-emerald-400 shadow-sm'
+                          : 'bg-slate-900 text-slate-300 hover:text-white border-slate-800'
+                      }`}
+                    >
+                      <span className={hasCnpj ? 'text-white' : ''}>Possuo CNPJ (Empresa)</span>
+                      {hasCnpj && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
+                    </button>
+                  </div>
+
+                  {!hasCnpj ? (
+                    <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800/80 flex items-center justify-between gap-2 text-[11px] text-slate-300">
+                      <div className="flex items-center gap-2">
+                        <UserCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span>
+                          Estabelecimento opera como <strong>autônomo</strong> vinculado ao CPF do titular (
+                          <span className="font-mono text-emerald-400">{ownerCpf || 'não informado'}</span>).
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-1 animate-fadeIn">
+                      <div className="sm:col-span-5">
+                        <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                          CNPJ <span className="text-emerald-400">*</span>
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={cnpjNumber}
+                            onChange={(e) => handleCnpjNumberChange(e.target.value)}
+                            placeholder="00.000.000/0001-00"
+                            maxLength={18}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition font-mono"
+                          />
+                          {isSearchingCnpj && (
+                            <Loader2 className="w-3.5 h-3.5 text-emerald-400 animate-spin absolute right-2.5 top-2.5" />
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="sm:col-span-7">
+                        <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                          Razão Social (Receita Federal) <span className="text-emerald-400">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={legalName}
+                          onChange={(e) => setLegalName(e.target.value)}
+                          placeholder="Preenchida automaticamente pelo CNPJ"
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ========================================================================= */}
+            {/* ETAPA 3 DO SALÃO: FATURAMENTO & CHAVES PIX + QR CODE AUTOMÁTICO          */}
+            {/* ========================================================================= */}
+            {activeSection === 'pix_billing' && (
+              <div className="space-y-3.5 animate-fadeIn">
+                <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3.5 sm:p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      <Wallet className="w-3.5 h-3.5 text-emerald-400" />
+                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-white">
+                        Faturamento & Chaves PIX ({pixKeys.length})
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleAddPixKeyRow('phone', '')}
+                      className="px-2.5 py-1 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white text-[10px] font-bold transition flex items-center gap-1 cursor-pointer shadow-xs whitespace-nowrap"
+                    >
+                      <Plus className="w-3 h-3 text-white" />
+                      <span className="text-white">Adicionar Chave PIX</span>
+                    </button>
+                  </div>
+
+                  {/* Atalhos Rápidos para Inserir Chaves PIX com 1 Clique */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] text-slate-400 font-semibold mr-1">
+                      Inserir rápido:
+                    </span>
+                    {ownerCpf && (
+                      <button
+                        type="button"
+                        onClick={() => handleQuickFillPix('cpf', ownerCpf)}
+                        className="px-2 py-0.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-slate-800 text-[10px] font-semibold transition cursor-pointer whitespace-nowrap"
+                      >
+                        + CPF do Titular
+                      </button>
+                    )}
+                    {ownerWhatsapp && (
+                      <button
+                        type="button"
+                        onClick={() => handleQuickFillPix('phone', ownerWhatsapp)}
+                        className="px-2 py-0.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-slate-800 text-[10px] font-semibold transition cursor-pointer whitespace-nowrap"
+                      >
+                        + WhatsApp
+                      </button>
+                    )}
+                    {ownerEmail && (
+                      <button
+                        type="button"
+                        onClick={() => handleQuickFillPix('email', ownerEmail)}
+                        className="px-2 py-0.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-slate-800 text-[10px] font-semibold transition cursor-pointer whitespace-nowrap"
+                      >
+                        + E-mail
+                      </button>
+                    )}
+                    {hasCnpj && cnpjNumber && (
+                      <button
+                        type="button"
+                        onClick={() => handleQuickFillPix('cnpj', cnpjNumber)}
+                        className="px-2 py-0.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-slate-800 text-[10px] font-semibold transition cursor-pointer whitespace-nowrap"
+                      >
+                        + CNPJ da Empresa
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Lista Dinâmica de Múltiplas Chaves PIX */}
+                  <div className="space-y-2.5">
+                    {pixKeys.map((item, idx) => (
+                      <div
+                        key={item.id}
+                        className="p-2.5 rounded-xl bg-slate-900/90 space-y-2 transition border border-slate-800/80"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                            Chave PIX #{idx + 1}
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleSetPrimaryPixKey(item.id)}
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition flex items-center gap-1 cursor-pointer ${
+                                item.isPrimary
+                                  ? 'bg-[#20C933] text-white'
+                                  : 'bg-slate-800 text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              <Star className={`w-2.5 h-2.5 ${item.isPrimary ? 'text-white fill-white' : 'text-slate-400'}`} />
+                              <span className={item.isPrimary ? 'text-white' : ''}>
+                                {item.isPrimary ? 'Principal' : 'Tornar Principal'}
+                              </span>
+                            </button>
+
+                            {pixKeys.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemovePixKeyRow(item.id)}
+                                className="p-1 rounded-md text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition cursor-pointer"
+                                title="Remover chave PIX"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <select
+                            value={item.type}
+                            onChange={(e) =>
+                              handlePixKeyItemChange(item.id, item.key, e.target.value as PixKeyType)
+                            }
+                            className="bg-slate-950 border border-slate-800 rounded-xl px-2 py-2 text-xs font-bold text-white outline-none focus:border-emerald-500 transition cursor-pointer shrink-0"
+                          >
+                            <option value="cpf">CPF</option>
+                            <option value="cnpj">CNPJ</option>
+                            <option value="phone">Celular</option>
+                            <option value="email">E-mail</option>
+                            <option value="evp">Aleatória</option>
+                          </select>
+
+                          <div className="relative flex-1 min-w-0 flex items-center">
+                            <input
+                              type="text"
+                              value={item.key}
+                              onChange={(e) => handlePixKeyItemChange(item.id, e.target.value)}
+                              placeholder={
+                                item.type === 'cpf'
+                                  ? '000.000.000-00'
+                                  : item.type === 'cnpj'
+                                    ? '00.000.000/0001-00'
+                                    : item.type === 'phone'
+                                      ? '(11) 99999-9999'
+                                      : item.type === 'email'
+                                        ? 'pix@dominio.com'
+                                        : '00000000-0000-0000-0000-000000000000'
+                              }
+                              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-2.5 pr-8 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition font-mono"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => triggerPixAutoLookup(item.id, item.key, item.type)}
+                              title="Buscar / Validar Titular da Chave PIX"
+                              className="absolute right-2 p-1 text-emerald-400 hover:text-white transition cursor-pointer"
+                            >
+                              {lookingUpPixId === item.id ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                              ) : (
+                                <Search className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Confirmação Automática de Titularidade (Estilo App Bancário) */}
+                        {item.verified && item.holderName && (
+                          <div className="flex items-center justify-between gap-2 pt-0.5 px-1 text-[10px] text-emerald-400 animate-fadeIn">
+                            <span className="flex items-center gap-1 font-semibold truncate">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+                              <span className="truncate">Titular: {item.holderName}</span>
+                            </span>
+                            {item.institution && (
+                              <span className="text-slate-400 font-mono shrink-0">
+                                {item.institution}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* PREVIEW DO QR CODE OFICIAL EM TEMPO REAL & AÇÕES DE IMPRESSÃO / COBRANÇA */}
+                  {pixKeys.some((k) => k.key.trim().length > 0) && (
+                    <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-3 pt-3 animate-fadeIn">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <QrCode className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="text-[11px] font-bold text-white uppercase tracking-wider">
+                            QR Code PIX (Chave Principal)
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-bold text-emerald-400">
+                          {pixKeys.find((k) => k.isPrimary)?.key || pixKeys[0]?.key}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row items-center gap-3.5 bg-slate-950 p-3 rounded-xl border border-slate-800/80">
+                        <img
+                          src={getPixQrCodeUrl(
+                            pixKeys.find((k) => k.isPrimary)?.key || pixKeys[0]?.key || '',
+                            180
+                          )}
+                          alt="QR Code PIX Oficial"
+                          className="w-24 h-24 object-contain rounded-lg bg-white p-1 border border-slate-700 shrink-0"
+                        />
+                        <div className="text-left space-y-1.5 flex-1 min-w-0">
+                          <p className="text-xs text-white font-semibold leading-tight">
+                            QR Code gerado automaticamente no padrão do Banco Central.
+                          </p>
+                          <p className="text-[11px] text-slate-400">
+                            Pronto para ser impresso em display acrílico de balcão ou enviado diretamente ao cliente após o término do corte/serviço.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Botões de Ação: Imprimir Plaquinha & Testar Cobrança */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setIsPrintPlaqueOpen(true)}
+                          className="py-2.5 px-3 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-emerald-500/20 active:scale-95"
+                        >
+                          <Printer className="w-3.5 h-3.5 text-white" />
+                          <span className="text-white">Imprimir Plaquinha PIX</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setIsCheckoutModalOpen(true)}
+                          className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Send className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Testar Cobrança Pós-Serviço</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1024,38 +1881,45 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
             {/* ETAPA 3 DO SALÃO: ENDEREÇO EM 2 MODAIS SEQUENCIAIS + DADOS COMPLETOS      */}
             {/* ========================================================================= */}
             {activeSection === 'address' && (
-              <div className="space-y-4 animate-fadeIn">
+              <div className="space-y-3.5 animate-fadeIn">
                 {/* MODAL 1 — PERGUNTA: "O salão fica no mesmo endereço do proprietário?" */}
                 {addressSubPhase === 'same_address_modal' && (
-                  <div className="max-w-lg mx-auto bg-slate-950/80 border border-slate-800 rounded-2xl p-6 space-y-5 text-center animate-fadeIn">
-                    <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto">
-                      <Home className="w-6 h-6 text-emerald-400" />
+                  <div className="max-w-md mx-auto bg-slate-950/80 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-4 text-center animate-fadeIn">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto">
+                      <Home className="w-5 h-5 text-emerald-400" />
                     </div>
 
                     <div className="space-y-1">
-                      <h3 className="text-base sm:text-lg font-extrabold text-white">
+                      <h3 className="text-sm sm:text-base font-extrabold text-white">
                         O salão fica no mesmo endereço do proprietário?
                       </h3>
-                      <p className="text-xs text-slate-400">
-                        {ownerAddressData.street || 'Avenida Paulista'}, {ownerAddressData.number || '1578'}{' '}
-                        {ownerAddressData.complement ? `(${ownerAddressData.complement})` : ''} —{' '}
-                        {ownerAddressData.neighborhood || 'Bela Vista'}, {ownerAddressData.city || 'São Paulo'}/
-                        {ownerAddressData.state || 'SP'} (CEP: {ownerAddressData.cep || '01310-100'})
-                      </p>
+                      {ownerAddressData.street ? (
+                        <p className="text-[11px] text-slate-400">
+                          {ownerAddressData.street}
+                          {ownerAddressData.number ? `, ${ownerAddressData.number}` : ''}{' '}
+                          {ownerAddressData.complement ? `(${ownerAddressData.complement})` : ''}
+                          {ownerAddressData.neighborhood ? ` — ${ownerAddressData.neighborhood}` : ''}
+                          {ownerAddressData.city ? `, ${ownerAddressData.city}` : ''}
+                          {ownerAddressData.state ? `/${ownerAddressData.state}` : ''}
+                          {ownerAddressData.cep ? ` (CEP: ${ownerAddressData.cep})` : ''}
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-slate-400">
+                          Caso o estabelecimento funcione em outro endereço comercial, selecione &quot;NÃO&quot; para informar o CEP do salão.
+                        </p>
+                      )}
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                      {/* SIM -> Copia endereço do proprietário e avança direto para a próxima fase (Identidade Visual) */}
+                    <div className="grid grid-cols-2 gap-2.5 pt-1">
                       <button
                         type="button"
                         onClick={() => applyOwnerAddressToSalon()}
-                        className="p-4 rounded-2xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold transition cursor-pointer flex items-center justify-between shadow-lg shadow-emerald-500/20 active:scale-95"
+                        className="p-3.5 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold transition cursor-pointer flex items-center justify-between shadow-lg shadow-emerald-500/20 active:scale-95"
                       >
-                        <span className="text-sm font-black text-white">SIM</span>
-                        <Check className="w-5 h-5 text-white shrink-0" />
+                        <span className="text-xs sm:text-sm font-black text-white">SIM</span>
+                        <Check className="w-4 h-4 text-white shrink-0" />
                       </button>
 
-                      {/* NÃO -> Abre o Modal 2 (CEP com lógica idêntica ao cadastro de usuário) */}
                       <button
                         type="button"
                         onClick={() => {
@@ -1070,14 +1934,14 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                           setState('');
                           setAddressSubPhase('cep_modal');
                         }}
-                        className="p-4 rounded-2xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 hover:text-white font-bold transition cursor-pointer flex items-center justify-between active:scale-95"
+                        className="p-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 hover:text-white font-bold transition cursor-pointer flex items-center justify-between active:scale-95"
                       >
-                        <span className="text-sm font-black">NÃO</span>
-                        <MapPin className="w-5 h-5 text-emerald-400 shrink-0" />
+                        <span className="text-xs sm:text-sm font-black">NÃO</span>
+                        <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
                       </button>
                     </div>
 
-                    <div className="pt-2 flex items-center justify-between border-t border-slate-800/80 text-xs">
+                    <div className="pt-2 flex items-center justify-between border-t border-slate-800/80 text-[11px]">
                       <button
                         type="button"
                         onClick={() => updatePhase('commercial')}
@@ -1100,69 +1964,69 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                   </div>
                 )}
 
-                {/* MODAL 2 — BUSCA DE CEP ISOLADA (Lógica idêntica à do Cadastro de Usuário) */}
+                {/* MODAL 2 — BUSCA DE CEP ISOLADA (Tamanho compacto proporcional a 8 dígitos) */}
                 {addressSubPhase === 'cep_modal' && (
-                  <div className="max-w-lg mx-auto space-y-4 animate-fadeIn">
-                    <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 space-y-4">
+                  <div className="max-w-sm mx-auto space-y-3.5 animate-fadeIn">
+                    <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-3">
                       <div className="flex items-center justify-between gap-2">
                         <div>
                           <label className="block text-xs font-semibold text-slate-300">
                             CEP do Estabelecimento <span className="text-emerald-400">*</span>
                           </label>
-                          <p className="text-[11px] text-slate-500 pt-0.5">
-                            Digite os 8 números do CEP para preenchimento automático
+                          <p className="text-[10px] text-slate-500 pt-0.5">
+                            8 dígitos para busca automática
                           </p>
                         </div>
                         <button
                           type="button"
                           onClick={handleSkipSalonCep}
-                          className="text-xs text-emerald-400 hover:underline flex items-center gap-1 font-semibold cursor-pointer shrink-0"
+                          className="text-[11px] text-emerald-400 hover:underline flex items-center gap-1 font-semibold cursor-pointer shrink-0"
                         >
-                          <HelpCircle className="w-3.5 h-3.5" />
-                          <span>Não sei meu CEP</span>
+                          <HelpCircle className="w-3 h-3" />
+                          <span>Não sei o CEP</span>
                         </button>
                       </div>
 
-                      <div className="flex items-center bg-slate-900 border border-slate-700 rounded-xl px-4 py-3.5 focus-within:border-emerald-500 transition">
-                        <MapPin className="w-5 h-5 text-emerald-400 mr-3 shrink-0" />
+                      <div className="flex items-center bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 focus-within:border-emerald-500 transition max-w-[220px] mx-auto">
+                        <MapPin className="w-4 h-4 text-emerald-400 mr-2 shrink-0" />
                         <input
                           type="text"
                           value={cep}
                           onChange={(e) => handleCepChange(e.target.value)}
-                          placeholder="12345-678"
+                          placeholder="00000-000"
                           maxLength={9}
-                          className="w-full bg-transparent text-base sm:text-lg font-mono text-white placeholder-slate-600 outline-none"
+                          className="w-full bg-transparent text-base font-mono font-bold text-white placeholder-slate-600 outline-none text-center tracking-wider"
                           autoFocus
                         />
                         {isSearchingCep ? (
-                          <Loader2 className="w-5 h-5 text-emerald-400 animate-spin ml-2 shrink-0" />
+                          <Loader2 className="w-4 h-4 text-emerald-400 animate-spin ml-1.5 shrink-0" />
                         ) : (
-                          <Search className="w-5 h-5 text-slate-500 ml-2 shrink-0" />
+                          <Search className="w-4 h-4 text-slate-500 ml-1.5 shrink-0" />
                         )}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-2">
                       <button
                         type="button"
                         onClick={() => setAddressSubPhase('same_address_modal')}
-                        className="py-3.5 px-5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs sm:text-sm transition cursor-pointer flex items-center gap-1.5"
+                        className="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition cursor-pointer flex items-center gap-1.5"
                       >
-                        <ArrowLeft className="w-4 h-4" />
+                        <ArrowLeft className="w-3.5 h-3.5" />
                         <span>Voltar</span>
                       </button>
                       <button
                         type="button"
                         disabled={isSearchingCep}
                         onClick={handleNextFromSalonCep}
-                        className="flex-1 py-3.5 px-5 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 disabled:opacity-50"
+                        className="flex-1 py-2.5 px-4 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 disabled:opacity-50"
                       >
                         {isSearchingCep ? (
                           <Loader2 className="w-4 h-4 text-white animate-spin" />
                         ) : (
                           <>
                             <span className="text-white font-bold">Avançar</span>
-                            <ArrowRight className="w-4 h-4 text-white" />
+                            <ArrowRight className="w-3.5 h-3.5 text-white" />
                           </>
                         )}
                       </button>
@@ -1170,39 +2034,39 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                   </div>
                 )}
 
-                {/* TELA DE DADOS DO ENDEREÇO COMPLETADOS (Mesmo padrão do Cadastro de Usuário) */}
+                {/* TELA DE DADOS DO ENDEREÇO COMPLETADOS (Proporcional) */}
                 {addressSubPhase === 'address_form' && (
-                  <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-4 sm:p-5 space-y-4 animate-fadeIn">
+                  <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3.5 sm:p-4 space-y-3 animate-fadeIn">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-800 flex-wrap gap-2">
-                      <div className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-emerald-400" />
-                        <h3 className="text-xs font-bold uppercase tracking-wider text-white">
-                          Dados do Endereço do Estabelecimento
+                      <div className="flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+                        <h3 className="text-[11px] font-bold uppercase tracking-wider text-white">
+                          Endereço do Estabelecimento
                         </h3>
                       </div>
-                      <div className="flex items-center gap-3 text-xs">
+                      <div className="flex items-center gap-2.5 text-[11px]">
                         <button
                           type="button"
                           onClick={() => setAddressSubPhase('cep_modal')}
                           className="text-slate-400 hover:text-emerald-400 cursor-pointer transition font-medium"
                         >
-                          {cep ? 'Voltar ao CEP isolado' : 'Digitar apenas CEP'}
+                          Buscar por CEP
                         </button>
                         <button
                           type="button"
                           onClick={() => setAddressSubPhase('same_address_modal')}
                           className="text-emerald-400 hover:underline cursor-pointer font-semibold"
                         >
-                          Mesmo endereço do proprietário?
+                          Usar endereço do titular
                         </button>
                       </div>
                     </div>
 
-                    <div className="space-y-3">
-                      {/* 1. Rua / Logradouro * (Amplo) e 2. Número * (Compacto) */}
-                      <div className="flex flex-col sm:flex-row gap-3">
-                        <div className="flex-1">
-                          <label className="block text-xs font-semibold text-slate-400 mb-1">
+                    <div className="space-y-2.5">
+                      {/* 1. Rua / Logradouro * (Amplo) e 2. Número * (Compacto 96px) */}
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                        <div className="sm:col-span-9">
+                          <label className="block text-[11px] font-semibold text-slate-400 mb-1">
                             Rua / Logradouro <span className="text-emerald-400">*</span>
                           </label>
                           <input
@@ -1216,8 +2080,8 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                           />
                         </div>
 
-                        <div className="w-full sm:w-28 shrink-0">
-                          <label className="block text-xs font-semibold text-slate-400 mb-1">
+                        <div className="sm:col-span-3">
+                          <label className="block text-[11px] font-semibold text-slate-400 mb-1">
                             Número <span className="text-emerald-400">*</span>
                           </label>
                           <input
@@ -1225,17 +2089,17 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                             value={number}
                             onChange={(e) => setNumber(e.target.value)}
                             placeholder="100"
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 ring-1 ring-emerald-500/30 text-center sm:text-left"
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 ring-1 ring-emerald-500/30 text-center"
                             required
                             autoFocus={!!street}
                           />
                         </div>
                       </div>
 
-                      {/* 3. Complemento (Compacto) e 4. Bairro * (Proporcional) */}
-                      <div className="flex flex-col sm:flex-row gap-3">
-                        <div className="w-full sm:w-40 shrink-0">
-                          <label className="block text-xs font-semibold text-slate-400 mb-1">
+                      {/* 3. Complemento (Compacto 4 cols) e 4. Bairro * (8 cols) */}
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                        <div className="sm:col-span-4">
+                          <label className="block text-[11px] font-semibold text-slate-400 mb-1">
                             Complemento
                           </label>
                           <input
@@ -1247,8 +2111,8 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                           />
                         </div>
 
-                        <div className="flex-1">
-                          <label className="block text-xs font-semibold text-slate-400 mb-1">
+                        <div className="sm:col-span-8">
+                          <label className="block text-[11px] font-semibold text-slate-400 mb-1">
                             Bairro <span className="text-emerald-400">*</span>
                           </label>
                           <input
@@ -1263,10 +2127,10 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                         </div>
                       </div>
 
-                      {/* 5. Cidade * (Ampla), 6. UF * (Compacta: 2 letras) e 7. CEP * (Compacto: 8 caracteres) */}
-                      <div className="flex flex-col sm:flex-row gap-3">
-                        <div className="flex-1 min-w-[160px]">
-                          <label className="block text-xs font-semibold text-slate-400 mb-1">
+                      {/* 5. Cidade * (6 cols), 6. UF * (2 cols: 2 letras) e 7. CEP * (4 cols: 8 dígitos) */}
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                        <div className="sm:col-span-6">
+                          <label className="block text-[11px] font-semibold text-slate-400 mb-1">
                             Cidade <span className="text-emerald-400">*</span>
                           </label>
                           <input
@@ -1280,8 +2144,8 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                           />
                         </div>
 
-                        <div className="w-full sm:w-20 shrink-0">
-                          <label className="block text-xs font-semibold text-slate-400 mb-1 text-center sm:text-left">
+                        <div className="sm:col-span-2">
+                          <label className="block text-[11px] font-semibold text-slate-400 mb-1 text-center">
                             UF <span className="text-emerald-400">*</span>
                           </label>
                           <input
@@ -1291,27 +2155,27 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                             onChange={(e) => setState(e.target.value.toUpperCase())}
                             onBlur={searchSalonCepByAddress}
                             placeholder="SP"
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 uppercase font-mono text-center"
+                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 uppercase font-mono text-center"
                             required
                           />
                         </div>
 
-                        <div className="w-full sm:w-36 shrink-0">
+                        <div className="sm:col-span-4">
                           <div className="flex items-center justify-between mb-1">
-                            <label className="block text-xs font-semibold text-slate-400">
+                            <label className="block text-[11px] font-semibold text-slate-400">
                               CEP <span className="text-emerald-400">*</span>
                             </label>
                             {isSearchingCepByAddress && (
                               <Loader2 className="w-3 h-3 text-emerald-400 animate-spin" />
                             )}
                           </div>
-                          <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 focus-within:border-emerald-500 transition">
-                            <MapPin className="w-4 h-4 text-emerald-400 mr-1.5 shrink-0" />
+                          <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-2 focus-within:border-emerald-500 transition">
+                            <MapPin className="w-3.5 h-3.5 text-emerald-400 mr-1.5 shrink-0" />
                             <input
                               type="text"
                               value={cep}
                               onChange={(e) => handleCepChange(e.target.value)}
-                              placeholder="12345-678"
+                              placeholder="00000-000"
                               maxLength={9}
                               className="w-full bg-transparent text-xs sm:text-sm font-mono text-white placeholder-slate-600 outline-none"
                               required
@@ -1321,23 +2185,23 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                       </div>
                     </div>
 
-                    <div className="pt-2 flex items-center justify-between gap-3">
+                    <div className="pt-2 flex items-center justify-between gap-2.5">
                       <button
                         type="button"
                         onClick={() => setAddressSubPhase('cep_modal')}
-                        className="py-3.5 px-5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition flex items-center gap-2 cursor-pointer"
+                        className="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer"
                       >
-                        <ArrowLeft className="w-4 h-4" />
+                        <ArrowLeft className="w-3.5 h-3.5" />
                         <span>Voltar</span>
                       </button>
 
                       <button
                         type="button"
                         onClick={() => updatePhase('visual')}
-                        className="flex-1 sm:flex-initial py-3.5 px-6 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95"
+                        className="flex-1 sm:flex-initial py-2.5 px-5 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95"
                       >
-                        <span className="text-white">Avançar para Identidade Visual</span>
-                        <ArrowRight className="w-4 h-4 text-white" />
+                        <span className="text-white">Avançar para Visual</span>
+                        <ArrowRight className="w-3.5 h-3.5 text-white" />
                       </button>
                     </div>
                   </div>
@@ -1345,27 +2209,27 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
               </div>
             )}
 
-            {/* ETAPA 4 DO SALÃO: IDENTIDADE VISUAL & BRANDING (Logotipo, Favicon, Cor e Slogan) */}
+            {/* ETAPA 4 DO SALÃO: IDENTIDADE VISUAL & BRANDING (COMPACTO) */}
             {activeSection === 'visual' && (
-              <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-4 sm:p-5 space-y-5 animate-fadeIn">
+              <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3.5 sm:p-4 space-y-4 animate-fadeIn">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-800 flex-wrap gap-2">
-                  <div className="flex items-center gap-2">
-                    <Palette className="w-4 h-4 text-emerald-400" />
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-white">
+                  <div className="flex items-center gap-1.5">
+                    <Palette className="w-3.5 h-3.5 text-emerald-400" />
+                    <h3 className="text-[11px] font-bold uppercase tracking-wider text-white">
                       Identidade Visual do Estabelecimento
                     </h3>
                   </div>
-                  <span className="text-[11px] text-slate-400">
-                    Marca, ícone do app (PWA) e assinatura visual
+                  <span className="text-[10px] text-slate-400">
+                    Marca, ícone PWA e assinatura visual
                   </span>
                 </div>
 
-                {/* 1. LOGOTIPO & 2. FAVICON (ÍCONE DO APP / NAVEGADOR) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* 1. LOGOTIPO & 2. FAVICON */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {/* Pilar 1: Logotipo Principal */}
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <label className="block text-xs font-semibold text-slate-200">
+                      <label className="block text-[11px] font-semibold text-slate-200">
                         1. Logotipo da Marca
                       </label>
                       {logoUrl && (
@@ -1375,14 +2239,14 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                             setLogoUrl('');
                             if (useLogoAsFavicon) setFaviconUrl('');
                           }}
-                          className="text-[11px] text-rose-400 hover:underline cursor-pointer"
+                          className="text-[10px] text-rose-400 hover:underline cursor-pointer"
                         >
                           Remover
                         </button>
                       )}
                     </div>
 
-                    <label className="flex items-center gap-3.5 p-3.5 rounded-xl bg-slate-900 border border-dashed border-slate-700 hover:border-emerald-500/60 transition cursor-pointer group">
+                    <label className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-900 border border-dashed border-slate-700 hover:border-emerald-500/60 transition cursor-pointer group">
                       <input
                         type="file"
                         accept="image/*"
@@ -1390,7 +2254,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                         className="hidden"
                       />
                       <div
-                        className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0 overflow-hidden border border-slate-700"
+                        className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 overflow-hidden border border-slate-700"
                         style={{ backgroundColor: logoUrl ? '#0f172a' : primaryColor }}
                       >
                         {logoUrl ? (
@@ -1400,28 +2264,28 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                             className="w-full h-full object-contain"
                           />
                         ) : (
-                          <span className="text-base font-black text-white uppercase">
+                          <span className="text-sm font-black text-white uppercase">
                             {(tradeName || 'VA').slice(0, 2)}
                           </span>
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <span className="text-xs font-bold text-white group-hover:text-emerald-400 transition flex items-center gap-1.5">
-                          <Upload className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <span className="text-xs font-bold text-white group-hover:text-emerald-400 transition flex items-center gap-1">
+                          <Upload className="w-3 h-3 text-emerald-400 shrink-0" />
                           <span>{logoUrl ? 'Trocar Logotipo' : 'Enviar Logotipo'}</span>
                         </span>
-                        <span className="text-[11px] text-slate-400 block pt-0.5">
-                          Toque para escolher da galeria ou computador (PNG, JPG, SVG)
+                        <span className="text-[10px] text-slate-400 block truncate">
+                          PNG, JPG ou SVG
                         </span>
                       </div>
                     </label>
                   </div>
 
-                  {/* Pilar 2: Favicon / Ícone do App na Galeria do Celular e Abas do Navegador */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <label className="block text-xs font-semibold text-slate-200">
-                        2. Favicon / Ícone do App
+                  {/* Pilar 2: Favicon / Ícone do App */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-1">
+                      <label className="block text-[11px] font-semibold text-slate-200">
+                        2. Ícone do App (1:1)
                       </label>
                       <button
                         type="button"
@@ -1432,16 +2296,16 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                             setFaviconUrl(logoUrl);
                           }
                         }}
-                        className={`text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition ${
+                        className={`text-[10px] font-semibold flex items-center gap-1 cursor-pointer transition ${
                           useLogoAsFavicon ? 'text-emerald-400' : 'text-slate-400 hover:text-white'
                         }`}
                       >
                         <CheckCircle2 className="w-3 h-3" />
-                        <span>Usar mesmo do logotipo</span>
+                        <span>Usar logotipo</span>
                       </button>
                     </div>
 
-                    <label className="flex items-center gap-3.5 p-3.5 rounded-xl bg-slate-900 border border-dashed border-slate-700 hover:border-emerald-500/60 transition cursor-pointer group">
+                    <label className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-900 border border-dashed border-slate-700 hover:border-emerald-500/60 transition cursor-pointer group">
                       <input
                         type="file"
                         accept="image/*"
@@ -1449,7 +2313,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                         className="hidden"
                       />
                       <div
-                        className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 overflow-hidden border border-slate-700 shadow-md"
+                        className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 overflow-hidden border border-slate-700 shadow-sm"
                         style={{
                           backgroundColor:
                             (useLogoAsFavicon ? logoUrl : faviconUrl) ? '#0f172a' : primaryColor,
@@ -1462,56 +2326,53 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <span className="text-base font-black text-white uppercase">
+                          <span className="text-sm font-black text-white uppercase">
                             {(tradeName || 'V').slice(0, 1)}
                           </span>
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <span className="text-xs font-bold text-white group-hover:text-emerald-400 transition flex items-center gap-1.5">
-                          <Smartphone className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <span className="text-xs font-bold text-white group-hover:text-emerald-400 transition flex items-center gap-1">
+                          <Smartphone className="w-3 h-3 text-emerald-400 shrink-0" />
                           <span>
                             {(useLogoAsFavicon ? logoUrl : faviconUrl)
-                              ? 'Trocar Ícone 1:1'
-                              : 'Enviar Favicon (1:1)'}
+                              ? 'Trocar Ícone'
+                              : 'Enviar Ícone'}
                           </span>
                         </span>
-                        <span className="text-[11px] text-slate-400 block pt-0.5">
-                          Ícone na galeria de apps do celular e na aba do navegador
+                        <span className="text-[10px] text-slate-400 block truncate">
+                          Tela inicial do celular
                         </span>
                       </div>
                     </label>
                   </div>
                 </div>
 
-                {/* 3. COR DA MARCA (RELACIONADA AO LOGOTIPO) & 4. SLOGAN */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-                  {/* Pilar 3: Cor em relação ao Logotipo */}
-                  <div className="space-y-2">
-                    <label className="block text-xs font-semibold text-slate-200">
-                      3. Cor Principal (Harmonia com o Logotipo)
+                {/* 3. COR DA MARCA (5 cols) & 4. SLOGAN (7 cols) */}
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-0.5">
+                  <div className="sm:col-span-5 space-y-1.5">
+                    <label className="block text-[11px] font-semibold text-slate-200">
+                      3. Cor Principal
                     </label>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <input
                         type="color"
                         value={primaryColor}
                         onChange={(e) => setPrimaryColor(e.target.value)}
-                        className="w-10 h-10 rounded-xl border border-slate-700 bg-transparent cursor-pointer shrink-0"
+                        className="w-9 h-9 rounded-lg border border-slate-700 bg-transparent cursor-pointer shrink-0"
                       />
                       <input
                         type="text"
                         value={primaryColor}
                         onChange={(e) => setPrimaryColor(e.target.value)}
-                        className="w-28 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-white font-mono outline-none focus:border-emerald-500 transition uppercase"
+                        className="w-20 bg-slate-900 border border-slate-800 rounded-xl px-2 py-2 text-xs text-white font-mono outline-none focus:border-emerald-500 transition uppercase text-center"
                       />
-                      {/* Paletas Rápidas de 1 Toque */}
-                      <div className="flex items-center gap-1.5 pl-1">
+                      <div className="flex items-center gap-1 pl-0.5">
                         {[
                           { hex: '#20C933', label: 'Verde Vagou' },
-                          { hex: '#D97706', label: 'Dourado Barber' },
-                          { hex: '#E11D48', label: 'Rose Estética' },
-                          { hex: '#2563EB', label: 'Azul Royal' },
-                          { hex: '#7C3AED', label: 'Roxo Studio' },
+                          { hex: '#D97706', label: 'Dourado' },
+                          { hex: '#E11D48', label: 'Rose' },
+                          { hex: '#2563EB', label: 'Azul' },
                         ].map((swatch) => (
                           <button
                             key={swatch.hex}
@@ -1519,7 +2380,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                             onClick={() => setPrimaryColor(swatch.hex)}
                             title={swatch.label}
                             style={{ backgroundColor: swatch.hex }}
-                            className={`w-6 h-6 rounded-full cursor-pointer transition transform hover:scale-110 ${
+                            className={`w-5 h-5 rounded-full cursor-pointer transition transform hover:scale-110 ${
                               primaryColor.toLowerCase() === swatch.hex.toLowerCase()
                                 ? 'ring-2 ring-white scale-110'
                                 : 'opacity-80 hover:opacity-100'
@@ -1530,12 +2391,11 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                     </div>
                   </div>
 
-                  {/* Pilar 4: Slogan Curto da Marca */}
-                  <div className="space-y-2">
+                  <div className="sm:col-span-7 space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <label className="block text-xs font-semibold text-slate-200 flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>4. Slogan do Estabelecimento</span>
+                      <label className="block text-[11px] font-semibold text-slate-200 flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-emerald-400" />
+                        <span>4. Slogan Curto</span>
                       </label>
                       <span className="text-[10px] font-mono text-slate-500">
                         {slogan.length}/60
@@ -1546,25 +2406,22 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                       value={slogan}
                       maxLength={60}
                       onChange={(e) => setSlogan(e.target.value)}
-                      placeholder="Ex: Estilo, navalha e tradição no seu tempo."
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition"
+                      placeholder="Ex: Estilo e tradição no seu tempo."
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition"
                     />
                   </div>
                 </div>
 
-                {/* 5. ESTILO DA FONTE DA MARCA (OPÇÃO B — PERSONALIDADE CONTROLADA) */}
-                <div className="space-y-2.5 pt-1">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <label className="block text-xs font-semibold text-slate-200 flex items-center gap-1.5">
-                      <Type className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>5. Fonte de Destaque da Marca (Nome & Cabeçalho)</span>
+                {/* 5. ESTILO DA FONTE DA MARCA */}
+                <div className="space-y-2 pt-0.5">
+                  <div className="flex items-center justify-between flex-wrap gap-1">
+                    <label className="block text-[11px] font-semibold text-slate-200 flex items-center gap-1">
+                      <Type className="w-3 h-3 text-emerald-400" />
+                      <span>5. Fonte de Destaque (Nome & Cabeçalho)</span>
                     </label>
-                    <span className="text-[11px] text-slate-400">
-                      Interface e agenda permanecem em <strong className="text-slate-200">Poppins</strong> para leitura rápida
-                    </span>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {BRAND_FONT_PRESETS.map((preset) => {
                       const isSelected = brandFont === preset.id;
                       return (
@@ -1572,7 +2429,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                           key={preset.id}
                           type="button"
                           onClick={() => setBrandFont(preset.id)}
-                          className={`p-3 rounded-xl text-left transition cursor-pointer flex flex-col justify-between gap-1.5 ${
+                          className={`p-2.5 rounded-xl text-left transition cursor-pointer flex flex-col justify-between gap-1 ${
                             isSelected
                               ? 'bg-[#20C933] text-white shadow-md shadow-emerald-500/15'
                               : 'bg-slate-900 hover:bg-slate-800/90 text-slate-200'
@@ -1580,44 +2437,33 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                         >
                           <div className="flex items-center justify-between gap-1">
                             <span
-                              className={`text-[10px] font-bold uppercase tracking-wider truncate ${
+                              className={`text-[9px] font-bold uppercase tracking-wider truncate ${
                                 isSelected ? 'text-white' : 'text-emerald-400'
                               }`}
                             >
                               {preset.name}
                             </span>
-                            {isSelected && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
+                            {isSelected && <Check className="w-3 h-3 text-white shrink-0" />}
                           </div>
 
                           <p
                             style={{ fontFamily: preset.fontFamily }}
-                            className={`text-sm sm:text-base font-bold truncate ${
-                              isSelected ? 'text-white' : 'text-white'
-                            }`}
+                            className="text-xs sm:text-sm font-bold truncate text-white"
                           >
                             {tradeName || 'Meu Salão'}
                           </p>
-
-                          <span
-                            className={`text-[10px] truncate ${
-                              isSelected ? 'text-white/90' : 'text-slate-400'
-                            }`}
-                          >
-                            {preset.id} · {preset.segment}
-                          </span>
                         </button>
                       );
                     })}
                   </div>
                 </div>
 
-                {/* SIMULADOR VISUAL EM TEMPO REAL (ABA DO NAVEGADOR + ÍCONE DO APP NO CELULAR) */}
-                <div className="pt-3 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Preview 1: Aba do Navegador */}
-                  <div className="flex items-center gap-2.5 bg-slate-900/90 px-3.5 py-2.5 rounded-xl">
-                    <Globe className="w-4 h-4 text-slate-500 shrink-0" />
+                {/* SIMULADOR VISUAL EM TEMPO REAL */}
+                <div className="pt-2.5 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="flex items-center gap-2 bg-slate-900/90 px-3 py-2 rounded-xl">
+                    <Globe className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                     <div
-                      className="w-5 h-5 rounded flex items-center justify-center shrink-0 overflow-hidden"
+                      className="w-4 h-4 rounded flex items-center justify-center shrink-0 overflow-hidden"
                       style={{
                         backgroundColor:
                           (useLogoAsFavicon ? logoUrl : faviconUrl) ? '#0f172a' : primaryColor,
@@ -1630,23 +2476,22 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <span className="text-[10px] font-black text-white uppercase">
+                        <span className="text-[9px] font-black text-white uppercase">
                           {(tradeName || 'V').slice(0, 1)}
                         </span>
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <span className="text-[10px] text-slate-500 block">Aba do Navegador</span>
-                      <p className="text-xs font-semibold text-white truncate">
+                      <span className="text-[9px] text-slate-500 block">Aba do Navegador</span>
+                      <p className="text-[11px] font-semibold text-white truncate">
                         {tradeName || 'Meu Salão'} {slogan ? `— ${slogan}` : ''}
                       </p>
                     </div>
                   </div>
 
-                  {/* Preview 2: Galeria de Apps do Celular (PWA) & Cabeçalho com Fonte da Marca */}
-                  <div className="flex items-center gap-3 bg-slate-900/90 px-3.5 py-2.5 rounded-xl">
+                  <div className="flex items-center gap-2.5 bg-slate-900/90 px-3 py-2 rounded-xl">
                     <div
-                      className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 overflow-hidden shadow-sm"
+                      className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 overflow-hidden shadow-sm"
                       style={{
                         backgroundColor:
                           (useLogoAsFavicon ? logoUrl : faviconUrl) ? '#0f172a' : primaryColor,
@@ -1661,24 +2506,21 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                       ) : (
                         <span
                           style={{ fontFamily: activeBrandFontFamily }}
-                          className="text-xs font-black text-white uppercase"
+                          className="text-[11px] font-black text-white uppercase"
                         >
                           {(tradeName || 'VA').slice(0, 2)}
                         </span>
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <span className="text-[10px] text-slate-500 block">
-                        App no Celular & Cabeçalho ({brandFont})
+                      <span className="text-[9px] text-slate-500 block">
+                        App no Celular ({brandFont})
                       </span>
                       <p
                         style={{ fontFamily: activeBrandFontFamily }}
-                        className="text-sm font-bold text-white truncate"
+                        className="text-xs font-bold text-white truncate"
                       >
                         {tradeName || 'Meu Salão'}
-                      </p>
-                      <p className="text-[11px] text-slate-400 truncate">
-                        {slogan || 'Seu slogan aparecerá aqui'}
                       </p>
                     </div>
                   </div>
@@ -1686,29 +2528,77 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
               </div>
             )}
 
-            {/* RODAPÉ FIXO DE NAVEGAÇÃO PROGRESSIVA (Comercial & Visual) */}
+            {/* RODAPÉ FIXO DE NAVEGAÇÃO PROGRESSIVA (Comercial, Fiscal, PIX & Visual) */}
             {activeSection !== 'address' && (
-              <div className="pt-2 flex items-center justify-between gap-3">
+              <div className="pt-1 flex items-center justify-between gap-2.5">
                 <button
                   type="button"
                   onClick={() => {
                     if (activeSection === 'visual') updatePhase('address');
+                    else if (activeSection === 'pix_billing') updatePhase('fiscal');
+                    else if (activeSection === 'fiscal') updatePhase('commercial');
                     else updatePhase('user_check');
                   }}
-                  className="py-3.5 px-5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition flex items-center gap-2 cursor-pointer"
+                  className="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer"
                 >
-                  <ArrowLeft className="w-4 h-4" />
+                  <ArrowLeft className="w-3.5 h-3.5" />
                   <span>Voltar</span>
                 </button>
 
                 {activeSection === 'commercial' && (
                   <button
                     type="button"
-                    onClick={() => updatePhase('address')}
-                    className="flex-1 sm:flex-initial py-3.5 px-6 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95"
+                    onClick={() => {
+                      const clean = sanitizeSalonSlug(slug);
+                      if (clean.length < 3) {
+                        setFeedback({
+                          type: 'error',
+                          message: 'Informe um link personalizado com pelo menos 3 letras ou números.',
+                        });
+                        return;
+                      }
+                      if (slugCheckStatus === 'taken' || slugCheckStatus === 'reserved') {
+                        setFeedback({
+                          type: 'error',
+                          message: `O link "${clean}.vagouapp.com" já está em uso. Escolha outro link ou toque em uma sugestão livre.`,
+                        });
+                        return;
+                      }
+                      setFeedback(null);
+                      updatePhase('fiscal');
+                    }}
+                    className="flex-1 sm:flex-initial py-2.5 px-5 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95"
+                  >
+                    <span className="text-white">Avançar para Fiscal</span>
+                    <ArrowRight className="w-3.5 h-3.5 text-white" />
+                  </button>
+                )}
+
+                {activeSection === 'fiscal' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFeedback(null);
+                      updatePhase('pix_billing');
+                    }}
+                    className="flex-1 sm:flex-initial py-2.5 px-5 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95"
+                  >
+                    <span className="text-white">Avançar para PIX & Faturamento</span>
+                    <ArrowRight className="w-3.5 h-3.5 text-white" />
+                  </button>
+                )}
+
+                {activeSection === 'pix_billing' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFeedback(null);
+                      updatePhase('address');
+                    }}
+                    className="flex-1 sm:flex-initial py-2.5 px-5 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95"
                   >
                     <span className="text-white">Avançar para Endereço</span>
-                    <ArrowRight className="w-4 h-4 text-white" />
+                    <ArrowRight className="w-3.5 h-3.5 text-white" />
                   </button>
                 )}
 
@@ -1716,11 +2606,11 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                   <button
                     type="button"
                     onClick={() => updatePhase('review')}
-                    className="flex-1 sm:flex-initial py-3.5 px-6 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95"
+                    className="flex-1 sm:flex-initial py-2.5 px-5 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95"
                   >
-                    <FileText className="w-4 h-4 text-white" />
-                    <span className="text-white">Revisar Ficha Completa</span>
-                    <ArrowRight className="w-4 h-4 text-white" />
+                    <FileText className="w-3.5 h-3.5 text-white" />
+                    <span className="text-white">Revisar Ficha</span>
+                    <ArrowRight className="w-3.5 h-3.5 text-white" />
                   </button>
                 )}
               </div>
@@ -1731,40 +2621,40 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
           {/* 📋 MODAL FINAL DE CONFIRMAÇÃO: FICHA COMPLETA DO ESTABELECIMENTO         */}
           {/* ========================================================================= */}
           {isReviewModalOpen && (
-            <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 animate-fadeIn">
-              <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+            <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
+              <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[88vh] overflow-hidden">
                 {/* Cabeçalho do Modal de Revisão */}
-                <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between shrink-0 bg-slate-900">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
-                      <FileText className="w-5 h-5 text-emerald-400" />
+                <div className="p-3.5 sm:p-4 border-b border-slate-800 flex items-center justify-between shrink-0 bg-slate-900">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
+                      <FileText className="w-4 h-4 text-emerald-400" />
                     </div>
                     <div>
-                      <h3 className="text-sm sm:text-base font-bold text-white">
-                        Ficha Completa — Confirmação de Cadastro
+                      <h3 className="text-xs sm:text-sm font-bold text-white">
+                        Ficha Completa — Confirmação
                       </h3>
-                      <p className="text-xs text-slate-400">
-                        Confira os dados preenchidos antes de criar o estabelecimento
+                      <p className="text-[11px] text-slate-400">
+                        Confira os dados antes de criar o estabelecimento
                       </p>
                     </div>
                   </div>
                   <button
                     type="button"
-                    onClick={() => updatePhase(activeSection)}
+                    onClick={() => updatePhase(activeSection || 'visual')}
                     className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
                   >
-                    <X className="w-5 h-5" />
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
 
-                {/* Corpo Rolável da Ficha Completa (Layout Plano sem Box-dentro-de-Box) */}
-                <div className="p-4 sm:p-6 overflow-y-auto space-y-5 divide-y divide-slate-800/80 text-xs">
-                  {/* Resumo 1: Titular Vinculado */}
+                {/* Corpo Rolável da Ficha Completa */}
+                <div className="p-4 overflow-y-auto space-y-4 divide-y divide-slate-800/80 text-xs">
+                  {/* Resumo 1: Titular Vinculado (Dados Pessoais + CPF) */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5 text-[11px]">
                         <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Titular / Proprietário Vinculado</span>
+                        <span>Titular / Proprietário (Dados Pessoais)</span>
                       </span>
                       <button
                         type="button"
@@ -1772,13 +2662,17 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                         className="text-[11px] font-semibold text-slate-400 hover:text-emerald-400 flex items-center gap-1 cursor-pointer transition"
                       >
                         <Pencil className="w-3 h-3" />
-                        <span>Trocar Usuário</span>
+                        <span>Trocar</span>
                       </button>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                    <div className="grid grid-cols-2 gap-3 pt-1">
                       <div>
                         <span className="text-slate-500 block text-[11px]">Nome</span>
                         <strong className="text-white font-semibold">{ownerName || '—'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[11px]">CPF Pessoal</span>
+                        <strong className="text-emerald-400 font-mono">{ownerCpf || '—'}</strong>
                       </div>
                       <div>
                         <span className="text-slate-500 block text-[11px]">WhatsApp</span>
@@ -1786,17 +2680,17 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                       </div>
                       <div>
                         <span className="text-slate-500 block text-[11px]">E-mail</span>
-                        <strong className="text-white font-semibold">{ownerEmail || '—'}</strong>
+                        <strong className="text-white font-semibold truncate block">{ownerEmail || '—'}</strong>
                       </div>
                     </div>
                   </div>
 
-                  {/* Resumo 2: Dados Comerciais & Fiscais */}
+                  {/* Resumo 2: Dados Comerciais */}
                   <div className="pt-4 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5 text-[11px]">
                         <Building2 className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>2. Dados Comerciais & Fiscais</span>
+                        <span>1. Dados Comerciais</span>
                       </span>
                       <button
                         type="button"
@@ -1807,43 +2701,96 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                         <span>Editar</span>
                       </button>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                    <div className="grid grid-cols-2 gap-3 pt-1">
                       <div>
                         <span className="text-slate-500 block text-[11px]">Nome Fantasia</span>
                         <strong className="text-white font-semibold">{tradeName || '—'}</strong>
-                      </div>
-                      {documentType === 'CNPJ' && (
-                        <div>
-                          <span className="text-slate-500 block text-[11px]">Razão Social</span>
-                          <strong className="text-white font-semibold">{legalName || '—'}</strong>
-                        </div>
-                      )}
-                      <div>
-                        <span className="text-slate-500 block text-[11px]">{documentType}</span>
-                        <strong className="text-white font-semibold">{documentNumber || '—'}</strong>
                       </div>
                       <div>
                         <span className="text-slate-500 block text-[11px]">Categoria</span>
                         <strong className="text-white font-semibold">{category || '—'}</strong>
                       </div>
-                      <div>
-                        <span className="text-slate-500 block text-[11px]">Chave PIX</span>
-                        <strong className="text-white font-semibold">{pixKey || '—'}</strong>
-                      </div>
-                      <div>
+                      <div className="col-span-2">
                         <span className="text-slate-500 block text-[11px]">Rota Oficial</span>
                         <strong className="text-emerald-400 font-mono">{slug}.vagouapp.com</strong>
                       </div>
                     </div>
                   </div>
 
-                  {/* Resumo 3: Endereço & Localização */}
+                  {/* Resumo 3: Dados Fiscais */}
+                  <div className="pt-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5 text-[11px]">
+                        <Receipt className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>2. Dados Fiscais</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => updatePhase('fiscal')}
+                        className="text-[11px] font-semibold text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Pencil className="w-3 h-3" />
+                        <span>Editar</span>
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <span className="text-slate-500 block text-[11px]">Regime / Tributação</span>
+                        <strong className="text-white font-semibold">
+                          {hasCnpj ? cnpjNumber || 'CNPJ informado' : 'Autônomo (Sem CNPJ)'}
+                        </strong>
+                      </div>
+                      {hasCnpj && (
+                        <div>
+                          <span className="text-slate-500 block text-[11px]">Razão Social</span>
+                          <strong className="text-white font-semibold">{legalName || '—'}</strong>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Resumo 4: Faturamento & Chaves PIX */}
+                  <div className="pt-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5 text-[11px]">
+                        <Wallet className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>3. Faturamento & Chaves PIX</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => updatePhase('pix_billing')}
+                        className="text-[11px] font-semibold text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Pencil className="w-3 h-3" />
+                        <span>Editar</span>
+                      </button>
+                    </div>
+                    <div className="space-y-1 pt-1">
+                      {pixKeys
+                        .filter((k) => k.key.trim())
+                        .map((item) => (
+                          <div key={item.id} className="flex items-center justify-between text-[11px]">
+                            <span className="text-white font-mono">
+                              {item.key}{' '}
+                              {item.isPrimary && (
+                                <span className="text-emerald-400 font-sans font-bold">(Principal)</span>
+                              )}
+                            </span>
+                            <span className="text-slate-400 truncate max-w-[140px]">
+                              {item.holderName || item.institution || ''}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+
+                  {/* Resumo 5: Endereço & Localização */}
                   <div className="pt-4 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5 text-[11px]">
                         <MapPin className="w-3.5 h-3.5 text-emerald-400" />
                         <span>
-                          3. Endereço & Localização{isSameAddressChosen ? ' (Mesmo do Proprietário)' : ''}
+                          4. Endereço & Localização{isSameAddressChosen ? ' (Mesmo do Titular)' : ''}
                         </span>
                       </span>
                       <button
@@ -1865,12 +2812,12 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                     </div>
                   </div>
 
-                  {/* Resumo 4: Identidade Visual & Branding */}
+                  {/* Resumo 6: Identidade Visual & Branding */}
                   <div className="pt-4 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5 text-[11px]">
                         <Palette className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>4. Identidade Visual & Branding</span>
+                        <span>5. Identidade Visual & Branding</span>
                       </span>
                       <button
                         type="button"
@@ -1977,10 +2924,47 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
           tradeName: tradeName || 'Meu Espaço',
           slug: slug || 'meu-espaco',
           slogan,
-          logoUrl,
-          primaryColor,
           ownerName,
         }}
+      />
+
+      {/* ========================================================================= */}
+      {/* 🖨️ MODAL DE IMPRESSÃO DA PLAQUINHA PIX DE BALCÃO / BANCADA                */}
+      {/* ========================================================================= */}
+      <SalonPixPrintModal
+        isOpen={isPrintPlaqueOpen}
+        onClose={() => setIsPrintPlaqueOpen(false)}
+        salonName={tradeName || 'Meu Estabelecimento'}
+        logoUrl={logoUrl}
+        pixKey={pixKeys.find((k) => k.isPrimary)?.key || pixKeys[0]?.key || ''}
+        pixKeyType={pixKeys.find((k) => k.isPrimary)?.type || pixKeys[0]?.type || 'phone'}
+        holderName={
+          pixKeys.find((k) => k.isPrimary)?.holderName ||
+          (hasCnpj ? legalName : ownerName) ||
+          tradeName
+        }
+        institution={pixKeys.find((k) => k.isPrimary)?.institution || 'Banco Central (SPI / PIX)'}
+        city={city || 'São Paulo'}
+      />
+
+      {/* ========================================================================= */}
+      {/* 📲 MODAL DE COBRANÇA PIX PÓS-SERVIÇO (QR CODE NA TELA / ENVIAR WHATSAPP)  */}
+      {/* ========================================================================= */}
+      <PixCheckoutModal
+        isOpen={isCheckoutModalOpen}
+        onClose={() => setIsCheckoutModalOpen(false)}
+        salonName={tradeName || 'Meu Estabelecimento'}
+        pixKey={pixKeys.find((k) => k.isPrimary)?.key || pixKeys[0]?.key || ''}
+        pixHolderName={
+          pixKeys.find((k) => k.isPrimary)?.holderName ||
+          (hasCnpj ? legalName : ownerName) ||
+          tradeName
+        }
+        clientName="Cliente Exemplo"
+        clientPhone={ownerWhatsapp || ''}
+        serviceName="Corte Degradê + Barba Alinhada"
+        professionalName={ownerName || 'Profissional'}
+        initialAmount={65.0}
       />
     </div>
   );

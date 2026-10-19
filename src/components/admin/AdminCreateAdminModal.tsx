@@ -147,24 +147,24 @@ export const AdminCreateAdminModal: React.FC<AdminCreateAdminModalProps> = ({
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
-      <div className="relative w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[90vh] flex flex-col transition-colors">
+      <div className="relative w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[90vh] flex flex-col transition-colors">
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/80 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
-              <UserPlus className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+        <div className="p-3.5 sm:p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/80 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+              <UserPlus className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
-                  Cadastrar Novo Administrador
+                <h2 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">
+                  Novo Administrador
                 </h2>
-                <span className="text-[10px] font-mono font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20">
+                <span className="text-[10px] font-mono font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20">
                   Master
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Cadastro interno restrito para gestores do ecossistema Vagou
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Cadastro interno para gestores do ecossistema
               </p>
             </div>
           </div>
@@ -177,97 +177,95 @@ export const AdminCreateAdminModal: React.FC<AdminCreateAdminModalProps> = ({
             className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white border border-slate-200 dark:border-slate-700 transition cursor-pointer"
             title="Fechar"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Form Container */}
         <form onSubmit={handleRegister} className="flex flex-col flex-1 min-h-0 overflow-hidden">
           {/* Scrollable Form Body */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 min-h-0 text-xs">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 min-h-0 text-xs">
             {/* Feedback Messages */}
             {errorMessage && (
-              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 flex items-center gap-2.5 text-xs text-rose-700 dark:text-rose-400">
+              <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 flex items-center gap-2 text-xs text-rose-700 dark:text-rose-400">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{errorMessage}</span>
               </div>
             )}
 
           {successMessage && (
-            <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 flex items-center gap-2.5 text-xs text-emerald-700 dark:text-emerald-400 font-bold">
+            <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-400 font-bold">
               <CheckCircle2 className="w-4 h-4 shrink-0" />
               <span>{successMessage}</span>
             </div>
           )}
 
-          {/* Nome Completo */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-              <User className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>Nome completo *</span>
-            </label>
-            <input
-              type="text"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="ex: Carlos Eduardo Silva"
-              required
-              className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 text-xs focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-xs dark:shadow-none transition"
-            />
-          </div>
-
-          {/* Nome de Usuário */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span>Nome de usuário *</span>
+          {/* Grid: Nome Completo & Nome de Usuário */}
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+            <div className="sm:col-span-7 space-y-1">
+              <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Nome completo *</span>
               </label>
-              <span className="text-[10px] text-slate-500 dark:text-slate-400">(1 Maiúscula + 1 Caractere Especial)</span>
-            </div>
-            <div className="relative">
               <input
                 type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value.replace(/^@+/, ''))}
-                placeholder="ex: Anderson@, jOse#, pauLa**"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Carlos Eduardo Silva"
                 required
-                className={`w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-950 border text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 text-xs focus:outline-none focus:ring-1 transition shadow-xs dark:shadow-none ${
-                  cleanUsername
-                    ? isUsernameValid
-                      ? 'border-emerald-500/70 focus:border-emerald-500 focus:ring-emerald-500'
-                      : 'border-amber-500/70 focus:border-amber-500 focus:ring-amber-500'
-                    : 'border-slate-300 dark:border-slate-800 focus:border-emerald-500 focus:ring-emerald-500'
-                }`}
+                className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 text-xs focus:outline-none focus:border-emerald-500 transition"
               />
-              {cleanUsername && isUsernameValid && (
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-600 dark:text-emerald-400">
-                  <CheckCircle2 className="w-4 h-4" />
-                </div>
-              )}
             </div>
 
-            {/* Badges de validação */}
-            <div className="flex flex-wrap items-center gap-1.5 pt-1">
-              <span
-                className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition ${
-                  hasUppercase
-                    ? 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
-                }`}
-              >
-                • Letra Maiúscula (A-Z)
-              </span>
-              <span
-                className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition ${
-                  hasSpecialChar
-                    ? 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
-                }`}
-              >
-                • Caractere Especial (@, #, $, !)
-              </span>
+            <div className="sm:col-span-5 space-y-1">
+              <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Usuário *</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.replace(/^@+/, ''))}
+                  placeholder="Anderson@"
+                  required
+                  className={`w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-950 border text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 text-xs font-mono focus:outline-none transition ${
+                    cleanUsername
+                      ? isUsernameValid
+                        ? 'border-emerald-500/70 focus:border-emerald-500'
+                        : 'border-amber-500/70 focus:border-amber-500'
+                      : 'border-slate-300 dark:border-slate-800 focus:border-emerald-500'
+                  }`}
+                />
+                {cleanUsername && isUsernameValid && (
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  </div>
+                )}
+              </div>
             </div>
+          </div>
+
+          {/* Badges de validação */}
+          <div className="flex flex-wrap items-center gap-1.5 -mt-1">
+            <span
+              className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition ${
+                hasUppercase
+                  ? 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
+              }`}
+            >
+              • 1 Maiúscula (A-Z)
+            </span>
+            <span
+              className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition ${
+                hasSpecialChar
+                  ? 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
+              }`}
+            >
+              • 1 Caractere Especial (@, #, $, !)
+            </span>
           </div>
 
           {/* Grid: E-mail e Confirmação */}

@@ -16,10 +16,13 @@ import {
   X,
   LayoutList,
   LayoutGrid,
+  QrCode,
+  Send,
 } from 'lucide-react';
 import { AdminAppointmentItem, AdminSalonItem } from '../../types/admin';
 import { fetchAdminAppointments, fetchAdminSalons } from '../../services/supabaseApi';
 import { VagouOfficialLogo } from '../common/VagouOfficialLogo';
+import { PixCheckoutModal } from './PixCheckoutModal';
 
 export const AdminAppointmentsMonitor: React.FC = () => {
   const [appointments, setAppointments] = useState<AdminAppointmentItem[]>([]);
@@ -37,6 +40,16 @@ export const AdminAppointmentsMonitor: React.FC = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [filterType, setFilterType] = useState<'all' | 'radar' | 'standard'>('all');
+  const [selectedPixCheckout, setSelectedPixCheckout] = useState<{
+    salonName: string;
+    pixKey: string;
+    pixHolderName?: string;
+    clientName?: string;
+    clientPhone?: string;
+    serviceName?: string;
+    professionalName?: string;
+    initialAmount?: number;
+  } | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -901,6 +914,39 @@ export const AdminAppointmentsMonitor: React.FC = () => {
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border capitalize ${getStatusBadge(apt.status)}`}>
                               {apt.status.replace('_', ' ')}
                             </span>
+
+                            {/* Botão de Cobrança / Enviar PIX Pós-Serviço */}
+                            {apt.status !== 'cancelado' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const sln = activeSalonData?.salon;
+                                  const key =
+                                    sln?.pix_key ||
+                                    (sln?.pix_keys && sln.pix_keys[0]?.key) ||
+                                    'financeiro@vagouapp.com';
+                                  const holder =
+                                    (sln?.pix_keys &&
+                                      sln.pix_keys.find((k: any) => k.isPrimary)?.holderName) ||
+                                    sln?.trade_name;
+                                  setSelectedPixCheckout({
+                                    salonName: sln?.trade_name || 'Estabelecimento',
+                                    pixKey: key,
+                                    pixHolderName: holder,
+                                    clientName: apt.client_name,
+                                    clientPhone: apt.client_phone,
+                                    serviceName: apt.service_title,
+                                    professionalName: apt.professional_name,
+                                    initialAmount: apt.price,
+                                  });
+                                }}
+                                title="Enviar PIX / QR Code de Cobrança ao Cliente"
+                                className="p-1 px-1.5 rounded-lg bg-emerald-500/15 hover:bg-[#20C933] text-emerald-600 hover:text-white dark:text-emerald-400 dark:hover:text-white border border-emerald-500/30 text-[10px] font-bold transition cursor-pointer flex items-center gap-1 shrink-0"
+                              >
+                                <QrCode className="w-3 h-3" />
+                                <span className="hidden sm:inline">Cobrar PIX</span>
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -911,6 +957,22 @@ export const AdminAppointmentsMonitor: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 📲 Modal de Cobrança PIX Pós-Serviço (WhatsApp / QR Code na Tela) */}
+      {selectedPixCheckout && (
+        <PixCheckoutModal
+          isOpen={Boolean(selectedPixCheckout)}
+          onClose={() => setSelectedPixCheckout(null)}
+          salonName={selectedPixCheckout.salonName}
+          pixKey={selectedPixCheckout.pixKey}
+          pixHolderName={selectedPixCheckout.pixHolderName}
+          clientName={selectedPixCheckout.clientName}
+          clientPhone={selectedPixCheckout.clientPhone}
+          serviceName={selectedPixCheckout.serviceName}
+          professionalName={selectedPixCheckout.professionalName}
+          initialAmount={selectedPixCheckout.initialAmount}
+        />
       )}
     </div>
   );

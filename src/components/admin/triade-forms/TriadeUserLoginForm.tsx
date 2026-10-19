@@ -19,8 +19,19 @@ export interface TriadeUserLoginPayload {
   identifier: string;
   id?: string;
   name?: string;
+  username?: string;
   email?: string;
   phone?: string;
+  cpf?: string;
+  address?: {
+    cep?: string;
+    street?: string;
+    number?: string;
+    complement?: string;
+    neighborhood?: string;
+    city?: string;
+    state?: string;
+  };
   accountType?: 'client' | 'professional' | 'owner';
   role?: 'client' | 'professional' | 'owner';
   session?: {
@@ -253,8 +264,21 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
         identifier: rawId,
         id: authUserId,
         name: resolvedName,
+        username: (matchedClient?.username || cleanUsername).replace(/^@+/, ''),
         email: resolvedEmail,
         phone: resolvedPhone,
+        cpf: matchedClient?.cpf || '',
+        address: matchedClient
+          ? {
+              cep: matchedClient.cep || '',
+              street: matchedClient.address || '',
+              number: matchedClient.street_number || '',
+              complement: matchedClient.complement || '',
+              neighborhood: matchedClient.neighborhood || '',
+              city: matchedClient.city || '',
+              state: matchedClient.state || '',
+            }
+          : undefined,
         accountType,
         role: accountType,
         session: authSession,

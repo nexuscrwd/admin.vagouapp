@@ -11,12 +11,25 @@ import {
   Pencil,
   FileText,
   ArrowRight,
+  Sparkles,
+  QrCode,
+  Eye,
+  Save,
+  RotateCcw,
+  Sliders,
 } from 'lucide-react';
 import { fetchSystemAdmins, toggleAdminStatus } from '../../services/supabaseApi';
 import { SystemAdminUser } from '../../types/admin';
 import { AdminCreateAdminModal } from './AdminCreateAdminModal';
 import { AdminEditAdminModal } from './AdminEditAdminModal';
 import { UserAvatar } from '../common/UserAvatar';
+import {
+  SalonWelcomeModal,
+  SalonWelcomeTemplateConfig,
+  DEFAULT_WELCOME_MODAL_CONFIG,
+  getWelcomeModalConfig,
+  saveWelcomeModalConfig,
+} from './SalonWelcomeModal';
 
 export interface AdminSettingsPanelProps {
   onNavigateToForms?: () => void;
@@ -30,6 +43,30 @@ export const AdminSettingsPanel: React.FC<AdminSettingsPanelProps> = ({ onNaviga
   const [editingAdmin, setEditingAdmin] = useState<SystemAdminUser | null>(null);
   const [isEditAdminModalOpen, setIsEditAdminModalOpen] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+
+  // Studio & Preview do Modal de Boas-Vindas (SalonWelcomeModal)
+  const [isWelcomePreviewOpen, setIsWelcomePreviewOpen] = useState(false);
+  const [isWelcomeEditorExpanded, setIsWelcomeEditorExpanded] = useState(true);
+  const [welcomeConfig, setWelcomeConfig] = useState<SalonWelcomeTemplateConfig>(() =>
+    getWelcomeModalConfig()
+  );
+  const [previewSalonName, setPreviewSalonName] = useState('Fabio Foos');
+  const [previewSalonSlug, setPreviewSalonSlug] = useState('fabiofoos');
+  const [previewSlogan, setPreviewSlogan] = useState('Excelência em estética e bem-estar');
+  const [welcomeSavedFeedback, setWelcomeSavedFeedback] = useState<string | null>(null);
+
+  const handleSaveWelcomeConfig = () => {
+    saveWelcomeModalConfig(welcomeConfig);
+    setWelcomeSavedFeedback('Configurações do Modal de Boas-Vindas salvas e aplicadas em todo o sistema!');
+    setTimeout(() => setWelcomeSavedFeedback(null), 3500);
+  };
+
+  const handleResetWelcomeConfig = () => {
+    setWelcomeConfig(DEFAULT_WELCOME_MODAL_CONFIG);
+    saveWelcomeModalConfig(DEFAULT_WELCOME_MODAL_CONFIG);
+    setWelcomeSavedFeedback('Modal de Boas-Vindas restaurado para o padrão original!');
+    setTimeout(() => setWelcomeSavedFeedback(null), 3500);
+  };
 
   const loadAdmins = async () => {
     setIsLoadingAdmins(true);
@@ -75,7 +112,312 @@ export const AdminSettingsPanel: React.FC<AdminSettingsPanelProps> = ({ onNaviga
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      {/* 🔐 SEÇÃO: GESTÃO DE ADMINISTRADORES SOBERANOS */}
+      {/* 🎉 SEÇÃO 1: ESTÚDIO & CONFIGURAÇÃO DO MODAL DE BOAS-VINDAS (KIT DE LANÇAMENTO + QR CODE) */}
+      <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-5 shadow-xs dark:shadow-none">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-[#20C933] text-white flex items-center justify-center shadow-md shadow-emerald-500/20 shrink-0">
+              <Sparkles className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Modal de Boas-Vindas & Kit de Lançamento (Link + QR Code)
+                </h3>
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20">
+                  Etapa 6 • Pós-Cadastro
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Visualize e edite o modal exibido ao proprietário após concluir a criação do estabelecimento.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setIsWelcomeEditorExpanded((prev) => !prev)}
+              className="py-2 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            >
+              <Sliders className="w-3.5 h-3.5 text-emerald-500" />
+              <span>{isWelcomeEditorExpanded ? 'Ocultar Editor' : 'Editar Textos'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsWelcomePreviewOpen(true)}
+              className="py-2 px-4 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center gap-2 cursor-pointer shadow-md shadow-emerald-500/20 active:scale-95 whitespace-nowrap"
+            >
+              <Eye className="w-4 h-4 text-white" />
+              <span className="text-white">Abrir Modal de Boas-Vindas</span>
+            </button>
+          </div>
+        </div>
+
+        {welcomeSavedFeedback && (
+          <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-xs text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-2 animate-fadeIn">
+            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+            <span>{welcomeSavedFeedback}</span>
+          </div>
+        )}
+
+        {isWelcomeEditorExpanded && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-1">
+            {/* Coluna Esquerda: Editor dos Textos e Botões do Modal */}
+            <div className="lg:col-span-7 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Nome de Teste (Simulação)
+                  </label>
+                  <input
+                    type="text"
+                    value={previewSalonName}
+                    onChange={(e) => setPreviewSalonName(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 text-white text-xs border border-slate-800 focus:border-emerald-500 outline-none"
+                    placeholder="Ex: Fabio Foos"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Subdomínio / Slug de Teste
+                  </label>
+                  <input
+                    type="text"
+                    value={previewSalonSlug}
+                    onChange={(e) =>
+                      setPreviewSalonSlug(
+                        e.target.value
+                          .toLowerCase()
+                          .normalize('NFD')
+                          .replace(/[\u0300-\u036f]/g, '')
+                          .replace(/[^a-z0-9]/g, '')
+                      )
+                    }
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 text-emerald-400 font-mono text-xs border border-slate-800 focus:border-emerald-500 outline-none"
+                    placeholder="Ex: fabiofoos"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Título Principal (use {'{nome}'})
+                  </label>
+                  <input
+                    type="text"
+                    value={welcomeConfig.titleTemplate}
+                    onChange={(e) =>
+                      setWelcomeConfig((prev) => ({ ...prev, titleTemplate: e.target.value }))
+                    }
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 text-white text-xs border border-slate-800 focus:border-emerald-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Subtítulo de Parabenização
+                  </label>
+                  <input
+                    type="text"
+                    value={welcomeConfig.subtitleText}
+                    onChange={(e) =>
+                      setWelcomeConfig((prev) => ({ ...prev, subtitleText: e.target.value }))
+                    }
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 text-white text-xs border border-slate-800 focus:border-emerald-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  Título da Seção de Boas-Vindas
+                </label>
+                <input
+                  type="text"
+                  value={welcomeConfig.sectionTitle}
+                  onChange={(e) =>
+                    setWelcomeConfig((prev) => ({ ...prev, sectionTitle: e.target.value }))
+                  }
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 text-white text-xs border border-slate-800 focus:border-emerald-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  Mensagem de Boas-Vindas ao Parceiro
+                </label>
+                <textarea
+                  rows={2}
+                  value={welcomeConfig.welcomeMessage}
+                  onChange={(e) =>
+                    setWelcomeConfig((prev) => ({ ...prev, welcomeMessage: e.target.value }))
+                  }
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 text-white text-xs border border-slate-800 focus:border-emerald-500 outline-none resize-none"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    Aviso de Orientação Inicial (Serviços, Equipe e Horários)
+                  </label>
+                  <label className="inline-flex items-center gap-1.5 text-[11px] text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={welcomeConfig.showInstructionNote}
+                      onChange={(e) =>
+                        setWelcomeConfig((prev) => ({
+                          ...prev,
+                          showInstructionNote: e.target.checked,
+                        }))
+                      }
+                      className="accent-[#20C933]"
+                    />
+                    <span>Exibir aviso</span>
+                  </label>
+                </div>
+                <textarea
+                  rows={2}
+                  value={welcomeConfig.instructionNote}
+                  onChange={(e) =>
+                    setWelcomeConfig((prev) => ({ ...prev, instructionNote: e.target.value }))
+                  }
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950 text-white text-xs border border-slate-800 focus:border-emerald-500 outline-none resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Botão Esquerdo (Abrir / Baixar App)
+                  </label>
+                  <input
+                    type="text"
+                    value={welcomeConfig.openPartnerAppLabel}
+                    onChange={(e) =>
+                      setWelcomeConfig((prev) => ({
+                        ...prev,
+                        openPartnerAppLabel: e.target.value,
+                      }))
+                    }
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 text-white text-xs border border-slate-800 focus:border-emerald-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Botão Direito (Concluir e Começar)
+                  </label>
+                  <input
+                    type="text"
+                    value={welcomeConfig.finishButtonLabel}
+                    onChange={(e) =>
+                      setWelcomeConfig((prev) => ({
+                        ...prev,
+                        finishButtonLabel: e.target.value,
+                      }))
+                    }
+                    className="w-full px-3 py-2 rounded-xl bg-slate-950 text-white text-xs border border-slate-800 focus:border-emerald-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleResetWelcomeConfig}
+                  className="py-2 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Restaurar Padrão</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveWelcomeConfig}
+                  className="py-2.5 px-5 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center gap-2 cursor-pointer shadow-md shadow-emerald-500/20 active:scale-95 whitespace-nowrap"
+                >
+                  <Save className="w-4 h-4 text-white" />
+                  <span className="text-white">Salvar Alterações do Modal</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Coluna Direita: Mini Preview Ao Vivo */}
+            <div className="lg:col-span-5 bg-slate-950 rounded-2xl p-5 flex flex-col justify-between space-y-4">
+              <div className="space-y-3 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-[#20C933] text-white flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20">
+                  <Sparkles className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h4 className="text-base font-black text-white">
+                    {welcomeConfig.titleTemplate.replace(/\{nome\}/gi, previewSalonName || 'Meu Espaço')}
+                  </h4>
+                  <p className="text-[11px] text-emerald-400 font-semibold mt-0.5">
+                    {welcomeConfig.subtitleText}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3 text-xs border-t border-slate-800/80 pt-3">
+                <p className="font-bold text-white">{welcomeConfig.sectionTitle}</p>
+                <p className="text-slate-300 text-[11px] leading-relaxed">
+                  {welcomeConfig.welcomeMessage}
+                </p>
+                {welcomeConfig.showInstructionNote && (
+                  <p className="text-amber-300 text-[11px] leading-snug">
+                    • {welcomeConfig.instructionNote}
+                  </p>
+                )}
+
+                <div className="pt-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block mb-1">
+                    {welcomeConfig.linkLabel}
+                  </span>
+                  <div className="bg-slate-900 px-3 py-2 rounded-xl font-mono text-xs text-white font-bold truncate">
+                    https://{previewSalonSlug || 'meu-espaco'}.vagouapp.com
+                  </div>
+                </div>
+
+                {welcomeConfig.showQrSection && (
+                  <div className="flex items-center gap-3 pt-2">
+                    <div className="bg-white p-2 rounded-xl shrink-0">
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(
+                          `https://${previewSalonSlug || 'meu-espaco'}.vagouapp.com`
+                        )}&format=png&margin=6`}
+                        alt="Preview QR"
+                        className="w-16 h-16 object-contain"
+                      />
+                    </div>
+                    <div className="text-left space-y-1">
+                      <div className="text-xs font-bold text-white flex items-center gap-1">
+                        <QrCode className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>{welcomeConfig.qrTitle}</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 leading-normal">
+                        {welcomeConfig.qrDescription}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsWelcomePreviewOpen(true)}
+                className="w-full py-2.5 px-4 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-emerald-500/20 whitespace-nowrap"
+              >
+                <Eye className="w-4 h-4 text-white" />
+                <span className="text-white">Testar Modal Interativo em Tela Cheia</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 🔐 SEÇÃO 2: GESTÃO DE ADMINISTRADORES SOBERANOS */}
       <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 shadow-xs dark:shadow-none">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-2.5">
@@ -240,7 +582,7 @@ export const AdminSettingsPanel: React.FC<AdminSettingsPanelProps> = ({ onNaviga
         </div>
       </div>
 
-      {/* 📋 SEÇÃO: CENTRAL DE FORMULÁRIOS DA TRÍADE */}
+      {/* 📋 SEÇÃO 3: CENTRAL DE FORMULÁRIOS DA TRÍADE */}
       <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3 shadow-xs dark:shadow-none">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
@@ -299,6 +641,19 @@ export const AdminSettingsPanel: React.FC<AdminSettingsPanelProps> = ({ onNaviga
           );
           setActionFeedback(`Dados do administrador ${updatedAdmin.username.replace(/^@+/, '')} atualizados com sucesso!`);
           setTimeout(() => setActionFeedback(null), 3500);
+        }}
+      />
+
+      {/* Modal Interativo de Boas-Vindas & Kit de Lançamento */}
+      <SalonWelcomeModal
+        isOpen={isWelcomePreviewOpen}
+        onClose={() => setIsWelcomePreviewOpen(false)}
+        customConfig={welcomeConfig}
+        data={{
+          tradeName: previewSalonName || 'Fabio Foos',
+          slug: previewSalonSlug || 'fabio-foos',
+          slogan: previewSlogan,
+          primaryColor: '#20C933',
         }}
       />
     </div>

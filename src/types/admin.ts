@@ -24,6 +24,18 @@ export interface DayOperatingHour {
   breakEnd?: string;   // e.g. "13:00"
 }
 
+export type PixKeyType = 'cpf' | 'cnpj' | 'phone' | 'email' | 'evp';
+
+export interface SalonPixKeyItem {
+  id: string;
+  type: PixKeyType;
+  key: string;
+  holderName?: string;
+  institution?: string;
+  isPrimary: boolean;
+  verified?: boolean;
+}
+
 export interface AdminSalonItem {
   id: string;
   trade_name: string;
@@ -37,6 +49,8 @@ export interface AdminSalonItem {
   email?: string;
   document_type?: 'CNPJ' | 'CPF' | string;
   document_number?: string;
+  has_cnpj?: boolean;
+  owner_cpf?: string;
   operating_model?: 'physical' | 'home_service' | 'hybrid' | string;
   commission_rate?: number;
   billing_plan?: 'subscription' | 'per_booking' | string;
@@ -44,6 +58,7 @@ export interface AdminSalonItem {
   monthly_subscription_fee?: number;
   billing_due_day?: number;
   pix_key?: string;
+  pix_keys?: SalonPixKeyItem[];
   address?: string;
   street_number?: string;
   complement?: string;

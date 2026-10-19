@@ -67,7 +67,9 @@ CREATE TABLE public.salons (
     bio TEXT,
     
     -- Financeiro & Pagamentos
-    pix_key VARCHAR(100),                          -- Chave PIX oficial do parceiro
+    owner_cpf VARCHAR(20),                         -- CPF pessoal do proprietário / titular
+    pix_key VARCHAR(100),                          -- Chave PIX principal (compatibilidade)
+    pix_keys JSONB DEFAULT '[]'::jsonb,            -- Lista estruturada de múltiplas chaves PIX
     operating_hours JSONB,                         -- Horários de funcionamento por dia da semana
     
     -- Avaliações & Métricas

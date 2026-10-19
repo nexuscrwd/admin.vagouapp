@@ -1327,7 +1327,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
       {isRegistrationModalOpen &&
         createPortal(
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
-            <div className="w-full max-w-xl bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl relative my-auto max-h-[92vh] overflow-y-auto">
+            <div className="w-full max-w-md bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl relative my-auto max-h-[90vh] overflow-y-auto">
               <TriadeUserRegisterForm
                 origin="portal"
                 onClose={() => setIsRegistrationModalOpen(false)}
@@ -1346,7 +1346,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
       {isBulkDeleteModalOpen &&
         createPortal(
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
-            <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-5 sm:p-6 space-y-4 animate-scaleUp">
+            <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-4 sm:p-5 space-y-3.5 animate-scaleUp">
               <div className="flex items-start justify-between gap-3 text-rose-600 dark:text-rose-400">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-500/20 border border-rose-200 dark:border-rose-500/30 flex items-center justify-center shrink-0">

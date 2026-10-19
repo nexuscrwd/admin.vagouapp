@@ -2848,7 +2848,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
       {/* ======================================================== */}
       {isSimulatorOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn overflow-y-auto">
-          <div className="w-full max-w-xl bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl relative my-auto max-h-[92vh] flex flex-col overflow-hidden">
+          <div className="w-full max-w-md bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl relative my-auto max-h-[90vh] flex flex-col overflow-hidden">
             <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/90 shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-[#20C933]/15 text-[#20C933] border border-[#20C933]/30 flex items-center justify-center shrink-0">
@@ -2909,7 +2909,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn">
-            <div className="w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
               {/* Header */}
               <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
@@ -3088,7 +3088,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn">
-            <div className="w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
               {/* Header */}
               <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
@@ -3266,7 +3266,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn">
-            <div className="w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
               {/* Header */}
               <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
@@ -3547,7 +3547,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
           onClick={() => setViewingPhotoUrl(null)}
         >
           <div
-            className="max-w-3xl max-h-[90vh] bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden relative shadow-2xl"
+            className="w-full max-w-lg max-h-[90vh] bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden relative shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-3 border-b border-slate-800 flex items-center justify-between bg-slate-900">
@@ -3575,7 +3575,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
       {/* Modal: Novo Procedimento / Serviço */}
       {isAddServiceModalOpen && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
-          <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[90vh] flex flex-col">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[90vh] flex flex-col">
             <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Scissors className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
@@ -3699,7 +3699,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
       {/* MODAL: EDITAR PROCEDIMENTO EXISTENTE */}
       {editingService && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
-          <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[90vh] flex flex-col">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[90vh] flex flex-col">
             <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Pencil className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
@@ -3913,7 +3913,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
       {/* MODAL: UPLOAD LOCAL / NOVA MÍDIA NA GALERIA */}
       {isUploadMediaModalOpen && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
-          <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[90vh] flex flex-col">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[90vh] flex flex-col">
             <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <UploadCloud className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
@@ -4123,7 +4123,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
       {/* MODAL: GOOGLE FOTOS PICKER (INTEGRAÇÃO EM NUVEM) */}
       {isGooglePhotosModalOpen && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
-          <div className="w-full max-w-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             {/* Header Google Fotos */}
             <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -4287,7 +4287,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
           onClick={() => setViewingMediaItem(null)}
         >
           <div
-            className="w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+            className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-4 border-b border-slate-800 flex items-center justify-between text-white">
@@ -4390,7 +4390,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
       {/* MODAL: VINCULAR MÍDIA DA GALERIA A UM SERVIÇO ESPECÍFICO */}
       {mediaItemToLink && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
-          <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden">
             <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Scissors className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
@@ -4477,7 +4477,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
       {/* MODAL: SELECIONAR DA GALERIA CENTRAL DO SALÃO PARA O PROCEDIMENTO */}
       {isSelectFromGalleryModalOpen && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
-          <div className="w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+          <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
             <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Images className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />

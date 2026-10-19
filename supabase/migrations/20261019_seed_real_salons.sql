@@ -1,0 +1,235 @@
+-- ============================================================================
+-- 💈 VAGOUAPP — SEED OFICIAL: INSERÇÃO DE ESTABELECIMENTOS DE TESTE NO SUPABASE
+-- Data: 19/10/2026
+-- Instrução: Cole e execute este script no SQL Editor do seu Supabase Dashboard.
+-- ============================================================================
+
+-- 1. Garante que as colunas essenciais existem na tabela salons
+ALTER TABLE public.salons ADD COLUMN IF NOT EXISTS owner_cpf VARCHAR(20);
+ALTER TABLE public.salons ADD COLUMN IF NOT EXISTS pix_keys JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.salons ADD COLUMN IF NOT EXISTS branding JSONB DEFAULT '{"primaryColor": "#20C933", "themeMode": "dark", "brandFont": "Poppins"}'::jsonb;
+
+-- 2. Limpa dados de teste antigos com os mesmos slugs (se existirem)
+DELETE FROM public.salons 
+WHERE slug IN ('salao-x-prime', 'barbearia-primo', 'studio-mabe-nails', 'don-studio-facial');
+
+-- 3. Insere os 4 Estabelecimentos Oficiais de Teste com Novo Padrão de Chaves PIX e CPF
+INSERT INTO public.salons (
+    id,
+    trade_name,
+    legal_name,
+    slug,
+    document_type,
+    document_number,
+    owner_cpf,
+    phone_whatsapp,
+    email,
+    operating_model,
+    status,
+    is_verified,
+    is_active,
+    commission_rate,
+    address,
+    street_number,
+    neighborhood,
+    city,
+    state,
+    cep,
+    latitude,
+    longitude,
+    logo_url,
+    primary_color,
+    slogan,
+    brand_font,
+    bio,
+    pix_key,
+    pix_keys,
+    rating_avg,
+    rating_count,
+    billing_plan
+) VALUES
+(
+    '11111111-1111-1111-1111-111111111101',
+    'Salão X Prime • Visagismo & Barba',
+    'Lucas Silva Barber ME',
+    'salao-x-prime',
+    'CNPJ',
+    '45.123.890/0001-44',
+    '389.456.123-08',
+    '(11) 98123-4567',
+    'contato@salaoxprime.com.br',
+    'team',
+    'active',
+    true,
+    true,
+    15.00,
+    'Rua Itaquera',
+    '340',
+    'Itaquera',
+    'São Paulo',
+    'SP',
+    '08210-000',
+    -23.5350,
+    -46.4520,
+    'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=400&auto=format&fit=crop&q=80',
+    '#20C933',
+    'Especialistas em cortes degradê e visagismo masculino',
+    'Poppins',
+    'Cortes degradê na navalha, barboterapia com toalha quente e estética masculina de alta performance.',
+    'contato@salaoxprime.com.br',
+    '[
+      {
+        "id": "pix-1",
+        "type": "email",
+        "key": "contato@salaoxprime.com.br",
+        "holderName": "Lucas Silva Barber ME",
+        "institution": "Banco Inter S.A.",
+        "isPrimary": true,
+        "verified": true
+      },
+      {
+        "id": "pix-2",
+        "type": "phone",
+        "key": "(11) 98123-4567",
+        "holderName": "Lucas Silva",
+        "institution": "Nu Pagamentos S.A.",
+        "isPrimary": false,
+        "verified": true
+      }
+    ]'::jsonb,
+    4.95,
+    148,
+    'PER_APPOINTMENT'
+),
+(
+    '11111111-1111-1111-1111-111111111102',
+    'Barbearia Primo Retrô',
+    'João Santos Barbearia ME',
+    'barbearia-primo',
+    'CNPJ',
+    '23.456.789/0001-01',
+    '412.789.654-20',
+    '(11) 97234-5678',
+    'primo@barbeariaprimo.com',
+    'team',
+    'active',
+    true,
+    true,
+    15.00,
+    'Rua Campanella',
+    '85',
+    'Itaquera',
+    'São Paulo',
+    'SP',
+    '08220-830',
+    -23.5380,
+    -46.4560,
+    'https://images.unsplash.com/photo-1622286342621-4bd786c2447c?w=400&auto=format&fit=crop&q=80',
+    '#F59E0B',
+    'Estilo clássico e chopp artesanal',
+    'Oswald',
+    'Ambiente vintage tradicional com os melhores especialistas em barba desenhada e navalha.',
+    '(11) 97234-5678',
+    '[
+      {
+        "id": "pix-1",
+        "type": "phone",
+        "key": "(11) 97234-5678",
+        "holderName": "João Santos Barbearia ME",
+        "institution": "Banco Bradesco S.A.",
+        "isPrimary": true,
+        "verified": true
+      }
+    ]'::jsonb,
+    4.88,
+    96,
+    'PER_APPOINTMENT'
+),
+(
+    '11111111-1111-1111-1111-111111111103',
+    'Studio Mabe Nails & Spa',
+    'Camila Rocha Manicure ME',
+    'studio-mabe-nails',
+    'CPF',
+    NULL,
+    '298.123.765-44',
+    '(11) 96345-6789',
+    'camila@mabenails.com',
+    'team',
+    'active',
+    true,
+    true,
+    15.00,
+    'Av. Líder',
+    '1200',
+    'Artur Alvim',
+    'São Paulo',
+    'SP',
+    '08280-000',
+    -23.5410,
+    -46.4620,
+    'https://images.unsplash.com/photo-1604654894610-df63bc536371?w=400&auto=format&fit=crop&q=80',
+    '#EC4899',
+    'Alongamento em fibra e nail design exclusivo',
+    'Plus Jakarta Sans',
+    'Unhas em gel, fibra de vidro, esmaltação semi-permanente e spa dos pés com produtos hipoalergênicos.',
+    '298.123.765-44',
+    '[
+      {
+        "id": "pix-1",
+        "type": "cpf",
+        "key": "298.123.765-44",
+        "holderName": "Camila Rocha",
+        "institution": "Nu Pagamentos S.A.",
+        "isPrimary": true,
+        "verified": true
+      }
+    ]'::jsonb,
+    4.92,
+    84,
+    'PER_APPOINTMENT'
+),
+(
+    '11111111-1111-1111-1111-111111111104',
+    'Don Studio • Estética Facial & Visagismo',
+    'Juliana Mendes Sobrancelhas ME',
+    'don-studio-facial',
+    'CNPJ',
+    '56.789.012/0001-34',
+    '187.324.908-11',
+    '(11) 95456-7890',
+    'contato@donstudio.com.br',
+    'solo',
+    'active',
+    true,
+    true,
+    15.00,
+    'Rua Sabbado D''Ângelo',
+    '500',
+    'Itaquera',
+    'São Paulo',
+    'SP',
+    '08210-790',
+    -23.5330,
+    -46.4500,
+    'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400&auto=format&fit=crop&q=80',
+    '#8B5CF6',
+    'Visagismo facial e design de sobrancelhas personalizado',
+    'Cormorant Garamond',
+    'Design de sobrancelhas com henna, lash lifting, micropigmentação e visagismo facial exclusivo.',
+    'contato@donstudio.com.br',
+    '[
+      {
+        "id": "pix-1",
+        "type": "email",
+        "key": "contato@donstudio.com.br",
+        "holderName": "Juliana Mendes",
+        "institution": "Banco C6 S.A.",
+        "isPrimary": true,
+        "verified": true
+      }
+    ]'::jsonb,
+    4.90,
+    210,
+    'PER_APPOINTMENT'
+);

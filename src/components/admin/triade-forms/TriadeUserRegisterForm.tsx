@@ -21,9 +21,10 @@ import {
   RefreshCw,
   Search,
   HelpCircle,
+  FileText,
 } from 'lucide-react';
 import { VagouOfficialLogo } from '../../common/VagouOfficialLogo';
-import { registerTriadeUser } from '../../../services/supabaseApi';
+import { registerTriadeUser, formatPixKeyByType } from '../../../services/supabaseApi';
 
 export interface TriadeUserData {
   id?: string;
@@ -31,6 +32,7 @@ export interface TriadeUserData {
   username: string;
   phone: string;
   email: string;
+  cpf?: string;
   password?: string;
   address: {
     cep: string;
@@ -73,6 +75,7 @@ export interface TriadeUserRegisterFormProps {
   showPhaseStepper?: boolean;
   showSwitchToLogin?: boolean;
   suppressParentPostMessage?: boolean;
+  requireCpf?: boolean;
 }
 
 export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
@@ -93,6 +96,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
   showPhaseStepper = false,
   showSwitchToLogin = false,
   suppressParentPostMessage = false,
+  requireCpf = false,
 }) => {
   const isEstablishmentMode = origin === 'establishment' || !!salonId;
   const effectiveSalonName = salonName || (isEstablishmentMode ? 'Estabelecimento Parceiro' : 'VagouApp');
@@ -109,9 +113,10 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     onPhaseChange?.(p);
   };
 
-  // Fase 1: Identificação
+  // Fase 1: Identificação (Dados Pessoais)
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
+  const [cpf, setCpf] = useState('');
 
   // Fase 2: Contatos & Canal de Verificação
   const [phone, setPhone] = useState('');
@@ -350,6 +355,13 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
       setFeedback({ type: 'error', message: 'Informe seu nome de usuário.' });
       return;
     }
+    if (requireCpf && cpf.replace(/\D/g, '').length !== 11) {
+      setFeedback({
+        type: 'error',
+        message: 'Para cadastro de proprietário/parceiro, informe seu CPF pessoal (11 dígitos).',
+      });
+      return;
+    }
     setUsername(cleanUser);
     setPhase('contacts');
   };
@@ -450,6 +462,14 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
       setPhase('identification');
       return;
     }
+    if (requireCpf && cpf.replace(/\D/g, '').length !== 11) {
+      setFeedback({
+        type: 'error',
+        message: 'Informe seu CPF pessoal de 11 dígitos nos Dados Pessoais.',
+      });
+      setPhase('identification');
+      return;
+    }
     if (!phone.trim() || !email.trim()) {
       setFeedback({ type: 'error', message: 'Preencha seus contatos.' });
       setPhase('contacts');
@@ -482,6 +502,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
       username: cleanUsername,
       phone: phone.trim(),
       email: email.trim().toLowerCase(),
+      cpf: cpf.trim() || undefined,
       password,
       address: {
         cep: cep.trim(),
@@ -593,34 +614,34 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     <div
       className={`w-full font-['Poppins'] ${
         isCard
-          ? 'max-w-xl mx-auto bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden'
-          : 'bg-transparent'
+          ? 'max-w-md mx-auto bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden'
+          : 'max-w-md mx-auto bg-transparent'
       } animate-fadeIn`}
     >
       {/* Cabeçalho Soberano Centralizado (Logo no topo, Título abaixo, Sem Badges Redundantes) */}
       {showHeader && (
-        <div className="p-5 bg-slate-900 border-b border-slate-800 relative flex flex-col items-center justify-center text-center shrink-0">
+        <div className="p-4 bg-slate-900 border-b border-slate-800 relative flex flex-col items-center justify-center text-center shrink-0">
           {isEstablishmentMode ? (
             salonLogoUrl && !logoLoadError ? (
               <img
                 src={salonLogoUrl}
                 alt={effectiveSalonName}
                 onError={() => setLogoLoadError(true)}
-                className="w-12 h-12 rounded-xl object-cover border border-slate-700 shrink-0 shadow-md mx-auto"
+                className="w-10 h-10 rounded-xl object-cover border border-slate-700 shrink-0 shadow-md mx-auto"
               />
             ) : (
               <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white text-lg shrink-0 shadow-md border border-white/10 mx-auto"
+                className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white text-base shrink-0 shadow-md border border-white/10 mx-auto"
                 style={{ backgroundColor: salonAccentColor }}
               >
                 {effectiveSalonName.charAt(0).toUpperCase()}
               </div>
             )
           ) : (
-            <VagouOfficialLogo size="xl" variant="full" className="h-10 sm:h-12 w-auto object-contain mx-auto" />
+            <VagouOfficialLogo size="xl" variant="full" className="h-9 sm:h-10 w-auto object-contain mx-auto" />
           )}
 
-          <h2 className="font-bold text-white text-base sm:text-lg tracking-tight mt-2 text-center">
+          <h2 className="font-bold text-white text-sm sm:text-base tracking-tight mt-1.5 text-center">
             {effectiveTitle}
           </h2>
 
@@ -628,17 +649,17 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="absolute right-4 top-4 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+              className="absolute right-3 top-3 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
               title="Fechar"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           )}
         </div>
       )}
 
       {/* Formulário Plano (Flat & Clean) */}
-      <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4">
+      <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-3.5">
         {/* Alerta de Feedback */}
         {feedback && (
           <div
@@ -738,6 +759,31 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                   />
                 </div>
               </div>
+
+              {requireCpf && (
+                <div className="sm:col-span-2 animate-fadeIn">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-300">
+                      CPF Pessoal do Titular <span className="text-emerald-400">*</span>
+                    </label>
+                    <span className="text-[10px] text-emerald-400 font-medium">
+                      Vinculado ao seu cadastro pessoal
+                    </span>
+                  </div>
+                  <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 focus-within:border-emerald-500 transition max-w-[240px]">
+                    <FileText className="w-4 h-4 text-emerald-400 mr-2 shrink-0" />
+                    <input
+                      type="text"
+                      value={cpf}
+                      onChange={(e) => setCpf(formatPixKeyByType(e.target.value, 'cpf'))}
+                      placeholder="000.000.000-00"
+                      maxLength={14}
+                      className="w-full bg-transparent text-xs sm:text-sm text-white font-mono placeholder-slate-600 outline-none"
+                      required={requireCpf}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {currentPhase === 'identification' && (
@@ -768,53 +814,53 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
               </div>
             )}
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                WhatsApp / Celular <span className="text-emerald-400">*</span>
-              </label>
-              <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 focus-within:border-emerald-500 transition">
-                <Phone className="w-4 h-4 text-slate-500 mr-2 shrink-0" />
-                <input
-                  type="text"
-                  value={phone}
-                  onChange={(e) => handlePhoneChange(e.target.value)}
-                  placeholder="(11) 98765-4321"
-                  className="w-full bg-transparent text-xs sm:text-sm text-white placeholder-slate-600 outline-none"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  E-mail <span className="text-emerald-400">*</span>
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+              <div className="sm:col-span-5">
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                  WhatsApp <span className="text-emerald-400">*</span>
                 </label>
-                <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 focus-within:border-emerald-500 transition">
-                  <Mail className="w-4 h-4 text-slate-500 mr-2 shrink-0" />
+                <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 focus-within:border-emerald-500 transition">
+                  <Phone className="w-3.5 h-3.5 text-slate-500 mr-1.5 shrink-0" />
                   <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="seu@email.com"
-                    className="w-full bg-transparent text-xs sm:text-sm text-white placeholder-slate-600 outline-none"
+                    type="text"
+                    value={phone}
+                    onChange={(e) => handlePhoneChange(e.target.value)}
+                    placeholder="(11) 98765-4321"
+                    className="w-full bg-transparent text-xs text-white placeholder-slate-600 outline-none font-mono"
                     required
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+              <div className="sm:col-span-7">
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                  E-mail Principal <span className="text-emerald-400">*</span>
+                </label>
+                <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 focus-within:border-emerald-500 transition">
+                  <Mail className="w-3.5 h-3.5 text-slate-500 mr-1.5 shrink-0" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="seu@email.com"
+                    className="w-full bg-transparent text-xs text-white placeholder-slate-600 outline-none"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="sm:col-span-12">
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">
                   Confirmar E-mail <span className="text-emerald-400">*</span>
                 </label>
-                <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 focus-within:border-emerald-500 transition">
-                  <Mail className="w-4 h-4 text-slate-500 mr-2 shrink-0" />
+                <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 focus-within:border-emerald-500 transition">
+                  <Mail className="w-3.5 h-3.5 text-slate-500 mr-1.5 shrink-0" />
                   <input
                     type="email"
                     value={confirmEmail}
                     onChange={(e) => setConfirmEmail(e.target.value)}
                     placeholder="repita seu e-mail"
-                    className="w-full bg-transparent text-xs sm:text-sm text-white placeholder-slate-600 outline-none"
+                    className="w-full bg-transparent text-xs text-white placeholder-slate-600 outline-none"
                     required
                   />
                 </div>
@@ -1105,42 +1151,42 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
               </div>
             )}
 
-            {/* Campo CEP Aparecendo de Forma 100% Isolada */}
-            <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-5 space-y-4">
+            {/* Campo CEP Aparecendo de Forma 100% Isolada e Proporcional */}
+            <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300">
                     CEP Residencial <span className="text-emerald-400">*</span>
                   </label>
-                  <p className="text-[11px] text-slate-500 pt-0.5">
-                    Digite os 8 números do seu CEP para busca automática
+                  <p className="text-[10px] text-slate-500 pt-0.5">
+                    8 dígitos para busca automática
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={handleSkipCep}
-                  className="text-xs text-emerald-400 hover:underline flex items-center gap-1 font-semibold cursor-pointer shrink-0"
+                  className="text-[11px] text-emerald-400 hover:underline flex items-center gap-1 font-semibold cursor-pointer shrink-0"
                 >
-                  <HelpCircle className="w-3.5 h-3.5" />
-                  <span>Não sei meu CEP</span>
+                  <HelpCircle className="w-3 h-3" />
+                  <span>Não sei o CEP</span>
                 </button>
               </div>
 
-              <div className="flex items-center bg-slate-900 border border-slate-700 rounded-xl px-4 py-3.5 focus-within:border-emerald-500 transition">
-                <MapPin className="w-5 h-5 text-emerald-400 mr-3 shrink-0" />
+              <div className="flex items-center bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 focus-within:border-emerald-500 transition max-w-[220px] mx-auto">
+                <MapPin className="w-4 h-4 text-emerald-400 mr-2 shrink-0" />
                 <input
                   type="text"
                   value={cep}
                   onChange={(e) => handleCepChange(e.target.value)}
-                  placeholder="12345-678"
+                  placeholder="00000-000"
                   maxLength={9}
-                  className="w-full bg-transparent text-base sm:text-lg font-mono text-white placeholder-slate-600 outline-none"
+                  className="w-full bg-transparent text-base font-mono font-bold text-white placeholder-slate-600 outline-none text-center tracking-wider"
                   autoFocus={currentPhase === 'cep'}
                 />
                 {isLoadingCep ? (
-                  <Loader2 className="w-5 h-5 text-emerald-400 animate-spin ml-2 shrink-0" />
+                  <Loader2 className="w-4 h-4 text-emerald-400 animate-spin ml-1.5 shrink-0" />
                 ) : (
-                  <Search className="w-5 h-5 text-slate-500 ml-2 shrink-0" />
+                  <Search className="w-4 h-4 text-slate-500 ml-1.5 shrink-0" />
                 )}
               </div>
             </div>
@@ -1201,11 +1247,11 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
               </div>
             )}
 
-            <div className="space-y-3">
-              {/* 1. Rua / Logradouro * (Amplo) e 2. Número * (Compacto) */}
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="flex-1">
-                  <label className="block text-xs font-semibold text-slate-400 mb-1">
+            <div className="space-y-2.5">
+              {/* 1. Rua / Logradouro * (9 cols) e 2. Número * (3 cols compacto) */}
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                <div className="sm:col-span-9">
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">
                     Rua / Logradouro <span className="text-emerald-400">*</span>
                   </label>
                   <input
@@ -1219,8 +1265,8 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                   />
                 </div>
 
-                <div className="w-full sm:w-28 shrink-0">
-                  <label className="block text-xs font-semibold text-slate-400 mb-1">
+                <div className="sm:col-span-3">
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">
                     Número <span className="text-emerald-400">*</span>
                   </label>
                   <input
@@ -1228,17 +1274,17 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                     value={number}
                     onChange={(e) => setNumber(e.target.value)}
                     placeholder="100"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 ring-1 ring-emerald-500/30 text-center sm:text-left"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 ring-1 ring-emerald-500/30 text-center"
                     required
                     autoFocus={currentPhase === 'address' && !!street}
                   />
                 </div>
               </div>
 
-              {/* 3. Complemento (Compacto) e 4. Bairro * (Proporcional) */}
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="w-full sm:w-40 shrink-0">
-                  <label className="block text-xs font-semibold text-slate-400 mb-1">
+              {/* 3. Complemento (4 cols) e 4. Bairro * (8 cols) */}
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                <div className="sm:col-span-4">
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">
                     Complemento
                   </label>
                   <input
@@ -1250,8 +1296,8 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                   />
                 </div>
 
-                <div className="flex-1">
-                  <label className="block text-xs font-semibold text-slate-400 mb-1">
+                <div className="sm:col-span-8">
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">
                     Bairro <span className="text-emerald-400">*</span>
                   </label>
                   <input
@@ -1266,10 +1312,10 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                 </div>
               </div>
 
-              {/* 5. Cidade * (Ampla), 6. UF * (Compacta: 2 letras) e 7. CEP * (Compacto: 8 caracteres) */}
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="flex-1 min-w-[160px]">
-                  <label className="block text-xs font-semibold text-slate-400 mb-1">
+              {/* 5. Cidade * (6 cols), 6. UF * (2 cols: 2 letras) e 7. CEP * (4 cols: 8 caracteres) */}
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                <div className="sm:col-span-6">
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">
                     Cidade <span className="text-emerald-400">*</span>
                   </label>
                   <input
@@ -1283,8 +1329,8 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                   />
                 </div>
 
-                <div className="w-full sm:w-20 shrink-0">
-                  <label className="block text-xs font-semibold text-slate-400 mb-1 text-center sm:text-left">
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1 text-center">
                     UF <span className="text-emerald-400">*</span>
                   </label>
                   <input
@@ -1294,22 +1340,22 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                     onChange={(e) => setState(e.target.value.toUpperCase())}
                     onBlur={searchCepByAddress}
                     placeholder="SP"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 uppercase font-mono text-center"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 uppercase font-mono text-center"
                     required
                   />
                 </div>
 
-                <div className="w-full sm:w-36 shrink-0">
+                <div className="sm:col-span-4">
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-semibold text-slate-400">
+                    <label className="block text-[11px] font-semibold text-slate-400">
                       CEP <span className="text-emerald-400">*</span>
                     </label>
                     {isSearchingCepByAddress && (
                       <Loader2 className="w-3 h-3 text-emerald-400 animate-spin" />
                     )}
                   </div>
-                  <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 focus-within:border-emerald-500 transition">
-                    <MapPin className="w-4 h-4 text-emerald-400 mr-1.5 shrink-0" />
+                  <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 focus-within:border-emerald-500 transition">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-400 mr-1.5 shrink-0" />
                     <input
                       type="text"
                       value={cep}
