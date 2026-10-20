@@ -249,12 +249,12 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
 
   return (
     <div
-      className={`min-h-screen w-full flex flex-col items-center justify-center p-3 sm:p-4 font-['Poppins'] ${
+      className={`min-h-screen w-full flex flex-col items-center justify-center p-0 sm:p-4 font-['Poppins'] ${
         isTransparent ? 'bg-transparent is-embed-transparent' : 'bg-slate-950'
       }`}
     >
-      {/* 🔹 Container Oficial do Design System Corporativo — Vidro Jateado (Fullwidth) */}
-      <div className="w-full max-w-4xl mx-auto p-6 sm:p-10 rounded-2xl sm:rounded-3xl bg-slate-950/45 backdrop-blur-xl border border-white/20 shadow-[0_16px_56px_rgba(0,0,0,0.75)] text-slate-100 font-['Poppins'] relative animate-fadeIn">
+      {/* 🔹 Container Oficial do Design System Corporativo — Vidro Jateado (Fullwidth & Zero Padding Mobile) */}
+      <div className="w-full max-w-4xl mx-auto p-0 sm:p-8 rounded-none sm:rounded-3xl bg-slate-950/45 backdrop-blur-xl border-0 sm:border sm:border-white/20 shadow-none sm:shadow-[0_16px_56px_rgba(0,0,0,0.75)] text-slate-100 font-['Poppins'] relative animate-fadeIn">
         {/* 🔹 Botão de Fechar Padronizado Oficial da Tríade */}
         <button
           type="button"

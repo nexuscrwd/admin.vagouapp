@@ -876,51 +876,9 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
               </div>
             </div>
 
-            {/* Seletor de Canal: Receber Código via WHATSAPP, SMS ou E-MAIL */}
-            <div className="pt-1 space-y-2">
-              <label className="block text-xs font-semibold text-slate-300">
-                Receber Código de Verificação por:
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setOtpChannel('whatsapp')}
-                  className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                    otpChannel === 'whatsapp'
-                      ? 'bg-[#20C933] text-white border-emerald-400 shadow-sm'
-                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800'
-                  }`}
-                >
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  <span>WHATSAPP</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setOtpChannel('sms')}
-                  className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                    otpChannel === 'sms'
-                      ? 'bg-[#20C933] text-white border-emerald-400 shadow-sm'
-                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800'
-                  }`}
-                >
-                  <Smartphone className="w-3.5 h-3.5" />
-                  <span>SMS</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setOtpChannel('email')}
-                  className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                    otpChannel === 'email'
-                      ? 'bg-[#20C933] text-white border-emerald-400 shadow-sm'
-                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800'
-                  }`}
-                >
-                  <Mail className="w-3.5 h-3.5" />
-                  <span>E-MAIL</span>
-                </button>
-              </div>
+            {/* Canal de Verificação fixado em E-mail */}
+            <div className="hidden">
+              <button type="button" onClick={() => setOtpChannel('email')}>E-MAIL</button>
             </div>
 
             {currentPhase === 'contacts' && (
