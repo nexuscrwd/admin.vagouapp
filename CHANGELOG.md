@@ -15,6 +15,34 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-20] — 📱 Redesenho Responsivo Fullwidth (Mobile, Tablet & Desktop) do Formulário de Estabelecimento & Detecção de Dispositivo em Tempo Real
+- **Tipo:** `[Feat / UX Mobile-First / Responsive Design / Clean Layout]`
+- **Motivo / Solicitação:**
+  1. **Modo Mobile Fullwidth (`< 640px`):** Eliminação do acúmulo de paddings laterais (`px-0` no `<form>` e blocos internos planos `p-0 border-0` no mobile, removendo o efeito "caixa dentro de caixa"), empilhamento vertical (`grid-cols-1`) de todos os campos e seletores, ocultação automática do prefixo `https://` na rota personalizada em telas estreitas e botões com altura mínima de toque (`min-h-[44px]`).
+  2. **Modo Tablet (`640px–1023px`) e Navegador Desktop (`>= 1024px`):** Preservação da grade proporcional de 12 colunas (`sm:grid-cols-12`), containers centralizados (`sm:max-w-xl`) e espaçamento respirável (`sm:p-5`).
+  3. **Detecção Inteligente de Dispositivo (`useDeviceViewport`):** Criado o hook `src/hooks/useDeviceViewport.ts` que identifica automaticamente em tempo real se o acesso ocorre via **Mobile**, **Tablet** ou **Desktop** (incluindo suporte a toque `pointer: coarse` e redimensionamento de `<iframe>`), aplicando o atributo `data-device` no DOM.
+- **Arquivos Impactados:**
+  - `src/hooks/useDeviceViewport.ts`
+  - `src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`
+  - `src/components/admin/AdminTriadeFormsCatalog.tsx`
+  - `src/components/embed/UniversalFormEmbedView.tsx`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-20] — 🏛️ Migração das Subfases do Cadastro de Estabelecimento para a Barra Superior do Admin & Integração da Logo dentro do `<form>`
+- **Tipo:** `[Refactor / UX / Admin Governance / Clean Form]`
+- **Motivo / Solicitação:**
+  1. **Remoção da Div Interna Visível aos Usuários (`TriadeEstablishmentMasterForm`):** Removida a `div` de navegação rápida (`1. Comercial`, `2. Fiscal`, `3. PIX & QR Code`, `4. Endereço`, `5. Visual`) que ficava dentro do formulário abaixo do logotipo, garantindo que nunca seja visível aos usuários finais (em embeds ou cadastros).
+  2. **Logotipo Integrado Dentro do `<form>` (`TriadeEstablishmentMasterForm`):** Movido o `<VagouOfficialLogo />` para dentro da tag `<form onSubmit={handleSubmit}>` na etapa `establishment_details`, mantendo a mesma estrutura unificada da Etapa 1 (onde o logotipo faz parte do container do formulário).
+  3. **Hierarquia de Fases e Subfases no Topo (`AdminTriadeFormsCatalog`):** Movida a navegação de subfases para a barra superior exclusiva do Admin Master, agrupada sob as abas principais (`1. Identificação`, `2. Dados do Estabelecimento`, `3. Ficha Completa`, `4. Boas-Vindas & Placa`), exibindo dinamicamente as subfases correspondentes a cada fase selecionada.
+- **Arquivos Impactados:**
+  - `src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`
+  - `src/components/admin/AdminTriadeFormsCatalog.tsx`
+  - `CHANGELOG.md`
+
+---
+
 ### [2026-10-19] — 🧹 Exclusão Definitiva da Etapa de Pergunta (SIM/NÃO) do Cadastro de Estabelecimento
 - **Tipo:** `[Refactor / Clean Code / UX Direct Access / Sovereign Standard]`
 - **Motivo / Solicitação:**

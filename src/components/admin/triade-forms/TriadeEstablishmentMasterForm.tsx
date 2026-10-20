@@ -51,6 +51,7 @@ import { VagouOfficialLogo } from '../../common/VagouOfficialLogo';
 import { TriadeUserRegisterForm, TriadeUserData } from './TriadeUserRegisterForm';
 import { TriadeUserLoginForm, TriadeUserLoginPayload } from './TriadeUserLoginForm';
 import { SalonWelcomeModal } from '../SalonWelcomeModal';
+import { useDeviceViewport } from '../../../hooks/useDeviceViewport';
 
 export interface EstablishmentMasterPayload {
   // Titular / Proprietário (Dados Pessoais — CPF pertence exclusivamente à Pessoa Física)
@@ -109,6 +110,9 @@ export type EstabMasterPhase =
   | 'review'
   | 'welcome';
 
+export type EstabUserAuthSubFlow = 'none' | 'login' | 'register';
+export type EstabAddressSubPhase = 'same_address_modal' | 'cep_modal' | 'address_form';
+
 export interface TriadeEstablishmentMasterFormProps {
   initialData?: Partial<EstablishmentMasterPayload>;
   onSuccess?: (data: EstablishmentMasterPayload, createdSalon?: AdminSalonItem) => void;
@@ -117,6 +121,10 @@ export interface TriadeEstablishmentMasterFormProps {
   initialStep?: EstabMasterPhase;
   forcedStep?: EstabMasterPhase;
   onStepChange?: (step: EstabMasterPhase) => void;
+  forcedUserAuthSubFlow?: EstabUserAuthSubFlow;
+  onUserAuthSubFlowChange?: (subFlow: EstabUserAuthSubFlow) => void;
+  forcedAddressSubPhase?: EstabAddressSubPhase;
+  onAddressSubPhaseChange?: (subPhase: EstabAddressSubPhase) => void;
 }
 
 export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFormProps> = ({
@@ -126,14 +134,24 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
   initialStep = 'user_check',
   forcedStep,
   onStepChange,
+  forcedUserAuthSubFlow,
+  onUserAuthSubFlowChange,
+  forcedAddressSubPhase,
+  onAddressSubPhaseChange,
 }) => {
+  const { device } = useDeviceViewport();
+
   // Passos do Fluxo Inicial de Cadastramento (Regra de Negócio VagouApp)
   const [flowStep, setFlowStep] = useState<'user_check' | 'establishment_details'>(
     (forcedStep || initialStep) === 'user_check' ? 'user_check' : 'establishment_details'
   );
 
   // Sub-rotina transitória de Login/Cadastro de Usuário dentro de 1. Identificação (Sim/Não)
-  const [userAuthSubFlow, setUserAuthSubFlow] = useState<'none' | 'login' | 'register'>('none');
+  const [userAuthSubFlow, setUserAuthSubFlowState] = useState<EstabUserAuthSubFlow>('none');
+  const setUserAuthSubFlow = (next: EstabUserAuthSubFlow) => {
+    setUserAuthSubFlowState(next);
+    onUserAuthSubFlowChange?.(next);
+  };
 
   // Abas do formulário de dados do salão (Comercial, Fiscal e PIX totalmente isolados)
   const [activeSection, setActiveSection] = useState<'commercial' | 'fiscal' | 'pix_billing' | 'address' | 'visual'>('commercial');
@@ -141,7 +159,12 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
   // 1) 'same_address_modal' ("O salão fica no mesmo endereço do proprietário?")
   // 2) 'cep_modal' (Modal isolado de CEP idêntico ao cadastro de usuário)
   // 3) 'address_form' (Campos de endereço completados para conferência e número)
-  const [addressSubPhase, setAddressSubPhase] = useState<'same_address_modal' | 'cep_modal' | 'address_form'>('same_address_modal');
+  const [addressSubPhase, setAddressSubPhaseState] = useState<EstabAddressSubPhase>('same_address_modal');
+  const setAddressSubPhase = (next: EstabAddressSubPhase) => {
+    setAddressSubPhaseState(next);
+    onAddressSubPhaseChange?.(next);
+  };
+
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
   const [isPrintPlaqueOpen, setIsPrintPlaqueOpen] = useState(false);
@@ -154,7 +177,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
   const applyPhase = (phase: EstabMasterPhase) => {
     if (phase === 'user_check') {
       setFlowStep('user_check');
-      setUserAuthSubFlow('none');
+      setUserAuthSubFlowState('none');
       setIsReviewModalOpen(false);
       setIsWelcomeModalOpen(false);
     } else if (phase === 'review') {
@@ -169,7 +192,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
       setFlowStep('establishment_details');
       setActiveSection(phase);
       if (phase === 'address') {
-        setAddressSubPhase('same_address_modal');
+        setAddressSubPhaseState('same_address_modal');
       }
       setIsReviewModalOpen(false);
       setIsWelcomeModalOpen(false);
@@ -186,6 +209,18 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
       applyPhase(forcedStep);
     }
   }, [forcedStep]);
+
+  useEffect(() => {
+    if (forcedUserAuthSubFlow) {
+      setUserAuthSubFlowState(forcedUserAuthSubFlow);
+    }
+  }, [forcedUserAuthSubFlow]);
+
+  useEffect(() => {
+    if (forcedAddressSubPhase) {
+      setAddressSubPhaseState(forcedAddressSubPhase);
+    }
+  }, [forcedAddressSubPhase]);
 
   // Estados do Proprietário Autenticado
   const [isAuthenticatedOwner, setIsAuthenticatedOwner] = useState<boolean>(false);
@@ -1060,7 +1095,10 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
   };
 
   return (
-    <div className="w-full max-w-lg mx-auto font-['Poppins'] relative">
+    <div
+      data-device={device}
+      className="w-full max-w-none sm:max-w-xl mx-auto font-['Poppins'] relative"
+    >
       {onClose && (
         <button
           type="button"
@@ -1077,13 +1115,11 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         </button>
       )}
 
-
-
       {/* ========================================================================= */}
       {/* ETAPA 1: IDENTIFICAÇÃO (SIM/NÃO) + SUB-ROTINA TRANSITÓRIA DE USUÁRIO      */}
       {/* ========================================================================= */}
       {flowStep === 'user_check' && userAuthSubFlow === 'none' && (
-        <div className="p-5 sm:p-6 space-y-5 text-center animate-fadeIn max-w-md mx-auto">
+        <div className="w-full px-0 py-4 sm:p-6 space-y-5 text-center animate-fadeIn">
           {/* Logo Oficial do VagouApp na Etapa 1 */}
           <VagouOfficialLogo size="xl" variant="full" className="h-9 sm:h-10 w-auto object-contain mx-auto" />
 
@@ -1098,20 +1134,20 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
             <button
               type="button"
               onClick={() => setUserAuthSubFlow('login')}
-              className="p-4 rounded-xl border border-emerald-500/40 bg-emerald-950/30 hover:bg-emerald-900/40 transition cursor-pointer group active:scale-98 shadow-md flex items-center justify-between"
+              className="p-3.5 sm:p-4 min-h-[48px] rounded-xl border border-emerald-500/40 bg-emerald-950/30 hover:bg-emerald-900/40 transition cursor-pointer group active:scale-98 shadow-md flex items-center justify-between whitespace-nowrap"
             >
               <span className="text-sm font-black text-emerald-400 group-hover:text-emerald-300">SIM</span>
-              <Check className="w-4 h-4 text-emerald-400" />
+              <Check className="w-4 h-4 text-emerald-400 shrink-0" />
             </button>
 
             {/* Opção NÃO -> Chama Form Canônico de Cadastro de Usuário e retorna aos Dados do Salão */}
             <button
               type="button"
               onClick={() => setUserAuthSubFlow('register')}
-              className="p-4 rounded-xl border border-slate-700 bg-slate-800/60 hover:bg-slate-800 transition cursor-pointer group active:scale-98 shadow-md flex items-center justify-between"
+              className="p-3.5 sm:p-4 min-h-[48px] rounded-xl border border-slate-700 bg-slate-800/60 hover:bg-slate-800 transition cursor-pointer group active:scale-98 shadow-md flex items-center justify-between whitespace-nowrap"
             >
               <span className="text-sm font-black text-slate-200 group-hover:text-white">NÃO</span>
-              <UserPlus className="w-4 h-4 text-slate-400 group-hover:text-white" />
+              <UserPlus className="w-4 h-4 text-slate-400 group-hover:text-white shrink-0" />
             </button>
           </div>
 
@@ -1122,7 +1158,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         </div>
       )}
       {flowStep === 'user_check' && userAuthSubFlow === 'login' && (
-        <div className="p-4 sm:p-5 max-w-md mx-auto space-y-3.5 animate-fadeIn">
+        <div className="w-full px-0 py-3 sm:p-5 space-y-3.5 animate-fadeIn">
           <div className="pt-1 text-center">
             <VagouOfficialLogo size="xl" variant="full" className="h-9 sm:h-10 w-auto object-contain mx-auto" />
           </div>
@@ -1136,15 +1172,15 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
             onSuccess={handleUserLoginSuccess}
           />
 
-          <div className="pt-2.5 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+          <div className="pt-2.5 border-t border-slate-800 flex items-center justify-between gap-2 text-[11px] text-slate-400 flex-wrap">
             <button
               type="button"
               onClick={() => setUserAuthSubFlow('none')}
-              className="hover:text-white transition cursor-pointer text-slate-400"
+              className="hover:text-white transition cursor-pointer text-slate-400 whitespace-nowrap"
             >
               ← Voltar à pergunta inicial
             </button>
-            <span className="flex items-center gap-1 font-medium text-emerald-400">
+            <span className="flex items-center gap-1 font-medium text-emerald-400 whitespace-nowrap">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
               Seu app de forma facil!
             </span>
@@ -1154,7 +1190,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
 
       {/* SUB-ROTINA TRANSITÓRIA (OPÇÃO NÃO): CADASTRO DE USUÁRIO E RETORNO AO SALÃO */}
       {flowStep === 'user_check' && userAuthSubFlow === 'register' && (
-        <div className="p-4 sm:p-5 max-w-md mx-auto space-y-3.5 animate-fadeIn">
+        <div className="w-full px-0 py-3 sm:p-5 space-y-3.5 animate-fadeIn">
           <div className="pt-1 text-center">
             <VagouOfficialLogo size="xl" variant="full" className="h-9 sm:h-10 w-auto object-contain mx-auto" />
           </div>
@@ -1279,40 +1315,13 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
       {/* ETAPAS DO ESTABELECIMENTO COMERCIAL (COMPACTO & PROPORCIONAL)             */}
       {/* ========================================================================= */}
       {flowStep === 'establishment_details' && (
-        <div className="animate-fadeIn">
-          {/* Logo Oficial do VagouApp + Navegação Rápida das Seções */}
-          <div className="pt-4 pb-1 text-center space-y-2">
-            <VagouOfficialLogo size="xl" variant="full" className="h-9 sm:h-10 w-auto object-contain mx-auto" />
-            <div className="flex items-center justify-center gap-1.5 flex-wrap px-4">
-              {(
-                [
-                  { id: 'commercial', label: '1. Comercial' },
-                  { id: 'fiscal', label: '2. Fiscal' },
-                  { id: 'pix_billing', label: '3. PIX & QR Code' },
-                  { id: 'address', label: '4. Endereço' },
-                  { id: 'visual', label: '5. Visual' },
-                ] as const
-              ).map((tab) => {
-                const active = activeSection === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => updatePhase(tab.id)}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer whitespace-nowrap ${
-                      active
-                        ? 'bg-[#20C933] text-white shadow-sm'
-                        : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                );
-              })}
+        <div className="w-full animate-fadeIn">
+          <form onSubmit={handleSubmit} className="w-full px-0 py-3 sm:p-5 space-y-4">
+            {/* Logo Oficial do VagouApp integrado dentro do <form> */}
+            <div className="pb-1 text-center">
+              <VagouOfficialLogo size="xl" variant="full" className="h-9 sm:h-10 w-auto object-contain mx-auto" />
             </div>
-          </div>
 
-          <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4">
             {feedback && (
               <div
                 className={`p-3 rounded-xl text-xs flex items-center gap-2 animate-fadeIn ${
@@ -1334,22 +1343,22 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
             {/* ETAPA 1 DO SALÃO: DADOS PESSOAIS DO TITULAR + DADOS COMERCIAIS (ISOLADOS) */}
             {/* ========================================================================= */}
             {activeSection === 'commercial' && (
-              <div className="space-y-3.5 animate-fadeIn">
-                {/* BLOCO 1: DADOS PESSOAIS DO PROPRIETÁRIO (CPF vinculado à pessoa física) */}
-                <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3.5 sm:p-4 space-y-2.5">
+              <div className="w-full space-y-4 animate-fadeIn">
+                {/* BLOCO 1: DADOS PESSOAIS DO PROPRIETÁRIO (Plano no mobile, card proporcional no tablet/desktop) */}
+                <div className="w-full bg-transparent sm:bg-slate-950/70 border-0 sm:border sm:border-slate-800 rounded-none sm:rounded-xl p-0 sm:p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800 flex-wrap">
                     <div className="flex items-center gap-1.5">
-                      <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      <UserCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                       <h3 className="text-[11px] font-bold uppercase tracking-wider text-white">
                         Dados Pessoais do Titular
                       </h3>
                     </div>
-                    <span className="text-[10px] font-medium text-emerald-400">
+                    <span className="text-[10px] font-medium text-emerald-400 whitespace-nowrap">
                       Cadastro Pessoal (Pessoa Física)
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
                     <div className="sm:col-span-7">
                       <label className="block text-[11px] font-semibold text-slate-300 mb-1">
                         Proprietário Responsável <span className="text-emerald-400">*</span>
@@ -1359,7 +1368,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                         value={ownerName}
                         onChange={(e) => setOwnerName(e.target.value)}
                         placeholder="Nome completo do titular"
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition"
+                        className="w-full min-h-[44px] bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition"
                         required
                       />
                     </div>
@@ -1374,7 +1383,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                         onChange={(e) => handleOwnerCpfChange(e.target.value)}
                         placeholder="000.000.000-00"
                         maxLength={14}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition font-mono"
+                        className="w-full min-h-[44px] bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition font-mono"
                         required
                       />
                     </div>
@@ -1382,10 +1391,10 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                 </div>
 
                 {/* BLOCO 2: DADOS COMERCIAIS DO ESTABELECIMENTO (ISOLADO DE FISCAL E PIX) */}
-                <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3.5 sm:p-4 space-y-3">
+                <div className="w-full bg-transparent sm:bg-slate-950/70 border-0 sm:border sm:border-slate-800 rounded-none sm:rounded-xl p-0 sm:p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800 flex-wrap">
                     <div className="flex items-center gap-1.5">
-                      <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+                      <Building2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                       <h3 className="text-[11px] font-bold uppercase tracking-wider text-white">
                         Dados Comerciais da Vitrine
                       </h3>
@@ -1396,7 +1405,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-                    {/* 1. Nome Fantasia (7 colunas) */}
+                    {/* 1. Nome Fantasia (7 colunas no tablet/desktop, 100% no mobile) */}
                     <div className="sm:col-span-7">
                       <label className="block text-[11px] font-semibold text-slate-300 mb-1">
                         Nome Fantasia <span className="text-emerald-400">*</span>
@@ -1406,12 +1415,12 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                         value={tradeName}
                         onChange={(e) => handleTradeNameChange(e.target.value)}
                         placeholder="Nome do seu espaço"
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition"
+                        className="w-full min-h-[44px] bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition"
                         required
                       />
                     </div>
 
-                    {/* 2. Categoria do Estabelecimento (5 colunas) */}
+                    {/* 2. Categoria do Estabelecimento (5 colunas no tablet/desktop, 100% no mobile) */}
                     <div className="sm:col-span-5">
                       <label className="block text-[11px] font-semibold text-slate-300 mb-1">
                         Categoria <span className="text-emerald-400">*</span>
@@ -1419,7 +1428,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                       <select
                         value={category}
                         onChange={(e) => setCategory(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-2 text-xs sm:text-sm text-white outline-none focus:border-emerald-500 transition cursor-pointer"
+                        className="w-full min-h-[44px] bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white outline-none focus:border-emerald-500 transition cursor-pointer"
                       >
                         <option value="Barbearia">Barbearia</option>
                         <option value="Salão de Beleza">Salão de Beleza</option>
@@ -1470,7 +1479,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                       </div>
 
                       <div
-                        className={`flex items-center bg-slate-900 border rounded-xl px-3 py-2 text-xs sm:text-sm transition ${
+                        className={`flex items-center bg-slate-900 border rounded-xl px-3 py-2.5 min-h-[44px] text-xs sm:text-sm transition ${
                           slugCheckStatus === 'taken' || slugCheckStatus === 'reserved'
                             ? 'border-rose-500/70 focus-within:border-rose-500'
                             : slugCheckStatus === 'available'
@@ -1478,13 +1487,15 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                               : 'border-slate-800 focus-within:border-emerald-500'
                         }`}
                       >
-                        <span className="text-slate-500 text-xs font-mono shrink-0 select-none">https://</span>
+                        <span className="hidden sm:inline text-slate-500 text-xs font-mono shrink-0 select-none">
+                          https://
+                        </span>
                         <input
                           type="text"
                           value={slug}
                           onChange={(e) => handleCustomSlugChange(e.target.value)}
                           placeholder="nomedonegocio"
-                          className="w-full bg-transparent text-white font-mono text-xs sm:text-sm font-bold outline-none px-0.5"
+                          className="w-full min-w-0 flex-1 bg-transparent text-white font-mono text-xs sm:text-sm font-bold outline-none px-0.5"
                           required
                         />
                         <span className="text-slate-400 text-xs ml-1 font-mono shrink-0 select-none">
@@ -1554,11 +1565,11 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
             {/* ETAPA 2 DO SALÃO: DADOS FISCAIS (ISOLADO — APENAS CNPJ / AUTÔNOMO)        */}
             {/* ========================================================================= */}
             {activeSection === 'fiscal' && (
-              <div className="space-y-3.5 animate-fadeIn">
-                <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3.5 sm:p-4 space-y-3">
+              <div className="w-full space-y-3.5 animate-fadeIn">
+                <div className="w-full bg-transparent sm:bg-slate-950/70 border-0 sm:border sm:border-slate-800 rounded-none sm:rounded-xl p-0 sm:p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800 flex-wrap">
                     <div className="flex items-center gap-1.5">
-                      <Receipt className="w-3.5 h-3.5 text-emerald-400" />
+                      <Receipt className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                       <h3 className="text-[11px] font-bold uppercase tracking-wider text-white">
                         Dados Fiscais do Estabelecimento
                       </h3>
@@ -1568,8 +1579,8 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                     </span>
                   </div>
 
-                  {/* Seletor: Opera sem CNPJ vs Possui CNPJ */}
-                  <div className="grid grid-cols-2 gap-2">
+                  {/* Seletor: Opera sem CNPJ vs Possui CNPJ (1 coluna fullwidth no mobile, 2 colunas no tablet/desktop) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <button
                       type="button"
                       onClick={() => {
@@ -1577,7 +1588,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                         setCnpjNumber('');
                         setLegalName('');
                       }}
-                      className={`py-2.5 px-3 rounded-xl text-xs font-bold transition cursor-pointer flex items-center justify-between border ${
+                      className={`py-2.5 px-3.5 min-h-[44px] rounded-xl text-xs font-bold transition cursor-pointer flex items-center justify-between border whitespace-nowrap ${
                         !hasCnpj
                           ? 'bg-[#20C933] text-white border-emerald-400 shadow-sm'
                           : 'bg-slate-900 text-slate-300 hover:text-white border-slate-800'
@@ -1590,7 +1601,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                     <button
                       type="button"
                       onClick={() => setHasCnpj(true)}
-                      className={`py-2.5 px-3 rounded-xl text-xs font-bold transition cursor-pointer flex items-center justify-between border ${
+                      className={`py-2.5 px-3.5 min-h-[44px] rounded-xl text-xs font-bold transition cursor-pointer flex items-center justify-between border whitespace-nowrap ${
                         hasCnpj
                           ? 'bg-[#20C933] text-white border-emerald-400 shadow-sm'
                           : 'bg-slate-900 text-slate-300 hover:text-white border-slate-800'
@@ -1624,10 +1635,10 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                             onChange={(e) => handleCnpjNumberChange(e.target.value)}
                             placeholder="00.000.000/0001-00"
                             maxLength={18}
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition font-mono"
+                            className="w-full min-h-[44px] bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition font-mono"
                           />
                           {isSearchingCnpj && (
-                            <Loader2 className="w-3.5 h-3.5 text-emerald-400 animate-spin absolute right-2.5 top-2.5" />
+                            <Loader2 className="w-3.5 h-3.5 text-emerald-400 animate-spin absolute right-2.5 top-3" />
                           )}
                         </div>
                       </div>
@@ -1641,7 +1652,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                           value={legalName}
                           onChange={(e) => setLegalName(e.target.value)}
                           placeholder="Preenchida automaticamente pelo CNPJ"
-                          className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition"
+                          className="w-full min-h-[44px] bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition"
                         />
                       </div>
                     </div>
@@ -1654,11 +1665,11 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
             {/* ETAPA 3 DO SALÃO: FATURAMENTO & CHAVES PIX + QR CODE AUTOMÁTICO          */}
             {/* ========================================================================= */}
             {activeSection === 'pix_billing' && (
-              <div className="space-y-3.5 animate-fadeIn">
-                <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3.5 sm:p-4 space-y-3">
+              <div className="w-full space-y-3.5 animate-fadeIn">
+                <div className="w-full bg-transparent sm:bg-slate-950/70 border-0 sm:border sm:border-slate-800 rounded-none sm:rounded-xl p-0 sm:p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800 flex-wrap">
                     <div className="flex items-center gap-1.5">
-                      <Wallet className="w-3.5 h-3.5 text-emerald-400" />
+                      <Wallet className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                       <h3 className="text-[11px] font-bold uppercase tracking-wider text-white">
                         Faturamento & Chaves PIX ({pixKeys.length})
                       </h3>
@@ -1666,7 +1677,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                     <button
                       type="button"
                       onClick={() => handleAddPixKeyRow('phone', '')}
-                      className="px-2.5 py-1 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white text-[10px] font-bold transition flex items-center gap-1 cursor-pointer shadow-xs whitespace-nowrap"
+                      className="px-3 py-1.5 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white text-[10px] font-bold transition flex items-center gap-1 cursor-pointer shadow-xs whitespace-nowrap"
                     >
                       <Plus className="w-3 h-3 text-white" />
                       <span className="text-white">Adicionar Chave PIX</span>
@@ -1682,7 +1693,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                       <button
                         type="button"
                         onClick={() => handleQuickFillPix('cpf', ownerCpf)}
-                        className="px-2 py-0.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-slate-800 text-[10px] font-semibold transition cursor-pointer whitespace-nowrap"
+                        className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-slate-800 text-[10px] font-semibold transition cursor-pointer whitespace-nowrap"
                       >
                         + CPF do Titular
                       </button>
@@ -1691,7 +1702,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                       <button
                         type="button"
                         onClick={() => handleQuickFillPix('phone', ownerWhatsapp)}
-                        className="px-2 py-0.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-slate-800 text-[10px] font-semibold transition cursor-pointer whitespace-nowrap"
+                        className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-slate-800 text-[10px] font-semibold transition cursor-pointer whitespace-nowrap"
                       >
                         + WhatsApp
                       </button>
@@ -1700,7 +1711,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                       <button
                         type="button"
                         onClick={() => handleQuickFillPix('email', ownerEmail)}
-                        className="px-2 py-0.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-slate-800 text-[10px] font-semibold transition cursor-pointer whitespace-nowrap"
+                        className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-slate-800 text-[10px] font-semibold transition cursor-pointer whitespace-nowrap"
                       >
                         + E-mail
                       </button>
@@ -1709,7 +1720,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                       <button
                         type="button"
                         onClick={() => handleQuickFillPix('cnpj', cnpjNumber)}
-                        className="px-2 py-0.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-slate-800 text-[10px] font-semibold transition cursor-pointer whitespace-nowrap"
+                        className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-slate-800 text-[10px] font-semibold transition cursor-pointer whitespace-nowrap"
                       >
                         + CNPJ da Empresa
                       </button>
@@ -1721,7 +1732,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                     {pixKeys.map((item, idx) => (
                       <div
                         key={item.id}
-                        className="p-2.5 rounded-xl bg-slate-900/90 space-y-2 transition border border-slate-800/80"
+                        className="p-3 rounded-xl bg-slate-900/90 space-y-2.5 transition border border-slate-800/80"
                       >
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -1731,7 +1742,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                             <button
                               type="button"
                               onClick={() => handleSetPrimaryPixKey(item.id)}
-                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition flex items-center gap-1 cursor-pointer ${
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition flex items-center gap-1 cursor-pointer whitespace-nowrap ${
                                 item.isPrimary
                                   ? 'bg-[#20C933] text-white'
                                   : 'bg-slate-800 text-slate-400 hover:text-white'
@@ -1756,13 +1767,13 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                           <select
                             value={item.type}
                             onChange={(e) =>
                               handlePixKeyItemChange(item.id, item.key, e.target.value as PixKeyType)
                             }
-                            className="bg-slate-950 border border-slate-800 rounded-xl px-2 py-2 text-xs font-bold text-white outline-none focus:border-emerald-500 transition cursor-pointer shrink-0"
+                            className="w-full sm:w-auto min-h-[42px] bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs font-bold text-white outline-none focus:border-emerald-500 transition cursor-pointer shrink-0"
                           >
                             <option value="cpf">CPF</option>
                             <option value="cnpj">CNPJ</option>
@@ -1787,7 +1798,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                                         ? 'pix@dominio.com'
                                         : '00000000-0000-0000-0000-000000000000'
                               }
-                              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-2.5 pr-8 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition font-mono"
+                              className="w-full min-h-[42px] bg-slate-950 border border-slate-800 rounded-xl pl-3 pr-8 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition font-mono"
                             />
                             <button
                               type="button"
@@ -1825,14 +1836,14 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                   {/* PREVIEW DO QR CODE OFICIAL EM TEMPO REAL & AÇÕES DE IMPRESSÃO / COBRANÇA */}
                   {pixKeys.some((k) => k.key.trim().length > 0) && (
                     <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-3 pt-3 animate-fadeIn">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-1.5">
-                          <QrCode className="w-3.5 h-3.5 text-emerald-400" />
+                          <QrCode className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                           <span className="text-[11px] font-bold text-white uppercase tracking-wider">
                             QR Code PIX (Chave Principal)
                           </span>
                         </div>
-                        <span className="text-[10px] font-bold text-emerald-400">
+                        <span className="text-[10px] font-bold text-emerald-400 font-mono">
                           {pixKeys.find((k) => k.isPrimary)?.key || pixKeys[0]?.key}
                         </span>
                       </div>
@@ -1846,7 +1857,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                           alt="QR Code PIX Oficial"
                           className="w-24 h-24 object-contain rounded-lg bg-white p-1 border border-slate-700 shrink-0"
                         />
-                        <div className="text-left space-y-1.5 flex-1 min-w-0">
+                        <div className="text-center sm:text-left space-y-1.5 flex-1 min-w-0">
                           <p className="text-xs text-white font-semibold leading-tight">
                             QR Code gerado automaticamente no padrão do Banco Central.
                           </p>
@@ -1861,18 +1872,18 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                         <button
                           type="button"
                           onClick={() => setIsPrintPlaqueOpen(true)}
-                          className="py-2.5 px-3 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-emerald-500/20 active:scale-95"
+                          className="py-2.5 px-3 min-h-[44px] rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-emerald-500/20 active:scale-95 whitespace-nowrap"
                         >
-                          <Printer className="w-3.5 h-3.5 text-white" />
+                          <Printer className="w-3.5 h-3.5 text-white shrink-0" />
                           <span className="text-white">Imprimir Plaquinha PIX</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => setIsCheckoutModalOpen(true)}
-                          className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                          className="py-2.5 px-3 min-h-[44px] rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
                         >
-                          <Send className="w-3.5 h-3.5 text-emerald-400" />
+                          <Send className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                           <span>Testar Cobrança Pós-Serviço</span>
                         </button>
                       </div>
@@ -1886,10 +1897,10 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
             {/* ETAPA 3 DO SALÃO: ENDEREÇO EM 2 MODAIS SEQUENCIAIS + DADOS COMPLETOS      */}
             {/* ========================================================================= */}
             {activeSection === 'address' && (
-              <div className="space-y-3.5 animate-fadeIn">
+              <div className="w-full space-y-3.5 animate-fadeIn">
                 {/* MODAL 1 — PERGUNTA: "O salão fica no mesmo endereço do proprietário?" */}
                 {addressSubPhase === 'same_address_modal' && (
-                  <div className="max-w-md mx-auto bg-slate-950/80 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-4 text-center animate-fadeIn">
+                  <div className="w-full bg-transparent sm:bg-slate-950/80 border-0 sm:border sm:border-slate-800 rounded-none sm:rounded-2xl p-0 sm:p-5 space-y-4 text-center animate-fadeIn">
                     <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto">
                       <Home className="w-5 h-5 text-emerald-400" />
                     </div>
@@ -1919,7 +1930,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                       <button
                         type="button"
                         onClick={() => applyOwnerAddressToSalon()}
-                        className="p-3.5 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold transition cursor-pointer flex items-center justify-between shadow-lg shadow-emerald-500/20 active:scale-95"
+                        className="p-3.5 min-h-[48px] rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold transition cursor-pointer flex items-center justify-between shadow-lg shadow-emerald-500/20 active:scale-95 whitespace-nowrap"
                       >
                         <span className="text-xs sm:text-sm font-black text-white">SIM</span>
                         <Check className="w-4 h-4 text-white shrink-0" />
@@ -1939,7 +1950,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                           setState('');
                           setAddressSubPhase('cep_modal');
                         }}
-                        className="p-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 hover:text-white font-bold transition cursor-pointer flex items-center justify-between active:scale-95"
+                        className="p-3.5 min-h-[48px] rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 hover:text-white font-bold transition cursor-pointer flex items-center justify-between active:scale-95 whitespace-nowrap"
                       >
                         <span className="text-xs sm:text-sm font-black">NÃO</span>
                         <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -1949,8 +1960,8 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                     <div className="pt-2 flex items-center justify-between border-t border-slate-800/80 text-[11px]">
                       <button
                         type="button"
-                        onClick={() => updatePhase('commercial')}
-                        className="text-slate-400 hover:text-white font-semibold flex items-center gap-1 cursor-pointer transition"
+                        onClick={() => updatePhase('pix_billing')}
+                        className="text-slate-400 hover:text-white font-semibold flex items-center gap-1 cursor-pointer transition whitespace-nowrap"
                       >
                         <ArrowLeft className="w-3.5 h-3.5" />
                         <span>Voltar</span>
@@ -1960,7 +1971,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                         <button
                           type="button"
                           onClick={() => setAddressSubPhase('address_form')}
-                          className="text-emerald-400 hover:underline font-semibold cursor-pointer"
+                          className="text-emerald-400 hover:underline font-semibold cursor-pointer whitespace-nowrap"
                         >
                           Ver endereço preenchido →
                         </button>
@@ -1969,10 +1980,10 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                   </div>
                 )}
 
-                {/* MODAL 2 — BUSCA DE CEP ISOLADA (Tamanho compacto proporcional a 8 dígitos) */}
+                {/* MODAL 2 — BUSCA DE CEP ISOLADA */}
                 {addressSubPhase === 'cep_modal' && (
-                  <div className="max-w-sm mx-auto space-y-3.5 animate-fadeIn">
-                    <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-3">
+                  <div className="w-full max-w-none sm:max-w-sm mx-auto space-y-3.5 animate-fadeIn">
+                    <div className="w-full bg-transparent sm:bg-slate-950/80 border-0 sm:border sm:border-slate-800 rounded-none sm:rounded-2xl p-0 sm:p-4 space-y-3">
                       <div className="flex items-center justify-between gap-2">
                         <div>
                           <label className="block text-xs font-semibold text-slate-300">
@@ -1985,14 +1996,14 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                         <button
                           type="button"
                           onClick={handleSkipSalonCep}
-                          className="text-[11px] text-emerald-400 hover:underline flex items-center gap-1 font-semibold cursor-pointer shrink-0"
+                          className="text-[11px] text-emerald-400 hover:underline flex items-center gap-1 font-semibold cursor-pointer shrink-0 whitespace-nowrap"
                         >
                           <HelpCircle className="w-3 h-3" />
                           <span>Não sei o CEP</span>
                         </button>
                       </div>
 
-                      <div className="flex items-center bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 focus-within:border-emerald-500 transition max-w-[220px] mx-auto">
+                      <div className="flex items-center bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 min-h-[46px] focus-within:border-emerald-500 transition w-full sm:max-w-[240px] mx-auto">
                         <MapPin className="w-4 h-4 text-emerald-400 mr-2 shrink-0" />
                         <input
                           type="text"
@@ -2011,11 +2022,11 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2.5">
                       <button
                         type="button"
                         onClick={() => setAddressSubPhase('same_address_modal')}
-                        className="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition cursor-pointer flex items-center gap-1.5"
+                        className="py-2.5 px-4 min-h-[44px] rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
                       >
                         <ArrowLeft className="w-3.5 h-3.5" />
                         <span>Voltar</span>
@@ -2024,7 +2035,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                         type="button"
                         disabled={isSearchingCep}
                         onClick={handleNextFromSalonCep}
-                        className="flex-1 py-2.5 px-4 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 disabled:opacity-50"
+                        className="flex-1 py-2.5 px-4 min-h-[44px] rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 disabled:opacity-50 whitespace-nowrap"
                       >
                         {isSearchingCep ? (
                           <Loader2 className="w-4 h-4 text-white animate-spin" />
@@ -2039,12 +2050,12 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                   </div>
                 )}
 
-                {/* TELA DE DADOS DO ENDEREÇO COMPLETADOS (Proporcional) */}
+                {/* TELA DE DADOS DO ENDEREÇO COMPLETADOS (Fullwidth Mobile / Proporcional Tablet & Desktop) */}
                 {addressSubPhase === 'address_form' && (
-                  <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3.5 sm:p-4 space-y-3 animate-fadeIn">
+                  <div className="w-full bg-transparent sm:bg-slate-950/70 border-0 sm:border sm:border-slate-800 rounded-none sm:rounded-xl p-0 sm:p-4 space-y-3 animate-fadeIn">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-800 flex-wrap gap-2">
                       <div className="flex items-center gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+                        <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                         <h3 className="text-[11px] font-bold uppercase tracking-wider text-white">
                           Endereço do Estabelecimento
                         </h3>
@@ -2053,23 +2064,23 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                         <button
                           type="button"
                           onClick={() => setAddressSubPhase('cep_modal')}
-                          className="text-slate-400 hover:text-emerald-400 cursor-pointer transition font-medium"
+                          className="text-slate-400 hover:text-emerald-400 cursor-pointer transition font-medium whitespace-nowrap"
                         >
                           Buscar por CEP
                         </button>
                         <button
                           type="button"
                           onClick={() => setAddressSubPhase('same_address_modal')}
-                          className="text-emerald-400 hover:underline cursor-pointer font-semibold"
+                          className="text-emerald-400 hover:underline cursor-pointer font-semibold whitespace-nowrap"
                         >
                           Usar endereço do titular
                         </button>
                       </div>
                     </div>
 
-                    <div className="space-y-2.5">
-                      {/* 1. Rua / Logradouro * (Amplo) e 2. Número * (Compacto 96px) */}
-                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                    <div className="space-y-3">
+                      {/* 1. Rua / Logradouro * (Amplo) e 2. Número * */}
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
                         <div className="sm:col-span-9">
                           <label className="block text-[11px] font-semibold text-slate-400 mb-1">
                             Rua / Logradouro <span className="text-emerald-400">*</span>
@@ -2080,7 +2091,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                             onChange={(e) => setStreet(e.target.value)}
                             onBlur={searchSalonCepByAddress}
                             placeholder="Ex: Rua Bela Cintra"
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500"
+                            className="w-full min-h-[44px] bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500"
                             required
                           />
                         </div>
@@ -2094,15 +2105,15 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                             value={number}
                             onChange={(e) => setNumber(e.target.value)}
                             placeholder="100"
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 ring-1 ring-emerald-500/30 text-center"
+                            className="w-full min-h-[44px] bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 ring-1 ring-emerald-500/30 sm:text-center"
                             required
                             autoFocus={!!street}
                           />
                         </div>
                       </div>
 
-                      {/* 3. Complemento (Compacto 4 cols) e 4. Bairro * (8 cols) */}
-                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                      {/* 3. Complemento (4 cols) e 4. Bairro * (8 cols) */}
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
                         <div className="sm:col-span-4">
                           <label className="block text-[11px] font-semibold text-slate-400 mb-1">
                             Complemento
@@ -2112,7 +2123,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                             value={complement}
                             onChange={(e) => setComplement(e.target.value)}
                             placeholder="Loja 2"
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500"
+                            className="w-full min-h-[44px] bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500"
                           />
                         </div>
 
@@ -2126,14 +2137,14 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                             onChange={(e) => setNeighborhood(e.target.value)}
                             onBlur={searchSalonCepByAddress}
                             placeholder="Consolação"
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500"
+                            className="w-full min-h-[44px] bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500"
                             required
                           />
                         </div>
                       </div>
 
-                      {/* 5. Cidade * (6 cols), 6. UF * (2 cols: 2 letras) e 7. CEP * (4 cols: 8 dígitos) */}
-                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                      {/* 5. Cidade * (6 cols), 6. UF * (2 cols) e 7. CEP * (4 cols) */}
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
                         <div className="sm:col-span-6">
                           <label className="block text-[11px] font-semibold text-slate-400 mb-1">
                             Cidade <span className="text-emerald-400">*</span>
@@ -2144,13 +2155,13 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                             onChange={(e) => setCity(e.target.value)}
                             onBlur={searchSalonCepByAddress}
                             placeholder="São Paulo"
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500"
+                            className="w-full min-h-[44px] bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500"
                             required
                           />
                         </div>
 
                         <div className="sm:col-span-2">
-                          <label className="block text-[11px] font-semibold text-slate-400 mb-1 text-center">
+                          <label className="block text-[11px] font-semibold text-slate-400 mb-1 sm:text-center">
                             UF <span className="text-emerald-400">*</span>
                           </label>
                           <input
@@ -2160,7 +2171,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                             onChange={(e) => setState(e.target.value.toUpperCase())}
                             onBlur={searchSalonCepByAddress}
                             placeholder="SP"
-                            className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 uppercase font-mono text-center"
+                            className="w-full min-h-[44px] bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 uppercase font-mono sm:text-center"
                             required
                           />
                         </div>
@@ -2174,7 +2185,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                               <Loader2 className="w-3 h-3 text-emerald-400 animate-spin" />
                             )}
                           </div>
-                          <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-2 focus-within:border-emerald-500 transition">
+                          <div className="flex items-center min-h-[44px] bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 focus-within:border-emerald-500 transition">
                             <MapPin className="w-3.5 h-3.5 text-emerald-400 mr-1.5 shrink-0" />
                             <input
                               type="text"
@@ -2194,7 +2205,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                       <button
                         type="button"
                         onClick={() => setAddressSubPhase('cep_modal')}
-                        className="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer"
+                        className="py-2.5 px-4 min-h-[44px] rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                       >
                         <ArrowLeft className="w-3.5 h-3.5" />
                         <span>Voltar</span>
@@ -2203,10 +2214,10 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                       <button
                         type="button"
                         onClick={() => updatePhase('visual')}
-                        className="flex-1 sm:flex-initial py-2.5 px-5 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95"
+                        className="flex-1 sm:flex-initial py-2.5 px-5 min-h-[44px] rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 whitespace-nowrap"
                       >
                         <span className="text-white">Avançar para Visual</span>
-                        <ArrowRight className="w-3.5 h-3.5 text-white" />
+                        <ArrowRight className="w-3.5 h-3.5 text-white shrink-0" />
                       </button>
                     </div>
                   </div>
@@ -2214,12 +2225,12 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
               </div>
             )}
 
-            {/* ETAPA 4 DO SALÃO: IDENTIDADE VISUAL & BRANDING (COMPACTO) */}
+            {/* ETAPA 4 DO SALÃO: IDENTIDADE VISUAL & BRANDING (Fullwidth Mobile / Proporcional Tablet & Desktop) */}
             {activeSection === 'visual' && (
-              <div className="bg-slate-950/70 border border-slate-800 rounded-xl p-3.5 sm:p-4 space-y-4 animate-fadeIn">
+              <div className="w-full bg-transparent sm:bg-slate-950/70 border-0 sm:border sm:border-slate-800 rounded-none sm:rounded-xl p-0 sm:p-4 space-y-4 animate-fadeIn">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-800 flex-wrap gap-2">
                   <div className="flex items-center gap-1.5">
-                    <Palette className="w-3.5 h-3.5 text-emerald-400" />
+                    <Palette className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                     <h3 className="text-[11px] font-bold uppercase tracking-wider text-white">
                       Identidade Visual do Estabelecimento
                     </h3>
@@ -2251,7 +2262,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                       )}
                     </div>
 
-                    <label className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-900 border border-dashed border-slate-700 hover:border-emerald-500/60 transition cursor-pointer group">
+                    <label className="flex items-center gap-3 p-3 rounded-xl bg-slate-900 border border-dashed border-slate-700 hover:border-emerald-500/60 transition cursor-pointer group">
                       <input
                         type="file"
                         accept="image/*"
@@ -2310,7 +2321,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                       </button>
                     </div>
 
-                    <label className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-900 border border-dashed border-slate-700 hover:border-emerald-500/60 transition cursor-pointer group">
+                    <label className="flex items-center gap-3 p-3 rounded-xl bg-slate-900 border border-dashed border-slate-700 hover:border-emerald-500/60 transition cursor-pointer group">
                       <input
                         type="file"
                         accept="image/*"
@@ -2359,20 +2370,20 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                     <label className="block text-[11px] font-semibold text-slate-200">
                       3. Cor Principal
                     </label>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <input
                         type="color"
                         value={primaryColor}
                         onChange={(e) => setPrimaryColor(e.target.value)}
-                        className="w-9 h-9 rounded-lg border border-slate-700 bg-transparent cursor-pointer shrink-0"
+                        className="w-10 h-10 rounded-lg border border-slate-700 bg-transparent cursor-pointer shrink-0"
                       />
                       <input
                         type="text"
                         value={primaryColor}
                         onChange={(e) => setPrimaryColor(e.target.value)}
-                        className="w-20 bg-slate-900 border border-slate-800 rounded-xl px-2 py-2 text-xs text-white font-mono outline-none focus:border-emerald-500 transition uppercase text-center"
+                        className="w-24 min-h-[42px] bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-white font-mono outline-none focus:border-emerald-500 transition uppercase text-center"
                       />
-                      <div className="flex items-center gap-1 pl-0.5">
+                      <div className="flex items-center gap-1.5 pl-0.5">
                         {[
                           { hex: '#20C933', label: 'Verde Vagou' },
                           { hex: '#D97706', label: 'Dourado' },
@@ -2385,7 +2396,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                             onClick={() => setPrimaryColor(swatch.hex)}
                             title={swatch.label}
                             style={{ backgroundColor: swatch.hex }}
-                            className={`w-5 h-5 rounded-full cursor-pointer transition transform hover:scale-110 ${
+                            className={`w-6 h-6 rounded-full cursor-pointer transition transform hover:scale-110 ${
                               primaryColor.toLowerCase() === swatch.hex.toLowerCase()
                                 ? 'ring-2 ring-white scale-110'
                                 : 'opacity-80 hover:opacity-100'
@@ -2412,7 +2423,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                       maxLength={60}
                       onChange={(e) => setSlogan(e.target.value)}
                       placeholder="Ex: Estilo e tradição no seu tempo."
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition"
+                      className="w-full min-h-[44px] bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition"
                     />
                   </div>
                 </div>
@@ -2434,7 +2445,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                           key={preset.id}
                           type="button"
                           onClick={() => setBrandFont(preset.id)}
-                          className={`p-2.5 rounded-xl text-left transition cursor-pointer flex flex-col justify-between gap-1 ${
+                          className={`p-3 rounded-xl text-left transition cursor-pointer flex flex-col justify-between gap-1 ${
                             isSelected
                               ? 'bg-[#20C933] text-white shadow-md shadow-emerald-500/15'
                               : 'bg-slate-900 hover:bg-slate-800/90 text-slate-200'
@@ -2465,7 +2476,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
 
                 {/* SIMULADOR VISUAL EM TEMPO REAL */}
                 <div className="pt-2.5 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <div className="flex items-center gap-2 bg-slate-900/90 px-3 py-2 rounded-xl">
+                  <div className="flex items-center gap-2 bg-slate-900/90 px-3 py-2.5 rounded-xl">
                     <Globe className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                     <div
                       className="w-4 h-4 rounded flex items-center justify-center shrink-0 overflow-hidden"
@@ -2494,7 +2505,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2.5 bg-slate-900/90 px-3 py-2 rounded-xl">
+                  <div className="flex items-center gap-2.5 bg-slate-900/90 px-3 py-2.5 rounded-xl">
                     <div
                       className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 overflow-hidden shadow-sm"
                       style={{
@@ -2535,7 +2546,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
 
             {/* RODAPÉ FIXO DE NAVEGAÇÃO PROGRESSIVA (Comercial, Fiscal, PIX & Visual) */}
             {activeSection !== 'address' && (
-              <div className="pt-1 flex items-center justify-between gap-2.5">
+              <div className="pt-2 flex items-center justify-between gap-2.5">
                 <button
                   type="button"
                   onClick={() => {
@@ -2544,9 +2555,9 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                     else if (activeSection === 'fiscal') updatePhase('commercial');
                     else updatePhase('user_check');
                   }}
-                  className="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer"
+                  className="py-2.5 px-4 min-h-[44px] rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                 >
-                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <ArrowLeft className="w-3.5 h-3.5 shrink-0" />
                   <span>Voltar</span>
                 </button>
 
@@ -2572,10 +2583,10 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                       setFeedback(null);
                       updatePhase('fiscal');
                     }}
-                    className="flex-1 sm:flex-initial py-2.5 px-5 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95"
+                    className="flex-1 sm:flex-initial py-2.5 px-5 min-h-[44px] rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 whitespace-nowrap"
                   >
                     <span className="text-white">Avançar para Fiscal</span>
-                    <ArrowRight className="w-3.5 h-3.5 text-white" />
+                    <ArrowRight className="w-3.5 h-3.5 text-white shrink-0" />
                   </button>
                 )}
 
@@ -2586,10 +2597,10 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                       setFeedback(null);
                       updatePhase('pix_billing');
                     }}
-                    className="flex-1 sm:flex-initial py-2.5 px-5 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95"
+                    className="flex-1 sm:flex-initial py-2.5 px-5 min-h-[44px] rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 whitespace-nowrap"
                   >
-                    <span className="text-white">Avançar para PIX & Faturamento</span>
-                    <ArrowRight className="w-3.5 h-3.5 text-white" />
+                    <span className="text-white">Avançar para PIX</span>
+                    <ArrowRight className="w-3.5 h-3.5 text-white shrink-0" />
                   </button>
                 )}
 
@@ -2600,10 +2611,10 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                       setFeedback(null);
                       updatePhase('address');
                     }}
-                    className="flex-1 sm:flex-initial py-2.5 px-5 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95"
+                    className="flex-1 sm:flex-initial py-2.5 px-5 min-h-[44px] rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 whitespace-nowrap"
                   >
                     <span className="text-white">Avançar para Endereço</span>
-                    <ArrowRight className="w-3.5 h-3.5 text-white" />
+                    <ArrowRight className="w-3.5 h-3.5 text-white shrink-0" />
                   </button>
                 )}
 
@@ -2611,11 +2622,11 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                   <button
                     type="button"
                     onClick={() => updatePhase('review')}
-                    className="flex-1 sm:flex-initial py-2.5 px-5 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95"
+                    className="flex-1 sm:flex-initial py-2.5 px-5 min-h-[44px] rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 whitespace-nowrap"
                   >
-                    <FileText className="w-3.5 h-3.5 text-white" />
+                    <FileText className="w-3.5 h-3.5 text-white shrink-0" />
                     <span className="text-white">Revisar Ficha</span>
-                    <ArrowRight className="w-3.5 h-3.5 text-white" />
+                    <ArrowRight className="w-3.5 h-3.5 text-white shrink-0" />
                   </button>
                 )}
               </div>

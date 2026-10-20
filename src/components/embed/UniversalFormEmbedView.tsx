@@ -6,6 +6,7 @@ import { TriadeAdminLoginForm, TriadeAdminRecoveryForm } from '../admin/triade-f
 import { TriadeUserRegisterForm } from '../admin/triade-forms/TriadeUserRegisterForm';
 import { TriadeUserLoginForm } from '../admin/triade-forms/TriadeUserLoginForm';
 import { supabaseAdmin } from '../../services/supabase';
+import { useDeviceViewport } from '../../hooks/useDeviceViewport';
 
 export type EmbedFormType =
   | 'usuario'
@@ -26,6 +27,7 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
   initialForm,
   onExit,
 }) => {
+  const { device } = useDeviceViewport();
   const [formType, setFormType] = useState<EmbedFormType>(() => {
     if (initialForm) return initialForm;
     if (typeof window !== 'undefined') {
@@ -249,12 +251,13 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
 
   return (
     <div
+      data-device={device}
       className={`min-h-screen w-full flex flex-col items-center justify-center p-0 sm:p-4 font-['Poppins'] ${
         isTransparent ? 'bg-transparent is-embed-transparent' : 'bg-slate-950'
       }`}
     >
-      {/* 🔹 Container Oficial do Design System Corporativo — Vidro Jateado (Fullwidth & Zero Padding Mobile) */}
-      <div className="w-full max-w-4xl mx-auto p-0 sm:p-8 rounded-none sm:rounded-3xl bg-slate-950/45 backdrop-blur-xl border-0 sm:border sm:border-white/20 shadow-none sm:shadow-[0_16px_56px_rgba(0,0,0,0.75)] text-slate-100 font-['Poppins'] relative animate-fadeIn">
+      {/* 🔹 Container Oficial do Design System Corporativo — Vidro Jateado (Fullwidth Mobile / Proporcional Tablet & Desktop) */}
+      <div className="w-full max-w-none sm:max-w-2xl lg:max-w-4xl mx-auto p-0 sm:p-6 lg:p-8 rounded-none sm:rounded-3xl bg-slate-950/45 backdrop-blur-xl border-0 sm:border sm:border-white/20 shadow-none sm:shadow-[0_16px_56px_rgba(0,0,0,0.75)] text-slate-100 font-['Poppins'] relative animate-fadeIn">
         {/* 🔹 Botão de Fechar Padronizado Oficial da Tríade */}
         <button
           type="button"
