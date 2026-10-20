@@ -177,6 +177,7 @@ export async function registerTriadeUser(userData: {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
 
   // 0. Garante conta autenticada em auth.users e sessão ativa no cliente Supabase
+  // (Ignora UUIDs ofuscados com identities vazias que o GoTrue retorna quando o e-mail já existe)
   let authUserId: string | undefined;
   let authSession: any = undefined;
   try {
@@ -192,7 +193,12 @@ export async function registerTriadeUser(userData: {
         },
       },
     });
-    if (!signUpErr && signUpData?.user?.id) {
+    const hasRealIdentity =
+      !signUpErr &&
+      signUpData?.user?.id &&
+      (!Array.isArray(signUpData.user.identities) || signUpData.user.identities.length > 0);
+
+    if (hasRealIdentity && signUpData?.user?.id) {
       authUserId = signUpData.user.id;
       authSession = signUpData.session || undefined;
     } else {
@@ -241,7 +247,7 @@ export async function registerTriadeUser(userData: {
         return {
           success: true,
           client: json.client || json.user,
-          userId: authUserId || json.client?.id || json.user?.id,
+          userId: authUserId || json.client?.user_id || json.client?.id || json.user?.id,
           session: authSession,
         };
       }
@@ -293,14 +299,29 @@ export async function registerTriadeUser(userData: {
     console.warn('[registerTriadeUser] Aviso RPC:', rpcException);
   }
 
-  // 3. Fallback via supabaseAdmin direto na tabela public.clients
+  // 3. Fallback via supabaseAdmin direto na tabela public.clients (com proteção contra FK clients_user_id_fkey)
   try {
     const fullAddress = [addr.street, addr.number, addr.complement, addr.neighborhood, addr.city, addr.state, addr.cep]
       .filter(Boolean)
       .join(', ');
 
-    const clientRow: Record<string, any> = {
-      ...(authUserId ? { id: authUserId, user_id: authUserId } : {}),
+    if (authUserId) {
+      try {
+        await supabaseAdmin.from('profiles').upsert(
+          {
+            id: authUserId,
+            full_name: cleanName,
+            email: cleanEmail,
+            phone_whatsapp: cleanPhone || null,
+            document_number: cleanCpf || null,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'id' }
+        );
+      } catch {}
+    }
+
+    const baseClientRow: Record<string, any> = {
       name: cleanName,
       full_name: cleanName,
       username: cleanUsername,
@@ -330,26 +351,69 @@ export async function registerTriadeUser(userData: {
       .maybeSingle();
 
     if (existing?.id) {
-      const { data: updated, error: upErr } = await supabaseAdmin
+      const candidateUserId = authUserId || existing.user_id || null;
+      let { data: updated, error: upErr } = await supabaseAdmin
         .from('clients')
         .update({
-          ...clientRow,
-          id: existing.id,
-          user_id: authUserId || existing.user_id || existing.id,
+          ...baseClientRow,
+          ...(candidateUserId ? { user_id: candidateUserId } : {}),
         })
         .eq('id', existing.id)
         .select()
         .single();
+
+      // Se houver violação de FK (clients_user_id_fkey), refaz o update sem user_id
+      if (upErr && (upErr.message?.includes('clients_user_id_fkey') || upErr.code === '23503')) {
+        const retry = await supabaseAdmin
+          .from('clients')
+          .update({
+            ...baseClientRow,
+            user_id: null,
+          })
+          .eq('id', existing.id)
+          .select()
+          .single();
+        updated = retry.data;
+        upErr = retry.error;
+      }
+
       if (upErr) return { success: false, error: upErr.message };
-      return { success: true, client: updated, userId: authUserId || updated?.user_id || updated?.id, session: authSession };
+      return {
+        success: true,
+        client: updated,
+        userId: updated?.user_id || authUserId || updated?.id,
+        session: authSession,
+      };
     } else {
-      const { data: inserted, error: insErr } = await supabaseAdmin
+      let { data: inserted, error: insErr } = await supabaseAdmin
         .from('clients')
-        .insert([clientRow])
+        .insert([
+          {
+            ...baseClientRow,
+            ...(authUserId ? { id: authUserId, user_id: authUserId } : {}),
+          },
+        ])
         .select()
         .single();
+
+      // Se houver violação de FK (clients_user_id_fkey) ou conflito de ID, insere sem user_id
+      if (insErr && (insErr.message?.includes('clients_user_id_fkey') || insErr.code === '23503' || insErr.code === '23505')) {
+        const retry = await supabaseAdmin
+          .from('clients')
+          .insert([{ ...baseClientRow, user_id: null }])
+          .select()
+          .single();
+        inserted = retry.data;
+        insErr = retry.error;
+      }
+
       if (insErr) return { success: false, error: insErr.message };
-      return { success: true, client: inserted, userId: authUserId || inserted?.user_id || inserted?.id, session: authSession };
+      return {
+        success: true,
+        client: inserted,
+        userId: inserted?.user_id || authUserId || inserted?.id,
+        session: authSession,
+      };
     }
   } catch (err: any) {
     return { success: false, error: err?.message || 'Erro ao salvar cadastro no Supabase.' };

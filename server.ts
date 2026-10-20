@@ -2355,6 +2355,16 @@ async function startServer() {
 
       if (!authError && authUserResp?.user?.id) {
         authUserId = authUserResp.user.id;
+      } else {
+        try {
+          const { data: usersList } = await supabaseAdmin.auth.admin.listUsers();
+          const matched = (usersList?.users || []).find(
+            (u: any) => u.email?.toLowerCase() === cleanEmail
+          );
+          if (matched?.id) {
+            authUserId = matched.id;
+          }
+        } catch {}
       }
 
       // 2. Upsert into public.profiles ONLY if authUserId is a valid auth.users UUID
@@ -2385,7 +2395,7 @@ async function startServer() {
 
       const { data: existingClient } = await supabaseAdmin
         .from('clients')
-        .select('id')
+        .select('id, user_id')
         .eq('email', cleanEmail)
         .maybeSingle();
 
@@ -2395,7 +2405,7 @@ async function startServer() {
         username: cleanUsername,
         email: cleanEmail,
         phone: phone || null,
-        cpf: documentCpf || null,
+        cpf: (documentCpf || body.cpf) || null,
         password_hash: password,
         avatar_url: avatarUrl || null,
         cep: cep || null,
@@ -2419,26 +2429,49 @@ async function startServer() {
 
       let savedClient: any = null;
       if (existingClient?.id) {
-        const { data: updatedClient, error: upErr } = await supabaseAdmin
+        let { data: updatedClient, error: upErr } = await supabaseAdmin
           .from('clients')
           .update(clientPayload)
           .eq('id', existingClient.id)
           .select()
           .single();
+
+        if (upErr && (upErr.message?.includes('clients_user_id_fkey') || upErr.code === '23503')) {
+          const fallbackPayload = { ...clientPayload, user_id: null };
+          const retry = await supabaseAdmin
+            .from('clients')
+            .update(fallbackPayload)
+            .eq('id', existingClient.id)
+            .select()
+            .single();
+          updatedClient = retry.data;
+          upErr = retry.error;
+        }
+
         if (upErr) {
           console.error('[register-user] Erro ao atualizar client:', upErr);
           return res.status(400).json({ success: false, error: upErr.message });
         }
         savedClient = updatedClient;
       } else {
-        if (authUserId) {
-          clientPayload.id = authUserId;
-        }
-        const { data: insertedClient, error: insErr } = await supabaseAdmin
+        const insertPayload = authUserId ? { ...clientPayload, id: authUserId } : { ...clientPayload };
+        let { data: insertedClient, error: insErr } = await supabaseAdmin
           .from('clients')
-          .insert([clientPayload])
+          .insert([insertPayload])
           .select()
           .single();
+
+        if (insErr && (insErr.message?.includes('clients_user_id_fkey') || insErr.code === '23503' || insErr.code === '23505')) {
+          const fallbackPayload: Record<string, any> = { ...clientPayload, user_id: null };
+          const retry = await supabaseAdmin
+            .from('clients')
+            .insert([fallbackPayload])
+            .select()
+            .single();
+          insertedClient = retry.data;
+          insErr = retry.error;
+        }
+
         if (insErr) {
           console.error('[register-user] Erro ao inserir client:', insErr);
           return res.status(400).json({ success: false, error: insErr.message });

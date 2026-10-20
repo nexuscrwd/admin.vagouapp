@@ -102,3 +102,55 @@ body::-webkit-scrollbar,
 .animate-fadeIn {
   animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* ========================================================================== */
+/* 📱 MOBILE FULL-WIDTH FORM SYSTEM (Media Queries < 640px)                   */
+/* Garante 100% da largura disponível, sem padding lateral excessivo,         */
+/* sem truncamento de elementos e sem barra de rolagem horizontal.            */
+/* ========================================================================== */
+html,
+body,
+#root {
+  max-width: 100vw;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+@media (max-width: 639px) {
+  form,
+  .triade-form-root {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    overflow-x: hidden;
+  }
+
+  form label {
+    width: 100%;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: break-word;
+  }
+
+  form input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+  form select,
+  form textarea {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  form button {
+    max-width: 100%;
+  }
+}
+

@@ -364,16 +364,16 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
 
   return (
     <div
-      className={`w-full font-['Poppins'] ${
+      className={`triade-form-root w-full font-['Poppins'] ${
         isCard
-          ? 'max-w-md mx-auto bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden'
+          ? 'max-w-none sm:max-w-md mx-auto bg-slate-900 border-0 sm:border sm:border-slate-800 rounded-none sm:rounded-2xl shadow-none sm:shadow-2xl overflow-hidden'
           : 'bg-transparent'
       } animate-fadeIn`}
     >
       {/* Cabeçalho Soberano Centralizado (Logo no topo, Título abaixo, Sem Badges Redundantes) */}
       {showHeader && (
         <div
-          className={`p-5 ${
+          className={`px-0 py-3 sm:p-5 ${
             isCard ? 'bg-slate-900 border-b border-slate-800' : 'bg-transparent border-b border-white/10'
           } relative flex flex-col items-center justify-center text-center shrink-0`}
         >
@@ -402,7 +402,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
 
       {/* FASE 1: ACESSO COM SENHA */}
       {currentPhase === 'credentials' && (
-        <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 animate-fadeIn">
+        <form onSubmit={handleSubmit} className="w-full px-0 py-3 sm:p-6 space-y-4 animate-fadeIn">
           {feedback && (
             <div
               className={`p-3 rounded-xl text-xs flex items-center gap-2 animate-fadeIn ${
@@ -513,7 +513,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
 
       {/* FASE 2: RECUPERAÇÃO DE ACESSO */}
       {currentPhase === 'recovery' && (
-        <form onSubmit={handleRecoverySubmit} className="p-5 sm:p-6 space-y-4 animate-fadeIn">
+        <form onSubmit={handleRecoverySubmit} className="w-full px-0 py-3 sm:p-6 space-y-4 animate-fadeIn">
           {feedback && (
             <div
               className={`p-3 rounded-xl text-xs flex items-center gap-2 animate-fadeIn ${

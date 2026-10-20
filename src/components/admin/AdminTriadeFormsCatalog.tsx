@@ -138,47 +138,49 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
       {/* 🔑 1. ESTABELECIMENTO -> LOGIN ESTABELECIMENTO                            */}
       {/* ========================================================================= */}
       {activeMainTab === 'estabelecimento_login' && (
-        <div className="space-y-4 animate-fadeIn">
+        <div className="space-y-0 w-full max-w-none sm:max-w-md mx-auto animate-fadeIn overflow-x-hidden">
           {/* Barra Superior Unificada: Fases do Login + Botão Embed */}
-          <div className="p-2 bg-slate-900/90 border border-slate-800 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 overflow-x-auto max-w-full">
-              {[
-                { id: 'credentials', num: '1', label: 'Acesso com Senha', icon: KeyRound },
-                { id: 'recovery', num: '2', label: 'Recuperação de Acesso', icon: RotateCcw },
-              ].map((step) => {
-                const isActive = estabLoginPhase === step.id;
-                const IconComponent = step.icon;
-                return (
-                  <button
-                    key={step.id}
-                    type="button"
-                    onClick={() => setEstabLoginPhase(step.id as UserLoginPhase)}
-                    className={`py-1.5 px-3 rounded-xl text-center transition cursor-pointer flex items-center justify-center gap-1.5 border whitespace-nowrap shrink-0 ${
-                      isActive
-                        ? 'bg-[#20C933] text-white font-bold border-emerald-400 shadow-sm'
-                        : 'bg-slate-950/60 text-slate-400 hover:text-white hover:bg-slate-800 border-slate-800 text-xs'
-                    }`}
-                  >
-                    <IconComponent className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : 'text-emerald-400'}`} />
-                    <span className="text-xs">
-                      {step.num}. {step.label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+          <div className="w-full p-0 bg-slate-900 border border-slate-800 rounded-t-xl sm:rounded-t-2xl rounded-b-none border-b border-slate-800/80 overflow-x-hidden overflow-y-auto">
+            <div className="p-2 sm:p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 flex-wrap w-full overflow-x-hidden">
+                {[
+                  { id: 'credentials', num: '1', label: 'Acesso com Senha', icon: KeyRound },
+                  { id: 'recovery', num: '2', label: 'Recuperação de Acesso', icon: RotateCcw },
+                ].map((step) => {
+                  const isActive = estabLoginPhase === step.id;
+                  const IconComponent = step.icon;
+                  return (
+                    <button
+                      key={step.id}
+                      type="button"
+                      onClick={() => setEstabLoginPhase(step.id as UserLoginPhase)}
+                      className={`py-1.5 px-3 rounded-xl text-center transition cursor-pointer flex items-center justify-center gap-1.5 border whitespace-nowrap shrink-0 ${
+                        isActive
+                          ? 'bg-[#20C933] text-white font-bold border-emerald-400 shadow-sm'
+                          : 'bg-slate-950/60 text-slate-400 hover:text-white hover:bg-slate-800 border-slate-800 text-xs'
+                      }`}
+                    >
+                      <IconComponent className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : 'text-emerald-400'}`} />
+                      <span className="text-xs">
+                        {step.num}. {step.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
 
-            <button
-              type="button"
-              onClick={() => setEmbedModalForm('mnv_login')}
-              className="py-1.5 px-3 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0 self-start sm:self-auto"
-            >
-              <Code className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Gerar Embed (&lt;iframe&gt;)</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => setEmbedModalForm('mnv_login')}
+                className="py-1.5 px-3 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0 self-start sm:self-auto"
+              >
+                <Code className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Gerar Embed (&lt;iframe&gt;)</span>
+              </button>
+            </div>
           </div>
 
-          <div className="w-full max-w-none sm:max-w-md mx-auto py-1">
+          <div className="w-full p-0 m-0 [&_.triade-form]:rounded-t-none [&_.triade-form]:border-t-0">
             <TriadeMnvClientLoginForm
               salonName="VagouApp"
               activePhase={estabLoginPhase}
@@ -196,194 +198,196 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
       {/* 🏗️ 2. ESTABELECIMENTO -> CADASTRO ESTABELECIMENTO                        */}
       {/* ========================================================================= */}
       {isEstabCadastro && (
-        <div className="space-y-4 animate-fadeIn">
+        <div className="space-y-0 w-full max-w-none sm:max-w-xl mx-auto animate-fadeIn overflow-x-hidden">
           {/* Barra Superior Unificada (Exclusivo Admin Master): Abas Principais (Fases) + Subfases de Fases + Botão Embed */}
-          <div className="p-2.5 bg-slate-900/90 border border-slate-800 rounded-2xl space-y-2">
-            {/* Linha 1: Abas Principais (Fases Macro) + Botão Embed */}
-            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 overflow-x-auto max-w-full">
-                {[
-                  {
-                    id: 'user_check',
-                    num: '1',
-                    label: 'Identificação (Titular + CPF)',
-                    icon: UserCheck,
-                    isActive: estabMasterPhase === 'user_check',
-                    onSelect: () => {
-                      setEstabMasterPhase('user_check');
-                      setEstabUserSubFlow('none');
+          <div className="w-full p-0 bg-slate-900 border border-slate-800 rounded-t-xl sm:rounded-t-2xl rounded-b-none border-b border-slate-800/80 overflow-x-hidden overflow-y-auto max-h-[380px]">
+            <div className="p-2 sm:p-2.5 space-y-2">
+              {/* Linha 1: Abas Principais (Fases Macro) + Botão Embed */}
+              <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 flex-wrap w-full overflow-x-hidden">
+                  {[
+                    {
+                      id: 'user_check',
+                      num: '1',
+                      label: 'Identificação (Titular + CPF)',
+                      icon: UserCheck,
+                      isActive: estabMasterPhase === 'user_check',
+                      onSelect: () => {
+                        setEstabMasterPhase('user_check');
+                        setEstabUserSubFlow('none');
+                      },
                     },
-                  },
-                  {
-                    id: 'establishment_details',
-                    num: '2',
-                    label: 'Dados do Estabelecimento',
-                    icon: Building2,
-                    isActive: ['commercial', 'fiscal', 'pix_billing', 'address', 'visual'].includes(
-                      estabMasterPhase
-                    ),
-                    onSelect: () => {
-                      if (
-                        !['commercial', 'fiscal', 'pix_billing', 'address', 'visual'].includes(
-                          estabMasterPhase
-                        )
-                      ) {
-                        setEstabMasterPhase('commercial');
-                      }
+                    {
+                      id: 'establishment_details',
+                      num: '2',
+                      label: 'Dados do Estabelecimento',
+                      icon: Building2,
+                      isActive: ['commercial', 'fiscal', 'pix_billing', 'address', 'visual'].includes(
+                        estabMasterPhase
+                      ),
+                      onSelect: () => {
+                        if (
+                          !['commercial', 'fiscal', 'pix_billing', 'address', 'visual'].includes(
+                            estabMasterPhase
+                          )
+                        ) {
+                          setEstabMasterPhase('commercial');
+                        }
+                      },
                     },
-                  },
-                  {
-                    id: 'review',
-                    num: '3',
-                    label: 'Ficha Completa',
-                    icon: FileText,
-                    isActive: estabMasterPhase === 'review',
-                    onSelect: () => setEstabMasterPhase('review'),
-                  },
-                  {
-                    id: 'welcome',
-                    num: '4',
-                    label: 'Boas-Vindas & Placa',
-                    icon: Sparkles,
-                    isActive: estabMasterPhase === 'welcome',
-                    onSelect: () => setEstabMasterPhase('welcome'),
-                  },
-                ].map((step) => {
-                  const IconComponent = step.icon;
-                  return (
-                    <button
-                      key={step.id}
-                      type="button"
-                      onClick={step.onSelect}
-                      className={`py-1.5 px-3 rounded-xl text-center transition cursor-pointer flex items-center justify-center gap-1.5 border whitespace-nowrap shrink-0 ${
-                        step.isActive
-                          ? 'bg-[#20C933] text-white font-bold border-emerald-400 shadow-sm'
-                          : 'bg-slate-950/60 text-slate-400 hover:text-white hover:bg-slate-800 border-slate-800 text-xs'
-                      }`}
-                    >
-                      <IconComponent
-                        className={`w-3.5 h-3.5 shrink-0 ${
-                          step.isActive ? 'text-white' : 'text-emerald-400'
+                    {
+                      id: 'review',
+                      num: '3',
+                      label: 'Ficha Completa',
+                      icon: FileText,
+                      isActive: estabMasterPhase === 'review',
+                      onSelect: () => setEstabMasterPhase('review'),
+                    },
+                    {
+                      id: 'welcome',
+                      num: '4',
+                      label: 'Boas-Vindas & Placa',
+                      icon: Sparkles,
+                      isActive: estabMasterPhase === 'welcome',
+                      onSelect: () => setEstabMasterPhase('welcome'),
+                    },
+                  ].map((step) => {
+                    const IconComponent = step.icon;
+                    return (
+                      <button
+                        key={step.id}
+                        type="button"
+                        onClick={step.onSelect}
+                        className={`py-1.5 px-3 rounded-xl text-center transition cursor-pointer flex items-center justify-center gap-1.5 border whitespace-nowrap shrink-0 ${
+                          step.isActive
+                            ? 'bg-[#20C933] text-white font-bold border-emerald-400 shadow-sm'
+                            : 'bg-slate-950/60 text-slate-400 hover:text-white hover:bg-slate-800 border-slate-800 text-xs'
                         }`}
-                      />
-                      <span className="text-xs">
-                        {step.num}. {step.label}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setEmbedModalForm('estabelecimento')}
-                className="py-1.5 px-3 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0 self-start sm:self-auto"
-              >
-                <Code className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Gerar Embed (&lt;iframe&gt;)</span>
-              </button>
-            </div>
-
-            {/* Linha 2: Subfases da Fase Selecionada (Movido do interior do form para o topo Admin — Invisível aos usuários) */}
-            {estabMasterPhase === 'user_check' && (
-              <div className="pt-2 border-t border-slate-800/80 flex items-center gap-1.5 flex-wrap">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 px-1.5">
-                  Subfases (Identificação):
-                </span>
-                {(
-                  [
-                    { id: 'none', label: '1.1 Pergunta (SIM / NÃO)' },
-                    { id: 'login', label: '1.2 SIM (Login Usuário)' },
-                    { id: 'register', label: '1.3 NÃO (Cadastro Usuário)' },
-                  ] as const
-                ).map((sub) => {
-                  const active = estabUserSubFlow === sub.id;
-                  return (
-                    <button
-                      key={sub.id}
-                      type="button"
-                      onClick={() => setEstabUserSubFlow(sub.id)}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer whitespace-nowrap ${
-                        active
-                          ? 'bg-[#20C933] text-white shadow-sm'
-                          : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
-                      }`}
-                    >
-                      {sub.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {['commercial', 'fiscal', 'pix_billing', 'address', 'visual'].includes(
-              estabMasterPhase
-            ) && (
-              <div className="pt-2 border-t border-slate-800/80 flex items-center gap-1.5 flex-wrap">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 px-1.5">
-                  Subfases (Estabelecimento):
-                </span>
-                {(
-                  [
-                    { id: 'commercial', label: '1. Comercial', icon: Building2 },
-                    { id: 'fiscal', label: '2. Fiscal', icon: Receipt },
-                    { id: 'pix_billing', label: '3. PIX & QR Code', icon: Wallet },
-                    { id: 'address', label: '4. Endereço', icon: MapPin },
-                    { id: 'visual', label: '5. Visual', icon: Palette },
-                  ] as const
-                ).map((tab) => {
-                  const active = estabMasterPhase === tab.id;
-                  const SubIcon = tab.icon;
-                  return (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => setEstabMasterPhase(tab.id)}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer flex items-center gap-1 whitespace-nowrap ${
-                        active
-                          ? 'bg-[#20C933] text-white shadow-sm'
-                          : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
-                      }`}
-                    >
-                      <SubIcon className={`w-3 h-3 shrink-0 ${active ? 'text-white' : 'text-emerald-400'}`} />
-                      <span>{tab.label}</span>
-                    </button>
-                  );
-                })}
-
-                {/* Sub-etapas internas da Subfase 4. Endereço */}
-                {estabMasterPhase === 'address' && (
-                  <div className="flex items-center gap-1 pl-2 ml-1 border-l border-slate-800 flex-wrap">
-                    {(
-                      [
-                        { id: 'same_address_modal', label: '4.1 Mesmo Endereço?' },
-                        { id: 'cep_modal', label: '4.2 Busca CEP' },
-                        { id: 'address_form', label: '4.3 Formulário' },
-                      ] as const
-                    ).map((addrSub) => {
-                      const activeAddr = estabAddressSubPhase === addrSub.id;
-                      return (
-                        <button
-                          key={addrSub.id}
-                          type="button"
-                          onClick={() => setEstabAddressSubPhase(addrSub.id)}
-                          className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition cursor-pointer whitespace-nowrap ${
-                            activeAddr
-                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                              : 'bg-slate-950/60 text-slate-500 hover:text-slate-300 border border-slate-800/80'
+                      >
+                        <IconComponent
+                          className={`w-3.5 h-3.5 shrink-0 ${
+                            step.isActive ? 'text-white' : 'text-emerald-400'
                           }`}
-                        >
-                          {addrSub.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                        />
+                        <span className="text-xs">
+                          {step.num}. {step.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setEmbedModalForm('estabelecimento')}
+                  className="py-1.5 px-3 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0 self-start sm:self-auto"
+                >
+                  <Code className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Gerar Embed (&lt;iframe&gt;)</span>
+                </button>
               </div>
-            )}
+
+              {/* Linha 2: Subfases da Fase Selecionada (Movido do interior do form para o topo Admin — Invisível aos usuários) */}
+              {estabMasterPhase === 'user_check' && (
+                <div className="pt-2 border-t border-slate-800/80 flex items-center gap-1.5 flex-wrap w-full">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 px-1.5">
+                    Subfases (Identificação):
+                  </span>
+                  {(
+                    [
+                      { id: 'none', label: '1.1 Pergunta (SIM / NÃO)' },
+                      { id: 'login', label: '1.2 SIM (Login Usuário)' },
+                      { id: 'register', label: '1.3 NÃO (Cadastro Usuário)' },
+                    ] as const
+                  ).map((sub) => {
+                    const active = estabUserSubFlow === sub.id;
+                    return (
+                      <button
+                        key={sub.id}
+                        type="button"
+                        onClick={() => setEstabUserSubFlow(sub.id)}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer whitespace-nowrap ${
+                          active
+                            ? 'bg-[#20C933] text-white shadow-sm'
+                            : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                        }`}
+                      >
+                        {sub.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {['commercial', 'fiscal', 'pix_billing', 'address', 'visual'].includes(
+                estabMasterPhase
+              ) && (
+                <div className="pt-2 border-t border-slate-800/80 flex items-center gap-1.5 flex-wrap w-full">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 px-1.5">
+                    Subfases (Estabelecimento):
+                  </span>
+                  {(
+                    [
+                      { id: 'commercial', label: '1. Comercial', icon: Building2 },
+                      { id: 'fiscal', label: '2. Fiscal', icon: Receipt },
+                      { id: 'pix_billing', label: '3. PIX & QR Code', icon: Wallet },
+                      { id: 'address', label: '4. Endereço', icon: MapPin },
+                      { id: 'visual', label: '5. Visual', icon: Palette },
+                    ] as const
+                  ).map((tab) => {
+                    const active = estabMasterPhase === tab.id;
+                    const SubIcon = tab.icon;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setEstabMasterPhase(tab.id)}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                          active
+                            ? 'bg-[#20C933] text-white shadow-sm'
+                            : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                        }`}
+                      >
+                        <SubIcon className={`w-3 h-3 shrink-0 ${active ? 'text-white' : 'text-emerald-400'}`} />
+                        <span>{tab.label}</span>
+                      </button>
+                    );
+                  })}
+
+                  {/* Sub-etapas internas da Subfase 4. Endereço */}
+                  {estabMasterPhase === 'address' && (
+                    <div className="flex items-center gap-1 pl-2 ml-1 border-l border-slate-800 flex-wrap">
+                      {(
+                        [
+                          { id: 'same_address_modal', label: '4.1 Mesmo Endereço?' },
+                          { id: 'cep_modal', label: '4.2 Busca CEP' },
+                          { id: 'address_form', label: '4.3 Formulário' },
+                        ] as const
+                      ).map((addrSub) => {
+                        const activeAddr = estabAddressSubPhase === addrSub.id;
+                        return (
+                          <button
+                            key={addrSub.id}
+                            type="button"
+                            onClick={() => setEstabAddressSubPhase(addrSub.id)}
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition cursor-pointer whitespace-nowrap ${
+                              activeAddr
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                : 'bg-slate-950/60 text-slate-500 hover:text-slate-300 border border-slate-800/80'
+                            }`}
+                          >
+                            {addrSub.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="w-full max-w-none sm:max-w-xl mx-auto py-1">
+          <div className="w-full p-0 m-0 [&_.triade-form]:rounded-t-none [&_.triade-form]:border-t-0">
             <TriadeEstablishmentMasterForm
               forcedStep={estabMasterPhase}
               onStepChange={setEstabMasterPhase}
@@ -405,47 +409,49 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
       {/* 🔑 3. USUÁRIO -> LOGIN USUÁRIO                                            */}
       {/* ========================================================================= */}
       {activeMainTab === 'usuario_login' && (
-        <div className="space-y-4 animate-fadeIn">
+        <div className="space-y-0 w-full max-w-none sm:max-w-md mx-auto animate-fadeIn overflow-x-hidden">
           {/* Barra Superior Unificada: Fases do Login de Usuário + Botão Embed */}
-          <div className="p-2 bg-slate-900/90 border border-slate-800 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 overflow-x-auto max-w-full">
-              {[
-                { id: 'credentials', num: '1', label: 'Acesso com Senha', icon: KeyRound },
-                { id: 'recovery', num: '2', label: 'Recuperação de Acesso', icon: RotateCcw },
-              ].map((step) => {
-                const isActive = userLoginPhase === step.id;
-                const IconComponent = step.icon;
-                return (
-                  <button
-                    key={step.id}
-                    type="button"
-                    onClick={() => setUserLoginPhase(step.id as UserLoginPhase)}
-                    className={`py-1.5 px-3 rounded-xl text-center transition cursor-pointer flex items-center justify-center gap-1.5 border whitespace-nowrap shrink-0 ${
-                      isActive
-                        ? 'bg-[#20C933] text-white font-bold border-emerald-400 shadow-sm'
-                        : 'bg-slate-950/60 text-slate-400 hover:text-white hover:bg-slate-800 border-slate-800 text-xs'
-                    }`}
-                  >
-                    <IconComponent className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : 'text-emerald-400'}`} />
-                    <span className="text-xs">
-                      {step.num}. {step.label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+          <div className="w-full p-0 bg-slate-900 border border-slate-800 rounded-t-xl sm:rounded-t-2xl rounded-b-none border-b border-slate-800/80 overflow-x-hidden overflow-y-auto">
+            <div className="p-2 sm:p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 flex-wrap w-full overflow-x-hidden">
+                {[
+                  { id: 'credentials', num: '1', label: 'Acesso com Senha', icon: KeyRound },
+                  { id: 'recovery', num: '2', label: 'Recuperação de Acesso', icon: RotateCcw },
+                ].map((step) => {
+                  const isActive = userLoginPhase === step.id;
+                  const IconComponent = step.icon;
+                  return (
+                    <button
+                      key={step.id}
+                      type="button"
+                      onClick={() => setUserLoginPhase(step.id as UserLoginPhase)}
+                      className={`py-1.5 px-3 rounded-xl text-center transition cursor-pointer flex items-center justify-center gap-1.5 border whitespace-nowrap shrink-0 ${
+                        isActive
+                          ? 'bg-[#20C933] text-white font-bold border-emerald-400 shadow-sm'
+                          : 'bg-slate-950/60 text-slate-400 hover:text-white hover:bg-slate-800 border-slate-800 text-xs'
+                      }`}
+                    >
+                      <IconComponent className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : 'text-emerald-400'}`} />
+                      <span className="text-xs">
+                        {step.num}. {step.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
 
-            <button
-              type="button"
-              onClick={() => setEmbedModalForm('usuario_login')}
-              className="py-1.5 px-3 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0 self-start sm:self-auto"
-            >
-              <Code className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Gerar Embed (&lt;iframe&gt;)</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => setEmbedModalForm('usuario_login')}
+                className="py-1.5 px-3 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0 self-start sm:self-auto"
+              >
+                <Code className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Gerar Embed (&lt;iframe&gt;)</span>
+              </button>
+            </div>
           </div>
 
-          <div className="w-full max-w-none sm:max-w-md mx-auto py-1">
+          <div className="w-full p-0 m-0 [&_.triade-form]:rounded-t-none [&_.triade-form]:border-t-0">
             <TriadeUserLoginForm
               activePhase={userLoginPhase}
               onPhaseChange={setUserLoginPhase}
@@ -464,52 +470,54 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
       {/* ➕ 4. USUÁRIO -> CADASTRO USUÁRIO                                         */}
       {/* ========================================================================= */}
       {isUserCadastro && (
-        <div className="space-y-4 animate-fadeIn">
+        <div className="space-y-0 w-full max-w-none sm:max-w-md mx-auto animate-fadeIn overflow-x-hidden">
           {/* Barra Superior Unificada: 6 Fases + Ficha Completa + Botão Embed */}
-          <div className="p-2 bg-slate-900/90 border border-slate-800 rounded-2xl flex flex-col xl:flex-row xl:items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 overflow-x-auto max-w-full">
-              {[
-                { id: 'identification', num: '1', label: 'Identificação', icon: User },
-                { id: 'contacts', num: '2', label: 'Contatos', icon: Smartphone },
-                { id: 'verification', num: '3', label: 'Código SMS/Whats', icon: ShieldCheck },
-                { id: 'password', num: '4', label: 'Criar Senha', icon: Lock },
-                { id: 'cep', num: '5', label: 'CEP', icon: Search },
-                { id: 'address', num: '6', label: 'Endereço', icon: MapPin },
-                { id: 'all', num: '★', label: 'Ficha Completa', icon: Layers },
-              ].map((step) => {
-                const isActive = userRegisterPhase === step.id;
-                const IconComponent = step.icon;
-                return (
-                  <button
-                    key={step.id}
-                    type="button"
-                    onClick={() => setUserRegisterPhase(step.id as UserRegisterPhase)}
-                    className={`py-1.5 px-3 rounded-xl text-center transition cursor-pointer flex items-center justify-center gap-1.5 border whitespace-nowrap shrink-0 ${
-                      isActive
-                        ? 'bg-[#20C933] text-white font-bold border-emerald-400 shadow-sm'
-                        : 'bg-slate-950/60 text-slate-400 hover:text-white hover:bg-slate-800 border-slate-800 text-xs'
-                    }`}
-                  >
-                    <IconComponent className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : 'text-emerald-400'}`} />
-                    <span className="text-xs">
-                      {step.num === '★' ? step.label : `${step.num}. ${step.label}`}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+          <div className="w-full p-0 bg-slate-900 border border-slate-800 rounded-t-xl sm:rounded-t-2xl rounded-b-none border-b border-slate-800/80 overflow-x-hidden overflow-y-auto max-h-[380px]">
+            <div className="p-2 sm:p-2.5 flex flex-col xl:flex-row xl:items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 flex-wrap w-full overflow-x-hidden">
+                {[
+                  { id: 'identification', num: '1', label: 'Identificação', icon: User },
+                  { id: 'contacts', num: '2', label: 'Contatos', icon: Smartphone },
+                  { id: 'verification', num: '3', label: 'Código SMS/Whats', icon: ShieldCheck },
+                  { id: 'password', num: '4', label: 'Criar Senha', icon: Lock },
+                  { id: 'cep', num: '5', label: 'CEP', icon: Search },
+                  { id: 'address', num: '6', label: 'Endereço', icon: MapPin },
+                  { id: 'all', num: '★', label: 'Ficha Completa', icon: Layers },
+                ].map((step) => {
+                  const isActive = userRegisterPhase === step.id;
+                  const IconComponent = step.icon;
+                  return (
+                    <button
+                      key={step.id}
+                      type="button"
+                      onClick={() => setUserRegisterPhase(step.id as UserRegisterPhase)}
+                      className={`py-1.5 px-3 rounded-xl text-center transition cursor-pointer flex items-center justify-center gap-1.5 border whitespace-nowrap shrink-0 ${
+                        isActive
+                          ? 'bg-[#20C933] text-white font-bold border-emerald-400 shadow-sm'
+                          : 'bg-slate-950/60 text-slate-400 hover:text-white hover:bg-slate-800 border-slate-800 text-xs'
+                      }`}
+                    >
+                      <IconComponent className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : 'text-emerald-400'}`} />
+                      <span className="text-xs">
+                        {step.num === '★' ? step.label : `${step.num}. ${step.label}`}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
 
-            <button
-              type="button"
-              onClick={() => setEmbedModalForm('usuario')}
-              className="py-1.5 px-3 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0 self-start xl:self-auto"
-            >
-              <Code className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Gerar Embed (&lt;iframe&gt;)</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => setEmbedModalForm('usuario')}
+                className="py-1.5 px-3 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0 self-start xl:self-auto"
+              >
+                <Code className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Gerar Embed (&lt;iframe&gt;)</span>
+              </button>
+            </div>
           </div>
 
-          <div className="w-full max-w-none sm:max-w-md mx-auto py-1">
+          <div className="w-full p-0 m-0 [&_.triade-form]:rounded-t-none [&_.triade-form]:border-t-0">
             <TriadeUserRegisterForm
               activePhase={userRegisterPhase}
               onPhaseChange={setUserRegisterPhase}

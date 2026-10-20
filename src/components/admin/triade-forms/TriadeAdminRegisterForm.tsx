@@ -131,9 +131,9 @@ export const TriadeAdminRegisterForm: React.FC<TriadeAdminRegisterFormProps> = (
   };
 
   return (
-    <div className="w-full max-w-md mx-auto bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden animate-fadeIn font-['Poppins']">
+    <div className="triade-form-root w-full max-w-none sm:max-w-md mx-auto bg-slate-900 border-0 sm:border sm:border-slate-800 rounded-none sm:rounded-2xl shadow-none sm:shadow-2xl overflow-hidden animate-fadeIn font-['Poppins']">
       {/* Top Banner com Logo Oficial do VagouApp e Título Centralizados */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border-b border-slate-800 p-4 relative flex flex-col items-center justify-center text-center">
+      <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border-b border-slate-800 px-0 py-3 sm:p-4 relative flex flex-col items-center justify-center text-center">
         <VagouOfficialLogo size="xl" variant="full" className="h-9 sm:h-10 w-auto max-w-[200px] object-contain mx-auto" />
         <h2 className="font-bold text-white text-sm sm:text-base tracking-tight mt-1.5 text-center">
           Cadastrar Novo Administrador
@@ -164,21 +164,21 @@ export const TriadeAdminRegisterForm: React.FC<TriadeAdminRegisterFormProps> = (
 
       {/* Alertas */}
       {errorMessage && (
-        <div className="m-4 mb-0 p-2.5 rounded-xl bg-rose-950/80 border border-rose-800/80 text-rose-200 text-xs flex items-start gap-2 animate-fadeIn">
+        <div className="mx-0 sm:mx-4 mt-3 mb-0 p-2.5 rounded-xl bg-rose-950/80 border border-rose-800/80 text-rose-200 text-xs flex items-start gap-2 animate-fadeIn">
           <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
           <div className="flex-1 font-medium">{errorMessage}</div>
         </div>
       )}
 
       {successMessage && (
-        <div className="m-4 mb-0 p-2.5 rounded-xl bg-emerald-950/80 border border-emerald-500/40 text-emerald-200 text-xs flex items-start gap-2 animate-fadeIn font-bold">
+        <div className="mx-0 sm:mx-4 mt-3 mb-0 p-2.5 rounded-xl bg-emerald-950/80 border border-emerald-500/40 text-emerald-200 text-xs flex items-start gap-2 animate-fadeIn font-bold">
           <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
           <div className="flex-1 font-medium">{successMessage}</div>
         </div>
       )}
 
       {/* Formulário de Cadastro */}
-      <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-3.5">
+      <form onSubmit={handleSubmit} className="w-full px-0 py-3 sm:p-5 space-y-3.5">
         {/* Nome Completo & Nome de Usuário */}
         <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
           <div className="sm:col-span-7">

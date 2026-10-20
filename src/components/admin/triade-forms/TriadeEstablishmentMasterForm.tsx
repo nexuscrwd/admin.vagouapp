@@ -1097,7 +1097,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
   return (
     <div
       data-device={device}
-      className="w-full max-w-none sm:max-w-xl mx-auto font-['Poppins'] relative"
+      className="triade-form-root w-full max-w-none sm:max-w-xl mx-auto font-['Poppins'] relative"
     >
       {onClose && (
         <button

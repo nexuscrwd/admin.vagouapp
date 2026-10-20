@@ -76,9 +76,9 @@ export const TriadeAdminRecoveryForm: React.FC<TriadeAdminRecoveryFormProps> = (
 
   return (
     <div
-      className={`w-full ${
+      className={`triade-form-root w-full ${
         isCard
-          ? 'max-w-md mx-auto bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden'
+          ? 'max-w-none sm:max-w-md mx-auto bg-slate-900 border-0 sm:border sm:border-slate-800 rounded-none sm:rounded-2xl shadow-none sm:shadow-2xl overflow-hidden'
           : 'bg-transparent border-0 shadow-none'
       } animate-fadeIn font-['Poppins'] relative`}
     >
@@ -88,7 +88,7 @@ export const TriadeAdminRecoveryForm: React.FC<TriadeAdminRecoveryFormProps> = (
           isCard
             ? 'bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border-b border-slate-800'
             : 'bg-transparent border-b border-white/10'
-        } p-5 relative flex flex-col items-center justify-center text-center`}
+        } px-0 py-3 sm:p-5 relative flex flex-col items-center justify-center text-center`}
       >
         <VagouOfficialLogo size="xl" variant="full" className="h-10 sm:h-12 w-auto max-w-[220px] object-contain mx-auto" />
         <h2 className="font-bold text-white text-base sm:text-lg tracking-tight mt-2 text-center">
@@ -124,7 +124,7 @@ export const TriadeAdminRecoveryForm: React.FC<TriadeAdminRecoveryFormProps> = (
 
       {/* Alerta de Erro */}
       {errorMessage && (
-        <div className="m-4 mb-0 p-3 rounded-xl bg-rose-950/80 border border-rose-800/80 text-rose-200 text-xs flex items-start gap-2.5 animate-fadeIn">
+        <div className="mx-0 sm:mx-4 mt-3 mb-0 p-3 rounded-xl bg-rose-950/80 border border-rose-800/80 text-rose-200 text-xs flex items-start gap-2.5 animate-fadeIn">
           <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
           <div className="flex-1 font-medium">{errorMessage}</div>
         </div>
@@ -132,7 +132,7 @@ export const TriadeAdminRecoveryForm: React.FC<TriadeAdminRecoveryFormProps> = (
 
       {/* TELA DE SUCESSO APÓS SUBMISSÃO */}
       {sentSuccess ? (
-        <div className="p-5 space-y-4 animate-fadeIn">
+        <div className="w-full px-0 py-3 sm:p-5 space-y-4 animate-fadeIn">
           <div className="p-4 rounded-xl bg-emerald-950/50 border border-emerald-500/30 text-center space-y-2">
             <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
               <CheckCircle2 className="w-6 h-6" />
@@ -179,7 +179,7 @@ export const TriadeAdminRecoveryForm: React.FC<TriadeAdminRecoveryFormProps> = (
         </div>
       ) : (
         /* FORMULÁRIO DE RECUPERAÇÃO (APENAS INPUT "USUÁRIO", SEM NOVAS SENHAS) */
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="w-full px-0 py-3 sm:p-5 space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5">
               Usuário

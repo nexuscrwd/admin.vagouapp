@@ -15,6 +15,53 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-20] — 📐 Unificação das Divs de Fases e Formulários (Zero Padding, Sem Barra de Rolagem Horizontal & Rolagem Vertical Automática)
+- **Tipo:** `[Refactor / UX / Responsive Layout / Focus Mode]`
+- **Motivo / Solicitação:** Unificar as divs superiores de navegação de fases/subfases com os containers de formulários, sem padding externo, eliminando qualquer barra de rolagem horizontal e permitindo que as linhas de botões quebrem responsivamente (`flex-wrap`) com rolagem vertical automática se necessário.
+- **Resumo Técnico:**
+  1. **Unificação Visual & Estrutural:** As divs da barra superior de fases/subfases e os containers de formulários foram fundidos em um único bloco harmônico sem espaçamento intermediário (`space-y-0`) e com `p-0 m-0`.
+  2. **Eliminação de Barra de Rolagem Horizontal:** Substituído `overflow-x-auto` por `flex-wrap overflow-x-hidden`, permitindo que os seletores de fases e subfases quebrem linhas suavemente conforme a largura da tela sem estourar o viewport.
+  3. **Rolagem Vertical Automática:** Adicionado `overflow-y-auto max-h-[380px]` na barra superior, garantindo que em telas menores ou com múltiplas subfases ativas, a área se expanda verticalmente de forma fluida sem rolagem lateral indesejada.
+  4. **Padronização Tríade:** Aplicado em `isEstabCadastro` (fases de estabelecimento), `estabelecimento_login`, `usuario_login` e `isUserCadastro`.
+- **Arquivos Impactados:**
+  - `src/components/admin/AdminTriadeFormsCatalog.tsx`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-20] — 🛠️ Restauração do Ambiente de Execução, Dependências e Servidor de Desenvolvimento
+- **Tipo:** `[Fix / Environment / Build Health]`
+- **Motivo / Solicitação:** Falha reportada no instalador de pacotes (`bun install failed: exit status 1`).
+- **Resumo Técnico:**
+  1. Executada reinstalação limpa das dependências do `package.json` através do subsistema de pacotes e validação do cache do gerenciador.
+  2. Executada checagem de tipos estrita (`tsc --noEmit`) e compilação do build de produção (`npm run build`), ambos concluídos com zero erros.
+  3. Servidor de desenvolvimento reiniciado com sucesso e respondendo normalmente com status HTTP 200 na porta 3000.
+- **Arquivos Impactados:**
+  - `package.json`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-20] — 📱 Media Queries CSS Mobile Full-Width (Zero Padding Lateral, 100% Largura em Inputs/Labels/Botões) & Resiliência de FK `clients_user_id_fkey`
+- **Tipo:** `[Fix / UX Mobile-First / CSS Media Queries / Database Resilience]`
+- **Motivo / Solicitação:**
+  1. **Media Queries Mobile (`@media (max-width: 639px)`) em `src/index.css`:** Adicionadas regras CSS globais para `.triade-form-root` e `.triade-form` garantindo `width: 100%`, `max-width: 100%`, `padding-left: 0`, `padding-right: 0`, `overflow-x: hidden` e `box-sizing: border-box`, além de assegurar que todos os `input`, `select`, `textarea`, `label` e `button[type="submit"]` ocupem 100% da largura disponível sem truncar textos ou criar barras de rolagem horizontal.
+  2. **Padronização Full-Width Mobile em Todos os Formulários da Tríade:** Atualizados `TriadeUserRegisterForm`, `TriadeUserLoginForm`, `TriadeAdminLoginForm`, `TriadeAdminRecoveryForm`, `TriadeAdminRegisterForm` e `TriadeEstablishmentMasterForm` com `px-0 sm:px-5`, `max-w-none sm:max-w-md` e campos/botões empilhados (`grid-cols-1 sm:grid-cols-12`) no mobile.
+  3. **Correção Definitiva de `clients_user_id_fkey` (`supabaseApi.ts` & `server.ts`):** Validação estrita de identidades reais de `auth.users` (ignorando UUIDs ofuscados com `identities: []`), remoção do fallback inválido `existing.id` na coluna `user_id` e auto-retry resiliente com `user_id: null` caso a restrição `clients_user_id_fkey` (`23503`) seja acionada.
+- **Arquivos Impactados:**
+  - `src/index.css`
+  - `src/components/admin/triade-forms/TriadeUserRegisterForm.tsx`
+  - `src/components/admin/triade-forms/TriadeUserLoginForm.tsx`
+  - `src/components/admin/triade-forms/TriadeAdminLoginForm.tsx`
+  - `src/components/admin/triade-forms/TriadeAdminRecoveryForm.tsx`
+  - `src/components/admin/triade-forms/TriadeAdminRegisterForm.tsx`
+  - `src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`
+  - `src/services/supabaseApi.ts`
+  - `server.ts`
+  - `CHANGELOG.md`
+
+---
+
 ### [2026-10-20] — 📱 Redesenho Responsivo Fullwidth (Mobile, Tablet & Desktop) do Formulário de Estabelecimento & Detecção de Dispositivo em Tempo Real
 - **Tipo:** `[Feat / UX Mobile-First / Responsive Design / Clean Layout]`
 - **Motivo / Solicitação:**
