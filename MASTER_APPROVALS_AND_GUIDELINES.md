@@ -12,7 +12,8 @@ O **Vagou** não é apenas um catálogo de salões: ele é um **ecossistema mobi
 
 O ecossistema é dividido estritamente em **3 frentes operacionais (A Tríade Vagou)**:
 
-### Frente 1: 📱 Portal do Usuário (`portal.vagouapp.com`)
+### Frente 1: 📱 Portal do Usuário (`portal.vagouapp.com` — `pvapp`)
+- **Repositório GitHub:** `https://github.com/nexuscrwd/Portal-VagouApp.git`
 - **Público:** Clientes finais buscando atendimento imediato ou no mesmo dia por proximidade física (GPS).
 - **Mecânica Principal:**
   - **Radar de Vagas Imediatas:** Feed com stories/vídeos curtos verticais (5 segundos) e carrossel de fotos reais dos salões.
@@ -25,7 +26,8 @@ O ecossistema é dividido estritamente em **3 frentes operacionais (A Tríade Va
     - **Caminho com Fricção:** *"Criar conta com E-mail"* (E-mail + Confirmação de e-mail + Código numérico de 6 dígitos). Isso filtra bots, curiosos e cadastros falsos.
     - **Pós-Login de Segurança:** Captura e confirmação do número de WhatsApp e permissão de Notificações Push nativas para envio de lembretes e prevenção de "no-show" (não comparecimento).
 
-### Frente 2: 💈 Meu Negócio / Portal do Parceiro (`meunegocio.vagouapp.com`)
+### Frente 2: 💈 Meu Negócio / Portal do Parceiro (`meunegocio.vagouapp.com` — `vapp` / `mnvapp`)
+- **Repositório GitHub:** `https://github.com/nexuscrwd/vagouapp.git`
 - **Público:** Donos de salões, barbearias, clínicas e seus profissionais cadastrados.
 - **Mecânica Principal:**
   - **Estrutura Cadastral em 3 Níveis:**
@@ -39,13 +41,24 @@ O ecossistema é dividido estritamente em **3 frentes operacionais (A Tríade Va
   - **Gestão de Horários & Escalas:** Configuração de dias de funcionamento, pausas para almoço e atribuição de profissionais.
   - **Micro-App Exclusivo ("Ver Cliente"):** Permite ao dono do salão pré-visualizar a experiência exata do seu cliente tanto na versão oficial do repositório (`SalonProfileView`) com as 4 abas integradas, quanto na versão temática white-label com capa panorâmica (`SalonExclusiveClientView`).
 
-### Frente 3: 💻 Admin-VagouApp (`admin.vagouapp.com`)
+### Frente 3: 💻 Admin-VagouApp (`admin.vagouapp.com` — `admvapp`)
+- **Repositório GitHub:** `https://github.com/nexuscrwd/admin.vagouapp.git`
 - **Público:** Diretoria executiva e equipe operacional do VagouApp.
 - **Mecânica Principal:**
   - **Tabela Executiva de Parceiros:** Visão consolidada de todos os salões credenciados, CNPJ/CPF, responsáveis, status cadastral (Níveis 1, 2 e 3) e selos de conformidade.
   - **Métricas Globais em Tempo Real:** GMV transacionado, total de vagas ativas no Radar e agendamentos confirmados no mês.
   - **Motor de Faturamento por Agendamento:** Cálculo automático de comissões por vaga realizada (fixo padrão de **R$ 2,50 por agendamento concluído** ou taxa percentual acordada).
   - **Simulador de Salão ("Visão do Parceiro"):** Permite ao suporte do Vagou simular e inspecionar a interface de qualquer salão cadastrado com um clique.
+
+---
+
+### 🏛️ Matriz de Repositórios Git Oficiais da Tríade
+
+| Código | Nome do Projeto | URL do Repositório GitHub | Função Primária |
+|---|---|---|---|
+| **`admvapp`** | **Admin VagouApp** | `https://github.com/nexuscrwd/admin.vagouapp.git` | Governança Soberana Master & Painel Executivo |
+| **`vapp`** / **`mnvapp`** | **VagouApp Oficial** | `https://github.com/nexuscrwd/vagouapp.git` | App Consumidor & App Parceiro Meu Negócio |
+| **`pvapp`** | **Portal VagouApp** | `https://github.com/nexuscrwd/Portal-VagouApp.git` | Marketplace Web & PWA do Cliente Final |
 
 ---
 

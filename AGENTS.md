@@ -92,3 +92,15 @@
 - **Geolocalização:** Cálculo de proximidade em metros/km com base na coordenada do usuário e do salão.
 - **Urgência do Radar:** Vagas imediatas têm contagem regressiva (`expiresInMinutes`), selo de status e priorização no feed.
 - **Stories do Radar:** Apresentação em vídeo vertical (Nível 3), carrossel de fotos (Nível 2) ou fallback temático estilizado (Nível 1).
+
+---
+
+## 🔗 4. Repositórios Oficiais do Ecossistema VagouApp (GitHub)
+
+> **MEMÓRIA PERMANENTE:** Os repositórios oficiais da Tríade estão catalogados e gravados abaixo. **NUNCA** solicite que o usuário forneça essas URLs novamente.
+
+| Sigla Oficial | Nome do Projeto | Função no Ecossistema | Repositório Oficial no GitHub |
+|---|---|---|---|
+| **`admvapp`** | **Admin VagouApp** | Governança Soberana Master & Gestão Executiva | `https://github.com/nexuscrwd/admin.vagouapp.git` |
+| **`vapp`** / **`mnvapp`** | **VagouApp Oficial** | App Consumidor & Gestão Parceiro Meu Negócio | `https://github.com/nexuscrwd/vagouapp.git` |
+| **`pvapp`** | **Portal VagouApp** | Marketplace Web / PWA Consumidor Final | `https://github.com/nexuscrwd/Portal-VagouApp.git` |

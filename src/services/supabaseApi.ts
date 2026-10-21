@@ -69,10 +69,17 @@ export async function fetchAdminSalons(): Promise<AdminSalonItem[]> {
       state: row.state || 'SP',
       cep: row.cep || '',
       logo_url: row.logo_url || row.logo || row.logo_light_url || row.logo_dark_url || '',
+      logo_dark_url: row.logo_dark_url || row.branding?.logoDarkUrl || '',
+      logo_light_url: row.logo_light_url || row.branding?.logoLightUrl || '',
       favicon_url: row.favicon_url || row.branding?.faviconUrl || row.branding?.salonIcon || row.logo_url || '',
+      cover_image_url: row.cover_image_url || row.branding?.bannerUrl || row.branding?.coverImageUrl || '',
+      facade_photo_url: row.facade_photo_url || row.branding?.facadePhotoUrl || '',
+      interior_photo_url: row.interior_photo_url || row.branding?.interiorPhotoUrl || '',
       slogan: row.slogan || row.branding?.slogan || '',
       brand_font: row.brand_font || row.branding?.brandFont || 'Poppins',
-      primary_color: row.primary_color || row.brand_color || row.branding?.primaryColor || '#10B981',
+      theme_preset_id: row.theme_preset_id || row.branding?.themePresetId || 'emerald',
+      primary_color: row.primary_color || row.brand_color || row.branding?.primaryColor || '#20C933',
+      secondary_color: row.secondary_color || row.branding?.secondaryColor || '#059669',
       created_at: row.created_at || new Date().toISOString(),
       professionals_count: row.professionals_count || 0,
       active_offers_count: row.active_offers_count || 0,
@@ -2979,6 +2986,13 @@ export async function fetchAdminClients(): Promise<UserClientItem[]> {
 // 2. Desvincular Dependente (Soft Unlink com Preservação de Histórico)
 export async function unlinkClientDependent(dependentId: string): Promise<{ success: boolean }> {
   try {
+    const resp = await fetch(`/api/admin/dependents/${dependentId}/unlink`, { method: 'PATCH' });
+    if (resp.ok) {
+      return { success: true };
+    }
+  } catch {}
+
+  try {
     const { error } = await supabase
       .from('dependents')
       .update({
@@ -2996,6 +3010,7 @@ export async function unlinkClientDependent(dependentId: string): Promise<{ succ
     return { success: true };
   }
 }
+
 
 // 3. Usuários de Salão (Proprietários e Gestores Reais do Supabase)
 export async function fetchAdminSalonUsers(): Promise<UserSalonAccessItem[]> {

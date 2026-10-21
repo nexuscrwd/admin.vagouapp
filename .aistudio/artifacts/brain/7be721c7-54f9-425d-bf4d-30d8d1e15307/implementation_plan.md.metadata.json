@@ -1,0 +1,6 @@
+{
+  "summary":  "Plano de arquitetura e sincronização unificada do banco de dados Supabase entre o Admin-VagouApp (admvapp) e o Meu Negócio (mnvapp), cobrindo Serviços, Galeria de Mídias, Tema Camaleão, Usuários/Clientes, Profissionais, Dependentes e Utilidades Operacionais (Consumo de Energia/Água, Equipamentos, DRE Financeiro e Estoque).",
+  "updatedAt":  "2026-10-21T09:40:32.568625224Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

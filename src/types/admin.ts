@@ -70,8 +70,13 @@ export interface AdminSalonItem {
   logo_dark_url?: string;
   logo_light_url?: string;
   favicon_url?: string;
+  cover_image_url?: string;
+  facade_photo_url?: string;
+  interior_photo_url?: string;
+  description?: string;
   slogan?: string;
   brand_font?: string;
+  theme_preset_id?: string;
   primary_color?: string;
   secondary_color?: string;
   operating_hours?: DayOperatingHour[];
@@ -357,6 +362,7 @@ export interface SalonServiceRecord {
   category: string;
   price: number;
   duration_minutes: number;
+  commission_rate?: number;
   is_active: boolean;
   target_audience?: 'all' | 'men' | 'women' | 'kids';
   order_index?: number;

@@ -15,6 +15,202 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-21] — 🚀 Sucesso Absoluto: Migração Não-Destrutiva Executada com Sucesso no Supabase
+- **Tipo:** `[Database / Success / Migration / Triade Sync]`
+- **Motivo / Solicitação:** Validação da execução bem-sucedida do script `supabase_safe_migration.sql` via Supabase SQL Editor (`Success. No rows returned`).
+- **Resumo Técnico:**
+  1. Criação e validação das tabelas `salon_services`, `dependents`, `salon_users`, `salon_utilities_records` e `financial_transactions`.
+  2. Preservação integral de todos os salões cadastrados no banco de produção/desenvolvimento (`Marilu`, `Momy nail`, etc.).
+  3. Migração automática dos procedimentos de `services` para `salon_services`.
+  4. Ativação dos triggers bidirecionais desacoplados e publicação no Supabase Realtime sem erros.
+- **Arquivos Impactados:**
+  - `supabase_safe_migration.sql`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-21] — 🛠️ Correção Crítica de Validação de Record em Triggers (`ERROR: 42703: record "new" has no field "service_id"`) & Desacoplamento Total (SQL Master v3.1.2)
+- **Tipo:** `[Fix / Database / Master SQL v3.1.2 / PL/pgSQL Triggers]`
+- **Motivo / Solicitação:** Correção do erro `ERROR: 42703: record "new" has no field "service_id"` na função `normalize_service_fields()` durante a execução do script no Supabase SQL Editor.
+- **Resumo Técnico:**
+  1. **Causa Raiz:** A função `normalize_service_fields()` e `sync_services_bidirectional()` eram compartilhadas entre `public.services` e `public.salon_services`. No PostgreSQL PL/pgSQL, ao disparar o trigger em `public.services`, o analisador valida o acesso a `NEW.service_id`. Como `public.services` não possui a coluna `service_id`, o PostgreSQL gerava erro `42703`.
+  2. **Solução Aplicada (Desacoplamento por Tabela):**
+     - Criada a função `normalize_service_fields()` exclusiva para `public.services` (sem referências a `service_id`).
+     - Criada a função `normalize_salon_service_fields()` exclusiva para `public.salon_services` (com `NEW.service_id := COALESCE(NEW.service_id, NEW.id)`).
+     - Separado o sincronismo em `sync_services_to_salon_services()` (em `services`) e `sync_salon_services_to_services()` (em `salon_services`).
+     - Aplicado o mesmo padrão preventivo para a Conta Família: `normalize_dependent_fields()` / `normalize_client_family_member_fields()` e `sync_dependents_to_family_members()` / `sync_family_members_to_dependents()`.
+     - Atualizados os comandos de `DROP CASCADE` no Passo 2 e incrementada a versão para `v3.1.2 Master`.
+- **Arquivos Impactados:**
+  - `supabase_schema.sql`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-21] — 🏛️ Parecer Técnico Aprovado do `pvapp` e Refinamento de Compatibilidade Zero-Fallback (`subdomain` & `auth_user_id`)
+- **Tipo:** `[Database / Master SQL v3.1.1 / Triade Sync / Parecer Técnico]`
+- **Motivo / Solicitação:** Parecer técnico do Portal VagouApp (`pvapp`) aprovando o Master Rebuild SQL v3.0.0 com excelência e sugerindo a inclusão das colunas de espelhamento `subdomain` (em `salons`) e `auth_user_id` (em `clients`) para prevenção de erros em versões legadas.
+- **Resumo Técnico:**
+  1. Adicionada a coluna `subdomain VARCHAR(100)` e o índice `idx_salons_subdomain` em `public.salons`.
+  2. Adicionada a coluna `auth_user_id UUID REFERENCES auth.users(id)` e o índice `idx_clients_auth_user_id` em `public.clients`.
+  3. Atualizado o trigger `sync_salon_fields` para espelhar bidirecionalmente `slug` ⇄ `subdomain`.
+  4. Atualizado o trigger `sync_client_fields` para espelhar bidirecionalmente `user_id` ⇄ `auth_user_id`.
+  5. Entregue o script SQL Master v3.1.1 definitivo, unificado e pronto para execução no Supabase SQL Editor.
+- **Arquivos Impactados:**
+  - `supabase_schema.sql`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-21] — 📡 Auditoria do Repositório `pvapp`, Automação de Cadeiras Vazias / Promoções no Radar e Dossiê Mestre (`PVAPP_MNVAPP_MASTER_SYNC_GUIDE.md`)
+- **Tipo:** `[Feat / Database / Triggers / Triade Sync / Documentation]`
+- **Motivo / Solicitação:** Solicitação de auditoria do código-fonte do `pvapp` (`https://github.com/nexuscrwd/Portal-VagouApp.git`), validação de sincronismo quando um estabelecimento publica uma "Cadeira Vazia" ou promove um serviço, e geração de um documento `.md` completo com tudo o que foi acordado + código SQL integral para envio ao `pvapp` e `mnvapp`.
+- **Resumo Técnico:**
+  1. **Auditoria do Código-Fonte do `pvapp` (`src/services/supabaseApi.ts` & `SalonProfileView.tsx`):**
+     - Identificado que o `pvapp` consulta `public.client_family_members` para dependentes, `public.salon_clients` (`client_user_id`, `is_favorite`, `last_visit_at`) para favoritos e envia as colunas do **Dossiê 3.8** em `public.appointments` (`client_user_id`, `is_dependent`, `service_name`, `service_price`, `service_duration_minutes`, `scheduled_date`, `origin`).
+     - Todas essas tabelas e colunas foram integradas nativamente ao `supabase_schema.sql` (`v3.1.0`) com triggers bidirecionais (`trg_sync_dependents_to_family_members`, `trg_sync_family_members_to_dependents` e `trg_sync_salon_clients_fields`).
+  2. **Sincronismo Automático de "Cadeira Vazia" e Promoção de Serviços no Radar (`public.service_offers`):**
+     - `trg_normalize_service_offer_defaults` (`BEFORE INSERT OR UPDATE ON public.service_offers`): Garante `status = 'AVAILABLE'`, `date_str`, `start_time`, `end_time`, `expires_at`, cálculo de `discount_percentage` e `media_level` (`1`, `2` ou `3`).
+     - `trg_auto_promote_service_to_radar` (`AFTER INSERT OR UPDATE ON public.services`): Quando um estabelecimento posta ou atualiza um serviço com `promotional_price < price`, cria/atualiza automaticamente a oferta ativa no Radar (`public.service_offers`) para exibição imediata no `pvapp`.
+     - `handle_appointment_defaults`: Quando um cliente reserva uma cadeira vazia no `pvapp` (`offer_id IS NOT NULL`), marca automaticamente `public.service_offers.status = 'BOOKED'`.
+  3. **Rota Backend e Dossiê Completo:**
+     - Adicionada rota `POST /api/admin/salons/:salonId/offers` e suporte a `promotional_price`, `duration_estimated` e `video_url` em `server.ts`.
+     - Gerado o arquivo `/PVAPP_MNVAPP_MASTER_SYNC_GUIDE.md` contendo todo o alinhamento arquitetural + o SQL Master completo (`2.581 linhas`).
+- **Arquivos Impactados:**
+  - `supabase_schema.sql`
+  - `server.ts`
+  - `PVAPP_MNVAPP_MASTER_SYNC_GUIDE.md`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-21] — 🛠️ Correção de Timing de Trigger (`BEFORE` vs `AFTER`) e FK Deferrable em `salon_services` (`supabase_schema.sql`)
+- **Tipo:** `[Fix / Database / Triggers / Foreign Key]`
+- **Motivo / Solicitação:** Correção do erro `ERROR: 23503: insert or update on table "salon_services" violates foreign key constraint "salon_services_service_id_fkey"` ao executar o seed de `public.services` no Supabase.
+- **Resumo Técnico:**
+  1. **Causa Raiz:** Os triggers `trg_sync_services_to_salon_services` e `trg_sync_salon_services_to_services` estavam configurados como `BEFORE INSERT OR UPDATE OR DELETE`. Ao inserir em `public.services`, o trigger tentava inserir o registro espelho em `public.salon_services` (`service_id = NEW.id`) **antes** que a linha existisse fisicamente em `public.services`, disparando a violação de chave estrangeira `23503`.
+  2. **Solução Aplicada:**
+     - Separada a normalização de campos (`normalize_service_fields()` em `BEFORE INSERT OR UPDATE`) do espelhamento cruzado entre tabelas (`sync_services_bidirectional()` em `AFTER INSERT OR UPDATE OR DELETE`).
+     - Adicionada a cláusula `DEFERRABLE INITIALLY DEFERRED` na chave estrangeira `salon_services.service_id` (`REFERENCES public.services(id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED`), garantindo que inserções originadas tanto em `services` quanto em `salon_services` nunca violem a constraint.
+     - Separada também a normalização de nomes de dependentes (`normalize_dependent_fields()` em `BEFORE INSERT OR UPDATE`) da contagem em `sync_client_dependents_counter()` (`AFTER INSERT OR UPDATE OR DELETE`).
+- **Arquivos Impactados:**
+  - `supabase_schema.sql`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-21] — 🏢 Estruturação de Duas Empresas Fictícias Completas de Exemplo no Master SQL (`supabase_schema.sql`)
+- **Tipo:** `[Database / Seed Data / Master SQL / Triade Sync]`
+- **Motivo / Solicitação:** Solicitação do usuário para que o esquema SQL (`supabase_schema.sql`) contenha exatamente duas empresas fictícias completas de exemplo, além da inclusão nativa das colunas zero-fallback no `CREATE TABLE` e nos triggers de sincronismo.
+- **Resumo Técnico:**
+  1. **Duas Empresas Fictícias Completas (`public.salons`):**
+     - **Empresa 1:** *Salão X Prime Barbershop* (`11111111-1111-1111-1111-111111111101`) — Barbearia Masculina & Estética (Tema `emerald-dark`, CNPJ `42.158.963/0001-81`).
+     - **Empresa 2:** *Lumière Studio & Beauty Spa* (`11111111-1111-1111-1111-111111111102`) — Salão de Beleza, Unhas & Estética (Tema `rose-glam`, CNPJ `58.741.236/0001-49`).
+  2. **Dados Relacionais Completos para Ambas as Empresas:**
+     - Gestores/Proprietários vinculados em `public.profiles` e `public.salon_users`.
+     - 4 Profissionais em `public.professionals` (2 para cada empresa).
+     - 6 Serviços em `public.services` (3 para cada empresa, com `duration_estimated` e `video_url`, espelhados automaticamente em `public.salon_services` via trigger).
+     - 11 Itens de Galeria em `public.salon_media_items` (logotipo, banner, serviços, profissionais, espaço e vídeo 5s para ambas as empresas).
+     - 4 Vagas Relâmpago ativas no Radar (`public.service_offers`, 2 para cada empresa).
+     - 2 Clientes Titulares (`public.clients`), vínculos de carteira (`public.salon_clients`) e 3 Dependentes / Conta Família (`public.dependents`).
+     - 2 Agendamentos confirmados (`public.appointments`).
+     - 2 Registros completos de Utilidades / ERP (`public.salon_utilities_records` com energia, água, equipamentos, DRE e estoque de insumos para ambas as empresas).
+     - 2 Faturas SaaS (`public.billing_invoices`) e 2 Transações Financeiras (`public.financial_transactions`).
+- **Arquivos Impactados:**
+  - `supabase_schema.sql`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-21] — 🔗 Inclusão do Bloco de Compatibilidade 100% Zero-Fallback no Master SQL
+- **Tipo:** `[Database / Master SQL / Triade Sync / Compatibility]`
+- **Motivo / Solicitação:** Inclusão recomendada pelo repositório `mnvapp` para garantir que colunas auxiliares (`phone_whatsapp` em `profiles`, `phone_landline`, `category`, `space_photos` em `salons`, e `duration_estimated`, `video_url` em `services`/`salon_services`) estejam garantidas no script SQL oficial do Supabase sem necessidade de fallbacks em tempo de execução.
+- **Resumo Técnico:**
+  1. Atualizado `supabase_schema.sql` com o bloco de compatibilidade idempotente (`ALTER TABLE ... ADD COLUMN IF NOT EXISTS`) e inclusão direta no `CREATE TABLE`.
+  2. Alinhamento perfeito entre `admvapp` e `mnvapp`.
+- **Arquivos Impactados:**
+  - `supabase_schema.sql`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-21] — 🗄️ Master Rebuild SQL v3.0.0 (Clean Reset, Triggers Bidirecionais, Storage & Supabase Realtime)
+- **Tipo:** `[Database / Master SQL / Realtime / Triggers / Triade Sync]`
+- **Motivo / Solicitação:** Solicitação do código SQL completíssimo do início ao fim, analisando os 3 repositórios do ecossistema (`admvapp`, `mnvapp` e `pvapp`), permitindo limpar/apagar todo o banco de dados (`DROP CASCADE`) e reconstruí-lo do zero com Triggers automáticos, RPCs, RLS, Storage Buckets e Supabase Realtime.
+- **Resumo Técnico:**
+  1. **Limpeza Segura (`DROP CASCADE`):** Remove todas as funções e as 18 tabelas na ordem de dependência correta para permitir reconstrução limpa a qualquer momento.
+  2. **18 Tabelas Unificadas da Tríade:** `profiles`, `salons`, `professionals`, `services`, `salon_services`, `service_offers`, `clients`, `salon_clients`, `dependents`, `salon_users`, `appointments`, `salon_media_items`, `salon_media_slots`, `salon_utilities_records`, `system_admins`, `admin_access_logs`, `billing_invoices` e `financial_transactions`.
+  3. **Triggers Automáticos de Sincronismo:**
+     - `trg_sync_services_to_salon_services` & `trg_sync_salon_services_to_services`: Espelhamento bidirecional automático entre `services` e `salon_services` com trava `pg_trigger_depth() > 1`.
+     - `trg_sync_salon_media_items`: Sincroniza `url ⇄ media_url`, `title ⇄ caption` e atualiza automaticamente `cover_image_url` e `logo_url` em `public.salons`.
+     - `trg_sync_client_dependents_counter`: Recalcula automaticamente `dependents_count` em `public.clients` sempre que um dependente é criado, editado ou desvinculado em `public.dependents`.
+     - `trg_sync_salon_utilities_fields`: Espelha automaticamente `dre_records ⇄ financial_dre` e `supply_items ⇄ inventory_items` em `public.salon_utilities_records`.
+     - `trg_handle_appointment_defaults`: Gera `protocol_code` (`#VGA-XXXXXX`) automático e incrementa `total_appointments` do cliente.
+  4. **Supabase Realtime & Storage:** Configura `REPLICA IDENTITY FULL` e adiciona todas as tabelas à publicação `supabase_realtime`, além de criar os buckets públicos `salon-media`, `avatars` e `documents`.
+- **Arquivos Impactados:**
+  - `supabase_schema.sql`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-21] — 🔄 Sincronização Unificada 360º do Banco de Dados (Admin-VagouApp ⇄ Meu Negócio)
+- **Tipo:** `[Feat / Database / Full-Stack Sync / Triade Governance]`
+- **Motivo / Solicitação:** Auditoria cruzada entre o repositório `mnvapp` (`vagouapp.git`) e o `admvapp` (`admin.vagouapp.git`) para amarrar e sincronizar 100% no Supabase os 7 módulos vitais: Criação de Serviços, Galeria de Fotos/Vídeos, Gestão do Tema Camaleão, Cadastro de Usuários/Clientes, Cadastro de Profissionais, Conta Família/Dependentes e Ferramentas de Utilidades (Energia, Água, Equipamentos, DRE e Insumos).
+- **Resumo Técnico:**
+  1. **Schema Unificado (`supabase_schema.sql` — Seção 17):** Adicionadas tabelas e colunas idempotentes (`public.salon_services`, `public.salon_media_items`, `public.dependents`, `public.salon_utilities_records`, além das colunas `theme_preset_id`, `facade_photo_url`, `interior_photo_url` em `public.salons` e `access_level`, `product_commission_rate`, `email` em `public.professionals`).
+  2. **Endpoints Backend de Sincronização (`server.ts`):** Criadas as rotas `/api/admin/salons/:salonId/full-sync`, `/api/admin/salons/:salonId/services`, `/api/admin/salons/:salonId/media`, `/api/admin/salons/:salonId/branding-theme`, `/api/admin/salons/:salonId/professionals`, `/api/admin/clients/:clientId/dependents` e `/api/admin/salons/:salonId/utilities`.
+  3. **Painel Executivo do Estabelecimento (`AdminSalonDetailView.tsx` & `AdminSalonUtilitiesAndSyncPanel.tsx`):**
+     - **Id. Visual & Tema Camaleão:** 5 presets oficiais do `mnvapp` (`emerald-dark`, `gold-luxury`, `rose-glam`, `purple-neon`, `clean-light`), fotos de fachada/interior e persistência direta no banco.
+     - **Galeria de Imagens:** Conectada diretamente a `public.salon_media_items` e `salons.branding.mediaItems`.
+     - **Serviços:** Sincronização dupla automática em `public.services` e `public.salon_services` (incluindo fotos, vídeos 5s, slides e comissão).
+     - **Equipe:** Modal real de cadastro/edição/exclusão em `public.professionals` com nível de permissão (`admin`, `receptionist`, `professional`) e comissões.
+     - **Clientes & Conta Família:** Coluna e modal interativo para gerir dependentes familiares em `public.dependents`.
+     - **Utilidades & DRE + Sincronização DB ⇄ MNV:** Novas abas para inspecionar/editar consumo de Energia (kWh), Água (m³), Equipamentos, DRE e Insumos em `public.salon_utilities_records`, além do painel com código pronto (`mnvSupabaseSync.ts`) para envio ao `mnvapp`.
+- **Arquivos Impactados:**
+  - `supabase_schema.sql`
+  - `server.ts`
+  - `src/types/admin.ts`
+  - `src/services/supabaseApi.ts`
+  - `src/components/admin/AdminSalonDetailView.tsx`
+  - `src/components/admin/AdminSalonUtilitiesAndSyncPanel.tsx`
+  - `src/triade-export/mnvSupabaseSync.ts`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-20] — 👥 Sincronização da Tríade: Conta Família, Dependentes & Sincronização Relacional de Clientes
+- **Tipo:** `[Sync / Backend / Architecture / Triade Governance]`
+- **Motivo / Solicitação:** Análise e recepção do Comunicado Técnico Inter-Projetos emitido pelo `mnvapp` (`vapp`) referente à Conta Família & Dependentes (tabela `public.dependents`), menu contextual `ProfileDrawer` e seleção por chips rápidos.
+- **Resumo Técnico no `admvapp`:**
+  1. **Sincronização de Dados (`server.ts` — `/api/admin/clients`):** Enriquecida a rota de listagem de clientes para consultar a tabela relacional `public.dependents` por `parent_client_id` além do payload de `clients`, garantindo que dependentes criados em tempo real no `mnvapp` ou `pvapp` apareçam instantaneamente no admin.
+  2. **Endpoint de Soft-Unlink (`server.ts` — `PATCH /api/admin/dependents/:id/unlink`):** Adicionada rota administrativa com service role para permitir desvinculação de dependentes preservando o histórico legal e financeiro de agendamentos.
+  3. **Atualização do SDK (`src/services/supabaseApi.ts`):** `unlinkClientDependent` agora prioriza a rota administrativa do servidor antes do fallback local/Supabase client.
+  4. **Padronização Visual de Parentescos (`AdminUserDetailView.tsx`):** Mapeamento atualizado para cobrir todos os 5 graus de parentesco padronizados (`son` -> Filho(a), `daughter` -> Filha, `spouse` -> Cônjuge, `parent` -> Pai/Mãe, `other` -> Outro).
+  5. **Auditoria de Agendamentos (`AdminAppointmentsMonitor.tsx`):** Confirmada a exibição em destaque do dependente beneficiário (`Para: [Nome do Dependente]`) em cada linha de agendamento.
+- **Arquivos Impactados:**
+  - `server.ts`
+  - `src/services/supabaseApi.ts`
+  - `src/components/admin/AdminUserDetailView.tsx`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-20] — 🏛️ Registro Permanente dos Repositórios Oficiais do Ecossistema VagouApp (GitHub)
+- **Tipo:** `[Docs / Architecture / Governance / Triade Sync]`
+- **Motivo / Solicitação:** Gravar de forma definitiva e permanente os links dos repositórios oficiais da Tríade no GitHub para consulta automática por agentes e desenvolvedores, eliminando a necessidade do usuário precisar colá-los manualmente:
+  - `admin VagouApp (admvapp)`: `https://github.com/nexuscrwd/admin.vagouapp.git`
+  - `VagouApp Oficial (vapp / mnvapp)`: `https://github.com/nexuscrwd/vagouapp.git`
+  - `PortalVagouApp (pvapp)`: `https://github.com/nexuscrwd/Portal-VagouApp.git`
+- **Arquivos Atualizados:**
+  - `AGENTS.md` (Seção 4: Repositórios Oficiais do Ecossistema VagouApp)
+  - `GEMINI.md` (Diretrizes e URLs oficiais)
+  - `MASTER_APPROVALS_AND_GUIDELINES.md` (Seção 1 & Matriz de Repositórios Git Oficiais)
+  - `ARCHITECTURE.md` (Seção 2: Matriz da Tríade e URLs dos Repositórios)
+  - `ECOSYSTEM_CONTRACT.md` (Seção 2: Papel de Cada Aplicação & Matriz de Repositórios)
+  - `KNOWLEDGE_BASE.md` (Seção 15: Repositórios Oficiais da Tríade)
+  - `CHANGELOG.md`
+
+---
+
 ### [2026-10-20] — 📐 Unificação das Divs de Fases e Formulários (Zero Padding, Sem Barra de Rolagem Horizontal & Rolagem Vertical Automática)
 - **Tipo:** `[Refactor / UX / Responsive Layout / Focus Mode]`
 - **Motivo / Solicitação:** Unificar as divs superiores de navegação de fases/subfases com os containers de formulários, sem padding externo, eliminando qualquer barra de rolagem horizontal e permitindo que as linhas de botões quebrem responsivamente (`flex-wrap`) com rolagem vertical automática se necessário.

@@ -40,9 +40,20 @@
 
 ---
 
-## 📱 2. Papel de Cada Aplicação no Ecossistema
+## 📱 2. Papel de Cada Aplicação no Ecossistema & Repositórios Oficiais
 
-### A. App Consumidor (`Vagou`) — *Este Repositório*
+### 🔗 Matriz Oficial de Repositórios Git da Tríade:
+| Sigla | Aplicação | Domínio Principal | Repositório Oficial no GitHub |
+|---|---|---|---|
+| **`admvapp`** | **Admin VagouApp** | `adm.vagouapp.com` | `https://github.com/nexuscrwd/admin.vagouapp.git` |
+| **`vapp`** / **`mnvapp`** | **VagouApp Oficial** (Consumidor & Meu Negócio) | `vagouapp.com` / `meunegocio.vagouapp.com` | `https://github.com/nexuscrwd/vagouapp.git` |
+| **`pvapp`** | **Portal VagouApp** (Marketplace Web & PWA) | `portal.vagouapp.com` | `https://github.com/nexuscrwd/Portal-VagouApp.git` |
+
+---
+
+### A. App Consumidor (`Vagou` / `PortalVagouApp` — `pvapp` / `vapp`)
+- **Repositório GitHub (Portal):** `https://github.com/nexuscrwd/Portal-VagouApp.git`
+- **Repositório GitHub (Oficial):** `https://github.com/nexuscrwd/vagouapp.git`
 - **Público:** Clientes finais procurando serviços de beleza e bem-estar para agora ou hoje.
 - **Identidade Visual:** **100% Marca Vagou** (Fundo Dark `slate-950`, cartões `slate-900`, destaques em `emerald-500` e acentos em `emerald-400`).
 - **Telas Principais:**
@@ -51,7 +62,8 @@
   - `ConfirmationScreen`: Protocolo de agendamento com QR Code e rota GPS.
   - `AgendaScreen`: Histórico e agendamentos futuros do cliente.
 
-### B. App Empresário (`Vagou Pro`) — *Projeto no Ionic Studio*
+### B. App Empresário (`Meu Negócio` / `Vagou Pro` — `mnvapp` / `vapp`)
+- **Repositório GitHub:** `https://github.com/nexuscrwd/vagouapp.git`
 - **Público:** Donos de salões, barbeiros, manicures, cabeleireiros e esteticistas.
 - **Identidade Visual:** **White-label Dinâmico (Theming)**. Carrega o logo, o nome e as cores primárias do salão autenticado.
 - **Telas Principais:**
@@ -60,6 +72,14 @@
   - `PartnerScheduleConfigScreen`: Configuração de expediente, pausas de almoço e escala semanal.
   - `SalonMediaLibraryScreen`: Gestão dos vídeos curtos (5s) e fotos institucionais para o radar.
   - `PartnerFinancialScreen`: Resumo de atendimentos e comissões da equipe.
+
+### C. App Governança Master Soberana (`Admin-VagouApp` — `admvapp`) — *Este Repositório*
+- **Repositório GitHub:** `https://github.com/nexuscrwd/admin.vagouapp.git`
+- **Público:** Diretoria executiva, suporte operacional e central de conciliação do VagouApp.
+- **Mecânica Principal:**
+  - Governança multi-tenant de estabelecimentos, profissionais e usuários.
+  - Auditoria de dados, comissões de R$ 2,50/agendamento, faturamento e relatórios executivos.
+  - Central soberana de formulários embed (`/embed/estabelecimento`, `/embed/mnv-cadastro`, `/embed/mnv-acesso`).
 
 ---
 

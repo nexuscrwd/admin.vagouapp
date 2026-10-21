@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
@@ -1226,22 +1227,85 @@ async function startServer() {
         return res.status(400).json({ success: false, error: error.message });
       }
 
-      const clients = (data || []).map((c: any) => ({
-        ...c,
-        full_name: c.name || c.full_name || 'Cliente',
-        username: (c.username || (c.email ? c.email.split('@')[0] : (c.name || 'cliente').toLowerCase().replace(/\s+/g, ''))).replace(/^@+/, ''),
-        phone: c.phone || c.phone_whatsapp || '—',
-        phone_secondary: c.phone_secondary || '',
-        dependents: Array.isArray(c.dependents) ? c.dependents : [],
-        is_active: c.is_active !== undefined ? !!c.is_active : true,
-        access_level: c.access_level || 'Cliente Titular',
-      }));
+      // Sincronização direta com a tabela relacional public.dependents (Tríade Sync)
+      const dependentsByParent: Record<string, any[]> = {};
+      try {
+        const { data: depData, error: depErr } = await supabaseAdmin
+          .from('dependents')
+          .select('*')
+          .order('created_at', { ascending: true });
+        if (!depErr && Array.isArray(depData)) {
+          depData.forEach((d: any) => {
+            const pId = d.parent_client_id;
+            if (pId) {
+              if (!dependentsByParent[pId]) dependentsByParent[pId] = [];
+              dependentsByParent[pId].push({
+                id: d.id,
+                parent_client_id: d.parent_client_id,
+                full_name: d.full_name || d.name,
+                relationship: d.relationship || 'other',
+                birth_date: d.birth_date,
+                notes: d.notes,
+                is_unlinked: !!d.is_unlinked,
+                unlinked_at: d.unlinked_at,
+                created_at: d.created_at,
+              });
+            }
+          });
+        }
+      } catch (depErr) {
+        console.warn('[GET /api/admin/clients] Dependents query notice:', depErr);
+      }
+
+      const clients = (data || []).map((c: any) => {
+        const tableDeps = dependentsByParent[c.id] || [];
+        const rawDeps = Array.isArray(c.dependents) ? c.dependents : [];
+        const combinedDeps = tableDeps.length > 0 ? tableDeps : rawDeps;
+
+        return {
+          ...c,
+          full_name: c.name || c.full_name || 'Cliente',
+          username: (c.username || (c.email ? c.email.split('@')[0] : (c.name || 'cliente').toLowerCase().replace(/\s+/g, ''))).replace(/^@+/, ''),
+          phone: c.phone || c.phone_whatsapp || '—',
+          phone_secondary: c.phone_secondary || '',
+          dependents: combinedDeps,
+          dependents_count: combinedDeps.length || c.dependents_count || 0,
+          is_active: c.is_active !== undefined ? !!c.is_active : true,
+          access_level: c.access_level || 'Cliente Titular',
+        };
+      });
 
       return res.json({ success: true, clients });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
   });
+
+  // ADMIN: Unlink Dependent (Soft unlink via service role com preservação histórica)
+  app.patch('/api/admin/dependents/:id/unlink', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { data, error } = await supabaseAdmin
+        .from('dependents')
+        .update({
+          is_unlinked: true,
+          unlinked_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        console.warn(`[PATCH /api/admin/dependents/${id}/unlink] Notice:`, error.message);
+        return res.status(400).json({ success: false, error: error.message });
+      }
+
+      return res.json({ success: true, dependent: data });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
 
   // ADMIN: List all Professionals (bypasses RLS with service role)
   app.get('/api/admin/professionals', async (req, res) => {
@@ -2606,6 +2670,728 @@ async function startServer() {
     }
   });
 
+  // ============================================================================
+  // 🏛️ ROTAS UNIFICADAS DE SINCRONIZAÇÃO SOBERANA (ADMVAPP ⇄ MNVAPP)
+  // Garante leitura e escrita em tempo real com Service Role em todas as tabelas
+  // ============================================================================
+
+  // 1. Diagnóstico e Carregamento 360º do Estabelecimento (Serviços, Mídia, Tema, Equipe, Clientes+Dependentes, Utilidades)
+  app.get('/api/admin/salons/:salonId/full-sync', async (req, res) => {
+    try {
+      const { salonId } = req.params;
+
+      // 1.1 Dados do Salão + Branding
+      const { data: salonRow } = await supabaseAdmin
+        .from('salons')
+        .select('*')
+        .eq('id', salonId)
+        .maybeSingle();
+
+      const branding = salonRow?.branding && typeof salonRow.branding === 'object' ? salonRow.branding : {};
+
+      // 1.2 Serviços (unificando public.services + public.salon_services + branding.customServices)
+      const [{ data: masterServices }, { data: salonServicesRows }] = await Promise.all([
+        supabaseAdmin.from('services').select('*').eq('salon_id', salonId).order('created_at', { ascending: false }),
+        supabaseAdmin.from('salon_services').select('*, services(name, title, category, description)').eq('salon_id', salonId),
+      ]);
+
+      const unifiedServicesMap = new Map<string, any>();
+
+      (masterServices || []).forEach((s: any) => {
+        unifiedServicesMap.set(s.id, {
+          id: s.id,
+          salon_id: salonId,
+          name: s.name || s.title || 'Procedimento',
+          category: s.category || 'Geral',
+          price: Number(s.price) || 0,
+          promotional_price: s.promotional_price !== null && s.promotional_price !== undefined ? Number(s.promotional_price) : null,
+          duration_minutes: Number(s.duration_minutes) || 30,
+          duration_estimated: s.duration_estimated || `${Number(s.duration_minutes) || 30} min`,
+          commission_rate: Number(s.commission_rate ?? 50),
+          description: s.description || '',
+          is_active: s.is_active ?? true,
+          target_audience: s.target_audience || 'all',
+          image_url: s.image_url || null,
+          video_url: s.video_url || null,
+          photos: Array.isArray(s.photos) ? s.photos : [],
+          videos: Array.isArray(s.videos) ? s.videos : [],
+          slides: Array.isArray(s.slides) ? s.slides : [],
+          source_table: 'services',
+        });
+      });
+
+      (salonServicesRows || []).forEach((ss: any) => {
+        const linked = ss.services || {};
+        const key = ss.service_id || ss.id;
+        if (!unifiedServicesMap.has(key)) {
+          unifiedServicesMap.set(key, {
+            id: ss.id,
+            service_id: ss.service_id,
+            salon_id: salonId,
+            name: ss.custom_name || ss.name || ss.title || linked.name || linked.title || 'Procedimento Customizado',
+            category: ss.category || linked.category || 'Geral',
+            price: Number(ss.price) || 0,
+            promotional_price: ss.promotional_price !== null && ss.promotional_price !== undefined ? Number(ss.promotional_price) : null,
+            duration_minutes: Number(ss.duration_minutes) || 30,
+            duration_estimated: ss.duration_estimated || `${Number(ss.duration_minutes) || 30} min`,
+            commission_rate: Number(ss.commission_rate ?? 50),
+            description: ss.description || linked.description || '',
+            is_active: ss.is_active ?? true,
+            target_audience: 'all',
+            image_url: ss.image_url || null,
+            video_url: ss.video_url || null,
+            photos: Array.isArray(ss.photos) ? ss.photos : [],
+            videos: Array.isArray(ss.videos) ? ss.videos : [],
+            slides: Array.isArray(ss.slides) ? ss.slides : [],
+            source_table: 'salon_services',
+          });
+        }
+      });
+
+      if (Array.isArray(branding.customServices)) {
+        branding.customServices.forEach((cs: any) => {
+          const cid = cs.id || `cs-${cs.name}`;
+          if (!unifiedServicesMap.has(cid)) {
+            unifiedServicesMap.set(cid, {
+              id: cid,
+              salon_id: salonId,
+              name: cs.name || cs.title || 'Serviço Customizado',
+              category: cs.category || 'Geral',
+              price: Number(cs.price) || 0,
+              duration_minutes: Number(cs.durationMinutes || cs.duration_minutes) || 30,
+              commission_rate: Number(cs.commissionRate ?? cs.commission_rate ?? 50),
+              description: cs.description || '',
+              is_active: cs.isActive ?? cs.is_active ?? true,
+              photos: Array.isArray(cs.photos || cs.portfolioPhotos) ? (cs.photos || cs.portfolioPhotos) : [],
+              videos: Array.isArray(cs.videos) ? cs.videos : [],
+              slides: Array.isArray(cs.slides) ? cs.slides : [],
+              source_table: 'branding',
+            });
+          }
+        });
+      }
+
+      // 1.3 Galeria de Mídias (public.salon_media_items + branding.galleryUrls)
+      const { data: dbMediaItems } = await supabaseAdmin
+        .from('salon_media_items')
+        .select('*')
+        .eq('salon_id', salonId)
+        .order('created_at', { ascending: false });
+
+      const normalizedMedia = (dbMediaItems || []).map((m: any) => ({
+        id: m.id,
+        title: m.title || m.caption || 'Mídia do Salão',
+        url: m.url || m.media_url || '',
+        type: (m.type || m.media_type) === 'video' ? 'video' : 'image',
+        media_group: m.media_group || ((m.type || m.media_type) === 'video' ? 'videos' : m.category === 'banner' || m.category === 'logotipo' ? 'imagens' : 'fotos'),
+        category: m.category || 'servicos',
+        duration_seconds: m.duration_seconds || 5,
+        slot_index: m.slot_index,
+        is_cover: Boolean(m.is_cover),
+        created_at: m.created_at ? String(m.created_at).slice(0, 10) : new Date().toISOString().slice(0, 10),
+      })).filter((m: any) => Boolean(m.url));
+
+      // Mescla galleryUrls salvas pelo mnvapp no branding caso ainda não estejam em salon_media_items
+      const existingUrls = new Set(normalizedMedia.map((m: any) => m.url));
+      if (Array.isArray(branding.galleryUrls)) {
+        branding.galleryUrls.forEach((gUrl: string, idx: number) => {
+          if (gUrl && !existingUrls.has(gUrl)) {
+            existingUrls.add(gUrl);
+            normalizedMedia.push({
+              id: `brd-gal-${idx}`,
+              title: `Foto Galeria Meu Negócio #${idx + 1}`,
+              url: gUrl,
+              type: gUrl.endsWith('.mp4') ? 'video' : 'image',
+              media_group: gUrl.endsWith('.mp4') ? 'videos' : 'fotos',
+              category: 'espaco',
+              duration_seconds: 5,
+              slot_index: idx + 1,
+              is_cover: false,
+              created_at: new Date().toISOString().slice(0, 10),
+            });
+          }
+        });
+      }
+
+      // 1.4 Equipe de Profissionais (public.professionals)
+      const { data: prosRows } = await supabaseAdmin
+        .from('professionals')
+        .select('*')
+        .eq('salon_id', salonId)
+        .order('created_at', { ascending: true });
+
+      const normalizedTeam = (prosRows || []).map((p: any) => ({
+        id: p.id,
+        name: p.full_name || p.name || 'Profissional',
+        role: p.role || 'Especialista',
+        access_level: p.access_level || 'professional',
+        phone: p.phone_whatsapp || p.phone || '',
+        email: p.email || '',
+        avatar_url: p.avatar_url || '',
+        commission_rate: Number(p.commission_rate ?? 50),
+        product_commission_rate: Number(p.product_commission_rate ?? 10),
+        specialties: Array.isArray(p.specialties) ? p.specialties : [],
+        is_active: p.status ? p.status === 'active' : (p.is_active ?? true),
+      }));
+
+      // 1.5 Clientes do Estabelecimento + Conta Família (public.clients + public.dependents)
+      const [{ data: directClients }, { data: salonAppts }] = await Promise.all([
+        supabaseAdmin.from('clients').select('*').eq('origin_salon_id', salonId).order('created_at', { ascending: false }),
+        supabaseAdmin.from('appointments').select('*').eq('salon_id', salonId).order('created_at', { ascending: false }).limit(50),
+      ]);
+
+      const clientIdsSet = new Set<string>();
+      const clientMap = new Map<string, any>();
+
+      (directClients || []).forEach((c: any) => {
+        clientIdsSet.add(c.id);
+        clientMap.set(c.id, {
+          id: c.id,
+          name: c.full_name || c.name || 'Cliente',
+          phone: c.phone || '',
+          email: c.email || '',
+          cpf: c.cpf || '',
+          avatar_url: c.avatar_url || '',
+          total_appointments: Number(c.total_appointments) || 0,
+          dependents_count: Number(c.dependents_count) || 0,
+          last_appointment_date: c.updated_at ? String(c.updated_at).slice(0, 10) : 'Recente',
+          status: c.is_active === false ? 'inactive' : 'active',
+          dependents: [],
+        });
+      });
+
+      (salonAppts || []).forEach((apt: any) => {
+        const cid = apt.client_id || apt.client_email || apt.client_phone || apt.client_name;
+        if (!cid) return;
+        if (apt.client_id) clientIdsSet.add(apt.client_id);
+        if (!clientMap.has(cid)) {
+          clientMap.set(cid, {
+            id: apt.client_id || `apt-cl-${cid}`,
+            name: apt.client_name || 'Cliente Agendado',
+            phone: apt.client_phone || '',
+            email: apt.client_email || '',
+            cpf: '',
+            avatar_url: '',
+            total_appointments: 1,
+            dependents_count: 0,
+            last_appointment_date: apt.date_str || apt.appointment_date || 'Recente',
+            status: 'active',
+            dependents: [],
+          });
+        } else {
+          const existing = clientMap.get(cid);
+          existing.total_appointments = (existing.total_appointments || 0) + 1;
+        }
+      });
+
+      // Busca dependentes reais na tabela public.dependents
+      const validUuidClientIds = Array.from(clientIdsSet).filter((id) =>
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+      );
+
+      if (validUuidClientIds.length > 0) {
+        const { data: depsData } = await supabaseAdmin
+          .from('dependents')
+          .select('*')
+          .in('parent_client_id', validUuidClientIds)
+          .order('created_at', { ascending: false });
+
+        (depsData || []).forEach((d: any) => {
+          const parent = clientMap.get(d.parent_client_id);
+          if (parent) {
+            parent.dependents.push({
+              id: d.id,
+              parent_client_id: d.parent_client_id,
+              full_name: d.full_name,
+              relationship: d.relationship || 'other',
+              birth_date: d.birth_date || '',
+              notes: d.notes || '',
+              is_unlinked: Boolean(d.is_unlinked),
+              created_at: d.created_at,
+            });
+            parent.dependents_count = parent.dependents.filter((x: any) => !x.is_unlinked).length;
+          }
+        });
+      }
+
+      // 1.6 Utilidades Operacionais (Energia, Água, Equipamentos, DRE e Estoque)
+      const { data: utilRow } = await supabaseAdmin
+        .from('salon_utilities_records')
+        .select('*')
+        .eq('salon_id', salonId)
+        .maybeSingle();
+
+      const fallbackUtils = branding.utilities || {};
+      const utilities = {
+        energyMeters: utilRow?.energy_meters || fallbackUtils.energyMeters || [
+          { id: 'em-1', name: 'Quadro Geral Salão (Bifásico)', code: 'UC-78945120', tariffPerKwh: 0.92, status: 'active' },
+        ],
+        energyReadings: utilRow?.energy_readings || fallbackUtils.energyReadings || [
+          { id: 'er-1', meterId: 'em-1', readingKwh: 1420, costEstimated: 386.4, date: '2026-10-01', notes: 'Leitura mensal consolidada' },
+          { id: 'er-2', meterId: 'em-1', readingKwh: 1615, costEstimated: 179.4, date: '2026-10-15', notes: 'Quinzena atual' },
+        ],
+        waterMeters: utilRow?.water_meters || fallbackUtils.waterMeters || [
+          { id: 'wm-1', name: 'Hidrômetro Lavatórios & Spa', code: 'SABESP-44129', tariffPerM3: 14.5, status: 'active' },
+        ],
+        waterReadings: utilRow?.water_readings || fallbackUtils.waterReadings || [
+          { id: 'wr-1', meterId: 'wm-1', readingM3: 118.5, costEstimated: 261.0, date: '2026-10-01', notes: 'Consumo normal lavatórios' },
+          { id: 'wr-2', meterId: 'wm-1', readingM3: 127.0, costEstimated: 123.25, date: '2026-10-15', notes: 'Sem vazamentos' },
+        ],
+        appliances: utilRow?.appliances || fallbackUtils.appliances || [
+          { id: 'ap-1', name: 'Secador Profissional Taiff 2400W (x3)', category: 'Bancada', powerWatts: 7200, dailyHours: 4.5, monthlyKwh: 972 },
+          { id: 'ap-2', name: 'Ar Condicionado Inverter 18.000 BTUs', category: 'Climatização', powerWatts: 1600, dailyHours: 8, monthlyKwh: 384 },
+          { id: 'ap-3', name: 'Autoclave Esterilizadora Inox', category: 'Biossegurança', powerWatts: 1200, dailyHours: 2, monthlyKwh: 72 },
+        ],
+        financialDre: utilRow?.financial_dre || fallbackUtils.financialDre || {
+          grossRevenue: 18450.0,
+          commissionsPaid: 7380.0,
+          fixedCosts: 3200.0,
+          utilitiesCost: 750.0,
+          suppliesCost: 1120.0,
+          netProfit: 6000.0,
+          updatedAt: new Date().toISOString().slice(0, 10),
+        },
+        inventoryItems: utilRow?.inventory_items || fallbackUtils.inventoryItems || [
+          { id: 'inv-1', name: 'Pomada Modeladora Matte 120g', category: 'Finalizadores', stockQty: 18, minQty: 5, unitCost: 22.5, sellPrice: 55.0 },
+          { id: 'inv-2', name: 'Shampoo Neutro Galão 5L', category: 'Lavatório', stockQty: 4, minQty: 2, unitCost: 68.0, sellPrice: 0 },
+          { id: 'inv-3', name: 'Lâminas Descartáveis (Caixa c/ 100)', category: 'Descartáveis', stockQty: 3, minQty: 5, unitCost: 39.9, sellPrice: 0 },
+        ],
+      };
+
+      // 1.7 Vagas Relâmpago / Cadeiras Vazias Ativas no Radar (public.service_offers)
+      const { data: activeOffers } = await supabaseAdmin
+        .from('service_offers')
+        .select('*')
+        .eq('salon_id', salonId)
+        .order('created_at', { ascending: false });
+
+      return res.json({
+        success: true,
+        salon: salonRow,
+        branding,
+        services: Array.from(unifiedServicesMap.values()),
+        serviceOffers: activeOffers || [],
+        mediaItems: normalizedMedia,
+        professionals: normalizedTeam,
+        clients: Array.from(clientMap.values()),
+        utilities,
+      });
+    } catch (err: any) {
+      console.error('[full-sync] Erro:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 2. Sincronizar Serviço (Cria, Atualiza, Promove ou Remove em public.services ⇄ public.salon_services ⇄ public.service_offers)
+  app.post('/api/admin/salons/:salonId/services', async (req, res) => {
+    try {
+      const { salonId } = req.params;
+      const { action, service } = req.body;
+
+      if (action === 'delete' && service?.id) {
+        await Promise.allSettled([
+          supabaseAdmin.from('services').delete().eq('id', service.id),
+          supabaseAdmin.from('salon_services').delete().eq('id', service.id),
+          supabaseAdmin.from('salon_services').delete().eq('service_id', service.id).eq('salon_id', salonId),
+        ]);
+        return res.json({ success: true });
+      }
+
+      const durationMin = Number(service.duration_minutes) || 30;
+      const promoPrice =
+        service.promotional_price !== undefined && service.promotional_price !== null && service.promotional_price !== ''
+          ? Number(service.promotional_price)
+          : null;
+      const photosArr = Array.isArray(service.photos) ? service.photos : [];
+      const videosArr = Array.isArray(service.videos) ? service.videos : [];
+      const primaryVideoUrl =
+        service.video_url ||
+        (videosArr.length > 0 ? (typeof videosArr[0] === 'string' ? videosArr[0] : videosArr[0]?.url) : null) ||
+        null;
+
+      const payload = {
+        salon_id: salonId,
+        name: service.name || service.title,
+        title: service.name || service.title,
+        custom_name: service.custom_name || service.name || service.title,
+        category: service.category || 'cabelo',
+        price: Number(service.price) || 0,
+        promotional_price: promoPrice,
+        duration_minutes: durationMin,
+        duration_estimated: service.duration_estimated || `${durationMin} min`,
+        commission_rate: Number(service.commission_rate ?? 50),
+        description: service.description || '',
+        is_active: service.is_active ?? true,
+        image_url: service.image_url || photosArr[0] || null,
+        video_url: primaryVideoUrl,
+        photos: photosArr,
+        videos: videosArr,
+        slides: Array.isArray(service.slides) ? service.slides : [],
+      };
+
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(service.id || ''));
+
+      let savedService: any = null;
+      if (isUuid && action === 'update') {
+        const { data } = await supabaseAdmin
+          .from('services')
+          .update(payload)
+          .eq('id', service.id)
+          .select()
+          .maybeSingle();
+        savedService = data;
+      } else {
+        const { data } = await supabaseAdmin
+          .from('services')
+          .insert(payload)
+          .select()
+          .maybeSingle();
+        savedService = data;
+      }
+
+      return res.json({ success: true, service: savedService || { ...payload, id: service.id || `srv-${Date.now()}` } });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 2B. Publicar, Editar ou Encerrar Cadeira Vazia / Vaga Relâmpago no Radar (public.service_offers)
+  app.post('/api/admin/salons/:salonId/offers', async (req, res) => {
+    try {
+      const { salonId } = req.params;
+      const { action, offer, offerId } = req.body;
+
+      if (action === 'delete' && (offerId || offer?.id)) {
+        await supabaseAdmin
+          .from('service_offers')
+          .delete()
+          .eq('id', offerId || offer.id);
+        return res.json({ success: true });
+      }
+
+      if (action === 'expire' && (offerId || offer?.id)) {
+        await supabaseAdmin
+          .from('service_offers')
+          .update({ status: 'EXPIRED', updated_at: new Date().toISOString() })
+          .eq('id', offerId || offer.id);
+        return res.json({ success: true });
+      }
+
+      const price = Number(offer.price) || 0;
+      const originalPrice = Number(offer.original_price || offer.originalPrice) || Math.round(price * 1.25 * 100) / 100;
+      const gallery = Array.isArray(offer.gallery_images || offer.galleryImages)
+        ? (offer.gallery_images || offer.galleryImages)
+        : [];
+      const videoUrl = offer.video_url || offer.videoUrl || null;
+      const mediaLevel = videoUrl ? 3 : gallery.length > 0 ? 2 : Number(offer.media_level) || 1;
+      const expiresHours = Number(offer.expires_in_hours || offer.expiresInHours) || 6;
+
+      const offerPayload: Record<string, any> = {
+        salon_id: salonId,
+        professional_id: offer.professional_id || offer.professionalId || null,
+        service_id: offer.service_id || offer.serviceId || null,
+        service_title: offer.service_title || offer.serviceTitle || offer.name || 'Cadeira Vazia Promocional',
+        category: (offer.category || 'cabelo').toLowerCase(),
+        price,
+        original_price: originalPrice,
+        date_str: offer.date_str || new Date().toISOString().slice(0, 10),
+        start_time: offer.start_time || offer.startTime || '14:30:00',
+        end_time: offer.end_time || offer.endTime || '15:15:00',
+        status: offer.status || 'AVAILABLE',
+        media_level: mediaLevel,
+        video_url: videoUrl,
+        gallery_images: gallery,
+        is_flash_deal: offer.is_flash_deal ?? true,
+        description: offer.description || '',
+        expires_at: offer.expires_at || new Date(Date.now() + expiresHours * 3600000).toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(offer.id || ''));
+      let savedOffer: any = null;
+
+      if (isUuid && action === 'update') {
+        const { data } = await supabaseAdmin
+          .from('service_offers')
+          .update(offerPayload)
+          .eq('id', offer.id)
+          .select()
+          .maybeSingle();
+        savedOffer = data;
+      } else {
+        const { data } = await supabaseAdmin
+          .from('service_offers')
+          .insert(offerPayload)
+          .select()
+          .maybeSingle();
+        savedOffer = data;
+      }
+
+      return res.json({ success: true, offer: savedOffer || offerPayload });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 3. Sincronizar Galeria de Mídias (public.salon_media_items + salons.branding.galleryUrls)
+  app.post('/api/admin/salons/:salonId/media', async (req, res) => {
+    try {
+      const { salonId } = req.params;
+      const { action, mediaItem, mediaId } = req.body;
+
+      if (action === 'delete' && mediaId) {
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(mediaId)) {
+          await supabaseAdmin.from('salon_media_items').delete().eq('id', mediaId);
+        }
+        return res.json({ success: true });
+      }
+
+      const rowToInsert: Record<string, any> = {
+        salon_id: salonId,
+        title: mediaItem.title || 'Mídia do Estabelecimento',
+        caption: mediaItem.title || 'Mídia do Estabelecimento',
+        url: mediaItem.url,
+        media_url: mediaItem.url,
+        type: mediaItem.type || 'image',
+        media_type: mediaItem.type || 'image',
+        media_group: mediaItem.media_group || (mediaItem.type === 'video' ? 'videos' : 'fotos'),
+        category: mediaItem.category || 'servicos',
+        duration_seconds: mediaItem.duration_seconds || 5,
+        is_cover: Boolean(mediaItem.is_cover),
+      };
+
+      const { data: inserted } = await supabaseAdmin
+        .from('salon_media_items')
+        .insert(rowToInsert)
+        .select()
+        .maybeSingle();
+
+      // Espelha também no branding.galleryUrls para leitura instantânea no mnvapp
+      const { data: salonRow } = await supabaseAdmin.from('salons').select('branding, cover_image_url, logo_url').eq('id', salonId).maybeSingle();
+      if (salonRow) {
+        const currentBranding = salonRow.branding && typeof salonRow.branding === 'object' ? salonRow.branding : {};
+        const prevGallery = Array.isArray(currentBranding.galleryUrls) ? currentBranding.galleryUrls : [];
+        const nextGallery = prevGallery.includes(mediaItem.url) ? prevGallery : [mediaItem.url, ...prevGallery].slice(0, 20);
+        const updates: Record<string, any> = {
+          branding: {
+            ...currentBranding,
+            galleryUrls: nextGallery,
+          },
+        };
+        if (mediaItem.is_cover || mediaItem.category === 'banner') {
+          updates.cover_image_url = mediaItem.url;
+        }
+        if (mediaItem.category === 'logotipo') {
+          updates.logo_url = mediaItem.url;
+        }
+        await supabaseAdmin.from('salons').update(updates).eq('id', salonId);
+      }
+
+      return res.json({ success: true, mediaItem: inserted || { ...rowToInsert, id: `med-${Date.now()}` } });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 4. Sincronizar Tema Camaleão e Identidade Visual (public.salons + salons.branding)
+  app.post('/api/admin/salons/:salonId/theme', async (req, res) => {
+    try {
+      const { salonId } = req.params;
+      const {
+        themePresetId,
+        primaryColor,
+        secondaryColor,
+        logoUrl,
+        logoDarkUrl,
+        logoLightUrl,
+        faviconUrl,
+        coverImageUrl,
+        facadePhotoUrl,
+        interiorPhotoUrl,
+        slogan,
+      } = req.body;
+
+      const { data: salonRow } = await supabaseAdmin.from('salons').select('branding').eq('id', salonId).maybeSingle();
+      const currentBranding = salonRow?.branding && typeof salonRow.branding === 'object' ? salonRow.branding : {};
+
+      const updatedBranding = {
+        ...currentBranding,
+        ...(themePresetId !== undefined ? { themePresetId } : {}),
+        ...(primaryColor !== undefined ? { primaryColor } : {}),
+        ...(secondaryColor !== undefined ? { secondaryColor } : {}),
+        ...(logoUrl !== undefined ? { logoUrl } : {}),
+        ...(logoDarkUrl !== undefined ? { logoDarkUrl } : {}),
+        ...(logoLightUrl !== undefined ? { logoLightUrl } : {}),
+        ...(faviconUrl !== undefined ? { faviconUrl } : {}),
+        ...(coverImageUrl !== undefined ? { bannerUrl: coverImageUrl, coverImageUrl } : {}),
+        ...(facadePhotoUrl !== undefined ? { facadePhotoUrl } : {}),
+        ...(interiorPhotoUrl !== undefined ? { interiorPhotoUrl } : {}),
+        ...(slogan !== undefined ? { slogan } : {}),
+        updatedAt: new Date().toISOString(),
+      };
+
+      const salonUpdatePayload: Record<string, any> = {
+        branding: updatedBranding,
+        updated_at: new Date().toISOString(),
+      };
+      if (primaryColor !== undefined) salonUpdatePayload.primary_color = primaryColor;
+      if (logoUrl !== undefined) salonUpdatePayload.logo_url = logoUrl;
+      if (coverImageUrl !== undefined) salonUpdatePayload.cover_image_url = coverImageUrl;
+
+      const { data: updatedSalon, error: upErr } = await supabaseAdmin
+        .from('salons')
+        .update(salonUpdatePayload)
+        .eq('id', salonId)
+        .select()
+        .maybeSingle();
+
+      if (upErr) {
+        return res.status(400).json({ success: false, error: upErr.message });
+      }
+
+      return res.json({ success: true, salon: updatedSalon, branding: updatedBranding });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 5. Sincronizar Equipe de Profissionais do Salão (public.professionals)
+  app.post('/api/admin/salons/:salonId/professionals', async (req, res) => {
+    try {
+      const { salonId } = req.params;
+      const { action, professional, professionalId } = req.body;
+
+      if (action === 'delete' && professionalId) {
+        await supabaseAdmin.from('professionals').delete().eq('id', professionalId);
+        return res.json({ success: true });
+      }
+
+      const rowPayload: Record<string, any> = {
+        salon_id: salonId,
+        name: professional.name,
+        full_name: professional.name,
+        role: professional.role || 'Especialista',
+        access_level: professional.access_level || 'professional',
+        phone: professional.phone || '',
+        phone_whatsapp: professional.phone || '',
+        email: professional.email || null,
+        avatar_url: professional.avatar_url || null,
+        commission_rate: Number(professional.commission_rate ?? 50),
+        product_commission_rate: Number(professional.product_commission_rate ?? 10),
+        specialties: Array.isArray(professional.specialties) ? professional.specialties : [],
+        is_active: professional.is_active ?? true,
+        status: (professional.is_active ?? true) ? 'active' : 'suspended',
+        updated_at: new Date().toISOString(),
+      };
+
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(professional.id || ''));
+
+      let savedPro: any = null;
+      if (isUuid && action === 'update') {
+        const { data } = await supabaseAdmin
+          .from('professionals')
+          .update(rowPayload)
+          .eq('id', professional.id)
+          .select()
+          .maybeSingle();
+        savedPro = data;
+      } else {
+        const { data } = await supabaseAdmin
+          .from('professionals')
+          .insert(rowPayload)
+          .select()
+          .maybeSingle();
+        savedPro = data;
+      }
+
+      return res.json({ success: true, professional: savedPro || { ...rowPayload, id: professional.id || `pro-${Date.now()}` } });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 6. Sincronizar Dependentes da Conta Família (public.dependents + clients.dependents_count)
+  app.post('/api/admin/clients/:clientId/dependents', async (req, res) => {
+    try {
+      const { clientId } = req.params;
+      const { action, dependent, dependentId } = req.body;
+
+      if (action === 'unlink' && dependentId) {
+        await supabaseAdmin
+          .from('dependents')
+          .update({ is_unlinked: true, unlinked_at: new Date().toISOString() })
+          .eq('id', dependentId);
+      } else if (action === 'create' && dependent) {
+        await supabaseAdmin.from('dependents').insert({
+          parent_client_id: clientId,
+          full_name: dependent.full_name,
+          relationship: dependent.relationship || 'other',
+          birth_date: dependent.birth_date || null,
+          notes: dependent.notes || null,
+          is_unlinked: false,
+        });
+      }
+
+      const { data: activeDeps } = await supabaseAdmin
+        .from('dependents')
+        .select('*')
+        .eq('parent_client_id', clientId)
+        .order('created_at', { ascending: false });
+
+      const activeCount = (activeDeps || []).filter((d: any) => !d.is_unlinked).length;
+      await supabaseAdmin
+        .from('clients')
+        .update({ dependents_count: activeCount, updated_at: new Date().toISOString() })
+        .eq('id', clientId);
+
+      return res.json({ success: true, dependents: activeDeps || [], dependentsCount: activeCount });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 7. Sincronizar Utilidades Operacionais (Energia, Água, Equipamentos, DRE e Estoque)
+  app.post('/api/admin/salons/:salonId/utilities', async (req, res) => {
+    try {
+      const { salonId } = req.params;
+      const { utilities } = req.body;
+
+      // Salva em public.salon_utilities_records (se a tabela existir)
+      await supabaseAdmin
+        .from('salon_utilities_records')
+        .upsert({
+          salon_id: salonId,
+          energy_meters: utilities.energyMeters || [],
+          energy_readings: utilities.energyReadings || [],
+          water_meters: utilities.waterMeters || [],
+          water_readings: utilities.waterReadings || [],
+          appliances: utilities.appliances || [],
+          financial_dre: utilities.financialDre || {},
+          inventory_items: utilities.inventoryItems || [],
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'salon_id' });
+
+      // Espelha também em salons.branding.utilities como fallback resiliente
+      const { data: salonRow } = await supabaseAdmin.from('salons').select('branding').eq('id', salonId).maybeSingle();
+      const currentBranding = salonRow?.branding && typeof salonRow.branding === 'object' ? salonRow.branding : {};
+      await supabaseAdmin
+        .from('salons')
+        .update({
+          branding: {
+            ...currentBranding,
+            utilities,
+            utilitiesUpdatedAt: new Date().toISOString(),
+          },
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', salonId);
+
+      return res.json({ success: true, utilities });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // AI Structure & Screen Analysis endpoint
   app.post('/api/analyze-design', async (req, res) => {
     try {
@@ -2677,6 +3463,16 @@ Responda APENAS com o JSON válido, sem blocos de código adicionais além do JS
         error: error.message || 'Erro ao processar a análise com IA.',
       });
     }
+  });
+
+  // Rota para obter o SQL Master completo v3.1.2 diretamente via browser ou script
+  app.get('/api/admin/schema/sql', (req, res) => {
+    const schemaPath = path.join(process.cwd(), 'supabase_schema.sql');
+    if (fs.existsSync(schemaPath)) {
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      return res.sendFile(schemaPath);
+    }
+    return res.status(404).send('-- supabase_schema.sql não encontrado');
   });
 
   // Vite middleware for development

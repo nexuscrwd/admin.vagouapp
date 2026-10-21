@@ -236,6 +236,21 @@ A dispersão de fotos de serviços, fotos de equipe e fotos do espaço em locais
    - **Opção 1 (`/supabase/migrations/20261012_media_gallery_and_services.sql`):** Migração incremental idempotente com `ALTER TABLE ADD COLUMN IF NOT EXISTS`, migração de dados legados (`name` ⇄ `title`, `cover_image_url` ⇄ `cover_url`), `CREATE TABLE IF NOT EXISTS public.salon_media_items`, triggers, RLS e seeds não destrutivos via `NOT EXISTS`.
    - **Opção 2 (`/supabase_schema.sql`):** Schema mestre consolidado v2.2.0 que orquestra a limpeza ordenada, criação de 100% das tabelas da Tríade (`salons`, `professionals`, `services`, `salon_media_items`, `service_offers`, `appointments`, `system_admins`, `admin_access_logs`, etc.), triggers, políticas de segurança completas e seeds demonstrativos ricos em mídias reais.
 
+---
+
+## 🏛️ 15. Repositórios Oficiais do Ecossistema VagouApp (GitHub)
+
+URLs oficiais e canônicas da Tríade Vagou para sincronização, clonagem e governança de código:
+
+| Sigla Oficial | Nome do Projeto | URL Git Remota | Função & Escopo |
+|---|---|---|---|
+| **`admvapp`** | **Admin VagouApp** | `https://github.com/nexuscrwd/admin.vagouapp.git` | Governança Soberana Master, auditoria, motor de comissões R$ 2,50 e formulários canônicos. |
+| **`vapp`** / **`mnvapp`** | **VagouApp Oficial** | `https://github.com/nexuscrwd/vagouapp.git` | Aplicação central contendo o App Consumidor e o Painel do Parceiro Meu Negócio. |
+| **`pvapp`** | **Portal VagouApp** | `https://github.com/nexuscrwd/Portal-VagouApp.git` | Marketplace Web do Usuário Final & PWA de busca por geolocalização e agendamento instantâneo. |
+
+> **Nota para IAs e Desenvolvedores:** Nunca solicite ao usuário que informe novamente esses links de repositório. Eles são permanentes e constituem a base oficial de versionamento da Tríade.
+
+
 
 
 

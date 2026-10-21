@@ -47,14 +47,29 @@ import {
   Bookmark,
   QrCode,
   Printer,
+  Zap,
+  Database,
+  Save,
 } from 'lucide-react';
-import { AdminSalonItem, SalonServiceRecord, SalonServiceMediaItem } from '../../types/admin';
+import { AdminSalonItem, SalonServiceRecord, SalonServiceMediaItem, UserFamilyDependent } from '../../types/admin';
 import { SalonLogo } from '../common/SalonLogo';
 import { UserAvatar } from '../common/UserAvatar';
 import { supabase } from '../../services/supabase';
 import { TriadeMnvClientLoginForm } from './triade-forms/TriadeMnvClientLoginForm';
 import { TriadeMnvClientRegisterForm } from './triade-forms/TriadeMnvClientRegisterForm';
 import { SalonWelcomeModal } from './SalonWelcomeModal';
+import { AdminSalonUtilitiesAndSyncPanel, SalonUtilitiesData } from './AdminSalonUtilitiesAndSyncPanel';
+
+const CHAMELEON_THEME_PRESETS = [
+  { id: 'emerald', name: 'Esmeralda Vagou', primary: '#20C933', secondary: '#059669' },
+  { id: 'gold', name: 'Ouro Imperial', primary: '#D97706', secondary: '#B45309' },
+  { id: 'rose', name: 'Rose Beauty', primary: '#E11D48', secondary: '#BE123C' },
+  { id: 'purple', name: 'Royal Studio', primary: '#7C3AED', secondary: '#6D28D9' },
+  { id: 'amber', name: 'Âmbar Barber', primary: '#F59E0B', secondary: '#D97706' },
+  { id: 'blue', name: 'Oceano Prime', primary: '#2563EB', secondary: '#1D4ED8' },
+  { id: 'crimson', name: 'Rubi Intenso', primary: '#DC2626', secondary: '#B91C1C' },
+  { id: 'cyan', name: 'Ciano Clean', primary: '#0891B2', secondary: '#0E7490' },
+];
 
 interface AdminSalonDetailViewProps {
   salon: AdminSalonItem;
@@ -71,6 +86,8 @@ export interface SalonClientRecord {
   email: string;
   avatar_url?: string;
   total_appointments: number;
+  dependents_count?: number;
+  dependents?: UserFamilyDependent[];
   last_appointment_date?: string;
   status: 'active' | 'inactive';
 }
@@ -79,15 +96,20 @@ export interface SalonProfessionalRecord {
   id: string;
   name: string;
   role: string;
+  access_level?: 'admin' | 'professional' | 'reception' | string;
   phone: string;
+  email?: string;
   avatar_url?: string;
   commission_rate: number;
+  product_commission_rate?: number;
+  specialties?: string[];
   is_active: boolean;
   services_count?: number;
 }
 
 export type SalonMediaMainTab = 'fotos' | 'videos' | 'imagens';
 export type SalonMediaSubTab = 'all' | 'servicos' | 'profissionais' | 'espaco' | 'banner' | 'logotipo';
+export type SalonThemePresetId = 'emerald-dark' | 'gold-luxury' | 'rose-glam' | 'purple-neon' | 'clean-light';
 
 export interface SalonMediaItem {
   id: string;
@@ -108,9 +130,78 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
   onUpdateStatus,
   onUpdateSalon,
 }) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'branding' | 'media' | 'services' | 'team' | 'clients' | 'forms'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'branding' | 'media' | 'services' | 'team' | 'clients' | 'utilities' | 'db-sync' | 'forms'>('general');
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [isWelcomeQrModalOpen, setIsWelcomeQrModalOpen] = useState(false);
+
+  // Estado do Tema Camaleão & Identidade Visual (Sincronizado com mnvapp)
+  const [themeForm, setThemeForm] = useState({
+    themePresetId: (salon.theme_preset_id as SalonThemePresetId) || 'emerald-dark',
+    primaryColor: salon.primary_color || '#20C933',
+    secondaryColor: salon.secondary_color || '#059669',
+    facadePhotoUrl: salon.facade_photo_url || '',
+    interiorPhotoUrl: salon.interior_photo_url || '',
+    logoDarkUrl: salon.logo_dark_url || salon.logo_url || '',
+    logoLightUrl: salon.logo_light_url || salon.logo_url || '',
+  });
+  const [isSavingTheme, setIsSavingTheme] = useState(false);
+  const [themeSaveSuccess, setThemeSaveSuccess] = useState(false);
+
+  // Estado de Utilidades Operacionais (Energia, Água, Equipamentos, DRE e Estoque)
+  const [utilitiesData, setUtilitiesData] = useState<SalonUtilitiesData>({
+    energyMeters: [{ id: 'em-1', name: 'Quadro Geral Salão (Bifásico)', code: 'UC-78945120', tariffPerKwh: 0.92, status: 'active' }],
+    energyReadings: [
+      { id: 'er-1', meterId: 'em-1', readingKwh: 1420, costEstimated: 386.4, date: '2026-10-01', notes: 'Leitura mensal consolidada' },
+      { id: 'er-2', meterId: 'em-1', readingKwh: 1615, costEstimated: 179.4, date: '2026-10-15', notes: 'Quinzena atual' },
+    ],
+    waterMeters: [{ id: 'wm-1', name: 'Hidrômetro Lavatórios & Spa', code: 'SABESP-44129', tariffPerM3: 14.5, status: 'active' }],
+    waterReadings: [
+      { id: 'wr-1', meterId: 'wm-1', readingM3: 118.5, costEstimated: 261.0, date: '2026-10-01', notes: 'Consumo normal lavatórios' },
+      { id: 'wr-2', meterId: 'wm-1', readingM3: 127.0, costEstimated: 123.25, date: '2026-10-15', notes: 'Sem vazamentos' },
+    ],
+    appliances: [
+      { id: 'ap-1', name: 'Secador Profissional Taiff 2400W (x3)', category: 'Bancada', powerWatts: 7200, dailyHours: 4.5, monthlyKwh: 972 },
+      { id: 'ap-2', name: 'Ar Condicionado Inverter 18.000 BTUs', category: 'Climatização', powerWatts: 1600, dailyHours: 8, monthlyKwh: 384 },
+    ],
+    financialDre: {
+      grossRevenue: 18450,
+      commissionsPaid: 7380,
+      fixedCosts: 3200,
+      utilitiesCost: 750,
+      suppliesCost: 1120,
+      netProfit: 6000,
+      updatedAt: new Date().toISOString().slice(0, 10),
+    },
+    inventoryItems: [
+      { id: 'inv-1', name: 'Pomada Modeladora Matte 120g', category: 'Finalizadores', stockQty: 18, minQty: 5, unitCost: 22.5, sellPrice: 55.0 },
+      { id: 'inv-2', name: 'Shampoo Neutro Galão 5L', category: 'Lavatório', stockQty: 4, minQty: 2, unitCost: 68.0, sellPrice: 0 },
+      { id: 'inv-3', name: 'Lâminas Descartáveis (Caixa c/ 100)', category: 'Descartáveis', stockQty: 3, minQty: 5, unitCost: 39.9, sellPrice: 0 },
+    ],
+  });
+
+  // Modal de Cadastro / Edição de Profissional na Equipe (public.professionals)
+  const [isProModalOpen, setIsProModalOpen] = useState(false);
+  const [editingPro, setEditingPro] = useState<SalonProfessionalRecord | null>(null);
+  const [proForm, setProForm] = useState({
+    name: '',
+    role: 'Barbeiro / Especialista',
+    access_level: 'professional' as 'admin' | 'professional' | 'receptionist',
+    phone: '',
+    email: '',
+    avatar_url: '',
+    commission_rate: '50',
+    product_commission_rate: '10',
+    is_active: true,
+  });
+
+  // Modal de Conta Família & Dependentes do Cliente (public.dependents)
+  const [selectedClientForDeps, setSelectedClientForDeps] = useState<SalonClientRecord | null>(null);
+  const [newDepForm, setNewDepForm] = useState({
+    full_name: '',
+    relationship: 'son' as 'son' | 'daughter' | 'spouse' | 'parent' | 'other',
+    birth_date: '',
+    notes: '',
+  });
 
   // Acervo Central de Mídias do Estabelecimento (Galeria Geral com Abas Fotos / Videos / Imagens)
   const [salonMedia, setSalonMedia] = useState<SalonMediaItem[]>([]);
@@ -165,6 +256,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     category: 'Cabelo',
     price: '',
     duration_minutes: '30',
+    commission_rate: '50',
     description: '',
   });
 
@@ -175,6 +267,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     category: 'Cabelo',
     price: '',
     duration_minutes: '30',
+    commission_rate: '50',
     description: '',
     is_active: true,
   });
@@ -196,13 +289,65 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
   const [simulatorMode, setSimulatorMode] = useState<'cadastro' | 'login'>('cadastro');
 
-  // Carrega Clientes e Equipe do Supabase
+  // Carrega Clientes, Equipe, Serviços, Mídias, Tema e Utilidades do Supabase (Full Sync 360º)
+  const reloadFullSalonSync = async () => {
+    try {
+      const resp = await fetch(`/api/admin/salons/${salon.id}/full-sync`);
+      if (resp.ok) {
+        const json = await resp.json();
+        if (json.success) {
+          if (Array.isArray(json.services) && json.services.length > 0) {
+            setServices(json.services);
+          }
+          if (Array.isArray(json.mediaItems) && json.mediaItems.length > 0) {
+            setSalonMedia(json.mediaItems);
+          }
+          if (Array.isArray(json.professionals) && json.professionals.length > 0) {
+            setTeam(json.professionals);
+          }
+          if (Array.isArray(json.clients) && json.clients.length > 0) {
+            setClients(json.clients);
+          }
+          if (json.utilities) {
+            setUtilitiesData(json.utilities);
+          }
+          if (json.branding || json.salon) {
+            const b = json.branding || {};
+            const s = json.salon || {};
+            setThemeForm((prev) => ({
+              ...prev,
+              themePresetId: s.theme_preset_id || b.themePresetId || prev.themePresetId,
+              primaryColor: s.primary_color || b.primaryColor || prev.primaryColor,
+              secondaryColor: s.secondary_color || b.secondaryColor || prev.secondaryColor,
+              facadePhotoUrl: s.facade_photo_url || b.facadePhotoUrl || prev.facadePhotoUrl,
+              interiorPhotoUrl: s.interior_photo_url || b.interiorPhotoUrl || prev.interiorPhotoUrl,
+              logoDarkUrl: s.logo_dark_url || b.logoDarkUrl || s.logo_url || prev.logoDarkUrl,
+              logoLightUrl: s.logo_light_url || b.logoLightUrl || s.logo_url || prev.logoLightUrl,
+            }));
+          }
+          return true;
+        }
+      }
+    } catch {
+      // Fallback para queries diretas do cliente Supabase abaixo
+    }
+    return false;
+  };
+
   useEffect(() => {
     async function loadSalonDetails() {
       setIsLoadingClients(true);
       setIsLoadingTeam(true);
 
       try {
+        const syncedViaBackend = await reloadFullSalonSync();
+        if (syncedViaBackend) {
+          setIsLoadingClients(false);
+          setIsLoadingTeam(false);
+          setIsLoadingServices(false);
+          return;
+        }
+
         // 1. Busca Profissionais
         const { data: prosData } = await supabase
           .from('professionals')
@@ -215,9 +360,12 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
               id: p.id,
               name: p.name || 'Profissional',
               role: p.role || 'Barbeiro / Especialista',
+              access_level: p.access_level || 'professional',
               phone: p.phone_whatsapp || p.phone || '',
+              email: p.email || '',
               avatar_url: p.avatar_url || '',
               commission_rate: p.commission_rate || 50,
+              product_commission_rate: p.product_commission_rate || 10,
               is_active: p.is_active ?? true,
               services_count: 5,
             }))
@@ -229,6 +377,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
               id: salon.owner_id || 'pro-1',
               name: salon.owner_name || salon.legal_name || 'Beto Roberto (Proprietário)',
               role: 'Proprietário & Master Stylist',
+              access_level: 'admin',
               phone: salon.phone_whatsapp || '(11) 98765-4321',
               avatar_url: salon.owner_avatar_url || '',
               commission_rate: 100,
@@ -788,8 +937,34 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     loadSalonDetails();
   }, [salon.id, salon.category, salon.slug, salon.cover_image_url]);
 
+  // Helper de persistência de mídia no backend (public.salon_media_items + branding.mediaItems)
+  const syncMediaItemWithBackend = async (action: 'upsert' | 'delete', item?: SalonMediaItem, mediaId?: string) => {
+    try {
+      await fetch(`/api/admin/salons/${salon.id}/media`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, item, mediaId }),
+      });
+    } catch (err) {
+      console.warn('Erro ao sincronizar mídia no Supabase:', err);
+    }
+  };
+
+  // Helper de persistência de serviço no backend (public.services + public.salon_services)
+  const syncServiceWithBackend = async (action: 'upsert' | 'delete', service?: SalonServiceRecord, serviceId?: string) => {
+    try {
+      await fetch(`/api/admin/salons/${salon.id}/services`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, service, serviceId }),
+      });
+    } catch (err) {
+      console.warn('Erro ao sincronizar serviço no Supabase:', err);
+    }
+  };
+
   // Handlers da Galeria Central de Mídias do Estabelecimento
-  const handleAddNewMedia = (e: React.FormEvent) => {
+  const handleAddNewMedia = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMediaForm.url.trim()) return;
 
@@ -832,48 +1007,63 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
       is_cover: false,
     });
     setIsUploadMediaModalOpen(false);
+    await syncMediaItemWithBackend('upsert', newMedia);
   };
 
-  const handleSetAsCover = (mediaItem: SalonMediaItem) => {
+  const handleSetAsCover = async (mediaItem: SalonMediaItem) => {
     salon.cover_image_url = mediaItem.url;
     onUpdateSalon?.({ cover_image_url: mediaItem.url });
+    const updatedItem: SalonMediaItem = { ...mediaItem, is_cover: true };
     setSalonMedia((prev) =>
       prev.map((m) => ({
         ...m,
         is_cover: m.id === mediaItem.id,
       }))
     );
+    await syncMediaItemWithBackend('upsert', updatedItem);
   };
 
-  const handleSetAsBanner = (mediaItem: SalonMediaItem) => {
+  const handleSetAsBanner = async (mediaItem: SalonMediaItem) => {
     salon.cover_image_url = mediaItem.url;
     onUpdateSalon?.({ cover_image_url: mediaItem.url });
+    const updatedItem: SalonMediaItem = {
+      ...mediaItem,
+      is_cover: true,
+      media_group: 'imagens',
+      category: 'banner',
+    };
     setSalonMedia((prev) =>
       prev.map((m) =>
         m.id === mediaItem.id
-          ? { ...m, is_cover: true, media_group: 'imagens', category: 'banner' }
+          ? updatedItem
           : { ...m, is_cover: false }
       )
     );
+    await syncMediaItemWithBackend('upsert', updatedItem);
   };
 
-  const handleSetAsLogo = (mediaItem: SalonMediaItem) => {
+  const handleSetAsLogo = async (mediaItem: SalonMediaItem) => {
     salon.logo_url = mediaItem.url;
     onUpdateSalon?.({ logo_url: mediaItem.url });
+    const updatedItem: SalonMediaItem = {
+      ...mediaItem,
+      media_group: 'imagens',
+      category: 'logotipo',
+    };
     setSalonMedia((prev) =>
       prev.map((m) =>
-        m.id === mediaItem.id
-          ? { ...m, media_group: 'imagens', category: 'logotipo' }
-          : m
+        m.id === mediaItem.id ? updatedItem : m
       )
     );
+    await syncMediaItemWithBackend('upsert', updatedItem);
   };
 
-  const handleDeleteMedia = (mediaId: string) => {
+  const handleDeleteMedia = async (mediaId: string) => {
     setSalonMedia((prev) => prev.filter((m) => m.id !== mediaId));
+    await syncMediaItemWithBackend('delete', undefined, mediaId);
   };
 
-  const handleImportGooglePhotos = () => {
+  const handleImportGooglePhotos = async () => {
     if (selectedGooglePhotos.length === 0) return;
     setIsGooglePhotosImporting(true);
 
@@ -895,18 +1085,22 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     setSelectedGooglePhotos([]);
     setIsGooglePhotosImporting(false);
     setIsGooglePhotosModalOpen(false);
+    for (const item of importedItems) {
+      await syncMediaItemWithBackend('upsert', item);
+    }
   };
 
-  const handleLinkMediaToServiceAction = (serviceId: string) => {
+  const handleLinkMediaToServiceAction = async (serviceId: string) => {
     if (!mediaItemToLink) return;
     const itemUrl = mediaItemToLink.url;
+    let updatedServiceRef: SalonServiceRecord | undefined;
 
     setServices((prev) =>
       prev.map((s) => {
         if (s.id === serviceId) {
           if (mediaItemToLink.type === 'video') {
             const currentVideos = s.videos || [];
-            return {
+            updatedServiceRef = {
               ...s,
               videos: [
                 ...currentVideos,
@@ -918,33 +1112,41 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 },
               ],
             };
+            return updatedServiceRef;
           } else {
             const currentPhotos = s.photos || [];
-            return {
+            updatedServiceRef = {
               ...s,
               photos: [...currentPhotos, itemUrl],
             };
+            return updatedServiceRef;
           }
         }
         return s;
       })
     );
     setMediaItemToLink(null);
+    if (updatedServiceRef) {
+      await syncServiceWithBackend('upsert', updatedServiceRef);
+    }
   };
 
-  const handleSelectFromGalleryForService = (mediaUrl: string) => {
+  const handleSelectFromGalleryForService = async (mediaUrl: string) => {
     if (!targetServiceForGallerySelect) return;
     const { serviceId, targetType } = targetServiceForGallerySelect;
+    let updatedServiceRef: SalonServiceRecord | undefined;
 
     setServices((prev) =>
       prev.map((s) => {
         if (s.id === serviceId) {
           if (targetType === 'photo') {
-            return { ...s, photos: [...(s.photos || []), mediaUrl] };
+            updatedServiceRef = { ...s, photos: [...(s.photos || []), mediaUrl] };
+            return updatedServiceRef;
           } else if (targetType === 'slide') {
             const currentSlides = s.slides || [];
             if (currentSlides.length < 5) {
-              return { ...s, slides: [...currentSlides, mediaUrl] };
+              updatedServiceRef = { ...s, slides: [...currentSlides, mediaUrl] };
+              return updatedServiceRef;
             }
           }
         }
@@ -953,6 +1155,9 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     );
     setIsSelectFromGalleryModalOpen(false);
     setTargetServiceForGallerySelect(null);
+    if (updatedServiceRef) {
+      await syncServiceWithBackend('upsert', updatedServiceRef);
+    }
   };
 
   const googlePhotosLibrary = [
@@ -1038,24 +1243,25 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
 
   const handleToggleServiceStatus = async (serviceId: string, currentStatus: boolean) => {
     const newStatus = !currentStatus;
+    let targetSrv: SalonServiceRecord | undefined;
     setServices((prev) =>
-      prev.map((s) => (s.id === serviceId ? { ...s, is_active: newStatus } : s))
+      prev.map((s) => {
+        if (s.id === serviceId) {
+          targetSrv = { ...s, is_active: newStatus };
+          return targetSrv;
+        }
+        return s;
+      })
     );
-    try {
-      await supabase.from('services').update({ is_active: newStatus }).eq('id', serviceId);
-    } catch (err) {
-      console.warn('Erro ao atualizar status do serviço no Supabase:', err);
+    if (targetSrv) {
+      await syncServiceWithBackend('upsert', targetSrv);
     }
   };
 
   const handleDeleteService = async (serviceId: string) => {
     if (!confirm('Deseja realmente remover este serviço do catálogo?')) return;
     setServices((prev) => prev.filter((s) => s.id !== serviceId));
-    try {
-      await supabase.from('services').delete().eq('id', serviceId);
-    } catch (err) {
-      console.warn('Erro ao excluir serviço no Supabase:', err);
-    }
+    await syncServiceWithBackend('delete', undefined, serviceId);
   };
 
   const handleCreateService = async (e: React.FormEvent) => {
@@ -1069,6 +1275,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
       category: newServiceForm.category.trim() || 'Geral',
       price: parseFloat(newServiceForm.price.replace(',', '.')) || 0,
       duration_minutes: parseInt(newServiceForm.duration_minutes, 10) || 30,
+      commission_rate: parseFloat(newServiceForm.commission_rate) || 50,
       description: newServiceForm.description.trim(),
       is_active: true,
       target_audience: 'all',
@@ -1084,22 +1291,11 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
       category: 'Cabelo',
       price: '',
       duration_minutes: '30',
+      commission_rate: '50',
       description: '',
     });
 
-    try {
-      await supabase.from('services').insert({
-        salon_id: salon.id,
-        name: newService.name,
-        category: newService.category,
-        price: newService.price,
-        duration_minutes: newService.duration_minutes,
-        description: newService.description,
-        is_active: true,
-      });
-    } catch (err) {
-      console.warn('Erro ao inserir serviço no Supabase:', err);
-    }
+    await syncServiceWithBackend('upsert', newService);
   };
 
   const handleOpenEditService = (srv: SalonServiceRecord) => {
@@ -1109,6 +1305,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
       category: srv.category || 'Cabelo',
       price: srv.price ? srv.price.toFixed(2).replace('.', ',') : '',
       duration_minutes: String(srv.duration_minutes || 30),
+      commission_rate: String(srv.commission_rate ?? 50),
       description: srv.description || '',
       is_active: srv.is_active ?? true,
     });
@@ -1120,6 +1317,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
 
     const updatedPrice = parseFloat(editServiceForm.price.replace(',', '.')) || 0;
     const updatedDuration = parseInt(editServiceForm.duration_minutes, 10) || 30;
+    const updatedCommission = parseFloat(editServiceForm.commission_rate) || 50;
 
     const updatedService: SalonServiceRecord = {
       ...editingService,
@@ -1127,6 +1325,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
       category: editServiceForm.category.trim() || 'Geral',
       price: updatedPrice,
       duration_minutes: updatedDuration,
+      commission_rate: updatedCommission,
       description: editServiceForm.description.trim(),
       is_active: editServiceForm.is_active,
     };
@@ -1136,53 +1335,45 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     );
     setEditingService(null);
 
-    try {
-      await supabase
-        .from('services')
-        .update({
-          name: updatedService.name,
-          category: updatedService.category,
-          price: updatedService.price,
-          duration_minutes: updatedService.duration_minutes,
-          description: updatedService.description,
-          is_active: updatedService.is_active,
-        })
-        .eq('id', editingService.id);
-    } catch (err) {
-      console.warn('Erro ao atualizar serviço no Supabase:', err);
-    }
+    await syncServiceWithBackend('upsert', updatedService);
   };
 
   // Handlers de Fotos do Serviço (CRUD)
-  const handleAddPhotoToService = (serviceId: string, url: string) => {
+  const handleAddPhotoToService = async (serviceId: string, url: string) => {
     if (!url.trim()) return;
+    let updatedRef: SalonServiceRecord | undefined;
     setServices((prev) =>
       prev.map((s) => {
         if (s.id === serviceId) {
           const updatedPhotos = [...(s.photos || []), url.trim()];
-          return { ...s, photos: updatedPhotos };
+          updatedRef = { ...s, photos: updatedPhotos };
+          return updatedRef;
         }
         return s;
       })
     );
     setNewPhotoUrl('');
+    if (updatedRef) await syncServiceWithBackend('upsert', updatedRef);
   };
 
-  const handleRemovePhotoFromService = (serviceId: string, photoIndex: number) => {
+  const handleRemovePhotoFromService = async (serviceId: string, photoIndex: number) => {
+    let updatedRef: SalonServiceRecord | undefined;
     setServices((prev) =>
       prev.map((s) => {
         if (s.id === serviceId) {
           const updated = [...(s.photos || [])];
           updated.splice(photoIndex, 1);
-          return { ...s, photos: updated };
+          updatedRef = { ...s, photos: updated };
+          return updatedRef;
         }
         return s;
       })
     );
+    if (updatedRef) await syncServiceWithBackend('upsert', updatedRef);
   };
 
   // Handlers de Vídeos 5s do Serviço (CRUD)
-  const handleAddVideoToService = (serviceId: string, videoUrl: string, title?: string) => {
+  const handleAddVideoToService = async (serviceId: string, videoUrl: string, title?: string) => {
     if (!videoUrl.trim()) return;
     const newVideo: SalonServiceMediaItem = {
       id: `v-${Date.now()}`,
@@ -1190,32 +1381,39 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
       title: title?.trim() || 'Vídeo 5s (Stories)',
       duration_seconds: 5,
     };
+    let updatedRef: SalonServiceRecord | undefined;
     setServices((prev) =>
       prev.map((s) => {
         if (s.id === serviceId) {
-          return { ...s, videos: [...(s.videos || []), newVideo] };
+          updatedRef = { ...s, videos: [...(s.videos || []), newVideo] };
+          return updatedRef;
         }
         return s;
       })
     );
     setNewVideoUrl('');
     setNewVideoTitle('');
+    if (updatedRef) await syncServiceWithBackend('upsert', updatedRef);
   };
 
-  const handleRemoveVideoFromService = (serviceId: string, videoId: string) => {
+  const handleRemoveVideoFromService = async (serviceId: string, videoId: string) => {
+    let updatedRef: SalonServiceRecord | undefined;
     setServices((prev) =>
       prev.map((s) => {
         if (s.id === serviceId) {
-          return { ...s, videos: (s.videos || []).filter((v) => v.id !== videoId) };
+          updatedRef = { ...s, videos: (s.videos || []).filter((v) => v.id !== videoId) };
+          return updatedRef;
         }
         return s;
       })
     );
+    if (updatedRef) await syncServiceWithBackend('upsert', updatedRef);
   };
 
   // Handlers de Slide do Serviço (Limite de até 5 imagens e ordenação)
-  const handleAddSlideToService = (serviceId: string, url: string) => {
+  const handleAddSlideToService = async (serviceId: string, url: string) => {
     if (!url.trim()) return;
+    let updatedRef: SalonServiceRecord | undefined;
     setServices((prev) =>
       prev.map((s) => {
         if (s.id === serviceId) {
@@ -1224,29 +1422,35 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             alert('Limite máximo de 5 imagens por slide atingido.');
             return s;
           }
-          return { ...s, slides: [...currentSlides, url.trim()] };
+          updatedRef = { ...s, slides: [...currentSlides, url.trim()] };
+          return updatedRef;
         }
         return s;
       })
     );
     setNewSlideUrl('');
+    if (updatedRef) await syncServiceWithBackend('upsert', updatedRef);
   };
 
-  const handleRemoveSlideFromService = (serviceId: string, slideIndex: number) => {
+  const handleRemoveSlideFromService = async (serviceId: string, slideIndex: number) => {
+    let updatedRef: SalonServiceRecord | undefined;
     setServices((prev) =>
       prev.map((s) => {
         if (s.id === serviceId) {
           const updated = [...(s.slides || [])];
           updated.splice(slideIndex, 1);
-          return { ...s, slides: updated };
+          updatedRef = { ...s, slides: updated };
+          return updatedRef;
         }
         return s;
       })
     );
     setActiveSlideIndex((prev) => Math.max(0, prev - 1));
+    if (updatedRef) await syncServiceWithBackend('upsert', updatedRef);
   };
 
-  const handleMoveSlide = (serviceId: string, fromIndex: number, toIndex: number) => {
+  const handleMoveSlide = async (serviceId: string, fromIndex: number, toIndex: number) => {
+    let updatedRef: SalonServiceRecord | undefined;
     setServices((prev) =>
       prev.map((s) => {
         if (s.id === serviceId && s.slides) {
@@ -1254,12 +1458,229 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
           if (toIndex < 0 || toIndex >= updated.length) return s;
           const [moved] = updated.splice(fromIndex, 1);
           updated.splice(toIndex, 0, moved);
-          return { ...s, slides: updated };
+          updatedRef = { ...s, slides: updated };
+          return updatedRef;
         }
         return s;
       })
     );
     setActiveSlideIndex(toIndex);
+    if (updatedRef) await syncServiceWithBackend('upsert', updatedRef);
+  };
+
+  // Handler de Salvamento do Tema Camaleão e Identidade Visual no Supabase
+  const handleSaveBrandingTheme = async () => {
+    setIsSavingTheme(true);
+    try {
+      await fetch(`/api/admin/salons/${salon.id}/branding-theme`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(themeForm),
+      });
+      salon.theme_preset_id = themeForm.themePresetId;
+      salon.primary_color = themeForm.primaryColor;
+      salon.secondary_color = themeForm.secondaryColor;
+      salon.facade_photo_url = themeForm.facadePhotoUrl;
+      salon.interior_photo_url = themeForm.interiorPhotoUrl;
+      salon.logo_dark_url = themeForm.logoDarkUrl;
+      salon.logo_light_url = themeForm.logoLightUrl;
+      onUpdateSalon?.({
+        theme_preset_id: themeForm.themePresetId,
+        primary_color: themeForm.primaryColor,
+        secondary_color: themeForm.secondaryColor,
+        facade_photo_url: themeForm.facadePhotoUrl,
+        interior_photo_url: themeForm.interiorPhotoUrl,
+        logo_dark_url: themeForm.logoDarkUrl,
+        logo_light_url: themeForm.logoLightUrl,
+      });
+      setThemeSaveSuccess(true);
+      setTimeout(() => setThemeSaveSuccess(false), 2500);
+    } catch (err) {
+      console.warn('Erro ao salvar tema camaleão:', err);
+    } finally {
+      setIsSavingTheme(false);
+    }
+  };
+
+  // Handlers de CRUD de Profissionais na tabela public.professionals
+  const handleOpenAddProModal = () => {
+    setEditingPro(null);
+    setProForm({
+      name: '',
+      role: 'Barbeiro / Especialista',
+      access_level: 'professional',
+      phone: '',
+      email: '',
+      avatar_url: '',
+      commission_rate: '50',
+      product_commission_rate: '10',
+      is_active: true,
+    });
+    setIsProModalOpen(true);
+  };
+
+  const handleOpenEditProModal = (pro: SalonProfessionalRecord) => {
+    setEditingPro(pro);
+    setProForm({
+      name: pro.name,
+      role: pro.role || 'Especialista',
+      access_level: pro.access_level || 'professional',
+      phone: pro.phone || '',
+      email: pro.email || '',
+      avatar_url: pro.avatar_url || '',
+      commission_rate: String(pro.commission_rate ?? 50),
+      product_commission_rate: String(pro.product_commission_rate ?? 10),
+      is_active: pro.is_active ?? true,
+    });
+    setIsProModalOpen(true);
+  };
+
+  const handleSaveProfessional = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!proForm.name.trim()) return;
+
+    const proPayload: SalonProfessionalRecord = {
+      id: editingPro?.id || `pro-${Date.now()}`,
+      name: proForm.name.trim(),
+      role: proForm.role.trim() || 'Profissional',
+      access_level: proForm.access_level,
+      phone: proForm.phone.trim(),
+      email: proForm.email.trim(),
+      avatar_url: proForm.avatar_url.trim(),
+      commission_rate: parseFloat(proForm.commission_rate) || 50,
+      product_commission_rate: parseFloat(proForm.product_commission_rate) || 10,
+      is_active: proForm.is_active,
+      services_count: editingPro?.services_count || 5,
+    };
+
+    if (editingPro) {
+      setTeam((prev) => prev.map((p) => (p.id === editingPro.id ? proPayload : p)));
+    } else {
+      setTeam((prev) => [...prev, proPayload]);
+    }
+    setIsProModalOpen(false);
+
+    try {
+      await fetch(`/api/admin/salons/${salon.id}/professionals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'upsert', professional: proPayload }),
+      });
+    } catch (err) {
+      console.warn('Erro ao salvar profissional no Supabase:', err);
+    }
+  };
+
+  const handleDeleteProfessional = async (professionalId: string) => {
+    if (!confirm('Deseja realmente remover este profissional da equipe?')) return;
+    setTeam((prev) => prev.filter((p) => p.id !== professionalId));
+    try {
+      await fetch(`/api/admin/salons/${salon.id}/professionals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', professionalId }),
+      });
+    } catch (err) {
+      console.warn('Erro ao remover profissional no Supabase:', err);
+    }
+  };
+
+  // Handlers de Conta Família & Dependentes na tabela public.dependents
+  const handleAddClientDependent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedClientForDeps || !newDepForm.full_name.trim()) return;
+
+    const clientId = selectedClientForDeps.id;
+    const tempDep: UserFamilyDependent = {
+      id: `dep-${Date.now()}`,
+      parent_client_id: clientId,
+      full_name: newDepForm.full_name.trim(),
+      relationship: newDepForm.relationship,
+      birth_date: newDepForm.birth_date || undefined,
+      notes: newDepForm.notes.trim() || undefined,
+      is_unlinked: false,
+      created_at: new Date().toISOString(),
+    };
+
+    try {
+      const resp = await fetch(`/api/admin/clients/${clientId}/dependents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'add', dependent: tempDep }),
+      });
+      const json = await resp.json();
+      const savedDep: UserFamilyDependent = json?.dependent || tempDep;
+
+      setClients((prev) =>
+        prev.map((c) => {
+          if (c.id === clientId) {
+            const nextDeps = [...(c.dependents || []), savedDep];
+            const updatedClient = {
+              ...c,
+              dependents: nextDeps,
+              dependents_count: nextDeps.length,
+            };
+            setSelectedClientForDeps(updatedClient);
+            return updatedClient;
+          }
+          return c;
+        })
+      );
+    } catch {
+      setClients((prev) =>
+        prev.map((c) => {
+          if (c.id === clientId) {
+            const nextDeps = [...(c.dependents || []), tempDep];
+            const updatedClient = {
+              ...c,
+              dependents: nextDeps,
+              dependents_count: nextDeps.length,
+            };
+            setSelectedClientForDeps(updatedClient);
+            return updatedClient;
+          }
+          return c;
+        })
+      );
+    }
+
+    setNewDepForm({
+      full_name: '',
+      relationship: 'son',
+      birth_date: '',
+      notes: '',
+    });
+  };
+
+  const handleRemoveClientDependent = async (dependentId: string) => {
+    if (!selectedClientForDeps) return;
+    const clientId = selectedClientForDeps.id;
+
+    setClients((prev) =>
+      prev.map((c) => {
+        if (c.id === clientId) {
+          const nextDeps = (c.dependents || []).filter((d) => d.id !== dependentId);
+          const updatedClient = {
+            ...c,
+            dependents: nextDeps,
+            dependents_count: nextDeps.length,
+          };
+          setSelectedClientForDeps(updatedClient);
+          return updatedClient;
+        }
+        return c;
+      })
+    );
+
+    try {
+      await fetch(`/api/admin/clients/${clientId}/dependents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'remove', dependentId }),
+      });
+    } catch (err) {
+      console.warn('Erro ao desvincular dependente:', err);
+    }
   };
 
   const serviceCategories = ['all', 'Cabelo', 'Barba', 'Combos', 'Tratamentos', 'Coloração', 'Unhas'];
@@ -1553,6 +1974,32 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             <FileText className="w-4 h-4" />
             <span>Formulários</span>
           </button>
+
+          {/* 7. Utilidades & DRE (Sincronizado com Meu Negócio) */}
+          <button
+            onClick={() => setActiveTab('utilities')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'utilities'
+                ? 'bg-[#20C933] text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50'
+            }`}
+          >
+            <Zap className="w-4 h-4" />
+            <span>Utilidades &amp; DRE</span>
+          </button>
+
+          {/* 8. Sincronização DB ⇄ MNV */}
+          <button
+            onClick={() => setActiveTab('db-sync')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'db-sync'
+                ? 'bg-[#20C933] text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/50'
+            }`}
+          >
+            <Database className="w-4 h-4" />
+            <span>Sincronização DB ⇄ MNV</span>
+          </button>
         </div>
       </div>
 
@@ -1707,129 +2154,299 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         </div>
       )}
 
-      {/* ABA 2: IDENTIDADE VISUAL */}
+      {/* ABA 2: IDENTIDADE VISUAL & TEMA CAMALEÃO (SINCRONIZADO COM MEU NEGÓCIO) */}
       {activeTab === 'branding' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          {/* Card: Logotipos da Marca */}
-          <div className="lg:col-span-2 p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+        <div className="space-y-5">
+          {/* Barra Superior de Sincronização do Tema Camaleão */}
+          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
               <div className="flex items-center gap-2">
                 <Palette className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Logotipos & Variações da Marca</h3>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Tema Camaleão &amp; Identidade Visual White-Label
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#20C933] text-white">
+                  Sincronizado com mnvapp
+                </span>
               </div>
-              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
-                Renderização Dinâmica no Portal
-              </span>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Escolha um dos 5 presets oficiais do Meu Negócio ou personalize as cores, fotos de espaço e logotipos no Supabase.
+              </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Logotipo Versão Dark */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="flex items-center gap-1.5 font-semibold text-slate-200">
-                    <Moon className="w-3.5 h-3.5 text-blue-400" />
-                    <span>Logotipo Versão Dark</span>
-                  </span>
-                  <span className="text-[10px] text-slate-400">Para tema escuro</span>
-                </div>
-                <div className="h-24 rounded-lg bg-slate-900/80 border border-slate-800 flex items-center justify-center p-3">
-                  {salon.logo_dark_url || salon.logo_url ? (
-                    <img
-                      src={salon.logo_dark_url || salon.logo_url}
-                      alt="Logo Dark"
-                      className="max-h-16 max-w-full object-contain"
-                    />
-                  ) : (
-                    <span className="text-xs text-slate-500 font-mono">Sem logo dark específico (usando padrão)</span>
-                  )}
-                </div>
-                <p className="text-[11px] text-slate-400">
-                  Exibido na vitrine quando o usuário acessa em modo escuro.
-                </p>
-              </div>
+            <button
+              type="button"
+              onClick={handleSaveBrandingTheme}
+              disabled={isSavingTheme}
+              className="px-4 py-2 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-xs shrink-0"
+            >
+              {themeSaveSuccess ? (
+                <>
+                  <Check className="w-4 h-4 text-white" />
+                  <span className="text-white">Tema Sincronizado!</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 text-white" />
+                  <span className="text-white">{isSavingTheme ? 'Salvando...' : 'Salvar Tema no Banco'}</span>
+                </>
+              )}
+            </button>
+          </div>
 
-              {/* Logotipo Versão Light */}
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-3">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-200">
-                    <Sun className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Logotipo Versão Light</span>
-                  </span>
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400">Para tema claro</span>
-                </div>
-                <div className="h-24 rounded-lg bg-white border border-slate-300 dark:border-slate-800 flex items-center justify-center p-3">
-                  {salon.logo_light_url || salon.logo_url ? (
-                    <img
-                      src={salon.logo_light_url || salon.logo_url}
-                      alt="Logo Light"
-                      className="max-h-16 max-w-full object-contain"
-                    />
-                  ) : (
-                    <span className="text-xs text-slate-400 font-mono">Sem logo light específico</span>
-                  )}
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Exibido em emails transacionais e faturas claras.
-                </p>
-              </div>
+          {/* 5 Presets Oficiais do Tema Camaleão (idênticos ao SalonConfigModal do mnvapp) */}
+          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+            <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+              Presets Oficiais do Tema Camaleão (theme_preset_id)
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              {[
+                {
+                  id: 'emerald-dark',
+                  name: 'Esmeralda Dark (Padrão)',
+                  primary: '#10b981',
+                  secondary: '#059669',
+                },
+                {
+                  id: 'gold-luxury',
+                  name: 'Ouro Luxury & Barber',
+                  primary: '#f59e0b',
+                  secondary: '#d97706',
+                },
+                {
+                  id: 'rose-glam',
+                  name: 'Rose Glam & Studio',
+                  primary: '#f43f5e',
+                  secondary: '#e11d48',
+                },
+                {
+                  id: 'purple-neon',
+                  name: 'Cyber Purple & Urbano',
+                  primary: '#a855f7',
+                  secondary: '#9333ea',
+                },
+                {
+                  id: 'clean-light',
+                  name: 'Clean Light & Spa',
+                  primary: '#10b981',
+                  secondary: '#0d9488',
+                },
+              ].map((preset) => {
+                const isSelected = themeForm.themePresetId === preset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() =>
+                      setThemeForm((prev) => ({
+                        ...prev,
+                        themePresetId: preset.id as SalonThemePresetId,
+                        primaryColor: preset.primary,
+                        secondaryColor: preset.secondary,
+                      }))
+                    }
+                    className={`p-3.5 rounded-xl text-left transition cursor-pointer flex flex-col justify-between gap-3 ${
+                      isSelected
+                        ? 'bg-emerald-500/10 border-2 border-[#20C933]'
+                        : 'bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:border-slate-400'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className="w-5 h-5 rounded-full border border-white/20 shadow-xs"
+                          style={{ backgroundColor: preset.primary }}
+                        />
+                        <span
+                          className="w-4 h-4 rounded-full border border-white/20 shadow-xs"
+                          style={{ backgroundColor: preset.secondary }}
+                        />
+                      </div>
+                      {isSelected && (
+                        <span className="px-2 py-0.5 rounded-full bg-[#20C933] text-white text-[9px] font-bold">
+                          Ativo
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-900 dark:text-white">{preset.name}</div>
+                      <div className="text-[10px] font-mono text-slate-500 mt-0.5">{preset.id}</div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Card: Cores, Favicon e Preview */}
-          <div className="lg:col-span-1 p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-            <div className="flex items-center gap-2 pb-2 border-b border-slate-200 dark:border-slate-800">
-              <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">Cores & Layout</h3>
-            </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            {/* Card: Logotipos & Fotos do Espaço (Fachada e Interior) */}
+            <div className="lg:col-span-2 p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Logotipo Versão Dark */}
+                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1.5 font-semibold text-slate-200">
+                      <Moon className="w-3.5 h-3.5 text-blue-400" />
+                      <span>Logotipo Versão Dark</span>
+                    </span>
+                    <span className="text-[10px] text-slate-400">logo_dark_url</span>
+                  </div>
+                  <div className="h-24 rounded-lg bg-slate-900/80 border border-slate-800 flex items-center justify-center p-3">
+                    {themeForm.logoDarkUrl || salon.logo_url ? (
+                      <img
+                        src={themeForm.logoDarkUrl || salon.logo_url}
+                        alt="Logo Dark"
+                        className="max-h-16 max-w-full object-contain"
+                      />
+                    ) : (
+                      <span className="text-xs text-slate-500 font-mono">Sem logo dark específico</span>
+                    )}
+                  </div>
+                  <input
+                    type="url"
+                    value={themeForm.logoDarkUrl}
+                    onChange={(e) => setThemeForm((prev) => ({ ...prev, logoDarkUrl: e.target.value }))}
+                    placeholder="URL do Logotipo Dark..."
+                    className="w-full px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-white placeholder-slate-500"
+                  />
+                </div>
 
-            {/* Favicon & Cor Primária */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-center space-y-1.5">
-                <span className="text-[10px] font-bold text-slate-500 block">Favicon</span>
-                <div className="w-10 h-10 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 flex items-center justify-center mx-auto overflow-hidden">
-                  {salon.favicon_url || salon.logo_url ? (
-                    <img src={salon.favicon_url || salon.logo_url} alt="Favicon" className="w-7 h-7 object-contain" />
-                  ) : (
-                    <span className="text-xs font-bold text-emerald-500">V</span>
+                {/* Logotipo Versão Light */}
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-200">
+                      <Sun className="w-3.5 h-3.5 text-amber-500" />
+                      <span>Logotipo Versão Light</span>
+                    </span>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400">logo_light_url</span>
+                  </div>
+                  <div className="h-24 rounded-lg bg-white border border-slate-300 dark:border-slate-800 flex items-center justify-center p-3">
+                    {themeForm.logoLightUrl || salon.logo_url ? (
+                      <img
+                        src={themeForm.logoLightUrl || salon.logo_url}
+                        alt="Logo Light"
+                        className="max-h-16 max-w-full object-contain"
+                      />
+                    ) : (
+                      <span className="text-xs text-slate-400 font-mono">Sem logo light específico</span>
+                    )}
+                  </div>
+                  <input
+                    type="url"
+                    value={themeForm.logoLightUrl}
+                    onChange={(e) => setThemeForm((prev) => ({ ...prev, logoLightUrl: e.target.value }))}
+                    placeholder="URL do Logotipo Light..."
+                    className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-xs text-slate-900 dark:text-white placeholder-slate-400"
+                  />
+                </div>
+              </div>
+
+              {/* Fotos Oficiais do Espaço Físico (Sincronizadas com SalonConfigModal do mnvapp) */}
+              <div className="pt-3 border-t border-slate-200 dark:border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                    Foto da Fachada Externa (facade_photo_url)
+                  </label>
+                  <input
+                    type="url"
+                    value={themeForm.facadePhotoUrl}
+                    onChange={(e) => setThemeForm((prev) => ({ ...prev, facadePhotoUrl: e.target.value }))}
+                    placeholder="https://... foto da fachada"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white"
+                  />
+                  {themeForm.facadePhotoUrl && (
+                    <img
+                      src={themeForm.facadePhotoUrl}
+                      alt="Fachada"
+                      className="w-full h-28 object-cover rounded-xl"
+                    />
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                    Foto do Espaço Interno (interior_photo_url)
+                  </label>
+                  <input
+                    type="url"
+                    value={themeForm.interiorPhotoUrl}
+                    onChange={(e) => setThemeForm((prev) => ({ ...prev, interiorPhotoUrl: e.target.value }))}
+                    placeholder="https://... foto do interior"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white"
+                  />
+                  {themeForm.interiorPhotoUrl && (
+                    <img
+                      src={themeForm.interiorPhotoUrl}
+                      alt="Interior"
+                      className="w-full h-28 object-cover rounded-xl"
+                    />
                   )}
                 </div>
               </div>
+            </div>
 
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-center space-y-1.5">
-                <span className="text-[10px] font-bold text-slate-500 block">Cor Primária</span>
-                <div className="flex items-center justify-center gap-1.5 pt-1">
-                  <span
-                    className="w-6 h-6 rounded-full border border-white/20 shadow-xs"
-                    style={{ backgroundColor: salon.primary_color || '#20C933' }}
-                  />
-                  <span className="font-mono text-xs text-slate-700 dark:text-slate-300 font-semibold">
-                    {salon.primary_color || '#20C933'}
-                  </span>
+            {/* Card: Cores Customizadas e Preview */}
+            <div className="lg:col-span-1 p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-200 dark:border-slate-800">
+                <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">Paleta de Cores &amp; Preview</h3>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                  <span className="text-[10px] font-bold text-slate-500 block">Cor Primária</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={themeForm.primaryColor}
+                      onChange={(e) => setThemeForm((prev) => ({ ...prev, primaryColor: e.target.value }))}
+                      className="w-7 h-7 rounded cursor-pointer border-0 bg-transparent"
+                    />
+                    <span className="font-mono text-xs text-slate-700 dark:text-slate-300 font-semibold">
+                      {themeForm.primaryColor}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                  <span className="text-[10px] font-bold text-slate-500 block">Cor Secundária</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={themeForm.secondaryColor}
+                      onChange={(e) => setThemeForm((prev) => ({ ...prev, secondaryColor: e.target.value }))}
+                      className="w-7 h-7 rounded cursor-pointer border-0 bg-transparent"
+                    />
+                    <span className="font-mono text-xs text-slate-700 dark:text-slate-300 font-semibold">
+                      {themeForm.secondaryColor}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Preview de Botão com a cor do salão */}
-            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                Preview de Ação no App
-              </span>
-              <button
-                className="w-full py-2 px-3 rounded-xl text-white font-bold text-xs shadow-xs transition active:scale-95"
-                style={{ backgroundColor: salon.primary_color || '#20C933' }}
-              >
-                Agendar Horário • {salon.trade_name}
-              </button>
-            </div>
+              {/* Preview de Botão com a cor do salão */}
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Preview de Ação no App
+                </span>
+                <button
+                  type="button"
+                  className="w-full py-2.5 px-3 rounded-xl text-white font-bold text-xs shadow-xs transition active:scale-95"
+                  style={{ backgroundColor: themeForm.primaryColor || '#20C933' }}
+                >
+                  Agendar Horário • {salon.trade_name}
+                </button>
+              </div>
 
-            {/* Vitrine Pública & Subdomínio */}
-            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5 text-xs">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                Subdomínio Oficial
-              </span>
-              <div className="flex items-center justify-between font-mono text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
-                <span>{salon.slug}.vagouapp.com</span>
-                <ExternalLink className="w-3.5 h-3.5" />
+              {/* Subdomínio Oficial */}
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5 text-xs">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Subdomínio Oficial
+                </span>
+                <div className="flex items-center justify-between font-mono text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                  <span>{salon.slug}.vagouapp.com</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </div>
               </div>
             </div>
           </div>
@@ -2496,26 +3113,27 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         </div>
       )}
 
-      {/* ABA 4: EQUIPE & COLABORADORES */}
+      {/* ABA 4: EQUIPE & COLABORADORES (SINCRONIZADO COM PUBLIC.PROFESSIONALS) */}
       {activeTab === 'team' && (
         <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <UserCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span>Equipe de Profissionais do Salão</span>
+                <span>Equipe de Profissionais do Salão (public.professionals)</span>
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Colaboradores cadastrados na tabela professionals vinculados a este estabelecimento.
+                Colaboradores, permissões e comissões sincronizados diretamente com o Meu Negócio (mnvapp).
               </p>
             </div>
 
             <button
-              onClick={() => alert('Para adicionar profissionais a este salão parceiro, acesse a gestão de equipe ou utilize o formulário de cadastro.')}
-              className="px-3 py-1.5 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+              type="button"
+              onClick={handleOpenAddProModal}
+              className="px-3.5 py-2 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 shrink-0"
             >
               <Plus className="w-3.5 h-3.5 text-white" />
-              <span>Adicionar Profissional</span>
+              <span className="text-white">Adicionar Profissional</span>
             </button>
           </div>
 
@@ -2524,16 +3142,18 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
               <thead className="bg-slate-50 dark:bg-slate-950/60 text-slate-500 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800">
                 <tr>
                   <th className="py-2.5 px-3">Profissional</th>
-                  <th className="py-2.5 px-3">Cargo / Função</th>
+                  <th className="py-2.5 px-3">Cargo / Especialidade</th>
+                  <th className="py-2.5 px-3">Permissão</th>
                   <th className="py-2.5 px-3">WhatsApp</th>
-                  <th className="py-2.5 px-3 text-center">Comissão</th>
+                  <th className="py-2.5 px-3 text-center">Comissão Serv. / Prod.</th>
                   <th className="py-2.5 px-3 text-center">Status</th>
+                  <th className="py-2.5 px-3 text-right">Ação</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
                 {team.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-slate-400">
+                    <td colSpan={7} className="py-8 text-center text-slate-400">
                       Nenhum profissional cadastrado para este estabelecimento.
                     </td>
                   </tr>
@@ -2543,7 +3163,10 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                       <td className="py-3 px-3">
                         <div className="flex items-center gap-2.5">
                           <UserAvatar fullName={pro.name} photoUrl={pro.avatar_url} size="sm" />
-                          <span className="font-bold text-slate-900 dark:text-white">{pro.name}</span>
+                          <div>
+                            <div className="font-bold text-slate-900 dark:text-white">{pro.name}</div>
+                            {pro.email && <div className="text-[10px] text-slate-400">{pro.email}</div>}
+                          </div>
                         </div>
                       </td>
                       <td className="py-3 px-3">
@@ -2551,16 +3174,59 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                           {pro.role}
                         </span>
                       </td>
+                      <td className="py-3 px-3">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                            pro.access_level === 'admin'
+                              ? 'bg-[#20C933] text-white'
+                              : pro.access_level === 'receptionist'
+                              ? 'bg-sky-500/15 text-sky-400'
+                              : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                          }`}
+                        >
+                          {pro.access_level === 'admin'
+                            ? 'Proprietário / Admin'
+                            : pro.access_level === 'receptionist'
+                            ? 'Recepção'
+                            : 'Profissional'}
+                        </span>
+                      </td>
                       <td className="py-3 px-3 font-mono text-slate-700 dark:text-slate-300">
                         {pro.phone || 'Sem telefone'}
                       </td>
                       <td className="py-3 px-3 text-center font-mono font-bold text-slate-900 dark:text-white">
-                        {pro.commission_rate}%
+                        {pro.commission_rate}% / {pro.product_commission_rate ?? 10}%
                       </td>
                       <td className="py-3 px-3 text-center">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                          Ativo
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            pro.is_active
+                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                              : 'bg-slate-200 dark:bg-slate-800 text-slate-500'
+                          }`}
+                        >
+                          {pro.is_active ? 'Ativo' : 'Inativo'}
                         </span>
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditProModal(pro)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-500 hover:bg-emerald-500/10 transition cursor-pointer"
+                            title="Editar profissional"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteProfessional(pro.id)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition cursor-pointer"
+                            title="Remover profissional"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -2571,17 +3237,17 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         </div>
       )}
 
-      {/* ABA 5: CLIENTES FIXOS DO ESTABELECIMENTO */}
+      {/* ABA 5: CLIENTES FIXOS & CONTA FAMÍLIA (PUBLIC.CLIENTS + PUBLIC.DEPENDENTS) */}
       {activeTab === 'clients' && (
         <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <Users className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span>Base de Clientes Cadastrados do Salão</span>
+                <span>Base de Clientes &amp; Conta Família (public.clients + public.dependents)</span>
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Clientes que realizaram agendamentos ou possuem conta vinculada à vitrine deste salão.
+                Clientes vinculados ao salão e seus respectivos dependentes familiares para agendamento em 1 toque.
               </p>
             </div>
 
@@ -2601,11 +3267,11 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 dark:bg-slate-950/60 text-slate-500 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800">
                 <tr>
-                  <th className="py-2.5 px-3">Cliente</th>
+                  <th className="py-2.5 px-3">Cliente Titular</th>
                   <th className="py-2.5 px-3">WhatsApp</th>
                   <th className="py-2.5 px-3">E-mail</th>
+                  <th className="py-2.5 px-3 text-center">Conta Família (Dependentes)</th>
                   <th className="py-2.5 px-3 text-center">Agendamentos</th>
-                  <th className="py-2.5 px-3">Último Atendimento</th>
                   <th className="py-2.5 px-3 text-right">Ação</th>
                 </tr>
               </thead>
@@ -2617,46 +3283,105 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                     </td>
                   </tr>
                 ) : (
-                  filteredClients.map((cl) => (
-                    <tr key={cl.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
-                      <td className="py-3 px-3">
-                        <div className="flex items-center gap-2.5">
-                          <UserAvatar fullName={cl.name} photoUrl={cl.avatar_url} size="sm" />
-                          <span className="font-bold text-slate-900 dark:text-white">{cl.name}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-3 font-mono text-slate-700 dark:text-slate-300">
-                        {cl.phone}
-                      </td>
-                      <td className="py-3 px-3 text-slate-500 dark:text-slate-400">
-                        {cl.email || '—'}
-                      </td>
-                      <td className="py-3 px-3 text-center">
-                        <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                          {cl.total_appointments} agendamentos
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 text-slate-500">
-                        {cl.last_appointment_date || 'Recente'}
-                      </td>
-                      <td className="py-3 px-3 text-right">
-                        <a
-                          href={`https://wa.me/55${cl.phone.replace(/\D/g, '')}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-2 py-1 rounded bg-[#20C933] hover:bg-[#1bb32d] text-white text-[10px] font-bold transition inline-flex items-center gap-1 shadow-xs"
-                        >
-                          <Phone className="w-3 h-3 text-white" />
-                          <span>WhatsApp</span>
-                        </a>
-                      </td>
-                    </tr>
-                  ))
+                  filteredClients.map((cl) => {
+                    const depCount = cl.dependents?.length ?? cl.dependents_count ?? 0;
+                    return (
+                      <tr key={cl.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
+                        <td className="py-3 px-3">
+                          <div className="flex items-center gap-2.5">
+                            <UserAvatar fullName={cl.name} photoUrl={cl.avatar_url} size="sm" />
+                            <span className="font-bold text-slate-900 dark:text-white">{cl.name}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 font-mono text-slate-700 dark:text-slate-300">
+                          {cl.phone}
+                        </td>
+                        <td className="py-3 px-3 text-slate-500 dark:text-slate-400">
+                          {cl.email || '—'}
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedClientForDeps(cl)}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition inline-flex items-center gap-1.5 cursor-pointer ${
+                              depCount > 0
+                                ? 'bg-[#20C933] text-white shadow-xs'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                            }`}
+                          >
+                            <Users className={`w-3.5 h-3.5 ${depCount > 0 ? 'text-white' : ''}`} />
+                            <span className={depCount > 0 ? 'text-white' : ''}>
+                              {depCount} {depCount === 1 ? 'Dependente' : 'Dependentes'}
+                            </span>
+                          </button>
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                            {cl.total_appointments} agendamentos
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedClientForDeps(cl)}
+                              className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-bold transition cursor-pointer"
+                            >
+                              Gerir Família
+                            </button>
+                            <a
+                              href={`https://wa.me/55${cl.phone.replace(/\D/g, '')}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-2 py-1 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white text-[10px] font-bold transition inline-flex items-center gap-1 shadow-xs"
+                            >
+                              <Phone className="w-3 h-3 text-white" />
+                              <span className="text-white">WhatsApp</span>
+                            </a>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
           </div>
         </div>
+      )}
+
+      {/* ABA 7: UTILIDADES, CONSUMO, DRE & ESTOQUE (SINCRONIZADO COM MEU NEGÓCIO) */}
+      {activeTab === 'utilities' && (
+        <AdminSalonUtilitiesAndSyncPanel
+          salonId={salon.id}
+          salonName={salon.trade_name}
+          salonSlug={salon.slug}
+          mode="utilities"
+          utilities={utilitiesData}
+          servicesCount={services.length}
+          mediaCount={salonMedia.length}
+          professionalsCount={team.length}
+          clientsCount={clients.length}
+          onUtilitiesChange={(next) => setUtilitiesData(next)}
+          onReloadFullSync={reloadFullSalonSync}
+        />
+      )}
+
+      {/* ABA 8: AUDITORIA DE SINCRONIZAÇÃO DB ⇄ MEU NEGÓCIO (MNVAPP) */}
+      {activeTab === 'db-sync' && (
+        <AdminSalonUtilitiesAndSyncPanel
+          salonId={salon.id}
+          salonName={salon.trade_name}
+          salonSlug={salon.slug}
+          mode="db-sync"
+          utilities={utilitiesData}
+          servicesCount={services.length}
+          mediaCount={salonMedia.length}
+          professionalsCount={team.length}
+          clientsCount={clients.length}
+          onUtilitiesChange={(next) => setUtilitiesData(next)}
+          onReloadFullSync={reloadFullSalonSync}
+        />
       )}
 
       {/* ABA 6: FORMULÁRIOS INTEGRADOS DO SALÃO */}
@@ -4560,6 +5285,300 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
           ownerName: salon.owner_name,
         }}
       />
+
+      {/* MODAL: ADICIONAR / EDITAR PROFISSIONAL NA TABELA PUBLIC.PROFESSIONALS */}
+      {isProModalOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn">
+            <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+              <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-emerald-500" />
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    {editingPro ? 'Editar Profissional' : 'Novo Profissional da Equipe'}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsProModalOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveProfessional} className="p-4 space-y-3 overflow-y-auto flex-1">
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                    Nome Completo *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={proForm.name}
+                    onChange={(e) => setProForm((prev) => ({ ...prev, name: e.target.value }))}
+                    placeholder="Ex: Lucas Ferreira"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                      Cargo / Especialidade
+                    </label>
+                    <input
+                      type="text"
+                      value={proForm.role}
+                      onChange={(e) => setProForm((prev) => ({ ...prev, role: e.target.value }))}
+                      placeholder="Barbeiro / Colorista"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                      Nível de Permissão (mnvapp)
+                    </label>
+                    <select
+                      value={proForm.access_level}
+                      onChange={(e) =>
+                        setProForm((prev) => ({
+                          ...prev,
+                          access_level: e.target.value as 'admin' | 'professional' | 'receptionist',
+                        }))
+                      }
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white"
+                    >
+                      <option value="professional">Profissional (Agenda)</option>
+                      <option value="receptionist">Recepção / Caixa</option>
+                      <option value="admin">Proprietário / Admin</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                      WhatsApp
+                    </label>
+                    <input
+                      type="text"
+                      value={proForm.phone}
+                      onChange={(e) => setProForm((prev) => ({ ...prev, phone: e.target.value }))}
+                      placeholder="(11) 99999-9999"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                      E-mail de Acesso
+                    </label>
+                    <input
+                      type="email"
+                      value={proForm.email}
+                      onChange={(e) => setProForm((prev) => ({ ...prev, email: e.target.value }))}
+                      placeholder="profissional@email.com"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                      Comissão Serviços (%)
+                    </label>
+                    <input
+                      type="number"
+                      value={proForm.commission_rate}
+                      onChange={(e) => setProForm((prev) => ({ ...prev, commission_rate: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                      Comissão Produtos (%)
+                    </label>
+                    <input
+                      type="number"
+                      value={proForm.product_commission_rate}
+                      onChange={(e) => setProForm((prev) => ({ ...prev, product_commission_rate: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                    URL da Foto de Perfil (avatar_url)
+                  </label>
+                  <input
+                    type="url"
+                    value={proForm.avatar_url}
+                    onChange={(e) => setProForm((prev) => ({ ...prev, avatar_url: e.target.value }))}
+                    placeholder="https://..."
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white"
+                  />
+                </div>
+
+                <div className="sticky bottom-0 z-20 pt-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsProModalOpen(false)}
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold transition cursor-pointer shadow-xs"
+                  >
+                    Salvar no Supabase
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* MODAL: CONTA FAMÍLIA & DEPENDENTES DO CLIENTE (PUBLIC.DEPENDENTS) */}
+      {selectedClientForDeps &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn">
+            <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+              <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Users className="w-4 h-4 text-emerald-500" />
+                    <span>Conta Família &amp; Dependentes • {selectedClientForDeps.name}</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Sincronizado com a tabela <code className="text-emerald-500">public.dependents</code> e seleção em 1 toque no agendamento.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedClientForDeps(null)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-4 space-y-4 overflow-y-auto flex-1">
+                <form onSubmit={handleAddClientDependent} className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 space-y-3">
+                  <div className="text-xs font-bold text-slate-900 dark:text-white">
+                    Cadastrar Novo Dependente Familiar
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <input
+                      type="text"
+                      required
+                      value={newDepForm.full_name}
+                      onChange={(e) => setNewDepForm((prev) => ({ ...prev, full_name: e.target.value }))}
+                      placeholder="Nome completo do dependente"
+                      className="px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white"
+                    />
+                    <select
+                      value={newDepForm.relationship}
+                      onChange={(e) =>
+                        setNewDepForm((prev) => ({
+                          ...prev,
+                          relationship: e.target.value as 'son' | 'daughter' | 'spouse' | 'parent' | 'other',
+                        }))
+                      }
+                      className="px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white"
+                    >
+                      <option value="son">Filho</option>
+                      <option value="daughter">Filha</option>
+                      <option value="spouse">Cônjuge</option>
+                      <option value="parent">Pai / Mãe</option>
+                      <option value="other">Outro Familiar</option>
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <input
+                      type="date"
+                      value={newDepForm.birth_date}
+                      onChange={(e) => setNewDepForm((prev) => ({ ...prev, birth_date: e.target.value }))}
+                      className="px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white"
+                    />
+                    <input
+                      type="text"
+                      value={newDepForm.notes}
+                      onChange={(e) => setNewDepForm((prev) => ({ ...prev, notes: e.target.value }))}
+                      placeholder="Preferências (ex: corte tesoura)"
+                      className="px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="w-full py-2 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-white" />
+                    <span className="text-white">Vincular Dependente à Conta Família</span>
+                  </button>
+                </form>
+
+                <div className="space-y-2">
+                  <div className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Dependentes Vinculados ({(selectedClientForDeps.dependents || []).length})
+                  </div>
+                  {(selectedClientForDeps.dependents || []).length === 0 ? (
+                    <div className="py-6 text-center text-xs text-slate-500">
+                      Nenhum dependente vinculado a este titular.
+                    </div>
+                  ) : (
+                    (selectedClientForDeps.dependents || []).map((dep) => (
+                      <div
+                        key={dep.id}
+                        className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 flex items-center justify-between gap-3"
+                      >
+                        <div>
+                          <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <span>{dep.full_name}</span>
+                            <span className="px-2 py-0.5 rounded-full bg-[#20C933] text-white text-[10px] font-bold">
+                              {dep.relationship === 'son'
+                                ? 'Filho'
+                                : dep.relationship === 'daughter'
+                                ? 'Filha'
+                                : dep.relationship === 'spouse'
+                                ? 'Cônjuge'
+                                : dep.relationship === 'parent'
+                                ? 'Pai/Mãe'
+                                : 'Familiar'}
+                            </span>
+                          </div>
+                          {dep.notes && <div className="text-[11px] text-slate-500 mt-0.5">{dep.notes}</div>}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveClientDependent(dep.id)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition cursor-pointer"
+                          title="Desvincular dependente"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="sticky bottom-0 z-20 p-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSelectedClientForDeps(null)}
+                  className="px-4 py-1.5 rounded-xl bg-slate-800 text-white text-xs font-bold cursor-pointer"
+                >
+                  Concluir
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

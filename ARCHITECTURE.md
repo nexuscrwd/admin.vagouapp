@@ -21,9 +21,16 @@ O **Vagou** é um aplicativo mobile-first de agendamento de vagas imediatas e ho
 ## 🏛️ 2. A Tríade VagouApp & Pacote Oficial de Formulários (`src/triade-export`)
 
 O ecossistema oficial é composto por 3 aplicações independentes conectadas ao mesmo banco Supabase:
-1. `pvapp` (`portal.vagouapp.com`) — Marketplace do Consumidor.
-2. `mnvapp` (`seunegocio.vagouapp.com`) — Gestão do Salão Parceiro.
-3. `admvapp` (`adm.vagouapp.com`) — ESTE PROJETO: Governança Master Soberana.
+1. `pvapp` (`portal.vagouapp.com`) — Marketplace do Consumidor: `https://github.com/nexuscrwd/Portal-VagouApp.git`
+2. `vapp` / `mnvapp` (`seunegocio.vagouapp.com` / `vagouapp.com`) — App Consumidor / Gestão Parceiro: `https://github.com/nexuscrwd/vagouapp.git`
+3. `admvapp` (`adm.vagouapp.com`) — ESTE PROJETO: Governança Master Soberana: `https://github.com/nexuscrwd/admin.vagouapp.git`
+
+### 🔗 Matriz de Repositórios Git Oficiais da Tríade:
+| Aplicação | Identificador | Repositório Oficial no GitHub |
+|---|---|---|
+| **Admin VagouApp** | `admvapp` | `https://github.com/nexuscrwd/admin.vagouapp.git` |
+| **VagouApp Oficial** | `vapp` / `mnvapp` | `https://github.com/nexuscrwd/vagouapp.git` |
+| **Portal VagouApp** | `pvapp` | `https://github.com/nexuscrwd/Portal-VagouApp.git` |
 
 ### 📦 Central Unificada de Formulários da Tríade (`src/triade-export/`):
 Todos os formulários legados foram eliminados (`UnifiedRegistrationForm`, `AdminCreateSalonModal`), dando lugar aos componentes canônicos e soberanos:

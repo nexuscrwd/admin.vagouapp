@@ -23,3 +23,10 @@ Consulte o arquivo principal completo em `AGENTS.md` e a documentação técnica
 10. **📌 Rodapé Fixo de Ação**: Botões de avanço e confirmação de agendamento devem ser sempre fixos (`sticky bottom-0 z-20`) fora da rolagem interna.
 11. **📡 Sincronização Obrigatória da Tríade**: Qualquer mudança arquitetural ou de dados em um projeto DEVE gerar comunicado técnico oficial imediato para os outros dois projetos (`pvapp` ⇄ `mnvapp` ⇄ `admvapp`). Zero pontas soltas.
 
+---
+
+### 🔗 Repositórios Oficiais do Ecossistema VagouApp (GitHub):
+- **Admin VagouApp (`admvapp`):** `https://github.com/nexuscrwd/admin.vagouapp.git`
+- **VagouApp Oficial (`vapp` / `mnvapp`):** `https://github.com/nexuscrwd/vagouapp.git`
+- **Portal VagouApp (`pvapp`):** `https://github.com/nexuscrwd/Portal-VagouApp.git`
+
