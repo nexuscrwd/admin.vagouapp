@@ -32,13 +32,19 @@ export {
   type TriadeEstablishmentModalProps,
 } from '../components/admin/triade-forms/TriadeEstablishmentModal';
 
-// Formulários do Cliente (mnvapp e pvapp)
+// Formulários do Usuário / Cliente (mnvapp e pvapp)
 export {
-  TriadeMnvClientRegisterForm,
-  type TriadeMnvClientRegisterFormProps,
-  type ClientRegistrationPayload,
-  type ClientAddressData,
-} from '../components/admin/triade-forms/TriadeMnvClientRegisterForm';
+  TriadeUserRegisterForm,
+  type TriadeUserRegisterFormProps,
+  type TriadeUserData,
+  type UserRegisterPhase,
+} from '../components/admin/triade-forms/TriadeUserRegisterForm';
+
+export {
+  TriadeUserLoginForm,
+  type TriadeUserLoginFormProps,
+  type UserLoginPhase,
+} from '../components/admin/triade-forms/TriadeUserLoginForm';
 
 export {
   TriadeMnvClientLoginForm,

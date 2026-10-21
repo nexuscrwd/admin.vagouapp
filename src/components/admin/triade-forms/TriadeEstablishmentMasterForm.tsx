@@ -929,11 +929,12 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
       return;
     }
 
-    if (ownerCpf.replace(/\D/g, '').length !== 11) {
+    const cleanOwnerCpf = ownerCpf.replace(/\D/g, '');
+    if (cleanOwnerCpf.length > 0 && cleanOwnerCpf.length !== 11) {
       updatePhase('commercial');
       setFeedback({
         type: 'error',
-        message: 'Informe o CPF pessoal do titular (11 dígitos) nos Dados Pessoais.',
+        message: 'O CPF informado deve conter 11 dígitos ou ser deixado em branco.',
       });
       return;
     }
@@ -1359,7 +1360,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
-                    <div className="sm:col-span-7">
+                    <div className="sm:col-span-12">
                       <label className="block text-[11px] font-semibold text-slate-300 mb-1">
                         Proprietário Responsável <span className="text-emerald-400">*</span>
                       </label>
@@ -1369,21 +1370,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                         onChange={(e) => setOwnerName(e.target.value)}
                         placeholder="Nome completo do titular"
                         className="w-full min-h-[44px] bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition"
-                        required
-                      />
-                    </div>
-
-                    <div className="sm:col-span-5">
-                      <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                        CPF Pessoal do Titular <span className="text-emerald-400">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={ownerCpf}
-                        onChange={(e) => handleOwnerCpfChange(e.target.value)}
-                        placeholder="000.000.000-00"
-                        maxLength={14}
-                        className="w-full min-h-[44px] bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition font-mono"
                         required
                       />
                     </div>
@@ -1617,8 +1603,8 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                       <div className="flex items-center gap-2">
                         <UserCheck className="w-4 h-4 text-emerald-400 shrink-0" />
                         <span>
-                          Estabelecimento opera como <strong>autônomo</strong> vinculado ao CPF do titular (
-                          <span className="font-mono text-emerald-400">{ownerCpf || 'não informado'}</span>).
+                          Estabelecimento opera como <strong>autônomo</strong> vinculado ao titular (
+                          <span className="font-mono text-emerald-400">{ownerCpf || 'Pode ser inserido posteriormente em Dados Pessoais'}</span>).
                         </span>
                       </div>
                     </div>

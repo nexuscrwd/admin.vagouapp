@@ -15,6 +15,56 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-21] — 👤 Remoção do Campo CPF do Cadastro Inicial & Inserção Exclusiva na Seção de Dados Pessoais
+- **Tipo:** `[UX / Business Rule / Form Optimization / Triade Standard]`
+- **Motivo / Solicitação:** Remover a div de CPF do cadastro inicial (onboarding de estabelecimentos e novos usuários), transferindo-a exclusivamente para a seção de dados pessoais do perfil do usuário para preenchimento posterior facultativo.
+- **Resumo Técnico:**
+  1. **TriadeEstablishmentMasterForm:** Removida a div de CPF do Bloco 1 (Identificação do Proprietário / Titular). O campo `Proprietário Responsável` foi expandido para largura total (`col-span-12`), permitindo cadastro rápido sem atrito.
+  2. **TriadeUserRegisterForm:** Removida a div de CPF da fase `identification` e desativada qualquer trava de obrigatoriedade no avanço de etapas.
+  3. **Gestão de Dados Pessoais:** O CPF permanece acessível e editável exclusivamente na seção de "Dados Pessoais & Acesso" (`AdminUserGeneralDataModal.tsx` e `AdminUserDetailView.tsx`), podendo o usuário ou administrador inseri-lo a qualquer momento posterior.
+- **Arquivos Impactados:**
+  - `src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`
+  - `src/components/admin/triade-forms/TriadeUserRegisterForm.tsx`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-21] — 🗑️ Erradicação Permanente de Formulários Legados e Adoção Soberana da Versão Mais Atualizada (`TriadeEstablishmentMasterForm`)
+- **Tipo:** `[Refactor / Cleanup / Triade Sync / 5º e 7º Mandamentos]`
+- **Motivo / Solicitação:** Exclusão definitiva e sem nenhum vestígio de qualquer formulário legado ou divergente, garantindo que em 100% dos fluxos e rotas do ecossistema a versão mais atualizada (`TriadeEstablishmentMasterForm`) seja a única em operação.
+- **Resumo Técnico:**
+  1. **Remoção de Arquivos Legados:** Excluído permanentemente o arquivo `src/components/admin/triade-forms/TriadeMnvClientRegisterForm.tsx` e suas referências em `AdminSalonDetailView.tsx` e `src/triade-export/index.ts`.
+  2. **Roteamento Unificado (`src/App.tsx`):** O fallback e as rotas `/cadastro`, `/onboarding`, `/registrar`, `/estabelecimento` e `/novonegocio` agora apontam com prioridade máxima e exclusiva para `estabelecimento` (`TriadeEstablishmentMasterForm`), eliminando o antigo fallback que carregava formulários divergentes.
+  3. **Embed Universal (`UniversalFormEmbedView.tsx`):** Removido `mnv_cadastro` e padronizado o valor padrão como `estabelecimento` (`TriadeEstablishmentMasterForm`).
+  4. **Emissão de Boletim Técnico:** Catalogado o boletim `bol-019-legacy-establishment-forms-eradication` em `server.ts` notificando `mnvapp` e `pvapp`.
+- **Arquivos Impactados:**
+  - `src/components/admin/triade-forms/TriadeMnvClientRegisterForm.tsx` (Excluído permanentemente)
+  - `src/components/admin/AdminSalonDetailView.tsx`
+  - `src/components/embed/UniversalFormEmbedView.tsx`
+  - `src/triade-export/index.ts`
+  - `src/triade-export/README.md`
+  - `src/App.tsx`
+  - `server.ts`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-21] — 📋 Desobrigatoriedade do CPF de Usuários/Parceiros/Clientes até Gateway de Pagamento & Emissão do Boletim Oficial `bol-018` para `mnvapp`
+- **Tipo:** `[Business Rule / Triade Sync / 7º Mandamento / Frontend & Backend]`
+- **Motivo / Solicitação:** Desobrigatoriedade da inserção de CPF do usuário em todos os cadastros e formulários, passando a ser exigido apenas quando o sistema possuir gateway de pagamento integrado. Emissão de comunicado oficial para o `mnvapp`.
+- **Resumo Técnico:**
+  1. No `TriadeEstablishmentMasterForm.tsx`, o CPF pessoal do titular tornou-se opcional: removido o atributo `required`, ajustada a validação para permitir campo vazio e atualizado o rótulo visual para `(Opcional)`.
+  2. No `AdminUserGeneralDataModal.tsx`, rótulo atualizado para indicar `(Opcional - Obrigatório apenas após Gateway de Pagamento)`.
+  3. No banco de dados Supabase, todas as tabelas (`profiles`, `clients`, `salons.owner_cpf`, `professionals`, `salon_users`) mantêm o campo `cpf` como `NULLABLE`.
+  4. Emitido e catalogado o **Boletim Técnico Oficial da Tríade (`bol-018-cpf-optional-until-payment-gateway`)** em `server.ts` direcionado ao `mnvapp` e `pvapp`.
+- **Arquivos Impactados:**
+  - `src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`
+  - `src/components/admin/AdminUserGeneralDataModal.tsx`
+  - `server.ts`
+  - `CHANGELOG.md`
+
+---
+
 ### [2026-10-21] — 🚀 Sucesso Absoluto: Migração Não-Destrutiva Executada com Sucesso no Supabase
 - **Tipo:** `[Database / Success / Migration / Triade Sync]`
 - **Motivo / Solicitação:** Validação da execução bem-sucedida do script `supabase_safe_migration.sql` via Supabase SQL Editor (`Success. No rows returned`).

@@ -9,11 +9,10 @@ import { supabaseAdmin } from '../../services/supabase';
 import { useDeviceViewport } from '../../hooks/useDeviceViewport';
 
 export type EmbedFormType =
+  | 'estabelecimento'
   | 'usuario'
   | 'usuario_login'
   | 'mnv_login'
-  | 'mnv_cadastro'
-  | 'estabelecimento'
   | 'admin'
   | 'admin_login'
   | 'admin_recovery';
@@ -53,20 +52,26 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
       ) {
         return 'usuario';
       }
+      if (
+        queryForm === 'estabelecimento' ||
+        queryForm === 'salao' ||
+        queryForm === 'cadastro' ||
+        queryForm === 'novo_estabelecimento' ||
+        queryForm === 'novonegocio' ||
+        pathname.includes('/embed/estabelecimento') ||
+        pathname.includes('/cadastro') ||
+        pathname.includes('/onboarding')
+      ) {
+        return 'estabelecimento';
+      }
       if (queryForm === 'mnv_login' || queryForm === 'mnv-login' || queryForm === 'mnv-acesso' || pathname.includes('/embed/mnv-acesso')) {
         return 'mnv_login';
-      }
-      if (queryForm === 'mnv_cadastro' || queryForm === 'mnv-cadastro' || pathname.includes('/embed/mnv-cadastro')) {
-        return 'mnv_cadastro';
-      }
-      if (queryForm === 'estabelecimento' || queryForm === 'salao' || pathname.includes('/embed/estabelecimento')) {
-        return 'estabelecimento';
       }
       if (queryForm === 'admin' || pathname.includes('/embed/admin')) {
         return 'admin';
       }
     }
-    return 'mnv_cadastro';
+    return 'estabelecimento';
   });
 
   const [salonId, setSalonId] = useState<string | undefined>(undefined);
@@ -313,26 +318,7 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
               onSuccess={(data) => {
                 dispatchPostMessage('LOGIN_SUCCESS', data);
               }}
-              onSwitchToRegister={() => setFormType('mnv_cadastro')}
-            />
-          </div>
-        )}
-
-        {formType === 'mnv_cadastro' && (
-          <div className="w-full">
-            <TriadeUserRegisterForm
-              origin="establishment"
-              salonId={salonId}
-              salonName={salonName}
-              salonLogoUrl={salonLogoUrl}
-              salonAccentColor={salonAccentColor}
-              variant="flat"
-              showHeader={true}
-              onSuccess={(data) => {
-                dispatchPostMessage('REGISTER_SUCCESS', data);
-                dispatchPostMessage('SALON_CLIENT_REGISTERED', data);
-              }}
-              onSwitchToLogin={() => setFormType('mnv_login')}
+              onSwitchToRegister={() => setFormType('usuario')}
             />
           </div>
         )}

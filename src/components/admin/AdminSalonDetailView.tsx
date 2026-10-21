@@ -56,7 +56,7 @@ import { SalonLogo } from '../common/SalonLogo';
 import { UserAvatar } from '../common/UserAvatar';
 import { supabase } from '../../services/supabase';
 import { TriadeMnvClientLoginForm } from './triade-forms/TriadeMnvClientLoginForm';
-import { TriadeMnvClientRegisterForm } from './triade-forms/TriadeMnvClientRegisterForm';
+import { TriadeUserRegisterForm } from './triade-forms/TriadeUserRegisterForm';
 import { SalonWelcomeModal } from './SalonWelcomeModal';
 import { AdminSalonUtilitiesAndSyncPanel, SalonUtilitiesData } from './AdminSalonUtilitiesAndSyncPanel';
 
@@ -3510,7 +3510,9 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
               {/* Contêiner com o Formulário Real como ele é */}
               <div className="p-4 sm:p-5 bg-slate-950 flex flex-col justify-center min-h-[520px]">
                 <div className="w-full max-w-md mx-auto">
-                  <TriadeMnvClientRegisterForm
+                  <TriadeUserRegisterForm
+                    origin="establishment"
+                    salonId={salon.id}
                     salonName={salon.trade_name}
                     salonLogoUrl={salon.logo_url}
                     salonAccentColor={salon.primary_color || '#20C933'}
@@ -3610,7 +3612,9 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                   }}
                 />
               ) : (
-                <TriadeMnvClientRegisterForm
+                <TriadeUserRegisterForm
+                  origin="establishment"
+                  salonId={salon.id}
                   salonName={salon.trade_name}
                   salonLogoUrl={salon.logo_url}
                   salonAccentColor={salon.primary_color || '#20C933'}

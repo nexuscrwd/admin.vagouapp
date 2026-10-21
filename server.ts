@@ -120,6 +120,37 @@ interface TechnicalBulletin {
 
 const TRIADE_BULLETINS: TechnicalBulletin[] = [
   {
+    id: 'bol-019-legacy-establishment-forms-eradication',
+    timestamp: '2026-10-21T12:50:00.000Z',
+    sourceApp: 'admvapp',
+    targetApps: ['mnvapp', 'pvapp'],
+    title: 'Erradicação Definitiva de Formulários Legados/Obsoletos & Adoção Exclusiva da Versão Mais Atualizada (TriadeEstablishmentMasterForm)',
+    category: 'breaking_change',
+    summary: 'Ordem Suprema de Padronização da Tríade: Todos os formulários legados, desatualizados ou divergentes de cadastro de estabelecimentos foram permanentemente exterminados do código-fonte. O TriadeEstablishmentMasterForm (com suporte a etapas unificadas, identificação de titular, auto-preenchimento por CEP, validação de slug e CPF opcional) é agora a ÚNICA e EXCLUSIVA versão oficial para todo o ecossistema VagouApp.',
+    impactedTables: ['public.salons', 'public.profiles', 'public.salon_users'],
+    sqlMigration: `-- Nenhuma alteração no Supabase. O schema já suporta 100% as colunas do TriadeEstablishmentMasterForm.`,
+    instructions: '1. MNVAPP e PVAPP: Certificar-se de que nenhum formulário legado de cadastro esteja sendo carregado. Todas as rotas de cadastro (/cadastro, /onboarding, /registrar) e iframes de integração devem invocar diretamente o TriadeEstablishmentMasterForm (ou a rota universal https://adm.vagouapp.com/cadastro?form=estabelecimento). 2. Deletar quaisquer referências a wrappers obsoletos (como TriadeMnvClientRegisterForm).',
+    author: 'Super Administrador Master • admvapp (adm.vagouapp.com)',
+  },
+  {
+    id: 'bol-018-cpf-optional-until-payment-gateway',
+    timestamp: '2026-10-21T12:28:00.000Z',
+    sourceApp: 'admvapp',
+    targetApps: ['mnvapp', 'pvapp'],
+    title: 'Desobrigatoriedade do CPF de Usuários/Parceiros/Clientes até a Integração do Gateway de Pagamento',
+    category: 'breaking_change',
+    summary: 'Deliberação Soberana da Tríade VagouApp: O campo de CPF do usuário (proprietário, profissional ou cliente titular) NÃO É MAIS OBRIGATÓRIO em cadastros e formulários. A exigência do CPF passa a ser ativada unicamente quando o ecossistema integrar o Gateway de Pagamento oficial (para emissão de split, notas fiscais e liquidação bancária). Em todas as tabelas do Supabase (profiles, salons.owner_cpf, clients, professionals, salon_users), o campo cpf é opcional/anulável.',
+    impactedTables: ['public.profiles', 'public.salons', 'public.clients', 'public.professionals', 'public.salon_users'],
+    sqlMigration: `-- O campo CPF já é anulável no Supabase. Caso alguma tabela possua restrição NOT NULL, execute:
+ALTER TABLE public.profiles ALTER COLUMN cpf DROP NOT NULL;
+ALTER TABLE public.clients ALTER COLUMN cpf DROP NOT NULL;
+ALTER TABLE public.salons ALTER COLUMN owner_cpf DROP NOT NULL;
+ALTER TABLE public.professionals ALTER COLUMN cpf DROP NOT NULL;
+ALTER TABLE public.salon_users ALTER COLUMN cpf DROP NOT NULL;`,
+    instructions: '1. MNVAPP (meunegocio.vagouapp.com): Remover o bloqueio de validação obrigatória de CPF no cadastro de novos salões e profissionais. Se o usuário deixar o CPF em branco, salvar como NULL ou string vazia sem impedir o avanço do fluxo de cadastro. 2. PVAPP (portal.vagouapp.com): Manter o CPF como opcional no perfil do cliente, solicitando apenas nome e WhatsApp para agendamentos rápidos.',
+    author: 'Super Administrador Master • admvapp (adm.vagouapp.com)',
+  },
+  {
     id: 'bol-017-visual-identity-font-favicon-slogan-sync',
     timestamp: '2026-10-18T20:25:00.000Z',
     sourceApp: 'admvapp',

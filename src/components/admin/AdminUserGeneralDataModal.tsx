@@ -371,10 +371,10 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                   </div>
                 </div>
 
-                {/* 3. CPF Pessoal (Obrigatório para Parceiro / Opcional para Cliente até Pagamentos) */}
+                {/* 3. CPF Pessoal (Opcional - Obrigatório apenas após integração com Gateway de Pagamento) */}
                 <div className="sm:col-span-4">
                   <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    CPF Pessoal
+                    CPF Pessoal <span className="text-slate-400 font-normal text-[10px]">(Opcional)</span>
                   </label>
                   <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 focus-within:border-emerald-500 transition">
                     <FileText className="w-3.5 h-3.5 text-slate-400 mr-1.5 shrink-0" />

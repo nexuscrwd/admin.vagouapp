@@ -92,13 +92,18 @@ export const App: React.FC = () => {
     const formParam = searchParams?.get('form') || searchParams?.get('f');
     const pathname = typeof window !== 'undefined' ? window.location.pathname.toLowerCase() : '';
 
-    let targetForm: EmbedFormType = 'mnv_cadastro';
+    let targetForm: EmbedFormType = 'estabelecimento';
     if (
       formParam === 'estabelecimento' ||
       formParam === 'salao' ||
+      formParam === 'cadastro' ||
+      formParam === 'novonegocio' ||
+      formParam === 'parceiro' ||
       typeParam === 'professional' ||
       pathname.includes('/onboarding') ||
-      pathname.includes('/estabelecimento')
+      pathname.includes('/estabelecimento') ||
+      pathname.includes('/cadastro') ||
+      pathname.includes('/registrar')
     ) {
       targetForm = 'estabelecimento';
     } else if (
@@ -115,6 +120,7 @@ export const App: React.FC = () => {
       formParam === 'cadastro_usuario' ||
       typeParam === 'user' ||
       typeParam === 'usuario' ||
+      typeParam === 'client' ||
       pathname.includes('/usuario')
     ) {
       targetForm = modeParam === 'login' ? 'usuario_login' : 'usuario';
@@ -123,8 +129,7 @@ export const App: React.FC = () => {
       formParam === 'mnv-login' ||
       formParam === 'mnv-acesso' ||
       modeParam === 'login' ||
-      pathname.includes('/login') ||
-      (typeParam === 'client' && modeParam !== 'cadastro')
+      pathname.includes('/login')
     ) {
       targetForm = 'mnv_login';
     } else if (formParam === 'admin' || formParam === 'admin_login' || pathname.includes('/embed/admin')) {

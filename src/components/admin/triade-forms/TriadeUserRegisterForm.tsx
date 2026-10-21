@@ -355,13 +355,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
       setFeedback({ type: 'error', message: 'Informe seu nome de usuário.' });
       return;
     }
-    if (requireCpf && cpf.replace(/\D/g, '').length !== 11) {
-      setFeedback({
-        type: 'error',
-        message: 'Para cadastro de proprietário/parceiro, informe seu CPF pessoal (11 dígitos).',
-      });
-      return;
-    }
     setUsername(cleanUser);
     setPhase('contacts');
   };
@@ -459,14 +452,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     // Validação geral de integridade
     if (!fullName.trim() || !username.trim()) {
       setFeedback({ type: 'error', message: 'Preencha seu nome e nome de usuário.' });
-      setPhase('identification');
-      return;
-    }
-    if (requireCpf && cpf.replace(/\D/g, '').length !== 11) {
-      setFeedback({
-        type: 'error',
-        message: 'Informe seu CPF pessoal de 11 dígitos nos Dados Pessoais.',
-      });
       setPhase('identification');
       return;
     }
@@ -768,31 +753,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                   />
                 </div>
               </div>
-
-              {requireCpf && (
-                <div className="sm:col-span-2 animate-fadeIn">
-                  <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
-                    <label className="block text-xs font-semibold text-slate-300">
-                      CPF Pessoal do Titular <span className="text-emerald-400">*</span>
-                    </label>
-                    <span className="text-[10px] text-emerald-400 font-medium">
-                      Vinculado ao seu cadastro pessoal
-                    </span>
-                  </div>
-                  <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 min-h-[44px] focus-within:border-emerald-500 transition w-full sm:max-w-[240px]">
-                    <FileText className="w-4 h-4 text-emerald-400 mr-2 shrink-0" />
-                    <input
-                      type="text"
-                      value={cpf}
-                      onChange={(e) => setCpf(formatPixKeyByType(e.target.value, 'cpf'))}
-                      placeholder="000.000.000-00"
-                      maxLength={14}
-                      className="w-full bg-transparent text-xs sm:text-sm text-white font-mono placeholder-slate-600 outline-none"
-                      required={requireCpf}
-                    />
-                  </div>
-                </div>
-              )}
             </div>
 
             {currentPhase === 'identification' && (

@@ -62,7 +62,7 @@ Caso `mnvapp` e `pvapp` compartilhem o repositório ou importem o módulo TypeSc
 ```tsx
 import { 
   TriadeEstablishmentMasterForm, 
-  TriadeMnvClientRegisterForm, 
+  TriadeUserRegisterForm, 
   TriadeMnvClientLoginForm 
 } from '@/triade-export';
 
@@ -75,7 +75,8 @@ import {
 />
 
 // Exemplo: No fluxo de Agendamento do pvapp / mnvapp:
-<TriadeMnvClientRegisterForm
+<TriadeUserRegisterForm
+  origin="establishment"
   salonName="Barbearia Imperial"
   salonAccentColor="#20C933"
   onSuccess={(client) => {
@@ -91,7 +92,7 @@ import {
 Todos os nós da Tríade devem respeitar as seguintes diretrizes:
 
 1. **Botão Fechar (X) em 100% dos Formulários:**
-   Todos os formulários (`TriadeMnvClientRegisterForm`, `TriadeMnvClientLoginForm`, `TriadeEstablishmentMasterForm`, `TriadeAdminLoginForm`, `TriadeAdminRegisterForm`, `TriadeAdminRecoveryForm`) possuem botão de Fechar (`X`) posicionado no canto superior direito do cabeçalho.
+   Todos os formulários (`TriadeUserRegisterForm`, `TriadeMnvClientLoginForm`, `TriadeEstablishmentMasterForm`, `TriadeAdminLoginForm`, `TriadeAdminRegisterForm`, `TriadeAdminRecoveryForm`) possuem botão de Fechar (`X`) posicionado no canto superior direito do cabeçalho.
    - Quando chamado via prop `onClose()`, executa a função de fechamento.
    - Quando renderizado via Embed / Iframe, emite um `postMessage({ source: 'VAGOUAPP_FORM', action: 'CLOSE' }, '*')` para o app pai capturar e fechar o modal/gaveta, com fallback para `window.history.back()`.
 
