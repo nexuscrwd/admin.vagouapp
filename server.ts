@@ -120,6 +120,127 @@ interface TechnicalBulletin {
 
 const TRIADE_BULLETINS: TechnicalBulletin[] = [
   {
+    id: 'bol-021-salon-styles-and-ui-settings-sync',
+    timestamp: '2026-10-23T08:00:00.000Z',
+    sourceApp: 'mnvapp',
+    targetApps: ['pvapp', 'admvapp'],
+    title: 'Sincronização Total de Cores, SQL, Colunas Físicas de Layout, Tabela salon_ui_settings e Galeria de Serviços',
+    category: 'schema_change',
+    summary: 'Homologação Oficial Inter-Projetos Tríade: 1. Criação das colunas físicas de estilização em public.salons (section_header_bg_color, section_header_text_color, section_header_icon_color, section_header_bg_style, section_header_border, nav_style, nav_shape, nav_border, nav_bg_style, nav_bg_color, nav_btn_bg_color, nav_btn_active_bg_color, nav_active_color, nav_text_color, default_theme, welcome_style, pwa_name, show_slogan, show_hero_slides, etc.) e da tabela relacional dedicada public.salon_ui_settings com RLS e constraint UNIQUE(salon_id). 2. Acervo curado de presets fotográficos para serviços sem imagem (serviceGalleryPresets.ts) agrupado por categorias (Unhas, Cabelo, Barba, Sobrancelhas, Estética, Combos) e upload no bucket salon-media. 3. Padronização estrita de textos de compartilhamento para [Nome] — [Slogan] e erradicação definitiva do fallback genérico Momy nail.',
+    impactedTables: ['public.salons', 'public.salon_ui_settings', 'storage.buckets'],
+    sqlMigration: `-- MIGRAÇÃO VAGOU: COLUNAS DE UI/ESTILOS, TABELA SALON_UI_SETTINGS E BUCKETS
+ALTER TABLE public.salons
+  ADD COLUMN IF NOT EXISTS default_theme text DEFAULT 'dark',
+  ADD COLUMN IF NOT EXISTS pwa_name text,
+  ADD COLUMN IF NOT EXISTS show_slogan boolean DEFAULT true,
+  ADD COLUMN IF NOT EXISTS logo_text_fallback text,
+  ADD COLUMN IF NOT EXISTS logo_text_color text DEFAULT '#10b981',
+  ADD COLUMN IF NOT EXISTS show_hero_slides boolean DEFAULT true,
+  ADD COLUMN IF NOT EXISTS welcome_style text DEFAULT 'atmospheric',
+  ADD COLUMN IF NOT EXISTS section_header_bg_color text,
+  ADD COLUMN IF NOT EXISTS section_header_text_color text,
+  ADD COLUMN IF NOT EXISTS section_header_icon_color text DEFAULT '#10b981',
+  ADD COLUMN IF NOT EXISTS section_header_bg_style text DEFAULT 'glass',
+  ADD COLUMN IF NOT EXISTS section_header_border text DEFAULT 'bordered',
+  ADD COLUMN IF NOT EXISTS section_header_btn_bg_color text,
+  ADD COLUMN IF NOT EXISTS section_header_btn_active_bg_color text,
+  ADD COLUMN IF NOT EXISTS section_header_btn_border text,
+  ADD COLUMN IF NOT EXISTS section_header_btn_shadow text,
+  ADD COLUMN IF NOT EXISTS section_header_btn_blur text,
+  ADD COLUMN IF NOT EXISTS section_header_btn_font text,
+  ADD COLUMN IF NOT EXISTS nav_style text DEFAULT 'minimal',
+  ADD COLUMN IF NOT EXISTS nav_shape text DEFAULT 'square',
+  ADD COLUMN IF NOT EXISTS nav_border text DEFAULT 'bordered',
+  ADD COLUMN IF NOT EXISTS nav_bg_style text DEFAULT 'glass',
+  ADD COLUMN IF NOT EXISTS nav_bg_color text,
+  ADD COLUMN IF NOT EXISTS nav_btn_bg_color text,
+  ADD COLUMN IF NOT EXISTS nav_btn_active_bg_color text,
+  ADD COLUMN IF NOT EXISTS nav_active_color text DEFAULT '#10b981',
+  ADD COLUMN IF NOT EXISTS nav_text_color text,
+  ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
+
+CREATE TABLE IF NOT EXISTS public.salon_ui_settings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  salon_id uuid NOT NULL REFERENCES public.salons(id) ON DELETE CASCADE,
+  default_theme text DEFAULT 'dark',
+  pwa_name text,
+  show_slogan boolean DEFAULT true,
+  logo_text_fallback text,
+  logo_text_color text DEFAULT '#10b981',
+  show_hero_slides boolean DEFAULT true,
+  welcome_style text DEFAULT 'atmospheric',
+  section_header_bg_color text,
+  section_header_text_color text,
+  section_header_icon_color text DEFAULT '#10b981',
+  section_header_bg_style text DEFAULT 'glass',
+  section_header_border text DEFAULT 'bordered',
+  nav_style text DEFAULT 'minimal',
+  nav_shape text DEFAULT 'square',
+  nav_border text DEFAULT 'bordered',
+  nav_bg_style text DEFAULT 'glass',
+  nav_bg_color text,
+  nav_btn_bg_color text,
+  nav_btn_active_bg_color text,
+  nav_active_color text DEFAULT '#10b981',
+  nav_text_color text,
+  raw_settings jsonb DEFAULT '{}'::jsonb,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  CONSTRAINT salon_ui_settings_salon_unique UNIQUE(salon_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_salon_ui_settings_salon_id ON public.salon_ui_settings(salon_id);
+ALTER TABLE public.salon_ui_settings ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'salon_ui_settings_public_read') THEN
+    CREATE POLICY salon_ui_settings_public_read ON public.salon_ui_settings FOR SELECT USING (true);
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'salon_ui_settings_public_upsert') THEN
+    CREATE POLICY salon_ui_settings_public_upsert ON public.salon_ui_settings FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+END $$;
+
+INSERT INTO storage.buckets (id, name, public) VALUES ('salon-media', 'salon-media', true) ON CONFLICT (id) DO UPDATE SET public = true;
+INSERT INTO storage.buckets (id, name, public) VALUES ('avatars', 'avatars', true) ON CONFLICT (id) DO UPDATE SET public = true;`,
+    instructions: '1. ADMVAPP: Mapear colunas e permitir edição/auditoria visual de nav_style, nav_shape, nav_border, nav_bg_style, nav_bg_color, nav_active_color, nav_text_color e section_header_* no painel de estabelecimentos. 2. PVAPP: Na vitrine e Radar de Vagas, carregar e aplicar as cores da barra de seções e navegação diretamente de salons e salon_ui_settings, utilizando a capa temática curada para procedimentos sem imagem.',
+    author: 'Equipe Meu Negócio • mnvapp (seunegocio.vagouapp.com)',
+  },
+  {
+    id: 'bol-020-live-route-tracking-10s-shopee-timeline',
+    timestamp: '2026-10-22T12:00:00.000Z',
+    sourceApp: 'admvapp',
+    targetApps: ['mnvapp', 'pvapp'],
+    title: 'Homologação do Radar Bidirecional de Deslocamento (10s), Traçador de Rota Google Maps In-App, Linha de Ruas (Estilo Shopee/Correios) & Detector de Adversidades (+X min)',
+    category: 'schema_change',
+    summary: 'Arquitetura Oficial de Mobilidade e Pontualidade da Tríade VagouApp: 1. Alerta Inteligente de Partida calculado pela modalidade (walking, transit, rideshare, driving, motorcycle) + ETA da Google Maps Routes API + 10 min de margem de preparo (disparando modal 10 min antes da saída). 2. Árvore de decisão completa: opção NÃO permite confirmar comparecimento (com alerta de pressa), Cancelar (exigindo input de motivo em cancellation_reason) ou Remanejar (abrindo a agenda do salão); opção SIM abre o Traçador de Rota Google Maps In-App, extraindo os steps[] para route_checkpoints e iniciando o compartilhamento de GPS a cada 10 segundos. 3. Dois modos de visualização sincronizados: Mapa Ao Vivo (Completo com rota ou Simplificado apenas pinos) e Linha de Rastreamento por Ruas (estilo Correios/Shopee mostrando ruas já percorridas, marcador na rua atual e próximas vias). 4. Inversão automática para Delivery (service_location_type = home_delivery: o profissional traça a rota e transmite a posição a cada 10s enquanto o cliente acompanha em casa). 5. Radar de Adversidades (+X min na rua atual sem necessidade de ligações) e Alerta Automático de Chegada quando ETA <= 5 minutos.',
+    impactedTables: ['public.appointments'],
+    sqlMigration: `-- Executar no Supabase SQL Editor para habilitar o Radar de Deslocamento 10s e Linha de Ruas (Shopee/Correios)
+ALTER TABLE public.appointments
+ADD COLUMN IF NOT EXISTS service_location_type VARCHAR(30) DEFAULT 'in_salon',
+ADD COLUMN IF NOT EXISTS transport_mode VARCHAR(30) DEFAULT 'driving',
+ADD COLUMN IF NOT EXISTS tracking_status VARCHAR(40) DEFAULT 'idle',
+ADD COLUMN IF NOT EXISTS selected_route_summary TEXT,
+ADD COLUMN IF NOT EXISTS route_polyline TEXT,
+ADD COLUMN IF NOT EXISTS current_street_name TEXT,
+ADD COLUMN IF NOT EXISTS route_checkpoints JSONB DEFAULT '[]'::jsonb,
+ADD COLUMN IF NOT EXISTS active_adversity JSONB DEFAULT NULL,
+ADD COLUMN IF NOT EXISTS delay_minutes INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS client_lat DOUBLE PRECISION,
+ADD COLUMN IF NOT EXISTS client_lng DOUBLE PRECISION,
+ADD COLUMN IF NOT EXISTS distance_km NUMERIC(6,2),
+ADD COLUMN IF NOT EXISTS eta_minutes INTEGER,
+ADD COLUMN IF NOT EXISTS prep_buffer_minutes INTEGER DEFAULT 10,
+ADD COLUMN IF NOT EXISTS cancellation_reason TEXT,
+ADD COLUMN IF NOT EXISTS rescheduled_from_id UUID,
+ADD COLUMN IF NOT EXISTS last_location_update TIMESTAMPTZ;`,
+    instructions: '1. MNVAPP (Visão Cliente - Meus Agendamentos): Exibir o modal pré-partida (ETA + 10m preparo), traçar a rota via Google Maps Routes API salvando os steps em route_checkpoints e atualizar client_lat/client_lng/current_street_name a cada 10s quando tracking_status = live_sharing (ou acompanhar o profissional quando service_location_type = home_delivery). 2. MNVAPP (Visão Salão - Agenda do Dia): Exibir o selo ao vivo no card do agendamento, abrir a gaveta com alternância entre Linha de Ruas (Shopee/Correios) e Mapa 10s, exibir marcadores de adversidades (+X min) e disparar alerta sonoro/visual quando eta_minutes <= 5. 3. PVAPP: Espelhar a confirmação de partida e visualização da Linha de Ruas no navegador web.',
+    author: 'Super Administrador Master • admvapp (adm.vagouapp.com)',
+  },
+  {
     id: 'bol-019-legacy-establishment-forms-eradication',
     timestamp: '2026-10-21T12:50:00.000Z',
     sourceApp: 'admvapp',
@@ -1920,6 +2041,27 @@ async function startServer() {
       delete updates.rating;
       delete updates.id;
 
+      // Extrai campos de UI para sincronizar na tabela relacional public.salon_ui_settings
+      const uiFields = [
+        'default_theme', 'pwa_name', 'show_slogan', 'logo_text_fallback', 'logo_text_color',
+        'show_hero_slides', 'welcome_style', 'section_header_bg_color', 'section_header_text_color',
+        'section_header_icon_color', 'section_header_bg_style', 'section_header_border',
+        'section_header_btn_bg_color', 'section_header_btn_active_bg_color', 'section_header_btn_border',
+        'section_header_btn_shadow', 'section_header_btn_blur', 'section_header_btn_font',
+        'nav_style', 'nav_shape', 'nav_border', 'nav_bg_style', 'nav_bg_color',
+        'nav_btn_bg_color', 'nav_btn_active_bg_color', 'nav_active_color', 'nav_text_color'
+      ];
+      const uiPayload: Record<string, any> = {};
+      uiFields.forEach((field) => {
+        if (updates[field] !== undefined) {
+          uiPayload[field] = updates[field];
+        }
+      });
+      if (updates.ui_settings && typeof updates.ui_settings === 'object') {
+        Object.assign(uiPayload, updates.ui_settings);
+      }
+      delete updates.ui_settings;
+
       const { data, error } = await supabaseAdmin
         .from('salons')
         .update(updates)
@@ -1929,6 +2071,17 @@ async function startServer() {
 
       if (error) {
         return res.status(400).json({ success: false, error: error.message });
+      }
+
+      // Sincroniza tabela dedicada public.salon_ui_settings se houver campos de UI
+      if (Object.keys(uiPayload).length > 0) {
+        try {
+          await supabaseAdmin
+            .from('salon_ui_settings')
+            .upsert({ salon_id: id, ...uiPayload, updated_at: new Date().toISOString() }, { onConflict: 'salon_id' });
+        } catch (uiSyncErr) {
+          console.warn('[PATCH /api/admin/salons/:id] Aviso ao sincronizar salon_ui_settings:', uiSyncErr);
+        }
       }
 
       return res.json({ success: true, salon: data });
@@ -2711,12 +2864,11 @@ async function startServer() {
     try {
       const { salonId } = req.params;
 
-      // 1.1 Dados do Salão + Branding
-      const { data: salonRow } = await supabaseAdmin
-        .from('salons')
-        .select('*')
-        .eq('id', salonId)
-        .maybeSingle();
+      // 1.1 Dados do Salão + Branding + UI Settings (public.salons + public.salon_ui_settings)
+      const [{ data: salonRow }, { data: uiSettingsRow }] = await Promise.all([
+        supabaseAdmin.from('salons').select('*').eq('id', salonId).maybeSingle(),
+        supabaseAdmin.from('salon_ui_settings').select('*').eq('salon_id', salonId).maybeSingle(),
+      ]);
 
       const branding = salonRow?.branding && typeof salonRow.branding === 'object' ? salonRow.branding : {};
 
@@ -3000,6 +3152,7 @@ async function startServer() {
         success: true,
         salon: salonRow,
         branding,
+        uiSettings: uiSettingsRow || null,
         services: Array.from(unifiedServicesMap.values()),
         serviceOffers: activeOffers || [],
         mediaItems: normalizedMedia,
@@ -3009,6 +3162,55 @@ async function startServer() {
       });
     } catch (err: any) {
       console.error('[full-sync] Erro:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 1B. Obter e Atualizar Configurações de UI Avançadas (public.salon_ui_settings + public.salons)
+  app.get('/api/admin/salons/:salonId/ui-settings', async (req, res) => {
+    try {
+      const { salonId } = req.params;
+      const { data, error } = await supabaseAdmin
+        .from('salon_ui_settings')
+        .select('*')
+        .eq('salon_id', salonId)
+        .maybeSingle();
+
+      if (error) {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+      return res.json({ success: true, uiSettings: data });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.patch('/api/admin/salons/:salonId/ui-settings', async (req, res) => {
+    try {
+      const { salonId } = req.params;
+      const payload = { ...req.body };
+      delete payload.id;
+      delete payload.salon_id;
+
+      // 1. Upsert em public.salon_ui_settings
+      const { data: uiData, error: uiErr } = await supabaseAdmin
+        .from('salon_ui_settings')
+        .upsert({ salon_id: salonId, ...payload, updated_at: new Date().toISOString() }, { onConflict: 'salon_id' })
+        .select()
+        .single();
+
+      // 2. Espelha colunas físicas diretamente na tabela public.salons
+      await supabaseAdmin
+        .from('salons')
+        .update({ ...payload, updated_at: new Date().toISOString() })
+        .eq('id', salonId);
+
+      if (uiErr) {
+        return res.status(400).json({ success: false, error: uiErr.message });
+      }
+
+      return res.json({ success: true, uiSettings: uiData });
+    } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -3225,9 +3427,11 @@ async function startServer() {
   });
 
   // 4. Sincronizar Tema Camaleão e Identidade Visual (public.salons + salons.branding)
-  app.post('/api/admin/salons/:salonId/theme', async (req, res) => {
+  // 4. Sincronizar Tema Camaleão, Identidade Visual & UI Settings (public.salons + public.salon_ui_settings + salons.branding)
+  const handleThemeAndUiSync = async (req: any, res: any) => {
     try {
       const { salonId } = req.params;
+      const b = req.body || {};
       const {
         themePresetId,
         primaryColor,
@@ -3240,7 +3444,35 @@ async function startServer() {
         facadePhotoUrl,
         interiorPhotoUrl,
         slogan,
-      } = req.body;
+        // Novos campos físicos de UI
+        defaultTheme,
+        pwaName,
+        showSlogan,
+        logoTextFallback,
+        logoTextColor,
+        showHeroSlides,
+        welcomeStyle,
+        sectionHeaderBgColor,
+        sectionHeaderTextColor,
+        sectionHeaderIconColor,
+        sectionHeaderBgStyle,
+        sectionHeaderBorder,
+        sectionHeaderBtnBgColor,
+        sectionHeaderBtnActiveBgColor,
+        sectionHeaderBtnBorder,
+        sectionHeaderBtnShadow,
+        sectionHeaderBtnBlur,
+        sectionHeaderBtnFont,
+        navStyle,
+        navShape,
+        navBorder,
+        navBgStyle,
+        navBgColor,
+        navBtnBgColor,
+        navBtnActiveBgColor,
+        navActiveColor,
+        navTextColor,
+      } = b;
 
       const { data: salonRow } = await supabaseAdmin.from('salons').select('branding').eq('id', salonId).maybeSingle();
       const currentBranding = salonRow?.branding && typeof salonRow.branding === 'object' ? salonRow.branding : {};
@@ -3258,6 +3490,11 @@ async function startServer() {
         ...(facadePhotoUrl !== undefined ? { facadePhotoUrl } : {}),
         ...(interiorPhotoUrl !== undefined ? { interiorPhotoUrl } : {}),
         ...(slogan !== undefined ? { slogan } : {}),
+        ...(navBgStyle !== undefined ? { navBgStyle } : {}),
+        ...(navBgColor !== undefined ? { navBgColor } : {}),
+        ...(navActiveColor !== undefined ? { navActiveColor } : {}),
+        ...(navTextColor !== undefined ? { navTextColor } : {}),
+        ...(navBorder !== undefined ? { navBorder } : {}),
         updatedAt: new Date().toISOString(),
       };
 
@@ -3265,9 +3502,46 @@ async function startServer() {
         branding: updatedBranding,
         updated_at: new Date().toISOString(),
       };
+      if (themePresetId !== undefined) salonUpdatePayload.theme_preset_id = themePresetId;
       if (primaryColor !== undefined) salonUpdatePayload.primary_color = primaryColor;
+      if (secondaryColor !== undefined) salonUpdatePayload.secondary_color = secondaryColor;
       if (logoUrl !== undefined) salonUpdatePayload.logo_url = logoUrl;
+      if (logoDarkUrl !== undefined) salonUpdatePayload.logo_dark_url = logoDarkUrl;
+      if (logoLightUrl !== undefined) salonUpdatePayload.logo_light_url = logoLightUrl;
+      if (faviconUrl !== undefined) salonUpdatePayload.favicon_url = faviconUrl;
       if (coverImageUrl !== undefined) salonUpdatePayload.cover_image_url = coverImageUrl;
+      if (facadePhotoUrl !== undefined) salonUpdatePayload.facade_photo_url = facadePhotoUrl;
+      if (interiorPhotoUrl !== undefined) salonUpdatePayload.interior_photo_url = interiorPhotoUrl;
+      if (slogan !== undefined) salonUpdatePayload.slogan = slogan;
+
+      // Colunas físicas de UI
+      if (defaultTheme !== undefined) salonUpdatePayload.default_theme = defaultTheme;
+      if (pwaName !== undefined) salonUpdatePayload.pwa_name = pwaName;
+      if (showSlogan !== undefined) salonUpdatePayload.show_slogan = showSlogan;
+      if (logoTextFallback !== undefined) salonUpdatePayload.logo_text_fallback = logoTextFallback;
+      if (logoTextColor !== undefined) salonUpdatePayload.logo_text_color = logoTextColor;
+      if (showHeroSlides !== undefined) salonUpdatePayload.show_hero_slides = showHeroSlides;
+      if (welcomeStyle !== undefined) salonUpdatePayload.welcome_style = welcomeStyle;
+      if (sectionHeaderBgColor !== undefined) salonUpdatePayload.section_header_bg_color = sectionHeaderBgColor;
+      if (sectionHeaderTextColor !== undefined) salonUpdatePayload.section_header_text_color = sectionHeaderTextColor;
+      if (sectionHeaderIconColor !== undefined) salonUpdatePayload.section_header_icon_color = sectionHeaderIconColor;
+      if (sectionHeaderBgStyle !== undefined) salonUpdatePayload.section_header_bg_style = sectionHeaderBgStyle;
+      if (sectionHeaderBorder !== undefined) salonUpdatePayload.section_header_border = sectionHeaderBorder;
+      if (sectionHeaderBtnBgColor !== undefined) salonUpdatePayload.section_header_btn_bg_color = sectionHeaderBtnBgColor;
+      if (sectionHeaderBtnActiveBgColor !== undefined) salonUpdatePayload.section_header_btn_active_bg_color = sectionHeaderBtnActiveBgColor;
+      if (sectionHeaderBtnBorder !== undefined) salonUpdatePayload.section_header_btn_border = sectionHeaderBtnBorder;
+      if (sectionHeaderBtnShadow !== undefined) salonUpdatePayload.section_header_btn_shadow = sectionHeaderBtnShadow;
+      if (sectionHeaderBtnBlur !== undefined) salonUpdatePayload.section_header_btn_blur = sectionHeaderBtnBlur;
+      if (sectionHeaderBtnFont !== undefined) salonUpdatePayload.section_header_btn_font = sectionHeaderBtnFont;
+      if (navStyle !== undefined) salonUpdatePayload.nav_style = navStyle;
+      if (navShape !== undefined) salonUpdatePayload.nav_shape = navShape;
+      if (navBorder !== undefined) salonUpdatePayload.nav_border = navBorder;
+      if (navBgStyle !== undefined) salonUpdatePayload.nav_bg_style = navBgStyle;
+      if (navBgColor !== undefined) salonUpdatePayload.nav_bg_color = navBgColor;
+      if (navBtnBgColor !== undefined) salonUpdatePayload.nav_btn_bg_color = navBtnBgColor;
+      if (navBtnActiveBgColor !== undefined) salonUpdatePayload.nav_btn_active_bg_color = navBtnActiveBgColor;
+      if (navActiveColor !== undefined) salonUpdatePayload.nav_active_color = navActiveColor;
+      if (navTextColor !== undefined) salonUpdatePayload.nav_text_color = navTextColor;
 
       const { data: updatedSalon, error: upErr } = await supabaseAdmin
         .from('salons')
@@ -3280,11 +3554,49 @@ async function startServer() {
         return res.status(400).json({ success: false, error: upErr.message });
       }
 
+      // Sincroniza também na tabela relacional public.salon_ui_settings
+      const uiRowPayload: Record<string, any> = {
+        salon_id: salonId,
+        updated_at: new Date().toISOString(),
+      };
+      if (defaultTheme !== undefined) uiRowPayload.default_theme = defaultTheme;
+      if (pwaName !== undefined) uiRowPayload.pwa_name = pwaName;
+      if (showSlogan !== undefined) uiRowPayload.show_slogan = showSlogan;
+      if (logoTextFallback !== undefined) uiRowPayload.logo_text_fallback = logoTextFallback;
+      if (logoTextColor !== undefined) uiRowPayload.logo_text_color = logoTextColor;
+      if (showHeroSlides !== undefined) uiRowPayload.show_hero_slides = showHeroSlides;
+      if (welcomeStyle !== undefined) uiRowPayload.welcome_style = welcomeStyle;
+      if (sectionHeaderBgColor !== undefined) uiRowPayload.section_header_bg_color = sectionHeaderBgColor;
+      if (sectionHeaderTextColor !== undefined) uiRowPayload.section_header_text_color = sectionHeaderTextColor;
+      if (sectionHeaderIconColor !== undefined) uiRowPayload.section_header_icon_color = sectionHeaderIconColor;
+      if (sectionHeaderBgStyle !== undefined) uiRowPayload.section_header_bg_style = sectionHeaderBgStyle;
+      if (sectionHeaderBorder !== undefined) uiRowPayload.section_header_border = sectionHeaderBorder;
+      if (navStyle !== undefined) uiRowPayload.nav_style = navStyle;
+      if (navShape !== undefined) uiRowPayload.nav_shape = navShape;
+      if (navBorder !== undefined) uiRowPayload.nav_border = navBorder;
+      if (navBgStyle !== undefined) uiRowPayload.nav_bg_style = navBgStyle;
+      if (navBgColor !== undefined) uiRowPayload.nav_bg_color = navBgColor;
+      if (navBtnBgColor !== undefined) uiRowPayload.nav_btn_bg_color = navBtnBgColor;
+      if (navBtnActiveBgColor !== undefined) uiRowPayload.nav_btn_active_bg_color = navBtnActiveBgColor;
+      if (navActiveColor !== undefined) uiRowPayload.nav_active_color = navActiveColor;
+      if (navTextColor !== undefined) uiRowPayload.nav_text_color = navTextColor;
+
+      try {
+        await supabaseAdmin
+          .from('salon_ui_settings')
+          .upsert(uiRowPayload, { onConflict: 'salon_id' });
+      } catch (uiErr) {
+        console.warn('[handleThemeAndUiSync] Aviso ao sincronizar salon_ui_settings:', uiErr);
+      }
+
       return res.json({ success: true, salon: updatedSalon, branding: updatedBranding });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
-  });
+  };
+
+  app.post('/api/admin/salons/:salonId/theme', handleThemeAndUiSync);
+  app.post('/api/admin/salons/:salonId/branding-theme', handleThemeAndUiSync);
 
   // 5. Sincronizar Equipe de Profissionais do Salão (public.professionals)
   app.post('/api/admin/salons/:salonId/professionals', async (req, res) => {

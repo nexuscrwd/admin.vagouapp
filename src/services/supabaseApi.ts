@@ -80,6 +80,33 @@ export async function fetchAdminSalons(): Promise<AdminSalonItem[]> {
       theme_preset_id: row.theme_preset_id || row.branding?.themePresetId || 'emerald',
       primary_color: row.primary_color || row.brand_color || row.branding?.primaryColor || '#20C933',
       secondary_color: row.secondary_color || row.branding?.secondaryColor || '#059669',
+      default_theme: row.default_theme || row.branding?.defaultTheme || 'dark',
+      pwa_name: row.pwa_name || row.branding?.pwaName || row.trade_name || '',
+      show_slogan: row.show_slogan ?? row.branding?.showSlogan ?? true,
+      logo_text_fallback: row.logo_text_fallback || row.branding?.logoTextFallback || '',
+      logo_text_color: row.logo_text_color || row.branding?.logoTextColor || '#10b981',
+      show_hero_slides: row.show_hero_slides ?? row.branding?.showHeroSlides ?? true,
+      welcome_style: row.welcome_style || row.branding?.welcomeStyle || 'atmospheric',
+      section_header_bg_color: row.section_header_bg_color || row.branding?.sectionHeaderBgColor || '',
+      section_header_text_color: row.section_header_text_color || row.branding?.sectionHeaderTextColor || '',
+      section_header_icon_color: row.section_header_icon_color || row.branding?.sectionHeaderIconColor || '#10b981',
+      section_header_bg_style: row.section_header_bg_style || row.branding?.sectionHeaderBgStyle || 'glass',
+      section_header_border: row.section_header_border || row.branding?.sectionHeaderBorder || 'bordered',
+      section_header_btn_bg_color: row.section_header_btn_bg_color || row.branding?.sectionHeaderBtnBgColor || '',
+      section_header_btn_active_bg_color: row.section_header_btn_active_bg_color || row.branding?.sectionHeaderBtnActiveBgColor || '',
+      section_header_btn_border: row.section_header_btn_border || row.branding?.sectionHeaderBtnBorder || '',
+      section_header_btn_shadow: row.section_header_btn_shadow || row.branding?.sectionHeaderBtnShadow || '',
+      section_header_btn_blur: row.section_header_btn_blur || row.branding?.sectionHeaderBtnBlur || '',
+      section_header_btn_font: row.section_header_btn_font || row.branding?.sectionHeaderBtnFont || '',
+      nav_style: row.nav_style || row.branding?.navStyle || 'minimal',
+      nav_shape: row.nav_shape || row.branding?.navShape || 'square',
+      nav_border: row.nav_border || row.branding?.navBorder || 'bordered',
+      nav_bg_style: row.nav_bg_style || row.branding?.navBgStyle || 'glass',
+      nav_bg_color: row.nav_bg_color || row.branding?.navBgColor || '',
+      nav_btn_bg_color: row.nav_btn_bg_color || row.branding?.navBtnBgColor || '',
+      nav_btn_active_bg_color: row.nav_btn_active_bg_color || row.branding?.navBtnActiveBgColor || '',
+      nav_active_color: row.nav_active_color || row.branding?.navActiveColor || '#10b981',
+      nav_text_color: row.nav_text_color || row.branding?.navTextColor || '',
       created_at: row.created_at || new Date().toISOString(),
       professionals_count: row.professionals_count || 0,
       active_offers_count: row.active_offers_count || 0,
@@ -1201,6 +1228,33 @@ export async function updateAdminSalon(
       dbPayload.primary_color = updates.primary_color;
       dbPayload.brand_color = updates.primary_color;
     }
+    if (updates.default_theme !== undefined) dbPayload.default_theme = updates.default_theme;
+    if (updates.pwa_name !== undefined) dbPayload.pwa_name = updates.pwa_name;
+    if (updates.show_slogan !== undefined) dbPayload.show_slogan = updates.show_slogan;
+    if (updates.logo_text_fallback !== undefined) dbPayload.logo_text_fallback = updates.logo_text_fallback;
+    if (updates.logo_text_color !== undefined) dbPayload.logo_text_color = updates.logo_text_color;
+    if (updates.show_hero_slides !== undefined) dbPayload.show_hero_slides = updates.show_hero_slides;
+    if (updates.welcome_style !== undefined) dbPayload.welcome_style = updates.welcome_style;
+    if (updates.section_header_bg_color !== undefined) dbPayload.section_header_bg_color = updates.section_header_bg_color;
+    if (updates.section_header_text_color !== undefined) dbPayload.section_header_text_color = updates.section_header_text_color;
+    if (updates.section_header_icon_color !== undefined) dbPayload.section_header_icon_color = updates.section_header_icon_color;
+    if (updates.section_header_bg_style !== undefined) dbPayload.section_header_bg_style = updates.section_header_bg_style;
+    if (updates.section_header_border !== undefined) dbPayload.section_header_border = updates.section_header_border;
+    if (updates.section_header_btn_bg_color !== undefined) dbPayload.section_header_btn_bg_color = updates.section_header_btn_bg_color;
+    if (updates.section_header_btn_active_bg_color !== undefined) dbPayload.section_header_btn_active_bg_color = updates.section_header_btn_active_bg_color;
+    if (updates.section_header_btn_border !== undefined) dbPayload.section_header_btn_border = updates.section_header_btn_border;
+    if (updates.section_header_btn_shadow !== undefined) dbPayload.section_header_btn_shadow = updates.section_header_btn_shadow;
+    if (updates.section_header_btn_blur !== undefined) dbPayload.section_header_btn_blur = updates.section_header_btn_blur;
+    if (updates.section_header_btn_font !== undefined) dbPayload.section_header_btn_font = updates.section_header_btn_font;
+    if (updates.nav_style !== undefined) dbPayload.nav_style = updates.nav_style;
+    if (updates.nav_shape !== undefined) dbPayload.nav_shape = updates.nav_shape;
+    if (updates.nav_border !== undefined) dbPayload.nav_border = updates.nav_border;
+    if (updates.nav_bg_style !== undefined) dbPayload.nav_bg_style = updates.nav_bg_style;
+    if (updates.nav_bg_color !== undefined) dbPayload.nav_bg_color = updates.nav_bg_color;
+    if (updates.nav_btn_bg_color !== undefined) dbPayload.nav_btn_bg_color = updates.nav_btn_bg_color;
+    if (updates.nav_btn_active_bg_color !== undefined) dbPayload.nav_btn_active_bg_color = updates.nav_btn_active_bg_color;
+    if (updates.nav_active_color !== undefined) dbPayload.nav_active_color = updates.nav_active_color;
+    if (updates.nav_text_color !== undefined) dbPayload.nav_text_color = updates.nav_text_color;
 
     if (Object.keys(dbPayload).length > 0) {
       const { error } = await supabaseAdmin.from('salons').update(dbPayload).eq('id', salonId);

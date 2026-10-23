@@ -23,6 +23,7 @@ import { AdminAppointmentItem, AdminSalonItem } from '../../types/admin';
 import { fetchAdminAppointments, fetchAdminSalons } from '../../services/supabaseApi';
 import { VagouOfficialLogo } from '../common/VagouOfficialLogo';
 import { PixCheckoutModal } from './PixCheckoutModal';
+import { LiveAppointmentTrackingHub } from './LiveAppointmentTrackingHub';
 
 export const AdminAppointmentsMonitor: React.FC = () => {
   const [appointments, setAppointments] = useState<AdminAppointmentItem[]>([]);
@@ -292,6 +293,14 @@ export const AdminAppointmentsMonitor: React.FC = () => {
           </select>
         </div>
       </div>
+
+      {/* ======================================================== */}
+      {/* RADAR DE DESLOCAMENTO AO VIVO (10s) & LINHA SHOPEE       */}
+      {/* ======================================================== */}
+      <LiveAppointmentTrackingHub
+        appointments={activeSalonData ? activeSalonData.appointments : appointments}
+        selectedSalonName={activeSalonData?.salon.trade_name}
+      />
 
       {/* ======================================================== */}
       {/* NÍVEL 1: LISTAGEM DE ESTABELECIMENTOS                    */}

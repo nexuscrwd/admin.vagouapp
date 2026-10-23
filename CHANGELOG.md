@@ -15,6 +15,65 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-23] — 🎨 Sincronização Total da Tríade: Colunas Físicas de Layout, Tabela salon_ui_settings, Galeria Curada de Presets (1-Toque) & Boletim `bol-021`
+- **Tipo:** `[Feat / Database / Architecture / UI-UX / Triade Sync / 7º Mandamento]`
+- **Motivo / Solicitação:** Execução do Comunicado Técnico Oficial Inter-Projetos de 23/10/2026 originado no `mnvapp`, alinhando esquemas de banco de dados, storage buckets, painéis de auditoria e galerias no `admvapp`.
+- **Resumo Técnico:**
+  1. **Schema Físico do Supabase & Migração 20261023 (`supabase_schema.sql` & `supabase_safe_migration.sql`):**
+     - Adicionadas colunas físicas de estilo e branding diretamente em `public.salons`: `section_header_bg_color`, `section_header_text_color`, `section_header_icon_color`, `section_header_bg_style`, `section_header_border`, `nav_style`, `nav_shape`, `nav_border`, `nav_bg_style`, `nav_bg_color`, `nav_btn_bg_color`, `nav_btn_active_bg_color`, `nav_active_color`, `nav_text_color`, `default_theme`, `welcome_style`.
+     - Criada a tabela relacional `public.salon_ui_settings` com chave estrangeira `salon_id REFERENCES public.salons(id) ON DELETE CASCADE` e restrição `UNIQUE(salon_id)`.
+     - Políticas de RLS para leitura pública e escrita exclusiva para proprietários e administradores master.
+     - Criados os buckets de storage `salon-media` e `avatars` no Supabase Storage.
+  2. **Galeria Curada de Presets de Serviços (`src/data/serviceGalleryPresets.ts`):**
+     - Criada biblioteca de presets fotográficos em alta resolução distribuída em 6 categorias (*Unhas, Cabelo, Barba, Sobrancelhas, Estética, Combos*).
+     - Implementado utilitário `getCuratedServiceFallbackPhoto()` para atribuição imediata de capa a serviços sem foto e `uploadSalonMediaToStorage()` para o bucket `salon-media`.
+  3. **Backend Express (`server.ts`):**
+     - Registrado Boletim Oficial `bol-021-salon-styles-and-ui-settings-sync` no repositório de comunicados da Tríade.
+     - Atualizados endpoints `PATCH /api/admin/salons/:id`, `GET /api/admin/salons/:salonId/full-sync`, `POST /api/admin/salons/:salonId/theme` e `POST /api/admin/salons/:salonId/branding-theme` para sincronização bidirecional tanto em `public.salons` quanto em `public.salon_ui_settings`.
+     - Criados endpoints dedicados `GET /api/admin/salons/:salonId/ui-settings` e `PATCH /api/admin/salons/:salonId/ui-settings`.
+  4. **Camada de Dados & Tipagem (`src/types/admin.ts` & `src/services/supabaseApi.ts`):**
+     - Tipos estritos: `SalonNavStyle`, `SalonNavShape`, `SalonNavBorder`, `SalonNavBgStyle`, `SalonSectionHeaderBgStyle`, `SalonSectionHeaderBorder`, `SalonWelcomeStyle`, `SalonThemeMode`, `SalonUiSettings`.
+     - Mapeamento completo e seguro nos métodos `mapSalonRow` e `updateAdminSalon`.
+  5. **Painel de Auditoria & Editor no Backoffice (`src/components/admin/AdminSalonDetailView.tsx`):**
+     - Inclusão de seções de customização no painel de Branding: Estilo e Cores da Barra de Seções, Barra de Navegação Inferior (BottomNav) com Simulador Visual Ao Vivo, e Modo PWA/Boas-Vindas.
+     - Modal de Seleção de Presets Curados com filtro dinâmico por categoria e aplicação em 1 toque diretamente no serviço ou no acervo geral do salão.
+     - Erradicação de fallbacks residuais com padrão estrito `[Nome] — [Slogan]`.
+- **Arquivos Impactados:**
+  - `src/types/admin.ts`
+  - `src/data/serviceGalleryPresets.ts` (Novo)
+  - `src/services/supabaseApi.ts`
+  - `src/components/admin/AdminSalonDetailView.tsx`
+  - `server.ts`
+  - `supabase_schema.sql`
+  - `supabase_safe_migration.sql`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-22] — 🧭 Radar Bidirecional de Deslocamento Ao Vivo (10s), Traçador de Rota Google Maps In-App, Linha de Ruas (Estilo Shopee/Correios) & Boletim `bol-020`
+- **Tipo:** `[Feat / Architecture / Real-Time GIS / Triade Sync / 7º Mandamento]`
+- **Motivo / Solicitação:** Implementação do sistema completo de acompanhamento de deslocamento em tempo real (Cliente ➔ Salão no atendimento presencial e Profissional ➔ Casa do Cliente no atendimento Delivery) com ciclo de atualização de 10 segundos, Traçador de Rota Nativo via Google Maps API na partida, 2 modos de visualização (Linha de Rastreamento por Ruas estilo Correios/Shopee + Mapa Ao Vivo Completo/Simplificado), Radar de Adversidades no Trajeto (`+X min` sem necessidade de ligações), árvore de decisão pré-partida (`ETA + 10 min`) e alerta automático de chegada (`ETA <= 5 min`).
+- **Resumo Técnico:**
+  1. **Componente `LiveAppointmentTrackingHub.tsx` integrado ao `AdminAppointmentsMonitor.tsx`:**
+     - **Inversão Automática (`No Salão` vs. `Delivery`):** Alterna entre o acompanhamento da chegada do cliente pelo salão (`in_salon`) e o acompanhamento da chegada do profissional pelo cliente em domicílio (`home_delivery`).
+     - **Traçador de Rota In-App (Google Maps Routes API):** Permite selecionar a rota na partida e extrai automaticamente todas as ruas do percurso (`steps[]`) para alimentar a Linha de Rastreamento.
+     - **2 Modos de Acompanhamento (Ciclo de 10 Segundos):** Alternância entre a **Linha de Ruas (Estilo Shopee/Correios)** — exibindo ruas já percorridas com horário, marcador ativo na rua atual, card de adversidade cravado na via e próximas ruas — e o **Mapa Ao Vivo (10s)** com opção **Completa (Rota + Trânsito)** e **Simplificada (Apenas Pinos)**.
+     - **Radar de Adversidades (+X min):** Simulação e reporte em 1 toque de trânsito inesperado, obra na via, chuva intensa ou busca por estacionamento, recalculando o `ETA` automaticamente sem telefonemas.
+     - **Simulador Completo do Modal Pré-Partida (`ETA + 10 min`):** Cobre todas as modalidades (*A pé, Urbano, App, Carro, Moto*) e todos os ramos da árvore de decisão (`Sim` ➔ Traçar Rota + Compartilhar 10s ou Apenas Notificar; `Não` ➔ Vou Comparecer com alerta de pressa, Cancelar com motivo obrigatório ou Remanejar abrindo a agenda do salão).
+     - **Alerta Automático de Proximidade (`ETA <= 5 min`):** Dispara banner de preparação da cadeira / chegada Delivery faltando 5 minutos e encerra o GPS no check-in.
+  2. **Evolução do Schema (`supabase_schema.sql` & `supabase_safe_migration.sql`) e Boletim `bol-020` (`server.ts`):**
+     - Adicionadas as colunas `service_location_type`, `transport_mode`, `tracking_status`, `selected_route_summary`, `route_polyline`, `current_street_name`, `route_checkpoints`, `active_adversity`, `delay_minutes`, `client_lat`, `client_lng`, `distance_km`, `eta_minutes`, `prep_buffer_minutes` e `cancellation_reason` em `public.appointments`.
+- **Arquivos Impactados:**
+  - `src/components/admin/LiveAppointmentTrackingHub.tsx` (Novo)
+  - `src/components/admin/AdminAppointmentsMonitor.tsx`
+  - `src/types/admin.ts`
+  - `supabase_schema.sql`
+  - `supabase_safe_migration.sql`
+  - `server.ts`
+  - `CHANGELOG.md`
+
+---
+
 ### [2026-10-21] — 👤 Remoção do Campo CPF do Cadastro Inicial & Inserção Exclusiva na Seção de Dados Pessoais
 - **Tipo:** `[UX / Business Rule / Form Optimization / Triade Standard]`
 - **Motivo / Solicitação:** Remover a div de CPF do cadastro inicial (onboarding de estabelecimentos e novos usuários), transferindo-a exclusivamente para a seção de dados pessoais do perfil do usuário para preenchimento posterior facultativo.

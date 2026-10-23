@@ -90,6 +90,35 @@ export interface AdminSalonItem {
   owner_email?: string;
   owner_phone?: string;
   owner_avatar_url?: string;
+  // Colunas físicas de UI / Estilos Avançados da Tríade (mnvapp / pvapp / admvapp)
+  default_theme?: SalonThemeMode;
+  pwa_name?: string;
+  show_slogan?: boolean;
+  logo_text_fallback?: string;
+  logo_text_color?: string;
+  show_hero_slides?: boolean;
+  welcome_style?: SalonWelcomeStyle;
+  section_header_bg_color?: string;
+  section_header_text_color?: string;
+  section_header_icon_color?: string;
+  section_header_bg_style?: SalonSectionHeaderBgStyle;
+  section_header_border?: SalonSectionHeaderBorder;
+  section_header_btn_bg_color?: string;
+  section_header_btn_active_bg_color?: string;
+  section_header_btn_border?: string;
+  section_header_btn_shadow?: string;
+  section_header_btn_blur?: string;
+  section_header_btn_font?: string;
+  nav_style?: SalonNavStyle;
+  nav_shape?: SalonNavShape;
+  nav_border?: SalonNavBorder;
+  nav_bg_style?: SalonNavBgStyle;
+  nav_bg_color?: string;
+  nav_btn_bg_color?: string;
+  nav_btn_active_bg_color?: string;
+  nav_active_color?: string;
+  nav_text_color?: string;
+  ui_settings?: SalonUiSettings;
   gallery_media?: {
     id: string;
     url: string;
@@ -98,6 +127,44 @@ export interface AdminSalonItem {
     duration_seconds?: number;
     thumbnail_url?: string;
   }[];
+}
+
+export type SalonNavStyle = 'minimal' | 'floating' | 'classic';
+export type SalonNavShape = 'square' | 'rounded' | 'pill' | 'circular';
+export type SalonNavBorder = 'bordered' | 'none';
+export type SalonNavBgStyle = 'solid' | 'glass' | 'transparent';
+export type SalonSectionHeaderBgStyle = 'solid' | 'glass' | 'transparent';
+export type SalonSectionHeaderBorder = 'bordered' | 'none';
+export type SalonWelcomeStyle = 'atmospheric' | 'minimal' | 'card';
+export type SalonThemeMode = 'dark' | 'light' | 'system';
+
+export interface SalonUiSettings {
+  id?: string;
+  salon_id: string;
+  default_theme?: SalonThemeMode;
+  pwa_name?: string;
+  show_slogan?: boolean;
+  logo_text_fallback?: string;
+  logo_text_color?: string;
+  show_hero_slides?: boolean;
+  welcome_style?: SalonWelcomeStyle;
+  section_header_bg_color?: string;
+  section_header_text_color?: string;
+  section_header_icon_color?: string;
+  section_header_bg_style?: SalonSectionHeaderBgStyle;
+  section_header_border?: SalonSectionHeaderBorder;
+  nav_style?: SalonNavStyle;
+  nav_shape?: SalonNavShape;
+  nav_border?: SalonNavBorder;
+  nav_bg_style?: SalonNavBgStyle;
+  nav_bg_color?: string;
+  nav_btn_bg_color?: string;
+  nav_btn_active_bg_color?: string;
+  nav_active_color?: string;
+  nav_text_color?: string;
+  raw_settings?: Record<string, any>;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface AdminDashboardMetrics {
@@ -180,6 +247,38 @@ export interface SystemAdminUser {
 export type AdminAuthTab = 'login' | 'recovery' | 'register';
 export type AdminRecoveryType = 'access_data' | 'password';
 
+export type AppointmentTransportMode = 'walking' | 'transit' | 'rideshare' | 'driving' | 'motorcycle';
+
+export type AppointmentTrackingStatus =
+  | 'idle'
+  | 'alerted'
+  | 'hurry_confirmed'
+  | 'on_way_no_map'
+  | 'live_sharing'
+  | 'arriving_5min'
+  | 'arrived'
+  | 'rescheduled'
+  | 'cancelled';
+
+export interface RouteStreetCheckpoint {
+  id: string;
+  street: string;
+  neighborhood?: string;
+  distanceFromStartKm: number;
+  status: 'passed' | 'current' | 'upcoming';
+  passedAt?: string;
+  adversityLabel?: string;
+  addedDelayMinutes?: number;
+}
+
+export interface RouteAdversityEvent {
+  type: 'traffic' | 'roadwork' | 'weather' | 'parking' | 'transit_delay';
+  label: string;
+  street: string;
+  addedMinutes: number;
+  reportedAt: string;
+}
+
 export interface AdminAppointmentItem {
   id: string;
   protocol: string;
@@ -194,6 +293,8 @@ export interface AdminAppointmentItem {
   beneficiary_relation?: 'self' | 'son' | 'daughter' | 'spouse' | 'parent' | 'other';
   service_title: string;
   service_category?: string;
+  service_location_type?: 'in_salon' | 'home_delivery';
+  client_address?: string;
   professional_id?: string;
   professional_name?: string;
   price: number;
@@ -205,6 +306,20 @@ export interface AdminAppointmentItem {
   billing_status: 'unbilled' | 'billed' | 'paid';
   fee_charged: number;
   created_at: string;
+  // Telemetria de Deslocamento Ao Vivo (10s) & Linha de Ruas (Estilo Shopee/Correios)
+  transport_mode?: AppointmentTransportMode;
+  tracking_status?: AppointmentTrackingStatus;
+  selected_route_summary?: string;
+  current_street_name?: string;
+  distance_km?: number;
+  eta_minutes?: number;
+  prep_buffer_minutes?: number;
+  delay_minutes?: number;
+  route_checkpoints?: RouteStreetCheckpoint[];
+  active_adversity?: RouteAdversityEvent | null;
+  cancellation_reason?: string;
+  rescheduled_date?: string;
+  rescheduled_time?: string;
 }
 
 export interface SalonMonthlyInvoice {

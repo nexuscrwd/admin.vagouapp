@@ -50,8 +50,31 @@ import {
   Zap,
   Database,
   Save,
+  Navigation,
+  SlidersHorizontal,
+  Smartphone,
+  Compass,
 } from 'lucide-react';
-import { AdminSalonItem, SalonServiceRecord, SalonServiceMediaItem, UserFamilyDependent } from '../../types/admin';
+import {
+  AdminSalonItem,
+  SalonServiceRecord,
+  SalonServiceMediaItem,
+  UserFamilyDependent,
+  SalonNavStyle,
+  SalonNavShape,
+  SalonNavBorder,
+  SalonNavBgStyle,
+  SalonSectionHeaderBgStyle,
+  SalonSectionHeaderBorder,
+  SalonWelcomeStyle,
+  SalonThemeMode,
+} from '../../types/admin';
+import {
+  SERVICE_GALLERY_PRESETS,
+  getCuratedServiceFallbackPhoto,
+  uploadSalonMediaToStorage,
+  ServiceGalleryPreset,
+} from '../../data/serviceGalleryPresets';
 import { SalonLogo } from '../common/SalonLogo';
 import { UserAvatar } from '../common/UserAvatar';
 import { supabase } from '../../services/supabase';
@@ -143,9 +166,37 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     interiorPhotoUrl: salon.interior_photo_url || '',
     logoDarkUrl: salon.logo_dark_url || salon.logo_url || '',
     logoLightUrl: salon.logo_light_url || salon.logo_url || '',
+    // Configurações Físicas de UI / Layout (Tríade Sync)
+    defaultTheme: (salon.default_theme as SalonThemeMode) || 'dark',
+    pwaName: salon.pwa_name || salon.trade_name || '',
+    showSlogan: salon.show_slogan ?? true,
+    logoTextFallback: salon.logo_text_fallback || '',
+    logoTextColor: salon.logo_text_color || '#10b981',
+    showHeroSlides: salon.show_hero_slides ?? true,
+    welcomeStyle: (salon.welcome_style as SalonWelcomeStyle) || 'atmospheric',
+    sectionHeaderBgColor: salon.section_header_bg_color || '',
+    sectionHeaderTextColor: salon.section_header_text_color || '',
+    sectionHeaderIconColor: salon.section_header_icon_color || '#10b981',
+    sectionHeaderBgStyle: (salon.section_header_bg_style as SalonSectionHeaderBgStyle) || 'glass',
+    sectionHeaderBorder: (salon.section_header_border as SalonSectionHeaderBorder) || 'bordered',
+    navStyle: (salon.nav_style as SalonNavStyle) || 'minimal',
+    navShape: (salon.nav_shape as SalonNavShape) || 'square',
+    navBorder: (salon.nav_border as SalonNavBorder) || 'bordered',
+    navBgStyle: (salon.nav_bg_style as SalonNavBgStyle) || 'glass',
+    navBgColor: salon.nav_bg_color || '',
+    navBtnBgColor: salon.nav_btn_bg_color || '',
+    navBtnActiveBgColor: salon.nav_btn_active_bg_color || '',
+    navActiveColor: salon.nav_active_color || '#10b981',
+    navTextColor: salon.nav_text_color || '',
   });
   const [isSavingTheme, setIsSavingTheme] = useState(false);
   const [themeSaveSuccess, setThemeSaveSuccess] = useState(false);
+
+  // Estado do Modal de Presets Curados de Serviços (1-Toque)
+  const [isCuratedPresetsModalOpen, setIsCuratedPresetsModalOpen] = useState(false);
+  const [curatedPresetTargetServiceId, setCuratedPresetTargetServiceId] = useState<string | null>(null);
+  const [curatedPresetCategoryFilter, setCuratedPresetCategoryFilter] = useState<string>('all');
+  const [previewNavTab, setPreviewNavTab] = useState<'home' | 'services' | 'appointments' | 'profile'>('home');
 
   // Estado de Utilidades Operacionais (Energia, Água, Equipamentos, DRE e Estoque)
   const [utilitiesData, setUtilitiesData] = useState<SalonUtilitiesData>({
@@ -311,9 +362,10 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
           if (json.utilities) {
             setUtilitiesData(json.utilities);
           }
-          if (json.branding || json.salon) {
+          if (json.uiSettings || json.branding || json.salon) {
             const b = json.branding || {};
             const s = json.salon || {};
+            const u = json.uiSettings || {};
             setThemeForm((prev) => ({
               ...prev,
               themePresetId: s.theme_preset_id || b.themePresetId || prev.themePresetId,
@@ -323,6 +375,27 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
               interiorPhotoUrl: s.interior_photo_url || b.interiorPhotoUrl || prev.interiorPhotoUrl,
               logoDarkUrl: s.logo_dark_url || b.logoDarkUrl || s.logo_url || prev.logoDarkUrl,
               logoLightUrl: s.logo_light_url || b.logoLightUrl || s.logo_url || prev.logoLightUrl,
+              defaultTheme: u.default_theme || s.default_theme || b.defaultTheme || prev.defaultTheme,
+              pwaName: u.pwa_name || s.pwa_name || b.pwaName || prev.pwaName,
+              showSlogan: u.show_slogan ?? s.show_slogan ?? b.showSlogan ?? prev.showSlogan,
+              logoTextFallback: u.logo_text_fallback || s.logo_text_fallback || prev.logoTextFallback,
+              logoTextColor: u.logo_text_color || s.logo_text_color || prev.logoTextColor,
+              showHeroSlides: u.show_hero_slides ?? s.show_hero_slides ?? prev.showHeroSlides,
+              welcomeStyle: u.welcome_style || s.welcome_style || prev.welcomeStyle,
+              sectionHeaderBgColor: u.section_header_bg_color || s.section_header_bg_color || prev.sectionHeaderBgColor,
+              sectionHeaderTextColor: u.section_header_text_color || s.section_header_text_color || prev.sectionHeaderTextColor,
+              sectionHeaderIconColor: u.section_header_icon_color || s.section_header_icon_color || prev.sectionHeaderIconColor,
+              sectionHeaderBgStyle: u.section_header_bg_style || s.section_header_bg_style || prev.sectionHeaderBgStyle,
+              sectionHeaderBorder: u.section_header_border || s.section_header_border || prev.sectionHeaderBorder,
+              navStyle: u.nav_style || s.nav_style || b.navStyle || prev.navStyle,
+              navShape: u.nav_shape || s.nav_shape || b.navShape || prev.navShape,
+              navBorder: u.nav_border || s.nav_border || b.navBorder || prev.navBorder,
+              navBgStyle: u.nav_bg_style || s.nav_bg_style || b.navBgStyle || prev.navBgStyle,
+              navBgColor: u.nav_bg_color || s.nav_bg_color || b.navBgColor || prev.navBgColor,
+              navBtnBgColor: u.nav_btn_bg_color || s.nav_btn_bg_color || b.navBtnBgColor || prev.navBtnBgColor,
+              navBtnActiveBgColor: u.nav_btn_active_bg_color || s.nav_btn_active_bg_color || b.navBtnActiveBgColor || prev.navBtnActiveBgColor,
+              navActiveColor: u.nav_active_color || s.nav_active_color || b.navActiveColor || prev.navActiveColor,
+              navTextColor: u.nav_text_color || s.nav_text_color || b.navTextColor || prev.navTextColor,
             }));
           }
           return true;
@@ -1468,7 +1541,44 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     if (updatedRef) await syncServiceWithBackend('upsert', updatedRef);
   };
 
-  // Handler de Salvamento do Tema Camaleão e Identidade Visual no Supabase
+  // Handler de Seleção de Preset Curado de Serviço (1-Toque)
+  const handleSelectCuratedPreset = async (preset: ServiceGalleryPreset) => {
+    if (curatedPresetTargetServiceId) {
+      let updatedServiceRef: SalonServiceRecord | undefined;
+      setServices((prev) =>
+        prev.map((s) => {
+          if (s.id === curatedPresetTargetServiceId) {
+            const currentPhotos = s.photos || [];
+            const nextPhotos = currentPhotos.includes(preset.imageUrl)
+              ? currentPhotos
+              : [preset.imageUrl, ...currentPhotos];
+            updatedServiceRef = { ...s, photos: nextPhotos };
+            return updatedServiceRef;
+          }
+          return s;
+        })
+      );
+      if (updatedServiceRef) {
+        await syncServiceWithBackend('upsert', updatedServiceRef);
+      }
+    } else {
+      const newMedia: SalonMediaItem = {
+        id: `med-preset-${Date.now()}`,
+        title: preset.title,
+        url: preset.imageUrl,
+        type: 'image',
+        media_group: 'fotos',
+        category: 'servicos',
+        created_at: new Date().toISOString().split('T')[0],
+      };
+      setSalonMedia((prev) => [newMedia, ...prev]);
+      await syncMediaItemWithBackend('upsert', newMedia);
+    }
+    setIsCuratedPresetsModalOpen(false);
+    setCuratedPresetTargetServiceId(null);
+  };
+
+  // Handler de Salvamento do Tema Camaleão, Identidade Visual & UI Settings no Supabase
   const handleSaveBrandingTheme = async () => {
     setIsSavingTheme(true);
     try {
@@ -1484,6 +1594,28 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
       salon.interior_photo_url = themeForm.interiorPhotoUrl;
       salon.logo_dark_url = themeForm.logoDarkUrl;
       salon.logo_light_url = themeForm.logoLightUrl;
+      salon.default_theme = themeForm.defaultTheme;
+      salon.pwa_name = themeForm.pwaName;
+      salon.show_slogan = themeForm.showSlogan;
+      salon.logo_text_fallback = themeForm.logoTextFallback;
+      salon.logo_text_color = themeForm.logoTextColor;
+      salon.show_hero_slides = themeForm.showHeroSlides;
+      salon.welcome_style = themeForm.welcomeStyle;
+      salon.section_header_bg_color = themeForm.sectionHeaderBgColor;
+      salon.section_header_text_color = themeForm.sectionHeaderTextColor;
+      salon.section_header_icon_color = themeForm.sectionHeaderIconColor;
+      salon.section_header_bg_style = themeForm.sectionHeaderBgStyle;
+      salon.section_header_border = themeForm.sectionHeaderBorder;
+      salon.nav_style = themeForm.navStyle;
+      salon.nav_shape = themeForm.navShape;
+      salon.nav_border = themeForm.navBorder;
+      salon.nav_bg_style = themeForm.navBgStyle;
+      salon.nav_bg_color = themeForm.navBgColor;
+      salon.nav_btn_bg_color = themeForm.navBtnBgColor;
+      salon.nav_btn_active_bg_color = themeForm.navBtnActiveBgColor;
+      salon.nav_active_color = themeForm.navActiveColor;
+      salon.nav_text_color = themeForm.navTextColor;
+
       onUpdateSalon?.({
         theme_preset_id: themeForm.themePresetId,
         primary_color: themeForm.primaryColor,
@@ -1492,11 +1624,32 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         interior_photo_url: themeForm.interiorPhotoUrl,
         logo_dark_url: themeForm.logoDarkUrl,
         logo_light_url: themeForm.logoLightUrl,
+        default_theme: themeForm.defaultTheme,
+        pwa_name: themeForm.pwaName,
+        show_slogan: themeForm.showSlogan,
+        logo_text_fallback: themeForm.logoTextFallback,
+        logo_text_color: themeForm.logoTextColor,
+        show_hero_slides: themeForm.showHeroSlides,
+        welcome_style: themeForm.welcomeStyle,
+        section_header_bg_color: themeForm.sectionHeaderBgColor,
+        section_header_text_color: themeForm.sectionHeaderTextColor,
+        section_header_icon_color: themeForm.sectionHeaderIconColor,
+        section_header_bg_style: themeForm.sectionHeaderBgStyle,
+        section_header_border: themeForm.sectionHeaderBorder,
+        nav_style: themeForm.navStyle,
+        nav_shape: themeForm.navShape,
+        nav_border: themeForm.navBorder,
+        nav_bg_style: themeForm.navBgStyle,
+        nav_bg_color: themeForm.navBgColor,
+        nav_btn_bg_color: themeForm.navBtnBgColor,
+        nav_btn_active_bg_color: themeForm.navBtnActiveBgColor,
+        nav_active_color: themeForm.navActiveColor,
+        nav_text_color: themeForm.navTextColor,
       });
       setThemeSaveSuccess(true);
       setTimeout(() => setThemeSaveSuccess(false), 2500);
     } catch (err) {
-      console.warn('Erro ao salvar tema camaleão:', err);
+      console.warn('Erro ao salvar tema camaleão e configurações de UI:', err);
     } finally {
       setIsSavingTheme(false);
     }
@@ -2450,6 +2603,530 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
               </div>
             </div>
           </div>
+
+          {/* NOVO: ESTILIZAÇÃO AVANÇADA DA BARRA DE NAVEGAÇÃO INFERIOR (BOTTOMNAV) - SINCRONIZADA COM MNVAPP & PVAPP */}
+          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <Navigation className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>Barra de Navegação Inferior (BottomNav)</span>
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#20C933] text-white">
+                      Tríade 23/10
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Controle de fundo (sólido, vidro jateado, transparência), formato boleado/circular e cores de contraste do rodapé mobile.
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-950 px-2.5 py-1 rounded-lg self-start sm:self-auto">
+                salons.nav_* &bull; salon_ui_settings
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* 1. Estilo de Preenchimento do Fundo (nav_bg_style) */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                  Estilo do Fundo (nav_bg_style)
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'glass', label: 'Vidro (Blur)', desc: 'Jateado' },
+                    { id: 'solid', label: 'Sólido', desc: 'Opaco' },
+                    { id: 'transparent', label: 'Transp.', desc: '100% Livre' },
+                  ].map((style) => (
+                    <button
+                      key={style.id}
+                      type="button"
+                      onClick={() => setThemeForm((prev) => ({ ...prev, navBgStyle: style.id as SalonNavBgStyle }))}
+                      className={`p-2 rounded-xl text-center transition cursor-pointer flex flex-col items-center justify-center ${
+                        themeForm.navBgStyle === style.id
+                          ? 'bg-[#20C933] text-white font-bold shadow-xs'
+                          : 'bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-400'
+                      }`}
+                    >
+                      <span className="text-xs">{style.label}</span>
+                      <span className={`text-[9px] ${themeForm.navBgStyle === style.id ? 'text-emerald-100' : 'text-slate-500'}`}>
+                        {style.desc}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 2. Formato e Contorno (nav_shape) */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                  Formato da Barra (nav_shape)
+                </label>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {[
+                    { id: 'square', label: 'Quadrado' },
+                    { id: 'rounded', label: 'Boleado' },
+                    { id: 'pill', label: 'Pílula' },
+                    { id: 'circular', label: 'Circular' },
+                  ].map((shape) => (
+                    <button
+                      key={shape.id}
+                      type="button"
+                      onClick={() => setThemeForm((prev) => ({ ...prev, navShape: shape.id as SalonNavShape }))}
+                      className={`py-2 px-1 rounded-xl text-center transition cursor-pointer text-xs font-semibold ${
+                        themeForm.navShape === shape.id
+                          ? 'bg-[#20C933] text-white shadow-xs'
+                          : 'bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-400'
+                      }`}
+                    >
+                      {shape.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 3. Borda Externa (nav_border) */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                  Borda do Rodapé (nav_border)
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'bordered', label: 'Com Borda Sutil' },
+                    { id: 'none', label: 'Sem Borda (Clean)' },
+                  ].map((border) => (
+                    <button
+                      key={border.id}
+                      type="button"
+                      onClick={() => setThemeForm((prev) => ({ ...prev, navBorder: border.id as SalonNavBorder }))}
+                      className={`p-2 rounded-xl text-center transition cursor-pointer text-xs font-semibold ${
+                        themeForm.navBorder === border.id
+                          ? 'bg-[#20C933] text-white shadow-xs'
+                          : 'bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-400'
+                      }`}
+                    >
+                      {border.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Paleta Hexadecimal Dedicada do Rodapé */}
+            <div className="pt-2 border-t border-slate-200 dark:border-slate-800 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {/* Cor de Fundo do Rodapé */}
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
+                <span className="text-[10px] font-bold text-slate-500 block truncate">Fundo (nav_bg_color)</span>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="color"
+                    value={themeForm.navBgColor || '#020617'}
+                    onChange={(e) => setThemeForm((prev) => ({ ...prev, navBgColor: e.target.value }))}
+                    className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent shrink-0"
+                  />
+                  <input
+                    type="text"
+                    value={themeForm.navBgColor}
+                    onChange={(e) => setThemeForm((prev) => ({ ...prev, navBgColor: e.target.value }))}
+                    placeholder="Padrão"
+                    className="font-mono text-xs w-full bg-transparent text-slate-800 dark:text-slate-200 border-0 p-0 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Cor de Destaque / Item Ativo */}
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
+                <span className="text-[10px] font-bold text-slate-500 block truncate">Ativo (nav_active_color)</span>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="color"
+                    value={themeForm.navActiveColor || '#10b981'}
+                    onChange={(e) => setThemeForm((prev) => ({ ...prev, navActiveColor: e.target.value }))}
+                    className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent shrink-0"
+                  />
+                  <input
+                    type="text"
+                    value={themeForm.navActiveColor}
+                    onChange={(e) => setThemeForm((prev) => ({ ...prev, navActiveColor: e.target.value }))}
+                    placeholder="#10b981"
+                    className="font-mono text-xs w-full bg-transparent text-slate-800 dark:text-slate-200 border-0 p-0 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Cor do Texto e Ícones Base */}
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
+                <span className="text-[10px] font-bold text-slate-500 block truncate">Base (nav_text_color)</span>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="color"
+                    value={themeForm.navTextColor || '#94a3b8'}
+                    onChange={(e) => setThemeForm((prev) => ({ ...prev, navTextColor: e.target.value }))}
+                    className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent shrink-0"
+                  />
+                  <input
+                    type="text"
+                    value={themeForm.navTextColor}
+                    onChange={(e) => setThemeForm((prev) => ({ ...prev, navTextColor: e.target.value }))}
+                    placeholder="#94a3b8"
+                    className="font-mono text-xs w-full bg-transparent text-slate-800 dark:text-slate-200 border-0 p-0 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Fundo Botão Inativo */}
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
+                <span className="text-[10px] font-bold text-slate-500 block truncate">Botão Inativo</span>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="color"
+                    value={themeForm.navBtnBgColor || '#0f172a'}
+                    onChange={(e) => setThemeForm((prev) => ({ ...prev, navBtnBgColor: e.target.value }))}
+                    className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent shrink-0"
+                  />
+                  <input
+                    type="text"
+                    value={themeForm.navBtnBgColor}
+                    onChange={(e) => setThemeForm((prev) => ({ ...prev, navBtnBgColor: e.target.value }))}
+                    placeholder="Transp."
+                    className="font-mono text-xs w-full bg-transparent text-slate-800 dark:text-slate-200 border-0 p-0 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Fundo Botão Ativo */}
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
+                <span className="text-[10px] font-bold text-slate-500 block truncate">Botão Ativo</span>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="color"
+                    value={themeForm.navBtnActiveBgColor || '#10b981'}
+                    onChange={(e) => setThemeForm((prev) => ({ ...prev, navBtnActiveBgColor: e.target.value }))}
+                    className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent shrink-0"
+                  />
+                  <input
+                    type="text"
+                    value={themeForm.navBtnActiveBgColor}
+                    onChange={(e) => setThemeForm((prev) => ({ ...prev, navBtnActiveBgColor: e.target.value }))}
+                    placeholder="Auto"
+                    className="font-mono text-xs w-full bg-transparent text-slate-800 dark:text-slate-200 border-0 p-0 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* PREVIEW INTERATIVO AO VIVO DA BARRA DE NAVEGAÇÃO INFERIOR */}
+            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-slate-200 flex items-center gap-1.5">
+                  <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Preview Interativo do Rodapé no App Mobile (Clique nas abas para testar)</span>
+                </span>
+                <span className="text-[10px] font-mono text-emerald-400 font-bold">
+                  Forma: {themeForm.navShape} &bull; Estilo: {themeForm.navBgStyle}
+                </span>
+              </div>
+
+              {/* Contêiner de Simulação do Rodapé */}
+              <div className="py-6 px-4 bg-gradient-to-b from-slate-900 to-slate-950 rounded-xl flex items-center justify-center">
+                <nav
+                  className={`w-full max-w-sm transition-all duration-300 flex items-center justify-around px-2 py-2 ${
+                    themeForm.navShape === 'pill'
+                      ? 'rounded-full'
+                      : themeForm.navShape === 'rounded'
+                      ? 'rounded-2xl'
+                      : themeForm.navShape === 'circular'
+                      ? 'rounded-3xl'
+                      : 'rounded-none'
+                  } ${
+                    themeForm.navBorder === 'bordered'
+                      ? 'border border-slate-700/60 shadow-lg'
+                      : 'border-0'
+                  } ${
+                    themeForm.navBgStyle === 'glass'
+                      ? 'backdrop-blur-md bg-slate-950/70'
+                      : themeForm.navBgStyle === 'transparent'
+                      ? 'bg-transparent'
+                      : 'bg-slate-950'
+                  }`}
+                  style={{
+                    backgroundColor:
+                      themeForm.navBgStyle === 'solid' && themeForm.navBgColor
+                        ? themeForm.navBgColor
+                        : undefined,
+                  }}
+                >
+                  {[
+                    { id: 'home', label: 'Início', icon: Building2 },
+                    { id: 'services', label: 'Serviços', icon: Scissors },
+                    { id: 'appointments', label: 'Agenda', icon: Clock },
+                    { id: 'profile', label: 'Perfil', icon: Users },
+                  ].map((item) => {
+                    const isActive = previewNavTab === item.id;
+                    const IconComp = item.icon;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setPreviewNavTab(item.id as any)}
+                        className={`flex flex-col items-center justify-center py-1.5 px-3 transition-all cursor-pointer ${
+                          themeForm.navShape === 'pill'
+                            ? 'rounded-full'
+                            : themeForm.navShape === 'circular'
+                            ? 'rounded-full aspect-square'
+                            : 'rounded-xl'
+                        }`}
+                        style={{
+                          backgroundColor: isActive
+                            ? themeForm.navBtnActiveBgColor || (themeForm.navActiveColor ? `${themeForm.navActiveColor}20` : 'rgba(16,185,129,0.15)')
+                            : themeForm.navBtnBgColor || 'transparent',
+                        }}
+                      >
+                        <IconComp
+                          className="w-4 h-4 transition-transform active:scale-125"
+                          style={{
+                            color: isActive
+                              ? themeForm.navActiveColor || '#10b981'
+                              : themeForm.navTextColor || '#94a3b8',
+                          }}
+                        />
+                        <span
+                          className={`text-[10px] mt-0.5 tracking-tight ${
+                            isActive ? 'font-bold' : 'font-medium'
+                          }`}
+                          style={{
+                            color: isActive
+                              ? themeForm.navActiveColor || '#10b981'
+                              : themeForm.navTextColor || '#94a3b8',
+                          }}
+                        >
+                          {item.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </nav>
+              </div>
+            </div>
+          </div>
+
+          {/* NOVO: BARRA DE SEÇÕES & CATEGORIAS (VITRINE WHITE-LABEL) */}
+          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Barra de Seções &amp; Categorias de Serviços
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Estilo do cabeçalho de chips horizontais da vitrine (section_header_*).
+                  </p>
+                </div>
+              </div>
+              <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-950 px-2.5 py-1 rounded-lg self-start sm:self-auto">
+                salons.section_header_*
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                <span className="text-[10px] font-bold text-slate-500 block">Estilo (bg_style)</span>
+                <select
+                  value={themeForm.sectionHeaderBgStyle}
+                  onChange={(e) => setThemeForm((prev) => ({ ...prev, sectionHeaderBgStyle: e.target.value as any }))}
+                  className="w-full text-xs p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white"
+                >
+                  <option value="glass">Vidro Jateado (glass)</option>
+                  <option value="solid">Sólido Opaco (solid)</option>
+                  <option value="transparent">Transparente (transparent)</option>
+                </select>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                <span className="text-[10px] font-bold text-slate-500 block">Borda (border)</span>
+                <select
+                  value={themeForm.sectionHeaderBorder}
+                  onChange={(e) => setThemeForm((prev) => ({ ...prev, sectionHeaderBorder: e.target.value as any }))}
+                  className="w-full text-xs p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white"
+                >
+                  <option value="bordered">Com Borda (bordered)</option>
+                  <option value="none">Sem Borda (none)</option>
+                </select>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                <span className="text-[10px] font-bold text-slate-500 block">Cor Ícone Destaque</span>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="color"
+                    value={themeForm.sectionHeaderIconColor || '#10b981'}
+                    onChange={(e) => setThemeForm((prev) => ({ ...prev, sectionHeaderIconColor: e.target.value }))}
+                    className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent shrink-0"
+                  />
+                  <input
+                    type="text"
+                    value={themeForm.sectionHeaderIconColor}
+                    onChange={(e) => setThemeForm((prev) => ({ ...prev, sectionHeaderIconColor: e.target.value }))}
+                    placeholder="#10b981"
+                    className="font-mono text-xs w-full bg-transparent text-slate-800 dark:text-slate-200 border-0 p-0 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                <span className="text-[10px] font-bold text-slate-500 block">Cor Texto Chips</span>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="color"
+                    value={themeForm.sectionHeaderTextColor || '#e2e8f0'}
+                    onChange={(e) => setThemeForm((prev) => ({ ...prev, sectionHeaderTextColor: e.target.value }))}
+                    className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent shrink-0"
+                  />
+                  <input
+                    type="text"
+                    value={themeForm.sectionHeaderTextColor}
+                    onChange={(e) => setThemeForm((prev) => ({ ...prev, sectionHeaderTextColor: e.target.value }))}
+                    placeholder="#e2e8f0"
+                    className="font-mono text-xs w-full bg-transparent text-slate-800 dark:text-slate-200 border-0 p-0 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Simulação Visual dos Chips */}
+            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center gap-2 overflow-x-auto">
+              {['Todos', 'Cabelo', 'Barba', 'Unhas', 'Estética', 'Combos'].map((c, i) => (
+                <div
+                  key={c}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap cursor-pointer transition ${
+                    i === 0
+                      ? 'bg-[#20C933] text-white'
+                      : 'bg-slate-900 border border-slate-800 text-slate-300'
+                  }`}
+                  style={{
+                    backgroundColor: i === 0 ? themeForm.primaryColor || '#20C933' : undefined,
+                  }}
+                >
+                  {c}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* NOVO: IDENTIDADE PWA, EXPERIÊNCIA DE ENTRADA & METADADOS */}
+          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <Compass className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Experiência PWA &amp; Boas-Vindas Mobile
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Comportamento de abertura, tema padrão e metadados de compartilhamento do estabelecimento.
+                  </p>
+                </div>
+              </div>
+              <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-950 px-2.5 py-1 rounded-lg self-start sm:self-auto">
+                default_theme &bull; welcome_style
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                  Tema Padrão do Estabelecimento
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'dark', label: 'Dark' },
+                    { id: 'light', label: 'Light' },
+                    { id: 'system', label: 'Sistema' },
+                  ].map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setThemeForm((prev) => ({ ...prev, defaultTheme: t.id as SalonThemeMode }))}
+                      className={`py-1.5 px-2 rounded-xl text-center text-xs font-semibold cursor-pointer transition ${
+                        themeForm.defaultTheme === t.id
+                          ? 'bg-[#20C933] text-white shadow-xs'
+                          : 'bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                  Estilo de Boas-Vindas (Welcome Modal)
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'atmospheric', label: 'Atmosférico' },
+                    { id: 'minimal', label: 'Minimalista' },
+                    { id: 'card', label: 'Card' },
+                  ].map((w) => (
+                    <button
+                      key={w.id}
+                      type="button"
+                      onClick={() => setThemeForm((prev) => ({ ...prev, welcomeStyle: w.id as SalonWelcomeStyle }))}
+                      className={`py-1.5 px-2 rounded-xl text-center text-xs font-semibold cursor-pointer transition ${
+                        themeForm.welcomeStyle === w.id
+                          ? 'bg-[#20C933] text-white shadow-xs'
+                          : 'bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      {w.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                  Nome do App no PWA (pwa_name)
+                </label>
+                <input
+                  type="text"
+                  value={themeForm.pwaName}
+                  onChange={(e) => setThemeForm((prev) => ({ ...prev, pwaName: e.target.value }))}
+                  placeholder={salon.trade_name}
+                  className="w-full px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white"
+                />
+              </div>
+            </div>
+
+            <div className="pt-2 flex flex-wrap items-center gap-6 text-xs">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={themeForm.showSlogan}
+                  onChange={(e) => setThemeForm((prev) => ({ ...prev, showSlogan: e.target.checked }))}
+                  className="rounded text-emerald-600 focus:ring-0"
+                />
+                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                  Exibir Slogan no Topo da Vitrine
+                </span>
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={themeForm.showHeroSlides}
+                  onChange={(e) => setThemeForm((prev) => ({ ...prev, showHeroSlides: e.target.checked }))}
+                  className="rounded text-emerald-600 focus:ring-0"
+                />
+                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                  Exibir Carrossel Hero de Slides no Topo
+                </span>
+              </label>
+            </div>
+          </div>
         </div>
       )}
 
@@ -2900,14 +3577,28 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 </h3>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setIsAddServiceModalOpen(true)}
-                className="px-3.5 py-1.5 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 self-start sm:self-auto"
-              >
-                <Plus className="w-3.5 h-3.5 text-white" />
-                <span>Novo Serviço</span>
-              </button>
+              <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCuratedPresetTargetServiceId(null);
+                    setIsCuratedPresetsModalOpen(true);
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>Presets Curados (1-Toque)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsAddServiceModalOpen(true)}
+                  className="px-3.5 py-1.5 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                >
+                  <Plus className="w-3.5 h-3.5 text-white" />
+                  <span>Novo Serviço</span>
+                </button>
+              </div>
             </div>
 
             {/* Filtros e Busca Rápida */}
@@ -5577,6 +6268,142 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                   className="px-4 py-1.5 rounded-xl bg-slate-800 text-white text-xs font-bold cursor-pointer"
                 >
                   Concluir
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Modal de Presets Curados de Serviços (1-Toque / Acervo Oficial Tríade) */}
+      {isCuratedPresetsModalOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm">
+            <div className="w-full max-w-4xl max-h-[90vh] bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-slate-100 animate-in fade-in zoom-in-95 duration-150">
+              {/* Header */}
+              <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between gap-3 bg-slate-900/90 sticky top-0 z-10">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      Galeria Oficial de Presets Curados
+                      <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        1-Toque
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {curatedPresetTargetServiceId
+                        ? 'Selecione uma foto curada em alta resolução para vincular ao serviço.'
+                        : 'Acervo fotográfico padronizado para catálogo e vitrines da Tríade.'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCuratedPresetsModalOpen(false);
+                    setCuratedPresetTargetServiceId(null);
+                  }}
+                  className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Filtros de Categoria */}
+              <div className="px-4 py-3 border-b border-slate-800 bg-slate-950/40 flex items-center gap-2 overflow-x-auto no-scrollbar">
+                {[
+                  { id: 'all', label: 'Todos os Presets' },
+                  { id: 'unhas', label: 'Unhas' },
+                  { id: 'cabelo', label: 'Cabelo' },
+                  { id: 'barba', label: 'Barba' },
+                  { id: 'sobrancelhas', label: 'Sobrancelhas' },
+                  { id: 'estetica', label: 'Estética' },
+                  { id: 'combos', label: 'Combos' },
+                ].map((cat) => {
+                  const isActive = curatedPresetCategoryFilter === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setCuratedPresetCategoryFilter(cat.id)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                        isActive
+                          ? 'bg-emerald-500 text-white shadow-sm'
+                          : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white'
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Grid de Presets */}
+              <div className="p-4 sm:p-6 overflow-y-auto flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {SERVICE_GALLERY_PRESETS.filter(
+                  (p) => curatedPresetCategoryFilter === 'all' || p.category === curatedPresetCategoryFilter
+                ).map((preset) => (
+                  <div
+                    key={preset.id}
+                    className="group relative bg-slate-950 rounded-xl border border-slate-800 overflow-hidden hover:border-emerald-500/50 transition flex flex-col"
+                  >
+                    <div className="aspect-[4/3] w-full overflow-hidden relative bg-slate-900">
+                      <img
+                        src={preset.imageUrl}
+                        alt={preset.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                        loading="lazy"
+                      />
+                      <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-900/80 backdrop-blur-sm text-slate-200 border border-slate-700/50">
+                        {preset.categoryLabel}
+                      </span>
+                    </div>
+
+                    <div className="p-3 flex-1 flex flex-col justify-between gap-3">
+                      <div>
+                        <h4 className="text-xs font-bold text-white line-clamp-1">{preset.title}</h4>
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {preset.keywords.slice(0, 3).map((kw, i) => (
+                            <span key={i} className="text-[10px] text-slate-400 bg-slate-800/60 px-1.5 py-0.5 rounded">
+                              #{kw}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSelectCuratedPreset(preset)}
+                        className="w-full py-2 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-sm"
+                      >
+                        <Check className="w-3.5 h-3.5 text-white" />
+                        <span>Aplicar Preset</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Rodapé Fixo */}
+              <div className="sticky bottom-0 z-20 p-3 sm:p-4 border-t border-slate-800 bg-slate-900 flex items-center justify-between">
+                <span className="text-xs text-slate-400">
+                  {SERVICE_GALLERY_PRESETS.filter(
+                    (p) => curatedPresetCategoryFilter === 'all' || p.category === curatedPresetCategoryFilter
+                  ).length}{' '}
+                  presets disponíveis
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCuratedPresetsModalOpen(false);
+                    setCuratedPresetTargetServiceId(null);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition cursor-pointer"
+                >
+                  Fechar
                 </button>
               </div>
             </div>

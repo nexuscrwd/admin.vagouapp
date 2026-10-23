@@ -1,6 +1,6 @@
 {
-  "summary":  "Plano de arquitetura e sincronização unificada do banco de dados Supabase entre o Admin-VagouApp (admvapp) e o Meu Negócio (mnvapp), cobrindo Serviços, Galeria de Mídias, Tema Camaleão, Usuários/Clientes, Profissionais, Dependentes e Utilidades Operacionais (Consumo de Energia/Água, Equipamentos, DRE Financeiro e Estoque).",
-  "updatedAt":  "2026-10-21T09:40:32.568625224Z",
+  "summary":  "Plano de Implementação Revisado: Mapa de Implantação na Tríade (Papel de mnvapp, admvapp e pvapp), Arquitetura Detalhada dentro do mnvapp (Visão Cliente vs. Visão Salão/Profissional), Traçador de Rota Google Maps In-App, Rastreamento 10s (Mapa + Linha Shopee/Correios) e Detector de Adversidades.",
+  "updatedAt":  "2026-10-22T11:53:06.061799644Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

@@ -567,6 +567,25 @@ CREATE TABLE public.appointments (
     notes TEXT,
     booked_at TIMESTAMPTZ DEFAULT NOW(),
 
+    -- Telemetria de Deslocamento Ao Vivo (10s), Rota Google Maps, Linha de Ruas (Shopee/Correios) & Adversidades
+    service_location_type VARCHAR(30) DEFAULT 'in_salon', -- in_salon (Cliente -> Salão) | home_delivery (Profissional -> Casa)
+    transport_mode VARCHAR(30) DEFAULT 'driving',         -- walking, transit, rideshare, driving, motorcycle
+    tracking_status VARCHAR(40) DEFAULT 'idle',           -- idle, alerted, hurry_confirmed, on_way_no_map, live_sharing, arriving_5min, arrived, rescheduled, cancelled
+    selected_route_summary TEXT,
+    route_polyline TEXT,
+    current_street_name TEXT,
+    route_checkpoints JSONB DEFAULT '[]'::jsonb,
+    active_adversity JSONB DEFAULT NULL,
+    delay_minutes INTEGER DEFAULT 0,
+    client_lat DOUBLE PRECISION,
+    client_lng DOUBLE PRECISION,
+    distance_km NUMERIC(6,2),
+    eta_minutes INTEGER,
+    prep_buffer_minutes INTEGER DEFAULT 10,
+    cancellation_reason TEXT,
+    rescheduled_from_id UUID,
+    last_location_update TIMESTAMPTZ,
+
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -574,6 +593,7 @@ CREATE TABLE public.appointments (
 CREATE INDEX idx_appointments_salon_date ON public.appointments(salon_id, date_str);
 CREATE INDEX idx_appointments_client ON public.appointments(client_id);
 CREATE INDEX idx_appointments_dependent ON public.appointments(dependent_id);
+CREATE INDEX idx_appointments_tracking_status ON public.appointments(salon_id, tracking_status);
 
 -- 3.12 TABELA: SALON_MEDIA_ITEMS (ACERVO CENTRAL DE MÍDIAS: FOTOS, VÍDEOS 5S, IMAGENS)
 CREATE TABLE public.salon_media_items (
@@ -2648,3 +2668,97 @@ ALTER TABLE public.salon_services ADD COLUMN IF NOT EXISTS duration_estimated VA
 ALTER TABLE public.salon_services ADD COLUMN IF NOT EXISTS video_url TEXT;
 
 
+
+-- =====================================================================================================
+-- 🏛️ MIGRAÇÃO 20261023: COLUNAS DE UI/ESTILOS, TABELA SALON_UI_SETTINGS E BUCKETS (MNVAPP ⇄ ADMVAPP ⇄ PVAPP)
+-- =====================================================================================================
+
+-- 1. Colunas físicas na tabela public.salons
+ALTER TABLE public.salons
+  ADD COLUMN IF NOT EXISTS default_theme text DEFAULT 'dark',
+  ADD COLUMN IF NOT EXISTS pwa_name text,
+  ADD COLUMN IF NOT EXISTS show_slogan boolean DEFAULT true,
+  ADD COLUMN IF NOT EXISTS logo_text_fallback text,
+  ADD COLUMN IF NOT EXISTS logo_text_color text DEFAULT '#10b981',
+  ADD COLUMN IF NOT EXISTS show_hero_slides boolean DEFAULT true,
+  ADD COLUMN IF NOT EXISTS welcome_style text DEFAULT 'atmospheric',
+  ADD COLUMN IF NOT EXISTS section_header_bg_color text,
+  ADD COLUMN IF NOT EXISTS section_header_text_color text,
+  ADD COLUMN IF NOT EXISTS section_header_icon_color text DEFAULT '#10b981',
+  ADD COLUMN IF NOT EXISTS section_header_bg_style text DEFAULT 'glass',
+  ADD COLUMN IF NOT EXISTS section_header_border text DEFAULT 'bordered',
+  ADD COLUMN IF NOT EXISTS section_header_btn_bg_color text,
+  ADD COLUMN IF NOT EXISTS section_header_btn_active_bg_color text,
+  ADD COLUMN IF NOT EXISTS section_header_btn_border text,
+  ADD COLUMN IF NOT EXISTS section_header_btn_shadow text,
+  ADD COLUMN IF NOT EXISTS section_header_btn_blur text,
+  ADD COLUMN IF NOT EXISTS section_header_btn_font text,
+  ADD COLUMN IF NOT EXISTS nav_style text DEFAULT 'minimal',
+  ADD COLUMN IF NOT EXISTS nav_shape text DEFAULT 'square',
+  ADD COLUMN IF NOT EXISTS nav_border text DEFAULT 'bordered',
+  ADD COLUMN IF NOT EXISTS nav_bg_style text DEFAULT 'glass',
+  ADD COLUMN IF NOT EXISTS nav_bg_color text,
+  ADD COLUMN IF NOT EXISTS nav_btn_bg_color text,
+  ADD COLUMN IF NOT EXISTS nav_btn_active_bg_color text,
+  ADD COLUMN IF NOT EXISTS nav_active_color text DEFAULT '#10b981',
+  ADD COLUMN IF NOT EXISTS nav_text_color text,
+  ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
+
+-- 2. Tabela estruturada dedicada para configurações de UI por Salão
+CREATE TABLE IF NOT EXISTS public.salon_ui_settings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  salon_id uuid NOT NULL REFERENCES public.salons(id) ON DELETE CASCADE,
+  default_theme text DEFAULT 'dark',
+  pwa_name text,
+  show_slogan boolean DEFAULT true,
+  logo_text_fallback text,
+  logo_text_color text DEFAULT '#10b981',
+  show_hero_slides boolean DEFAULT true,
+  welcome_style text DEFAULT 'atmospheric',
+  section_header_bg_color text,
+  section_header_text_color text,
+  section_header_icon_color text DEFAULT '#10b981',
+  section_header_bg_style text DEFAULT 'glass',
+  section_header_border text DEFAULT 'bordered',
+  nav_style text DEFAULT 'minimal',
+  nav_shape text DEFAULT 'square',
+  nav_border text DEFAULT 'bordered',
+  nav_bg_style text DEFAULT 'glass',
+  nav_bg_color text,
+  nav_btn_bg_color text,
+  nav_btn_active_bg_color text,
+  nav_active_color text DEFAULT '#10b981',
+  nav_text_color text,
+  raw_settings jsonb DEFAULT '{}'::jsonb,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  CONSTRAINT salon_ui_settings_salon_unique UNIQUE(salon_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_salon_ui_settings_salon_id ON public.salon_ui_settings(salon_id);
+
+-- 3. Habilitação de RLS e Políticas de Acesso
+ALTER TABLE public.salon_ui_settings ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'salon_ui_settings_public_read') THEN
+    CREATE POLICY salon_ui_settings_public_read ON public.salon_ui_settings
+      FOR SELECT USING (true);
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'salon_ui_settings_public_upsert') THEN
+    CREATE POLICY salon_ui_settings_public_upsert ON public.salon_ui_settings
+      FOR ALL USING (true) WITH CHECK (true);
+  END IF;
+END $$;
+
+-- 4. Buckets no Supabase Storage
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('salon-media', 'salon-media', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('avatars', 'avatars', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
