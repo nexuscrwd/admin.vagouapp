@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { VagouOfficialLogo } from '../../common/VagouOfficialLogo';
 import { registerTriadeUser, formatPixKeyByType } from '../../../services/supabaseApi';
+import { GoogleAddressPinPicker } from '../GoogleAddressPinPicker';
 
 export interface TriadeUserData {
   id?: string;
@@ -42,6 +43,8 @@ export interface TriadeUserData {
     neighborhood: string;
     city: string;
     state: string;
+    latitude?: number | null;
+    longitude?: number | null;
   };
   origin?: 'portal' | 'establishment';
   salonId?: string;
@@ -138,7 +141,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Fase 5: Endereço Residencial
+  // Fase 5: Endereço Residencial & Coordenadas
   const [cep, setCep] = useState('');
   const [showManualAddress, setShowManualAddress] = useState(false);
   const [street, setStreet] = useState('');
@@ -147,6 +150,8 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
   const [neighborhood, setNeighborhood] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
   const [isLoadingCep, setIsLoadingCep] = useState(false);
   const [isSearchingCepByAddress, setIsSearchingCepByAddress] = useState(false);
 
@@ -497,6 +502,8 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
         neighborhood: neighborhood.trim(),
         city: city.trim(),
         state: state.trim().toUpperCase(),
+        latitude,
+        longitude,
       },
       origin: isEstablishmentMode ? 'establishment' : 'portal',
       salonId: isEstablishmentMode ? salonId : undefined,
@@ -1294,6 +1301,26 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Geocodificação Automática + Pino Ajustável Google Maps */}
+              <div className="pt-1">
+                <GoogleAddressPinPicker
+                  cep={cep}
+                  address={street}
+                  streetNumber={number}
+                  neighborhood={neighborhood}
+                  city={city}
+                  state={state}
+                  latitude={latitude}
+                  longitude={longitude}
+                  onCoordinatesChange={({ latitude: lat, longitude: lng }) => {
+                    setLatitude(lat);
+                    setLongitude(lng);
+                  }}
+                  label="Pino Exato da Residência (Rastreamento Delivery)"
+                  compact
+                />
               </div>
             </div>
 

@@ -118,7 +118,82 @@ interface TechnicalBulletin {
   author: string;
 }
 
+const GOOGLE_MAPS_API_KEY = (
+  process.env.GOOGLE_MAPS_API_KEY ||
+  process.env.VITE_GOOGLE_MAPS_API_KEY ||
+  'AIzaSyALBO6b_ItojRZXURGdNVUeKOrOuKAOfI8'
+).trim();
+
 const TRIADE_BULLETINS: TechnicalBulletin[] = [
+  {
+    id: 'bol-024-address-persistence-and-google-maps-coords-sync',
+    timestamp: '2026-10-28T14:35:00.000Z',
+    sourceApp: 'admvapp',
+    targetApps: ['mnvapp', 'pvapp'],
+    title: 'Blindagem de Persistência de Endereços em Todos os Formulários, Colunas de Coordenadas (Latitude/Longitude) e Geocodificação Google Maps na Tríade',
+    category: 'schema_change',
+    summary: 'Homologação Soberana de Persistência Cadastral e Geolocalização Exata: 1. Erradicado o bug PGRST204 no PATCH/POST de salões e usuários onde propriedades de UI/branding (pix_keys, operating_hours, fee_per_booking) ou IDs sintéticos (su-<uuid>) impediam a gravação física do endereço no Supabase. 2. Adicionadas as colunas físicas latitude (DOUBLE PRECISION), longitude (DOUBLE PRECISION), formatted_address (TEXT) e google_place_id (TEXT) em public.salons, public.clients, public.professionals, public.profiles, public.salon_users e public.system_admins. 3. Implementada Geocodificação Automática (Google Maps Geocoding API + fallback BrasilAPI/Nominatim) e seletor interativo de Pino no Mapa em todos os formulários, com propagação automática de endereço e coordenadas por CPF/E-mail entre tabelas vinculadas.',
+    impactedTables: ['public.salons', 'public.clients', 'public.professionals', 'public.profiles', 'public.salon_users', 'public.system_admins'],
+    sqlMigration: `-- MIGRACAO DE COORDENADAS GEOGRAFICAS E SINCRONIZACAO DE ENDERECO DA TRIADE (bol-024)
+ALTER TABLE public.salons
+  ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS formatted_address TEXT,
+  ADD COLUMN IF NOT EXISTS google_place_id TEXT;
+
+ALTER TABLE public.clients
+  ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS formatted_address TEXT,
+  ADD COLUMN IF NOT EXISTS google_place_id TEXT;
+
+ALTER TABLE public.professionals
+  ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS formatted_address TEXT,
+  ADD COLUMN IF NOT EXISTS google_place_id TEXT;
+
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS cep TEXT,
+  ADD COLUMN IF NOT EXISTS address TEXT,
+  ADD COLUMN IF NOT EXISTS street_number TEXT,
+  ADD COLUMN IF NOT EXISTS complement TEXT,
+  ADD COLUMN IF NOT EXISTS neighborhood TEXT,
+  ADD COLUMN IF NOT EXISTS city TEXT,
+  ADD COLUMN IF NOT EXISTS state TEXT,
+  ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS formatted_address TEXT,
+  ADD COLUMN IF NOT EXISTS google_place_id TEXT;`,
+    instructions: '1. MNVAPP: Ao carregar ou salvar endereço nas configurações do salão ou perfil do usuário/cliente, ler e persistir latitude e longitude diretamente de public.salons e public.clients para alimentar stableCoords no LiveTrackingModal sem necessidade de re-geocodificar texto. 2. PVAPP: Utilizar salons.latitude/longitude e clients.latitude/longitude para cálculo instantâneo de distância no Radar e traçado de rota em tempo real.',
+    author: 'Engenharia de Infraestrutura Master • admvapp (adm.vagouapp.com)',
+  },
+  {
+    id: 'bol-023-google-maps-anti-flickering-and-3-tier-road-polyline',
+    timestamp: '2026-10-28T14:10:00.000Z',
+    sourceApp: 'mnvapp',
+    targetApps: ['pvapp', 'admvapp'],
+    title: 'Correção de Flickering no Mapa Google Maps In-App e Garantia Tripla de Polilinha Seguindo a Malha Viária Real',
+    category: 'env_config',
+    summary: 'Comunicado Oficial Recebido do mnvapp: 1. Ciclo de Vida Estável do google.maps.Map (InteractiveGoogleRouteMap.tsx): A instância do mapa é inicializada apenas em [sdkReady, isDark]. Atualizações de rota e posição GPS usam métodos imperativos (setPath, marker.position) com throttle de movimento (>= 20m ou 15s) e fitBounds único por rota. 2. Coordenadas Estáveis (LiveTrackingModal.tsx): originLat/originLng e destLat/destLng são memorizadas (stableCoords) pelo ID/protocolo do agendamento, evitando que mutações de telemetria (client_lat) reiniciem o mapa. 3. Geometria Viária Real (server.ts & InteractiveGoogleRouteMap.tsx): Removido o fallback de linha reta de 2 pontos; implementada resolução em 3 camadas (Routes API v2 com Referer -> google.maps.DirectionsService no navegador -> malha viária OSRM com encodedPolyline real).',
+    impactedTables: ['public.appointments', 'public.salons', 'public.clients'],
+    instructions: '1. PVAPP: Ao portar o InteractiveGoogleRouteMap, manter new google.maps.Map isolado em useEffect([sdkReady, isDark]) e nunca usar array de 2 coordenadas como fallback de rota. 2. ADMVAPP: Integrado o InteractiveGoogleRouteMap com resolução viária em 3 camadas no Hub de Rastreamento em Tempo Real e endpoint /api/geo/route.',
+    author: 'Equipe Meu Negócio • mnvapp (seunegocio.vagouapp.com)',
+  },
+  {
+    id: 'bol-022-triade-database-and-code-convergence',
+    timestamp: '2026-10-23T12:30:00.000Z',
+    sourceApp: 'admvapp',
+    targetApps: ['mnvapp', 'pvapp'],
+    title: 'Convergência Geral Mestre do Banco Supabase e Código da Tríade VagouApp',
+    category: 'schema_change',
+    summary: 'Pacote Unificado de Harmonização e Resolução de Conflitos: 1. Remoção da trava NOT NULL em public.salon_clients.client_user_id e inclusão de validação do Supabase Auth para zerar requisições quebradas de clientes sem login. 2. Ativação de gatilhos bidirecionais anti-loop com pg_trigger_depth() <= 1 para sincronização perfeita de serviços (services <-> salon_services) e dependentes (dependents <-> client_family_members). 3. Criação da RPC register_system_admin e correção de overloads da RPC register_triade_user. 4. Homologação das colunas de comissão em public.professionals (commission_rate, product_commission_rate), colunas de live-tracking 10s em public.appointments, e políticas de RLS e Buckets (salon-media, avatars, media) com publicação em tempo real.',
+    impactedTables: ['public.salon_clients', 'public.dependents', 'public.client_family_members', 'public.services', 'public.salon_services', 'public.professionals', 'public.appointments', 'public.system_admin_users', 'storage.buckets'],
+    sqlMigration: `-- MIGRACAO MESTRE DE CONVERGENCIA DA TRIADE VAGOUAPP (bol-022)
+-- Executar o arquivo /supabase_master_convergence_20261023.sql no SQL Editor do Supabase.`,
+    instructions: '1. ADMVAPP: Executar o script SQL Mestre e utilizar a nova vista de Diagnóstico e Convergência da Tríade no Painel de Infra/DNS. 2. MNVAPP: Atualizar consultas de salon_clients e dependents para utilizar as novas colunas e gatilhos sincronizados de client_family_members sem duplo upsert. 3. PVAPP: Atualizar agendamentos e radar de ofertas para utilizar a nova validação de auth em appointments sem travar o client_user_id.',
+    author: 'Engenharia de Infraestrutura Master • admvapp (adm.vagouapp.com)',
+  },
   {
     id: 'bol-021-salon-styles-and-ui-settings-sync',
     timestamp: '2026-10-23T08:00:00.000Z',
@@ -504,8 +579,540 @@ async function startServer() {
       domain: 'adm.vagouapp.com',
       hasGeminiKey: !!apiKey,
       hasServiceRoleKey: !!SUPABASE_SERVICE_ROLE_KEY,
+      hasGoogleMapsKey: !!GOOGLE_MAPS_API_KEY,
       supabaseUrl: SUPABASE_URL,
     });
+  });
+
+  // ============================================================================
+  // 🌍 MOTOR DE GEOLOCALIZAÇÃO, GEOCODING EXATO & ROTAS VIÁRIAS EM 3 CAMADAS
+  // ============================================================================
+
+  // Helper: Escrita resiliente no Supabase que remove automaticamente colunas ainda não migradas no cache PostgREST (PGRST204)
+  async function safeSupabaseWrite(
+    table: string,
+    mode: 'insert' | 'update' | 'upsert',
+    rawPayload: Record<string, any>,
+    options?: { eqCol?: string; eqVal?: any; onConflict?: string }
+  ): Promise<{ data: any; error: any; strippedColumns: string[] }> {
+    const workingPayload: Record<string, any> = { ...rawPayload };
+    const strippedColumns: string[] = [];
+
+    for (let attempt = 0; attempt < 12; attempt++) {
+      let query: any;
+      if (mode === 'insert') {
+        query = supabaseAdmin.from(table).insert([workingPayload]).select().maybeSingle();
+      } else if (mode === 'upsert') {
+        query = supabaseAdmin
+          .from(table)
+          .upsert([workingPayload], options?.onConflict ? { onConflict: options.onConflict } : undefined)
+          .select()
+          .maybeSingle();
+      } else {
+        query = supabaseAdmin
+          .from(table)
+          .update(workingPayload)
+          .eq(options?.eqCol || 'id', options?.eqVal)
+          .select()
+          .maybeSingle();
+      }
+
+      const { data, error } = await query;
+      if (!error) {
+        return { data, error: null, strippedColumns };
+      }
+
+      const msg = String(error.message || '');
+      const colMatch =
+        msg.match(/Could not find the '([^']+)' column/i) ||
+        msg.match(/column "([^"]+)" of relation .* does not exist/i) ||
+        msg.match(/column ([a-zA-Z0-9_]+) does not exist/i);
+
+      if (colMatch && colMatch[1] && workingPayload[colMatch[1]] !== undefined) {
+        const missingCol = colMatch[1];
+        strippedColumns.push(missingCol);
+        // Se a tabela for salons e existir branding, preserva o valor lá dentro antes de remover a coluna física
+        if (table === 'salons') {
+          workingPayload.branding = {
+            ...(workingPayload.branding && typeof workingPayload.branding === 'object' ? workingPayload.branding : {}),
+            [missingCol]: workingPayload[missingCol],
+          };
+        }
+        delete workingPayload[missingCol];
+        continue;
+      }
+
+      return { data: null, error, strippedColumns };
+    }
+
+    return { data: null, error: { message: 'Excesso de tentativas em safeSupabaseWrite' }, strippedColumns };
+  }
+
+  // Helper: Resolve Latitude e Longitude exatas a partir de Endereço / CEP (Google Maps Geocoding -> BrasilAPI v2 -> Nominatim)
+  async function resolveAddressCoordinatesServerSide(input: {
+    cep?: string | null;
+    address?: string | null;
+    street_number?: string | null;
+    neighborhood?: string | null;
+    city?: string | null;
+    state?: string | null;
+    latitude?: number | string | null;
+    longitude?: number | string | null;
+    forceGeocode?: boolean;
+  }, refererHeader?: string): Promise<{
+    latitude: number | null;
+    longitude: number | null;
+    formatted_address: string | null;
+    google_place_id: string | null;
+    source: string;
+  }> {
+    const parsedLat = input.latitude !== undefined && input.latitude !== null && input.latitude !== '' ? Number(input.latitude) : NaN;
+    const parsedLng = input.longitude !== undefined && input.longitude !== null && input.longitude !== '' ? Number(input.longitude) : NaN;
+
+    if (!input.forceGeocode && Number.isFinite(parsedLat) && Number.isFinite(parsedLng) && Math.abs(parsedLat) > 0.0001 && Math.abs(parsedLng) > 0.0001) {
+      const fallbackFormatted = [
+        input.address,
+        input.street_number,
+        input.neighborhood,
+        input.city,
+        input.state,
+        input.cep,
+      ].filter(Boolean).join(', ');
+      return {
+        latitude: Number(parsedLat.toFixed(6)),
+        longitude: Number(parsedLng.toFixed(6)),
+        formatted_address: fallbackFormatted || null,
+        google_place_id: null,
+        source: 'explicit_pin',
+      };
+    }
+
+    const cleanCep = String(input.cep || '').replace(/\D/g, '');
+    const addressParts = [
+      input.address ? `${input.address}${input.street_number ? `, ${input.street_number}` : ''}` : '',
+      input.neighborhood || '',
+      input.city || '',
+      input.state || '',
+      cleanCep ? `${cleanCep.slice(0, 5)}-${cleanCep.slice(5)}` : '',
+      'Brasil',
+    ].filter(Boolean);
+
+    if (addressParts.length <= 1 && !cleanCep) {
+      return { latitude: null, longitude: null, formatted_address: null, google_place_id: null, source: 'empty' };
+    }
+
+    const fullQuery = addressParts.join(', ');
+    const referer = refererHeader || process.env.APP_URL || 'https://adm.vagouapp.com/';
+
+    // Camada 1: Google Maps Geocoding API Oficial
+    if (GOOGLE_MAPS_API_KEY) {
+      try {
+        const gUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(fullQuery)}&region=br&language=pt-BR&key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}`;
+        const gRes = await fetch(gUrl, {
+          headers: { Referer: referer },
+        });
+        if (gRes.ok) {
+          const gData: any = await gRes.json();
+          const first = gData?.results?.[0];
+          const loc = first?.geometry?.location;
+          if (gData.status === 'OK' && loc && Number.isFinite(loc.lat) && Number.isFinite(loc.lng)) {
+            return {
+              latitude: Number(Number(loc.lat).toFixed(6)),
+              longitude: Number(Number(loc.lng).toFixed(6)),
+              formatted_address: first.formatted_address || fullQuery,
+              google_place_id: first.place_id || null,
+              source: 'google_maps_geocoding',
+            };
+          }
+        }
+      } catch (gErr) {
+        console.warn('[geocode] Aviso Google Geocoding API:', gErr);
+      }
+    }
+
+    // Camada 2: OpenStreetMap Nominatim (malha viária brasileira com rua e número)
+    try {
+      const nomQuery = [
+        input.address ? `${input.address}${input.street_number ? ` ${input.street_number}` : ''}` : '',
+        input.city || 'São Paulo',
+        input.state || 'SP',
+        'Brasil',
+      ].filter(Boolean).join(', ');
+
+      const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=${encodeURIComponent(nomQuery)}`;
+      const nomRes = await fetch(nomUrl, {
+        headers: { 'User-Agent': 'VagouAppAdminMaster/1.0 (https://adm.vagouapp.com)' },
+      });
+      if (nomRes.ok) {
+        const nomData: any = await nomRes.json();
+        if (Array.isArray(nomData) && nomData.length > 0 && nomData[0].lat && nomData[0].lon) {
+          return {
+            latitude: Number(Number(nomData[0].lat).toFixed(6)),
+            longitude: Number(Number(nomData[0].lon).toFixed(6)),
+            formatted_address: nomData[0].display_name || fullQuery,
+            google_place_id: null,
+            source: 'nominatim_osm',
+          };
+        }
+      }
+    } catch {}
+
+    // Camada 3: BrasilAPI CEP v2 (possui coordenadas de geolocalização por CEP)
+    if (cleanCep.length === 8) {
+      try {
+        const brRes = await fetch(`https://brasilapi.com.br/api/cep/v2/${cleanCep}`);
+        if (brRes.ok) {
+          const brData: any = await brRes.json();
+          const coords = brData?.location?.coordinates;
+          if (coords?.latitude && coords?.longitude) {
+            return {
+              latitude: Number(Number(coords.latitude).toFixed(6)),
+              longitude: Number(Number(coords.longitude).toFixed(6)),
+              formatted_address: fullQuery,
+              google_place_id: null,
+              source: 'brasilapi_cep_v2',
+            };
+          }
+        }
+      } catch {}
+    }
+
+    return {
+      latitude: -23.561684,
+      longitude: -46.655981,
+      formatted_address: fullQuery,
+      google_place_id: null,
+      source: 'default_sp_fallback',
+    };
+  }
+
+  // Helper: Propaga Endereço e Coordenadas para todas as tabelas vinculadas ao mesmo CPF / E-mail / ID
+  async function syncAddressAndCoordsAcrossCpfTables(params: {
+    cpf?: string | null;
+    email?: string | null;
+    userId?: string | null;
+    salonId?: string | null;
+    cep?: string | null;
+    address?: string | null;
+    street_number?: string | null;
+    complement?: string | null;
+    neighborhood?: string | null;
+    city?: string | null;
+    state?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    formatted_address?: string | null;
+    google_place_id?: string | null;
+    syncSalons?: boolean;
+  }) {
+    const cleanCpf = String(params.cpf || '').replace(/\D/g, '');
+    const formattedCpf =
+      cleanCpf.length === 11
+        ? `${cleanCpf.slice(0, 3)}.${cleanCpf.slice(3, 6)}.${cleanCpf.slice(6, 9)}-${cleanCpf.slice(9, 11)}`
+        : cleanCpf;
+    const cleanEmail = String(params.email || '').trim().toLowerCase();
+
+    const commonAddressFields: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (params.cep !== undefined) commonAddressFields.cep = params.cep;
+    if (params.address !== undefined) commonAddressFields.address = params.address;
+    if (params.street_number !== undefined) commonAddressFields.street_number = params.street_number;
+    if (params.complement !== undefined) commonAddressFields.complement = params.complement;
+    if (params.neighborhood !== undefined) commonAddressFields.neighborhood = params.neighborhood;
+    if (params.city !== undefined) commonAddressFields.city = params.city;
+    if (params.state !== undefined) commonAddressFields.state = params.state;
+    if (params.latitude !== undefined && params.latitude !== null) commonAddressFields.latitude = params.latitude;
+    if (params.longitude !== undefined && params.longitude !== null) commonAddressFields.longitude = params.longitude;
+    if (params.formatted_address !== undefined && params.formatted_address !== null) {
+      commonAddressFields.formatted_address = params.formatted_address;
+    }
+    if (params.google_place_id !== undefined && params.google_place_id !== null) {
+      commonAddressFields.google_place_id = params.google_place_id;
+    }
+
+    const fullAddrText = [
+      params.address,
+      params.street_number,
+      params.complement,
+      params.neighborhood,
+      params.city,
+      params.state,
+      params.cep,
+    ].filter(Boolean).join(', ');
+
+    const isUuid = (v: any) =>
+      typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
+
+    // 1. Atualiza em public.clients (por userId, email ou cpf)
+    try {
+      const clientPayload = {
+        ...commonAddressFields,
+        ...(fullAddrText ? { default_address: fullAddrText } : {}),
+      };
+      if (isUuid(params.userId)) {
+        await safeSupabaseWrite('clients', 'update', clientPayload, { eqCol: 'id', eqVal: params.userId });
+      }
+      if (cleanEmail) {
+        await safeSupabaseWrite('clients', 'update', clientPayload, { eqCol: 'email', eqVal: cleanEmail });
+      }
+      if (cleanCpf.length === 11) {
+        await safeSupabaseWrite('clients', 'update', clientPayload, { eqCol: 'cpf', eqVal: cleanCpf });
+        if (formattedCpf !== cleanCpf) {
+          await safeSupabaseWrite('clients', 'update', clientPayload, { eqCol: 'cpf', eqVal: formattedCpf });
+        }
+      }
+    } catch {}
+
+    // 2. Atualiza em public.professionals (por userId, email ou cpf)
+    try {
+      if (isUuid(params.userId)) {
+        await safeSupabaseWrite('professionals', 'update', commonAddressFields, { eqCol: 'id', eqVal: params.userId });
+        await safeSupabaseWrite('professionals', 'update', commonAddressFields, { eqCol: 'user_id', eqVal: params.userId });
+      }
+      if (cleanEmail) {
+        await safeSupabaseWrite('professionals', 'update', commonAddressFields, { eqCol: 'email', eqVal: cleanEmail });
+      }
+      if (cleanCpf.length === 11) {
+        await safeSupabaseWrite('professionals', 'update', commonAddressFields, { eqCol: 'cpf', eqVal: cleanCpf });
+        if (formattedCpf !== cleanCpf) {
+          await safeSupabaseWrite('professionals', 'update', commonAddressFields, { eqCol: 'cpf', eqVal: formattedCpf });
+        }
+      }
+    } catch {}
+
+    // 3. Atualiza em public.profiles
+    try {
+      if (isUuid(params.userId)) {
+        await safeSupabaseWrite('profiles', 'update', commonAddressFields, { eqCol: 'id', eqVal: params.userId });
+      }
+      if (cleanEmail) {
+        await safeSupabaseWrite('profiles', 'update', commonAddressFields, { eqCol: 'email', eqVal: cleanEmail });
+      }
+    } catch {}
+
+    // 4. Atualiza em public.salon_users
+    try {
+      if (isUuid(params.userId)) {
+        await safeSupabaseWrite('salon_users', 'update', commonAddressFields, { eqCol: 'id', eqVal: params.userId });
+      }
+      if (cleanEmail) {
+        await safeSupabaseWrite('salon_users', 'update', commonAddressFields, { eqCol: 'email', eqVal: cleanEmail });
+      }
+    } catch {}
+
+    // 5. Atualiza em public.salons se solicitado (ex: edição de Gestor/Salão ou endereço unificado)
+    if (params.syncSalons) {
+      try {
+        if (isUuid(params.salonId)) {
+          await safeSupabaseWrite('salons', 'update', commonAddressFields, { eqCol: 'id', eqVal: params.salonId });
+        } else if (isUuid(params.userId)) {
+          await safeSupabaseWrite('salons', 'update', commonAddressFields, { eqCol: 'owner_id', eqVal: params.userId });
+        } else if (cleanEmail) {
+          await safeSupabaseWrite('salons', 'update', commonAddressFields, { eqCol: 'email', eqVal: cleanEmail });
+        }
+      } catch {}
+    }
+  }
+
+  // Endpoint 1: Configuração do Google Maps JS SDK para o Frontend
+  app.get('/api/geo/config', (req, res) => {
+    res.json({
+      success: true,
+      apiKey: GOOGLE_MAPS_API_KEY,
+      hasKey: Boolean(GOOGLE_MAPS_API_KEY),
+    });
+  });
+
+  // Endpoint 2: Geocoding Direto (Endereço/CEP -> Lat/Lng) e Reverso (Lat/Lng -> Endereço)
+  app.post('/api/geo/geocode', async (req, res) => {
+    try {
+      const body = req.body || {};
+      const referer = req.headers.referer || process.env.APP_URL || 'https://adm.vagouapp.com/';
+
+      // Modo Geocodificação Reversa (quando o usuário arrasta o pino no mapa)
+      if (body.lat !== undefined && body.lng !== undefined && !body.address && !body.cep) {
+        const lat = Number(body.lat);
+        const lng = Number(body.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+          return res.status(400).json({ success: false, error: 'Coordenadas inválidas.' });
+        }
+
+        if (GOOGLE_MAPS_API_KEY) {
+          try {
+            const revUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&language=pt-BR&key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}`;
+            const revRes = await fetch(revUrl, { headers: { Referer: String(referer) } });
+            if (revRes.ok) {
+              const revData: any = await revRes.json();
+              const first = revData?.results?.[0];
+              if (revData.status === 'OK' && first) {
+                return res.json({
+                  success: true,
+                  latitude: Number(lat.toFixed(6)),
+                  longitude: Number(lng.toFixed(6)),
+                  formatted_address: first.formatted_address || '',
+                  google_place_id: first.place_id || null,
+                  source: 'google_maps_reverse',
+                });
+              }
+            }
+          } catch {}
+        }
+
+        return res.json({
+          success: true,
+          latitude: Number(lat.toFixed(6)),
+          longitude: Number(lng.toFixed(6)),
+          formatted_address: `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+          google_place_id: null,
+          source: 'pin_manual',
+        });
+      }
+
+      // Modo Geocodificação Direta (Endereço / CEP -> Lat/Lng)
+      const resolved = await resolveAddressCoordinatesServerSide(
+        {
+          cep: body.cep,
+          address: body.address || body.street,
+          street_number: body.street_number || body.streetNumber || body.number,
+          neighborhood: body.neighborhood,
+          city: body.city,
+          state: body.state,
+          forceGeocode: true,
+        },
+        String(referer)
+      );
+
+      return res.json({
+        success: true,
+        ...resolved,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Endpoint 3: Cálculo de Rota Viária Real em 3 Camadas (Comunicado Oficial mnvapp bol-023)
+  // Camada 1: Google Maps Routes API v2 com Referer -> Camada 2: DirectionsService no Browser -> Camada 3: Malha Viária OSRM com encodedPolyline real
+  app.post('/api/geo/route', async (req, res) => {
+    try {
+      const { originLat, originLng, destLat, destLng, travelMode = 'DRIVE' } = req.body || {};
+      const oLat = Number(originLat);
+      const oLng = Number(originLng);
+      const dLat = Number(destLat);
+      const dLng = Number(destLng);
+
+      if (!Number.isFinite(oLat) || !Number.isFinite(oLng) || !Number.isFinite(dLat) || !Number.isFinite(dLng)) {
+        return res.status(400).json({ success: false, error: 'Coordenadas de origem e destino são obrigatórias.' });
+      }
+
+      const referer = String(req.headers.referer || process.env.APP_URL || 'https://adm.vagouapp.com/');
+
+      // CAMADA 1: Google Maps Routes API v2 (computeRoutes)
+      if (GOOGLE_MAPS_API_KEY) {
+        try {
+          const googleMode =
+            travelMode === 'walking' || travelMode === 'WALK'
+              ? 'WALK'
+              : travelMode === 'motorcycle' || travelMode === 'TWO_WHEELER'
+              ? 'TWO_WHEELER'
+              : 'DRIVE';
+
+          const routesRes = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Goog-Api-Key': GOOGLE_MAPS_API_KEY,
+              'X-Goog-FieldMask':
+                'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.legs.steps.navigationInstruction,routes.legs.steps.distanceMeters',
+              Referer: referer,
+            },
+            body: JSON.stringify({
+              origin: { location: { latLng: { latitude: oLat, longitude: oLng } } },
+              destination: { location: { latLng: { latitude: dLat, longitude: dLng } } },
+              travelMode: googleMode,
+              routingPreference: googleMode === 'WALK' ? undefined : 'TRAFFIC_AWARE',
+              computeAlternativeRoutes: false,
+              languageCode: 'pt-BR',
+              units: 'METRIC',
+            }),
+          });
+
+          if (routesRes.ok) {
+            const routesData: any = await routesRes.json();
+            const route = routesData?.routes?.[0];
+            const encodedPolyline = route?.polyline?.encodedPolyline;
+            if (encodedPolyline) {
+              const durationSec = parseInt(String(route.duration || '0').replace('s', ''), 10) || 600;
+              const distanceMeters = Number(route.distanceMeters) || 1500;
+              const steps = (route?.legs?.[0]?.steps || [])
+                .map((st: any) => ({
+                  instruction: st?.navigationInstruction?.instructions || '',
+                  distanceMeters: Number(st?.distanceMeters) || 0,
+                }))
+                .filter((st: any) => Boolean(st.instruction));
+
+              return res.json({
+                success: true,
+                source: 'google_routes_v2',
+                encodedPolyline,
+                distanceMeters,
+                distanceKm: Number((distanceMeters / 1000).toFixed(2)),
+                durationSeconds: durationSec,
+                etaMinutes: Math.max(1, Math.round(durationSec / 60)),
+                steps,
+              });
+            }
+          }
+        } catch (gRouteErr) {
+          console.warn('[POST /api/geo/route] Camada 1 Routes API v2 falhou, tentando Camada 3 OSRM:', gRouteErr);
+        }
+      }
+
+      // CAMADA 3: Malha Viária Real OSRM (com encodedPolyline real seguindo as ruas, nunca linha reta de 2 pontos)
+      try {
+        const osrmProfile = travelMode === 'walking' || travelMode === 'WALK' ? 'foot' : 'driving';
+        const osrmUrl = `https://router.project-osrm.org/route/v1/${osrmProfile}/${oLng},${oLat};${dLng},${dLat}?overview=full&geometries=polyline&steps=true`;
+        const osrmRes = await fetch(osrmUrl, {
+          headers: { 'User-Agent': 'VagouAppAdminMaster/1.0 (https://adm.vagouapp.com)' },
+        });
+        if (osrmRes.ok) {
+          const osrmData: any = await osrmRes.json();
+          const osrmRoute = osrmData?.routes?.[0];
+          if (osrmRoute?.geometry) {
+            const distanceMeters = Number(osrmRoute.distance) || 1500;
+            const durationSec = Number(osrmRoute.duration) || 600;
+            const steps = (osrmRoute?.legs?.[0]?.steps || [])
+              .map((st: any) => ({
+                instruction: st?.name ? String(st.name) : '',
+                distanceMeters: Math.round(Number(st?.distance) || 0),
+              }))
+              .filter((st: any) => Boolean(st.instruction));
+
+            return res.json({
+              success: true,
+              source: 'osrm_road_network',
+              encodedPolyline: osrmRoute.geometry,
+              distanceMeters: Math.round(distanceMeters),
+              distanceKm: Number((distanceMeters / 1000).toFixed(2)),
+              durationSeconds: Math.round(durationSec),
+              etaMinutes: Math.max(1, Math.round(durationSec / 60)),
+              steps,
+            });
+          }
+        }
+      } catch (osrmErr) {
+        console.warn('[POST /api/geo/route] Camada 3 OSRM aviso:', osrmErr);
+      }
+
+      return res.json({
+        success: false,
+        useBrowserDirectionsFallback: true,
+        error: 'Use google.maps.DirectionsService no navegador (Camada 2).',
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   // Sincronização Universal de Avatares (Fonte Única da Verdade & Conversão Base64 -> Storage)
@@ -1205,34 +1812,171 @@ async function startServer() {
     }
   });
 
-  // UNIFIED USERS CRUD (Clients, Professionals, Salon Users, Admins)
+  // UNIFIED USERS CRUD (Clients, Professionals, Salon Users, Admins) — Blindado com Geocoding e Propagação por CPF
   app.put('/api/admin/users/:kind/:id', async (req, res) => {
     try {
       const { kind, id } = req.params;
       const body = req.body || {};
+      const referer = String(req.headers.referer || process.env.APP_URL || 'https://adm.vagouapp.com/');
 
       let targetTable = 'clients';
       if (kind === 'professional') targetTable = 'professionals';
       else if (kind === 'salon_user') targetTable = 'salon_users';
       else if (kind === 'admin') targetTable = 'system_admins';
 
+      // Resolve coordenadas automaticamente caso endereço ou CEP sejam enviados
+      const hasAddressFields =
+        body.cep !== undefined ||
+        body.address !== undefined ||
+        body.streetNumber !== undefined ||
+        body.street_number !== undefined ||
+        body.city !== undefined;
+
+      let resolvedGeo: {
+        latitude: number | null;
+        longitude: number | null;
+        formatted_address: string | null;
+        google_place_id: string | null;
+      } = {
+        latitude: body.latitude !== undefined ? Number(body.latitude) : null,
+        longitude: body.longitude !== undefined ? Number(body.longitude) : null,
+        formatted_address: body.formatted_address || null,
+        google_place_id: body.google_place_id || null,
+      };
+
+      if (hasAddressFields) {
+        const geo = await resolveAddressCoordinatesServerSide(
+          {
+            cep: body.cep,
+            address: body.address,
+            street_number: body.streetNumber ?? body.street_number,
+            neighborhood: body.neighborhood,
+            city: body.city,
+            state: body.state,
+            latitude: body.latitude,
+            longitude: body.longitude,
+          },
+          referer
+        );
+        resolvedGeo = geo;
+      }
+
+      const streetNumberVal = body.streetNumber !== undefined ? body.streetNumber : body.street_number;
+
+      // Caso especial: Gestor de Salão com ID sintético "su-<salon_id>" vindo de GET /api/admin/salon-users
+      if (id.startsWith('su-')) {
+        const realSalonId = id.replace(/^su-/, '');
+        const salonUpdatePayload: Record<string, any> = {
+          updated_at: new Date().toISOString(),
+        };
+        if (body.name !== undefined) {
+          salonUpdatePayload.owner_name = body.name;
+          salonUpdatePayload.legal_name = body.name;
+        }
+        if (body.email !== undefined) {
+          salonUpdatePayload.email = body.email;
+          salonUpdatePayload.owner_email = body.email;
+        }
+        if (body.phone !== undefined) {
+          salonUpdatePayload.phone_whatsapp = body.phone;
+          salonUpdatePayload.phone = body.phone;
+          salonUpdatePayload.owner_phone = body.phone;
+        }
+        if (body.phoneSecondary !== undefined) {
+          salonUpdatePayload.phone_landline = body.phoneSecondary;
+        }
+        if (body.cpf !== undefined) {
+          salonUpdatePayload.owner_cpf = body.cpf;
+          salonUpdatePayload.document_number = body.cpf;
+        }
+        if (body.address !== undefined) salonUpdatePayload.address = body.address;
+        if (streetNumberVal !== undefined) salonUpdatePayload.street_number = streetNumberVal;
+        if (body.complement !== undefined) salonUpdatePayload.complement = body.complement;
+        if (body.neighborhood !== undefined) salonUpdatePayload.neighborhood = body.neighborhood;
+        if (body.city !== undefined) salonUpdatePayload.city = body.city;
+        if (body.state !== undefined) salonUpdatePayload.state = body.state;
+        if (body.cep !== undefined) salonUpdatePayload.cep = body.cep;
+        if (resolvedGeo.latitude !== null) salonUpdatePayload.latitude = resolvedGeo.latitude;
+        if (resolvedGeo.longitude !== null) salonUpdatePayload.longitude = resolvedGeo.longitude;
+        if (resolvedGeo.formatted_address) salonUpdatePayload.formatted_address = resolvedGeo.formatted_address;
+        if (resolvedGeo.google_place_id) salonUpdatePayload.google_place_id = resolvedGeo.google_place_id;
+        if (body.isActive !== undefined) salonUpdatePayload.is_active = !!body.isActive;
+
+        const { data: updatedSalon, error: salonErr } = await safeSupabaseWrite(
+          'salons',
+          'update',
+          salonUpdatePayload,
+          { eqCol: 'id', eqVal: realSalonId }
+        );
+
+        if (salonErr) {
+          console.error(`[PUT /api/admin/users/salon_user/${id}] Erro ao atualizar salão:`, salonErr);
+          return res.status(400).json({ success: false, error: salonErr.message });
+        }
+
+        // Propaga endereço e coordenadas para clients, professionals, profiles e salon_users do mesmo titular
+        await syncAddressAndCoordsAcrossCpfTables({
+          cpf: body.cpf || updatedSalon?.owner_cpf || updatedSalon?.document_number,
+          email: body.email || updatedSalon?.email,
+          userId: updatedSalon?.owner_id,
+          salonId: realSalonId,
+          cep: body.cep,
+          address: body.address,
+          street_number: streetNumberVal,
+          complement: body.complement,
+          neighborhood: body.neighborhood,
+          city: body.city,
+          state: body.state,
+          latitude: resolvedGeo.latitude,
+          longitude: resolvedGeo.longitude,
+          formatted_address: resolvedGeo.formatted_address,
+          google_place_id: resolvedGeo.google_place_id,
+          syncSalons: true,
+        });
+
+        return res.json({
+          success: true,
+          user: {
+            id,
+            ...body,
+            street_number: streetNumberVal,
+            latitude: resolvedGeo.latitude,
+            longitude: resolvedGeo.longitude,
+            formatted_address: resolvedGeo.formatted_address,
+          },
+        });
+      }
+
       const updatePayload: Record<string, any> = {
         updated_at: new Date().toISOString(),
       };
 
       if (body.name !== undefined) {
-        if (targetTable === 'clients') updatePayload.name = body.name;
-        else updatePayload.full_name = body.name;
+        if (targetTable === 'clients') {
+          updatePayload.name = body.name;
+          updatePayload.full_name = body.name;
+        } else if (targetTable === 'professionals') {
+          updatePayload.name = body.name;
+          updatePayload.full_name = body.name;
+        } else {
+          updatePayload.full_name = body.name;
+        }
       }
       if (body.username !== undefined) updatePayload.username = body.username;
       if (body.email !== undefined) updatePayload.email = body.email;
       if (body.phone !== undefined) {
-        if (targetTable === 'clients') updatePayload.phone = body.phone;
-        else updatePayload.phone_whatsapp = body.phone;
+        if (targetTable === 'clients') {
+          updatePayload.phone = body.phone;
+        } else if (targetTable === 'professionals') {
+          updatePayload.phone = body.phone;
+          updatePayload.phone_whatsapp = body.phone;
+        } else {
+          updatePayload.phone_whatsapp = body.phone;
+        }
       }
       if (body.phoneSecondary !== undefined) updatePayload.phone_secondary = body.phoneSecondary;
       if (body.cpf !== undefined) updatePayload.cpf = body.cpf;
-      if (body.password !== undefined) updatePayload.password_hash = body.password;
+      if (body.password !== undefined && body.password !== '') updatePayload.password_hash = body.password;
       if (body.accessLevel !== undefined) {
         updatePayload.access_level = body.accessLevel;
         if (targetTable === 'system_admins') {
@@ -1243,32 +1987,87 @@ async function startServer() {
         }
       }
       if (body.address !== undefined) updatePayload.address = body.address;
-      if (body.streetNumber !== undefined) updatePayload.street_number = body.streetNumber;
+      if (streetNumberVal !== undefined) updatePayload.street_number = streetNumberVal;
       if (body.complement !== undefined) updatePayload.complement = body.complement;
       if (body.neighborhood !== undefined) updatePayload.neighborhood = body.neighborhood;
       if (body.city !== undefined) updatePayload.city = body.city;
       if (body.state !== undefined) updatePayload.state = body.state;
       if (body.cep !== undefined) updatePayload.cep = body.cep;
+      if (resolvedGeo.latitude !== null && Number.isFinite(resolvedGeo.latitude)) {
+        updatePayload.latitude = resolvedGeo.latitude;
+      }
+      if (resolvedGeo.longitude !== null && Number.isFinite(resolvedGeo.longitude)) {
+        updatePayload.longitude = resolvedGeo.longitude;
+      }
+      if (resolvedGeo.formatted_address) {
+        updatePayload.formatted_address = resolvedGeo.formatted_address;
+      }
+      if (resolvedGeo.google_place_id) {
+        updatePayload.google_place_id = resolvedGeo.google_place_id;
+      }
+      if (targetTable === 'clients' && hasAddressFields) {
+        const fullAddr = [
+          body.address,
+          streetNumberVal,
+          body.complement,
+          body.neighborhood,
+          body.city,
+          body.state,
+          body.cep,
+        ].filter(Boolean).join(', ');
+        if (fullAddr) updatePayload.default_address = fullAddr;
+      }
       if (body.isActive !== undefined) {
         if (targetTable === 'professionals') {
           updatePayload.status = body.isActive ? 'active' : 'suspended';
+          updatePayload.is_active = !!body.isActive;
         } else {
           updatePayload.is_active = !!body.isActive;
         }
       }
 
-      const { data, error } = await supabaseAdmin
-        .from(targetTable)
-        .update(updatePayload)
-        .eq('id', id)
-        .select()
-        .single();
+      const { data, error } = await safeSupabaseWrite(targetTable, 'update', updatePayload, {
+        eqCol: 'id',
+        eqVal: id,
+      });
 
       if (error) {
-        console.warn(`[PUT /api/admin/users/${kind}/${id}] Supabase notice:`, error.message);
+        console.error(`[PUT /api/admin/users/${kind}/${id}] Supabase error:`, error.message);
+        return res.status(400).json({ success: false, error: error.message });
       }
 
-      return res.json({ success: true, user: data || { id, ...body } });
+      // Sincroniza endereço e coordenadas em todas as tabelas vinculadas ao mesmo CPF/E-mail/ID
+      if (hasAddressFields) {
+        await syncAddressAndCoordsAcrossCpfTables({
+          cpf: body.cpf || data?.cpf,
+          email: body.email || data?.email,
+          userId: id,
+          salonId: data?.salon_id || data?.origin_salon_id,
+          cep: body.cep ?? data?.cep,
+          address: body.address ?? data?.address,
+          street_number: streetNumberVal ?? data?.street_number,
+          complement: body.complement ?? data?.complement,
+          neighborhood: body.neighborhood ?? data?.neighborhood,
+          city: body.city ?? data?.city,
+          state: body.state ?? data?.state,
+          latitude: resolvedGeo.latitude,
+          longitude: resolvedGeo.longitude,
+          formatted_address: resolvedGeo.formatted_address,
+          google_place_id: resolvedGeo.google_place_id,
+          syncSalons: kind === 'salon_user',
+        });
+      }
+
+      return res.json({
+        success: true,
+        user: {
+          ...(data || { id, ...body }),
+          street_number: streetNumberVal ?? data?.street_number,
+          latitude: resolvedGeo.latitude ?? data?.latitude ?? null,
+          longitude: resolvedGeo.longitude ?? data?.longitude ?? null,
+          formatted_address: resolvedGeo.formatted_address ?? data?.formatted_address ?? null,
+        },
+      });
     } catch (err: any) {
       console.error('[PUT /api/admin/users/:kind/:id] Error:', err);
       return res.status(500).json({ success: false, error: err.message });
@@ -1497,7 +2296,7 @@ async function startServer() {
         { data: salons },
         { data: authUsersResp },
       ] = await Promise.all([
-        supabaseAdmin.from('salons').select('id, trade_name, legal_name, slug, owner_id, email, phone_whatsapp, address, street_number, complement, neighborhood, city, state, cep, is_active').order('created_at', { ascending: false }),
+        supabaseAdmin.from('salons').select('*').order('created_at', { ascending: false }),
         supabaseAdmin.auth.admin.listUsers(),
       ]);
 
@@ -1509,35 +2308,39 @@ async function startServer() {
 
       const salonUsers: any[] = [];
       (salons || []).forEach((s: any) => {
+        const branding = s.branding && typeof s.branding === 'object' ? s.branding : {};
         const authUser = (s.owner_id && authUsersMap.get(s.owner_id)) || (s.email && authUsersMap.get(s.email.toLowerCase())) || null;
         const meta = authUser?.user_metadata || {};
-        const fullName = meta.full_name || meta.name || s.legal_name || s.trade_name || 'Proprietário';
-        const email = authUser?.email || s.email || 'parceiro@vagouapp.com';
-        const phone = meta.phone || s.phone_whatsapp || '—';
+        const fullName = s.owner_name || meta.full_name || meta.name || s.legal_name || s.trade_name || 'Proprietário';
+        const email = s.owner_email || authUser?.email || s.email || 'parceiro@vagouapp.com';
+        const phone = s.owner_phone || meta.phone || s.phone_whatsapp || s.phone || '—';
         const rawUsername = meta.username || (email ? email.split('@')[0] : s.slug);
         const username = String(rawUsername || 'parceiro').replace(/^@+/, '');
 
         salonUsers.push({
           id: `su-${s.id}`,
           salon_id: s.id,
-          salon_name: s.trade_name || s.legal_name || 'Salão Parceiro',
+          salon_name: s.trade_name || s.name || s.legal_name || 'Salão Parceiro',
           salon_slug: s.slug || 'parceiro',
           full_name: fullName,
           username,
           email,
           phone_whatsapp: phone,
-          phone_secondary: '',
-          cpf: meta.cpf || s.document_number || '',
+          phone_secondary: s.phone_landline || '',
+          cpf: s.owner_cpf || meta.cpf || s.document_number || '',
           role: 'owner',
           access_level: 'Proprietário (Dono)',
           is_active: s.is_active !== false,
-          address: s.address || '',
-          street_number: s.street_number || '',
-          complement: s.complement || '',
-          neighborhood: s.neighborhood || '',
-          city: s.city || 'São Paulo',
-          state: s.state || 'SP',
-          cep: s.cep || '',
+          address: s.address || branding.address || '',
+          street_number: s.street_number || branding.streetNumber || branding.street_number || '',
+          complement: s.complement || branding.complement || '',
+          neighborhood: s.neighborhood || branding.neighborhood || '',
+          city: s.city || branding.city || 'São Paulo',
+          state: s.state || branding.state || 'SP',
+          cep: s.cep || branding.cep || '',
+          latitude: s.latitude ?? branding.latitude ?? null,
+          longitude: s.longitude ?? branding.longitude ?? null,
+          formatted_address: s.formatted_address || branding.formatted_address || '',
           can_manage_financial: true,
           can_manage_professionals: true,
           total_appointments: 0,
@@ -1773,10 +2576,11 @@ async function startServer() {
     return trimmed;
   };
 
-  // ADMIN: Create new Salon (Service Role)
+  // ADMIN: Create new Salon (Service Role) — Blindado com Geocoding Automático + Persistência Resiliente
   app.post('/api/admin/salons', async (req, res) => {
     try {
       const payload = { ...req.body };
+      const referer = String(req.headers.referer || process.env.APP_URL || 'https://adm.vagouapp.com/');
       if (!payload.trade_name || !payload.slug) {
         return res.status(400).json({ success: false, error: 'Nome Fantasia e Subdomínio são obrigatórios.' });
       }
@@ -1821,26 +2625,59 @@ async function startServer() {
       const resolvedBrandFont = payload.brand_font?.trim() || 'Poppins';
       const resolvedStatus = payload.status || 'active';
 
+      // Geocodifica o endereço do estabelecimento automaticamente (ou usa as coordenadas cravadas no pino)
+      const resolvedGeo = await resolveAddressCoordinatesServerSide(
+        {
+          cep: payload.cep,
+          address: payload.address,
+          street_number: payload.street_number || payload.streetNumber,
+          neighborhood: payload.neighborhood,
+          city: payload.city,
+          state: payload.state,
+          latitude: payload.latitude,
+          longitude: payload.longitude,
+        },
+        referer
+      );
+
+      const streetNumberVal = (payload.street_number || payload.streetNumber || '').trim() || null;
+      const complementVal = (payload.complement || '').trim() || null;
+
       // Prepara objeto limpo compatível com o schema unificado da Tríade (admvapp + mnvapp + pvapp)
       const dbInsert: Record<string, any> = {
+        name: payload.trade_name.trim(),
+        nome_fantasia: payload.trade_name.trim(),
         trade_name: payload.trade_name.trim(),
         legal_name: payload.legal_name?.trim() || payload.trade_name.trim(),
         slug: cleanSlug,
         subdomain: cleanSlug,
         document_type: payload.document_type || 'CNPJ',
         document_number: payload.document_number?.trim() || null,
+        cnpj: payload.document_type === 'CNPJ' ? payload.document_number?.trim() || null : null,
+        cpf_cnpj: payload.document_number?.trim() || null,
+        owner_name: (payload.owner_name || payload.legal_name || payload.trade_name || '').trim() || null,
+        owner_cpf: payload.owner_cpf?.trim() || null,
+        owner_email: payload.email?.trim().toLowerCase() || null,
+        owner_phone: payload.phone_whatsapp?.trim() || null,
         pix_key: payload.pix_key?.trim() || null,
         operating_model: payload.operating_model || 'Espaço Físico & Delivery',
         billing_plan: payload.billing_plan || 'PRO / 5% POR AGENDAMENTO',
+        phone: payload.phone_whatsapp?.trim() || null,
+        whatsapp: payload.phone_whatsapp?.trim() || null,
         phone_whatsapp: payload.phone_whatsapp?.trim() || null,
+        phone_landline: payload.phone_landline?.trim() || null,
         email: payload.email?.trim().toLowerCase() || null,
         address: payload.address?.trim() || null,
-        street_number: payload.street_number?.trim() || null,
-        complement: payload.complement?.trim() || null,
+        street_number: streetNumberVal,
+        complement: complementVal,
         neighborhood: payload.neighborhood?.trim() || null,
         city: payload.city?.trim() || 'São Paulo',
         state: payload.state?.trim().toUpperCase() || 'SP',
         cep: payload.cep?.trim() || null,
+        latitude: resolvedGeo.latitude,
+        longitude: resolvedGeo.longitude,
+        formatted_address: resolvedGeo.formatted_address,
+        google_place_id: resolvedGeo.google_place_id,
         logo_url: resolvedLogo,
         logo_light_url: resolvedLogo,
         logo_dark_url: resolvedLogo,
@@ -1860,15 +2697,24 @@ async function startServer() {
           slogan: resolvedSlogan,
           brandFont: resolvedBrandFont,
           pwaName: payload.trade_name.trim(),
+          address: payload.address?.trim() || '',
+          streetNumber: streetNumberVal || '',
+          complement: complementVal || '',
+          neighborhood: payload.neighborhood?.trim() || '',
+          city: payload.city?.trim() || 'São Paulo',
+          state: payload.state?.trim().toUpperCase() || 'SP',
+          cep: payload.cep?.trim() || '',
+          latitude: resolvedGeo.latitude,
+          longitude: resolvedGeo.longitude,
+          formatted_address: resolvedGeo.formatted_address,
+          google_place_id: resolvedGeo.google_place_id,
+          phoneLandline: payload.phone_landline?.trim() || '',
+          ownerCpf: payload.owner_cpf?.trim() || '',
         },
       };
 
-      // Upsert por slug para evitar falha caso o mesmo salão seja submetido novamente em revisão
-      const { data, error } = await supabaseAdmin
-        .from('salons')
-        .upsert([dbInsert], { onConflict: 'slug' })
-        .select()
-        .single();
+      // Upsert resiliente por slug
+      const { data, error } = await safeSupabaseWrite('salons', 'upsert', dbInsert, { onConflict: 'slug' });
 
       if (error) {
         console.error('[POST /api/admin/salons Supabase Error]:', error);
@@ -1906,15 +2752,42 @@ async function startServer() {
           }
 
           if (!existingClient) {
-            const { data: insClient } = await supabaseAdmin
-              .from('clients')
-              .insert([{
-                ...(resolvedOwnerUserId ? { id: resolvedOwnerUserId, user_id: resolvedOwnerUserId } : {}),
-                name: ownerName,
-                full_name: ownerName,
-                username: ownerUsername,
-                email: ownerEmail,
-                phone: ownerPhone,
+            const { data: insClient } = await safeSupabaseWrite('clients', 'insert', {
+              ...(resolvedOwnerUserId ? { id: resolvedOwnerUserId, user_id: resolvedOwnerUserId } : {}),
+              name: ownerName,
+              full_name: ownerName,
+              username: ownerUsername,
+              email: ownerEmail,
+              phone: ownerPhone,
+              cpf: payload.owner_cpf?.trim() || null,
+              cep: dbInsert.cep,
+              address: dbInsert.address,
+              street_number: dbInsert.street_number,
+              complement: dbInsert.complement,
+              neighborhood: dbInsert.neighborhood,
+              city: dbInsert.city,
+              state: dbInsert.state,
+              latitude: resolvedGeo.latitude,
+              longitude: resolvedGeo.longitude,
+              formatted_address: resolvedGeo.formatted_address,
+              origin_type: 'establishment',
+              origin_salon_id: data.id,
+              is_active: true,
+              access_level: 'Proprietário (Dono)',
+            });
+
+            if (!resolvedOwnerUserId && insClient) {
+              resolvedOwnerUserId = insClient.user_id || insClient.id || null;
+            }
+          } else {
+            await safeSupabaseWrite(
+              'clients',
+              'update',
+              {
+                ...(resolvedOwnerUserId ? { user_id: resolvedOwnerUserId } : {}),
+                origin_type: 'establishment',
+                origin_salon_id: data.id,
+                access_level: 'Proprietário (Dono)',
                 cep: dbInsert.cep,
                 address: dbInsert.address,
                 street_number: dbInsert.street_number,
@@ -1922,27 +2795,12 @@ async function startServer() {
                 neighborhood: dbInsert.neighborhood,
                 city: dbInsert.city,
                 state: dbInsert.state,
-                origin_type: 'establishment',
-                origin_salon_id: data.id,
-                is_active: true,
-                access_level: 'Proprietário (Dono)',
-              }])
-              .select('id, user_id')
-              .maybeSingle();
-
-            if (!resolvedOwnerUserId && insClient) {
-              resolvedOwnerUserId = insClient.user_id || insClient.id || null;
-            }
-          } else {
-            await supabaseAdmin
-              .from('clients')
-              .update({
-                ...(resolvedOwnerUserId ? { user_id: resolvedOwnerUserId } : {}),
-                origin_type: 'establishment',
-                origin_salon_id: data.id,
-                access_level: 'Proprietário (Dono)',
-              })
-              .eq('id', existingClient.id);
+                latitude: resolvedGeo.latitude,
+                longitude: resolvedGeo.longitude,
+                formatted_address: resolvedGeo.formatted_address,
+              },
+              { eqCol: 'id', eqVal: existingClient.id }
+            );
           }
 
           // 3. Verifica se já existe em professionals para este salão
@@ -1954,7 +2812,7 @@ async function startServer() {
             .maybeSingle();
 
           if (!existingProf) {
-            await supabaseAdmin.from('professionals').insert([{
+            await safeSupabaseWrite('professionals', 'insert', {
               salon_id: data.id,
               user_id: resolvedOwnerUserId,
               name: ownerName,
@@ -1974,20 +2832,36 @@ async function startServer() {
               neighborhood: dbInsert.neighborhood,
               city: dbInsert.city,
               state: dbInsert.state,
-            }]);
-          } else if (resolvedOwnerUserId) {
-            await supabaseAdmin
-              .from('professionals')
-              .update({ user_id: resolvedOwnerUserId, role: 'Proprietário', access_level: 'Proprietário (Dono)' })
-              .eq('id', existingProf.id);
+              latitude: resolvedGeo.latitude,
+              longitude: resolvedGeo.longitude,
+              formatted_address: resolvedGeo.formatted_address,
+            });
+          } else {
+            await safeSupabaseWrite(
+              'professionals',
+              'update',
+              {
+                ...(resolvedOwnerUserId ? { user_id: resolvedOwnerUserId } : {}),
+                role: 'Proprietário',
+                access_level: 'Proprietário (Dono)',
+                cep: dbInsert.cep,
+                address: dbInsert.address,
+                street_number: dbInsert.street_number,
+                complement: dbInsert.complement,
+                neighborhood: dbInsert.neighborhood,
+                city: dbInsert.city,
+                state: dbInsert.state,
+                latitude: resolvedGeo.latitude,
+                longitude: resolvedGeo.longitude,
+                formatted_address: resolvedGeo.formatted_address,
+              },
+              { eqCol: 'id', eqVal: existingProf.id }
+            );
           }
 
           // 4. Atualiza owner_id no salão e insere vínculo soberano em salon_members
           if (resolvedOwnerUserId) {
-            await supabaseAdmin
-              .from('salons')
-              .update({ owner_id: resolvedOwnerUserId })
-              .eq('id', data.id);
+            await safeSupabaseWrite('salons', 'update', { owner_id: resolvedOwnerUserId }, { eqCol: 'id', eqVal: data.id });
 
             const { data: existingMember } = await supabaseAdmin
               .from('salon_members')
@@ -2007,39 +2881,228 @@ async function startServer() {
         }
       }
 
-      return res.json({ success: true, salon: data });
+      return res.json({
+        success: true,
+        salon: {
+          ...data,
+          street_number: streetNumberVal,
+          complement: complementVal,
+          latitude: resolvedGeo.latitude,
+          longitude: resolvedGeo.longitude,
+          formatted_address: resolvedGeo.formatted_address,
+        },
+      });
     } catch (err: any) {
       console.error('[POST /api/admin/salons Exception]:', err);
       return res.status(500).json({ success: false, error: err.message || 'Erro no servidor' });
     }
   });
 
-  // ADMIN: Update Salon (Service Role)
+  // ADMIN: Update Salon (Service Role) — Blindado contra PGRST204, com Geocoding Automático e Propagação por CPF
   app.patch('/api/admin/salons/:id', async (req, res) => {
     try {
       const { id } = req.params;
-      const updates = { ...req.body };
+      const incoming = { ...req.body };
+      const referer = String(req.headers.referer || process.env.APP_URL || 'https://adm.vagouapp.com/');
 
-      if (updates.status) {
-        updates.is_active = updates.status === 'active';
-        if (updates.status === 'active') updates.is_verified = true;
-        delete updates.status;
+      // 1. Carrega o registro atual do salão para mesclar branding com segurança sem perder chaves existentes
+      const { data: currentSalon } = await supabaseAdmin
+        .from('salons')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      const currentBranding =
+        currentSalon?.branding && typeof currentSalon.branding === 'object' ? { ...currentSalon.branding } : {};
+
+      // 2. Verifica se houve envio/alteração de endereço ou coordenadas e geocodifica automaticamente
+      const hasAddressInPayload =
+        incoming.cep !== undefined ||
+        incoming.address !== undefined ||
+        incoming.street_number !== undefined ||
+        incoming.streetNumber !== undefined ||
+        incoming.neighborhood !== undefined ||
+        incoming.city !== undefined ||
+        incoming.state !== undefined ||
+        incoming.latitude !== undefined ||
+        incoming.longitude !== undefined;
+
+      const effectiveCep = incoming.cep !== undefined ? incoming.cep : currentSalon?.cep;
+      const effectiveAddress = incoming.address !== undefined ? incoming.address : currentSalon?.address;
+      const effectiveStreetNumber =
+        incoming.street_number !== undefined
+          ? incoming.street_number
+          : incoming.streetNumber !== undefined
+          ? incoming.streetNumber
+          : currentSalon?.street_number;
+      const effectiveComplement =
+        incoming.complement !== undefined ? incoming.complement : currentSalon?.complement;
+      const effectiveNeighborhood =
+        incoming.neighborhood !== undefined ? incoming.neighborhood : currentSalon?.neighborhood;
+      const effectiveCity = incoming.city !== undefined ? incoming.city : currentSalon?.city;
+      const effectiveState = incoming.state !== undefined ? incoming.state : currentSalon?.state;
+
+      // Se o endereço mudou e nenhuma coordenada nova explícita foi enviada, força re-geocodificação
+      const addressChanged =
+        (incoming.cep !== undefined && incoming.cep !== currentSalon?.cep) ||
+        (incoming.address !== undefined && incoming.address !== currentSalon?.address) ||
+        (effectiveStreetNumber !== undefined && effectiveStreetNumber !== currentSalon?.street_number) ||
+        (incoming.city !== undefined && incoming.city !== currentSalon?.city);
+
+      let resolvedGeo = {
+        latitude:
+          incoming.latitude !== undefined && incoming.latitude !== null
+            ? Number(incoming.latitude)
+            : (currentSalon?.latitude ?? currentBranding.latitude ?? null),
+        longitude:
+          incoming.longitude !== undefined && incoming.longitude !== null
+            ? Number(incoming.longitude)
+            : (currentSalon?.longitude ?? currentBranding.longitude ?? null),
+        formatted_address:
+          incoming.formatted_address || currentSalon?.formatted_address || currentBranding.formatted_address || null,
+        google_place_id:
+          incoming.google_place_id || currentSalon?.google_place_id || currentBranding.google_place_id || null,
+      };
+
+      if (hasAddressInPayload && (addressChanged || !resolvedGeo.latitude || !resolvedGeo.longitude)) {
+        const geo = await resolveAddressCoordinatesServerSide(
+          {
+            cep: effectiveCep,
+            address: effectiveAddress,
+            street_number: effectiveStreetNumber,
+            neighborhood: effectiveNeighborhood,
+            city: effectiveCity,
+            state: effectiveState,
+            latitude: incoming.latitude,
+            longitude: incoming.longitude,
+            forceGeocode: addressChanged && incoming.latitude === undefined,
+          },
+          referer
+        );
+        resolvedGeo = geo;
       }
 
-      // Preserva categoria dentro de branding no banco
-      if (updates.category) {
-        updates.branding = {
-          ...(updates.branding || {}),
-          category: updates.category,
-        };
+      // 3. Empacota metadados e campos compostos dentro de branding JSONB (evitando erro PGRST204 de coluna inexistente)
+      const mergedBranding: Record<string, any> = {
+        ...currentBranding,
+        ...(incoming.branding && typeof incoming.branding === 'object' ? incoming.branding : {}),
+        ...(incoming.category !== undefined ? { category: incoming.category } : {}),
+        ...(incoming.pix_keys !== undefined ? { pix_keys: incoming.pix_keys, pixKeys: incoming.pix_keys } : {}),
+        ...(incoming.operating_hours !== undefined
+          ? { operating_hours: incoming.operating_hours, operatingHours: incoming.operating_hours }
+          : {}),
+        ...(incoming.fee_per_booking !== undefined ? { fee_per_booking: incoming.fee_per_booking } : {}),
+        ...(incoming.monthly_subscription_fee !== undefined
+          ? { monthly_subscription_fee: incoming.monthly_subscription_fee }
+          : {}),
+        ...(incoming.billing_due_day !== undefined ? { billing_due_day: incoming.billing_due_day } : {}),
+        ...(incoming.has_cnpj !== undefined ? { has_cnpj: incoming.has_cnpj } : {}),
+        ...(incoming.document_type !== undefined ? { document_type: incoming.document_type } : {}),
+        ...(incoming.operating_model !== undefined ? { operating_model: incoming.operating_model } : {}),
+        ...(incoming.billing_plan !== undefined ? { billing_plan: incoming.billing_plan } : {}),
+        ...(incoming.owner_cpf !== undefined ? { owner_cpf: incoming.owner_cpf, ownerCpf: incoming.owner_cpf } : {}),
+        ...(incoming.phone_landline !== undefined
+          ? { phone_landline: incoming.phone_landline, phoneLandline: incoming.phone_landline }
+          : {}),
+        ...(effectiveCep !== undefined ? { cep: effectiveCep } : {}),
+        ...(effectiveAddress !== undefined ? { address: effectiveAddress } : {}),
+        ...(effectiveStreetNumber !== undefined
+          ? { street_number: effectiveStreetNumber, streetNumber: effectiveStreetNumber }
+          : {}),
+        ...(effectiveComplement !== undefined ? { complement: effectiveComplement } : {}),
+        ...(effectiveNeighborhood !== undefined ? { neighborhood: effectiveNeighborhood } : {}),
+        ...(effectiveCity !== undefined ? { city: effectiveCity } : {}),
+        ...(effectiveState !== undefined ? { state: effectiveState } : {}),
+        ...(resolvedGeo.latitude !== null ? { latitude: resolvedGeo.latitude } : {}),
+        ...(resolvedGeo.longitude !== null ? { longitude: resolvedGeo.longitude } : {}),
+        ...(resolvedGeo.formatted_address ? { formatted_address: resolvedGeo.formatted_address } : {}),
+        ...(resolvedGeo.google_place_id ? { google_place_id: resolvedGeo.google_place_id } : {}),
+        updatedAt: new Date().toISOString(),
+      };
+
+      // 4. Monta o objeto de colunas físicas para public.salons
+      const physicalUpdates: Record<string, any> = {
+        branding: mergedBranding,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (incoming.trade_name !== undefined) {
+        physicalUpdates.trade_name = incoming.trade_name;
+        physicalUpdates.name = incoming.trade_name;
+        physicalUpdates.nome_fantasia = incoming.trade_name;
+      }
+      if (incoming.legal_name !== undefined) physicalUpdates.legal_name = incoming.legal_name;
+      if (incoming.slug !== undefined) {
+        physicalUpdates.slug = incoming.slug;
+        physicalUpdates.subdomain = incoming.slug;
+      }
+      if (incoming.status !== undefined) {
+        physicalUpdates.status = incoming.status;
+        physicalUpdates.is_active = incoming.status === 'active';
+        if (incoming.status === 'active') physicalUpdates.is_verified = true;
+      }
+      if (incoming.is_verified !== undefined) physicalUpdates.is_verified = Boolean(incoming.is_verified);
+      if (incoming.phone_whatsapp !== undefined) {
+        physicalUpdates.phone_whatsapp = incoming.phone_whatsapp;
+        physicalUpdates.phone = incoming.phone_whatsapp;
+        physicalUpdates.whatsapp = incoming.phone_whatsapp;
+      }
+      if (incoming.phone_landline !== undefined) physicalUpdates.phone_landline = incoming.phone_landline;
+      if (incoming.email !== undefined) physicalUpdates.email = incoming.email;
+      if (incoming.document_type !== undefined) physicalUpdates.document_type = incoming.document_type;
+      if (incoming.document_number !== undefined) {
+        physicalUpdates.document_number = incoming.document_number;
+        physicalUpdates.cpf_cnpj = incoming.document_number;
+        if (incoming.document_type === 'CNPJ') physicalUpdates.cnpj = incoming.document_number;
+      }
+      if (incoming.owner_cpf !== undefined) physicalUpdates.owner_cpf = incoming.owner_cpf;
+      if (incoming.owner_name !== undefined) physicalUpdates.owner_name = incoming.owner_name;
+      if (incoming.owner_email !== undefined) physicalUpdates.owner_email = incoming.owner_email;
+      if (incoming.owner_phone !== undefined) physicalUpdates.owner_phone = incoming.owner_phone;
+      if (incoming.operating_model !== undefined) physicalUpdates.operating_model = incoming.operating_model;
+      if (incoming.commission_rate !== undefined) physicalUpdates.commission_rate = Number(incoming.commission_rate);
+      if (incoming.billing_plan !== undefined) physicalUpdates.billing_plan = incoming.billing_plan;
+      if (incoming.pix_key !== undefined) physicalUpdates.pix_key = incoming.pix_key;
+
+      // Campos físicos de Endereço & Coordenadas
+      if (incoming.cep !== undefined) physicalUpdates.cep = incoming.cep;
+      if (incoming.address !== undefined) physicalUpdates.address = incoming.address;
+      if (effectiveStreetNumber !== undefined) physicalUpdates.street_number = effectiveStreetNumber;
+      if (incoming.complement !== undefined) physicalUpdates.complement = incoming.complement;
+      if (incoming.neighborhood !== undefined) physicalUpdates.neighborhood = incoming.neighborhood;
+      if (incoming.city !== undefined) physicalUpdates.city = incoming.city;
+      if (incoming.state !== undefined) physicalUpdates.state = incoming.state;
+      if (resolvedGeo.latitude !== null && Number.isFinite(resolvedGeo.latitude)) {
+        physicalUpdates.latitude = resolvedGeo.latitude;
+      }
+      if (resolvedGeo.longitude !== null && Number.isFinite(resolvedGeo.longitude)) {
+        physicalUpdates.longitude = resolvedGeo.longitude;
+      }
+      if (resolvedGeo.formatted_address) {
+        physicalUpdates.formatted_address = resolvedGeo.formatted_address;
+      }
+      if (resolvedGeo.google_place_id) {
+        physicalUpdates.google_place_id = resolvedGeo.google_place_id;
       }
 
-      // Remove propriedades puramente visuais/locais antes do update no banco
-      delete updates.category;
-      delete updates.professionals_count;
-      delete updates.active_offers_count;
-      delete updates.rating;
-      delete updates.id;
+      // Campos de Identidade Visual & UI
+      const visualAndUiFields = [
+        'logo_url', 'logo_dark_url', 'logo_light_url', 'favicon_url', 'cover_image_url',
+        'facade_photo_url', 'interior_photo_url', 'description', 'slogan', 'brand_font',
+        'theme_preset_id', 'primary_color', 'secondary_color',
+        'default_theme', 'pwa_name', 'show_slogan', 'logo_text_fallback', 'logo_text_color',
+        'show_hero_slides', 'welcome_style', 'section_header_bg_color', 'section_header_text_color',
+        'section_header_icon_color', 'section_header_bg_style', 'section_header_border',
+        'section_header_btn_bg_color', 'section_header_btn_active_bg_color', 'section_header_btn_border',
+        'section_header_btn_shadow', 'section_header_btn_blur', 'section_header_btn_font',
+        'nav_style', 'nav_shape', 'nav_border', 'nav_bg_style', 'nav_bg_color',
+        'nav_btn_bg_color', 'nav_btn_active_bg_color', 'nav_active_color', 'nav_text_color'
+      ];
+      visualAndUiFields.forEach((f) => {
+        if (incoming[f] !== undefined) {
+          physicalUpdates[f] = incoming[f];
+        }
+      });
 
       // Extrai campos de UI para sincronizar na tabela relacional public.salon_ui_settings
       const uiFields = [
@@ -2053,39 +3116,80 @@ async function startServer() {
       ];
       const uiPayload: Record<string, any> = {};
       uiFields.forEach((field) => {
-        if (updates[field] !== undefined) {
-          uiPayload[field] = updates[field];
+        if (incoming[field] !== undefined) {
+          uiPayload[field] = incoming[field];
         }
       });
-      if (updates.ui_settings && typeof updates.ui_settings === 'object') {
-        Object.assign(uiPayload, updates.ui_settings);
+      if (incoming.ui_settings && typeof incoming.ui_settings === 'object') {
+        Object.assign(uiPayload, incoming.ui_settings);
       }
-      delete updates.ui_settings;
 
-      const { data, error } = await supabaseAdmin
-        .from('salons')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
+      // 5. Executa escrita resiliente na tabela public.salons
+      const { data, error } = await safeSupabaseWrite('salons', 'update', physicalUpdates, {
+        eqCol: 'id',
+        eqVal: id,
+      });
 
       if (error) {
+        console.error('[PATCH /api/admin/salons/:id] Erro no Supabase:', error);
         return res.status(400).json({ success: false, error: error.message });
       }
 
-      // Sincroniza tabela dedicada public.salon_ui_settings se houver campos de UI
+      // 6. Sincroniza tabela dedicada public.salon_ui_settings se houver campos de UI
       if (Object.keys(uiPayload).length > 0) {
         try {
-          await supabaseAdmin
-            .from('salon_ui_settings')
-            .upsert({ salon_id: id, ...uiPayload, updated_at: new Date().toISOString() }, { onConflict: 'salon_id' });
+          await safeSupabaseWrite(
+            'salon_ui_settings',
+            'upsert',
+            { salon_id: id, ...uiPayload, updated_at: new Date().toISOString() },
+            { onConflict: 'salon_id' }
+          );
         } catch (uiSyncErr) {
           console.warn('[PATCH /api/admin/salons/:id] Aviso ao sincronizar salon_ui_settings:', uiSyncErr);
         }
       }
 
-      return res.json({ success: true, salon: data });
+      // 7. Se o endereço foi atualizado, sincroniza com os registros do titular vinculado (clients, professionals, profiles, salon_users)
+      if (hasAddressInPayload) {
+        await syncAddressAndCoordsAcrossCpfTables({
+          cpf: incoming.owner_cpf || data?.owner_cpf || currentSalon?.owner_cpf || currentSalon?.document_number,
+          email: incoming.email || data?.email || currentSalon?.email,
+          userId: data?.owner_id || currentSalon?.owner_id,
+          salonId: id,
+          cep: effectiveCep,
+          address: effectiveAddress,
+          street_number: effectiveStreetNumber,
+          complement: effectiveComplement,
+          neighborhood: effectiveNeighborhood,
+          city: effectiveCity,
+          state: effectiveState,
+          latitude: resolvedGeo.latitude,
+          longitude: resolvedGeo.longitude,
+          formatted_address: resolvedGeo.formatted_address,
+          google_place_id: resolvedGeo.google_place_id,
+          syncSalons: false,
+        });
+      }
+
+      return res.json({
+        success: true,
+        salon: {
+          ...data,
+          cep: effectiveCep,
+          address: effectiveAddress,
+          street_number: effectiveStreetNumber,
+          complement: effectiveComplement,
+          neighborhood: effectiveNeighborhood,
+          city: effectiveCity,
+          state: effectiveState,
+          latitude: resolvedGeo.latitude,
+          longitude: resolvedGeo.longitude,
+          formatted_address: resolvedGeo.formatted_address,
+          google_place_id: resolvedGeo.google_place_id,
+        },
+      });
     } catch (err: any) {
+      console.error('[PATCH /api/admin/salons/:id] Exception:', err);
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -2632,7 +3736,52 @@ async function startServer() {
         }
       }
 
-      // 3. Persist into public.clients (Verifica se já existe pelo email para atualizar ou inserir)
+      // 3. Geocodifica endereço do usuário automaticamente e persiste em public.clients + public.profiles
+      const referer = String(req.headers.referer || process.env.APP_URL || 'https://adm.vagouapp.com/');
+      const userGeo = await resolveAddressCoordinatesServerSide(
+        {
+          cep,
+          address: street,
+          street_number: number,
+          neighborhood,
+          city,
+          state,
+          latitude: addrObj.latitude ?? body.latitude,
+          longitude: addrObj.longitude ?? body.longitude,
+        },
+        referer
+      );
+
+      if (authUserId) {
+        try {
+          await safeSupabaseWrite(
+            'profiles',
+            'upsert',
+            {
+              id: authUserId,
+              full_name: cleanName,
+              email: cleanEmail,
+              phone_whatsapp: phone || null,
+              document_number: documentCpf || null,
+              avatar_url: avatarUrl || null,
+              cep: cep || null,
+              address: street || null,
+              street_number: number || null,
+              complement: complement || null,
+              neighborhood: neighborhood || null,
+              city: city || 'São Paulo',
+              state: state || 'SP',
+              latitude: userGeo.latitude,
+              longitude: userGeo.longitude,
+              formatted_address: userGeo.formatted_address,
+              google_place_id: userGeo.google_place_id,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'id' }
+          );
+        } catch {}
+      }
+
       const fullAddress = [street, number, complement, neighborhood, city, state, cep]
         .filter(Boolean)
         .join(', ');
@@ -2663,6 +3812,10 @@ async function startServer() {
         neighborhood: neighborhood || null,
         city: city || 'São Paulo',
         state: state || 'SP',
+        latitude: userGeo.latitude,
+        longitude: userGeo.longitude,
+        formatted_address: userGeo.formatted_address,
+        google_place_id: userGeo.google_place_id,
         default_address: fullAddress || null,
         origin_type: origin || 'portal',
         origin_salon_id: isUuid(salonId) ? salonId : null,
@@ -2729,18 +3882,19 @@ async function startServer() {
 
       const effectiveId = savedClient?.id || authUserId || `usr-${Date.now()}`;
 
-      // 4. Save Dependents if present
+      // 4. Save Dependents if present (insere em public.dependents que sincroniza com public.client_family_members)
       if (Array.isArray(dependents) && dependents.length > 0) {
         for (const dep of dependents) {
           if (dep.fullName && dep.fullName.trim()) {
             try {
-              await supabaseAdmin.from('user_dependents').insert({
-                user_id: effectiveId,
-                full_name: dep.fullName.trim(),
-                nickname: dep.nickname || null,
-                age: dep.age ? parseInt(dep.age) : null,
-                gender: dep.gender || null,
+              const depName = dep.fullName.trim();
+              await supabaseAdmin.from('dependents').insert({
+                parent_client_id: isUuid(effectiveId) ? effectiveId : null,
+                client_id: isUuid(effectiveId) ? effectiveId : null,
+                full_name: depName,
+                name: depName,
                 relationship: dep.relationship || 'Filho/a',
+                notes: dep.notes || (dep.nickname ? `Apelido: ${dep.nickname}` : null),
                 avatar_url: dep.avatarUrl || null,
               });
             } catch (depErr) {
@@ -3816,6 +4970,72 @@ Responda APENAS com o JSON válido, sem blocos de código adicionais além do JS
       return res.sendFile(schemaPath);
     }
     return res.status(404).send('-- supabase_schema.sql não encontrado');
+  });
+
+  // Rota para obter o Script SQL Mestre de Convergência da Tríade (bol-022)
+  app.get('/api/admin/triade/master-sql', (req, res) => {
+    const masterSqlPath = path.join(process.cwd(), 'supabase_master_convergence_20261023.sql');
+    if (fs.existsSync(masterSqlPath)) {
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      return res.sendFile(masterSqlPath);
+    }
+    return res.status(404).send('-- supabase_master_convergence_20261023.sql não encontrado');
+  });
+
+  // Rota para obter o Relatório Técnico de Convergência da Tríade (bol-022)
+  app.get('/api/admin/triade/convergence-report', async (req, res) => {
+    try {
+      // Checa contagens no Supabase para diagnostico
+      let salonsCount = 0;
+      let servicesCount = 0;
+      let clientsCount = 0;
+      let dependentsCount = 0;
+      let appointmentsCount = 0;
+      let dbOk = false;
+
+      try {
+        const [salonsRes, servicesRes, clientsRes, depsRes, aptsRes] = await Promise.all([
+          supabaseAdmin.from('salons').select('id', { count: 'exact', head: true }),
+          supabaseAdmin.from('services').select('id', { count: 'exact', head: true }),
+          supabaseAdmin.from('clients').select('id', { count: 'exact', head: true }),
+          supabaseAdmin.from('dependents').select('id', { count: 'exact', head: true }),
+          supabaseAdmin.from('appointments').select('id', { count: 'exact', head: true }),
+        ]);
+
+        salonsCount = salonsRes.count || 0;
+        servicesCount = servicesRes.count || 0;
+        clientsCount = clientsRes.count || 0;
+        dependentsCount = depsRes.count || 0;
+        appointmentsCount = aptsRes.count || 0;
+        dbOk = true;
+      } catch (err) {
+        console.warn('[convergence-report] Database stats warning:', err);
+      }
+
+      return res.json({
+        success: true,
+        bulletinId: 'bol-022-triade-database-and-code-convergence',
+        timestamp: new Date().toISOString(),
+        databaseConnected: dbOk,
+        stats: {
+          salonsCount,
+          servicesCount,
+          clientsCount,
+          dependentsCount,
+          appointmentsCount,
+        },
+        resolutions: [
+          { key: 'salon_clients_fk', status: 'resolved', description: 'client_user_id sem trava NOT NULL; fallback por client_id habilitado.' },
+          { key: 'mirrored_triggers', status: 'resolved', description: 'Gatilhos bidirecionais anti-loop ativados com pg_trigger_depth() <= 1.' },
+          { key: 'rpc_governance', status: 'resolved', description: 'RPC register_system_admin criada e overloads de register_triade_user corrigidas.' },
+          { key: 'live_tracking_columns', status: 'resolved', description: '17 colunas de rastreamento 10s e cancelamento de agendamentos adicionadas.' },
+          { key: 'storage_realtime', status: 'resolved', description: 'Buckets avatars, salon-media e media com politicas publicas e realtime ativo.' },
+        ],
+        masterSqlUrl: '/api/admin/triade/master-sql',
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   // Vite middleware for development

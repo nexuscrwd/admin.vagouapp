@@ -1,149 +1,72 @@
-# Radar Bidirecional de Deslocamento Ao Vivo ("Estou a Caminho"), Traçador de Rota Nativo (Google Maps API) & Implantação na Tríade (`mnvapp` ⇄ `admvapp` ⇄ `pvapp`)
+# 🏛️ Plano de Execução: Persistência Absoluta de Endereços, Coordenadas Geográficas na Tríade & Google Maps In-App (Rotas em 3 Camadas)
 
-Sistema preditivo de deslocamento (`ETA + 10 min`), **traçador de rotas nativo via Google Maps Routes API**, confirmação inteligente de comparecimento e rastreamento bidirecional (**Cliente ➔ Salão** e **Profissional Delivery ➔ Cliente**) com atualização a cada **10 segundos**, operando em **2 modos de visualização** (**Mapa Ao Vivo** e **Linha de Rastreamento de Ruas estilo Correios/Shopee**) e **Radar de Adversidades de Trânsito (`+X min`)**.
+## 1. Diagnóstico & Correção Definitiva da Persistência de Formulários (`server.ts` & `supabaseApi.ts`)
 
----
+### 1.1. Sanitização e Whitelist de Colunas no `PATCH /api/admin/salons/:id` e `POST /api/admin/salons` (`server.ts`)
+- **Problema Raiz:** O modal `AdminEditSalonModal.tsx` enviava propriedades de configuração (`pix_keys` como array, `operating_hours`, `fee_per_booking`, `monthly_subscription_fee`, `billing_due_day`) misturadas às colunas físicas de `public.salons`. O PostgREST rejeitava todo o `UPDATE` com erro `PGRST204 (Column not found)` se qualquer propriedade do objeto não existisse como coluna física.
+- **Solução:**
+  - Separar estritamente no `server.ts` os **campos físicos** da tabela `public.salons` (`name`, `nome_fantasia`, `slogan`, `description`, `category`, `categories`, `cep`, `address`, `street_number`, `complement`, `neighborhood`, `city`, `state`, `latitude`, `longitude`, `formatted_address`, `google_place_id`, `phone`, `whatsapp`, `phone_landline`, `email`, `instagram`, `facebook`, `website`, `cnpj`, `cpf_cnpj`, `owner_name`, `owner_cpf`, `owner_email`, `owner_phone`, `plan`, `subscription_status`, `kyc_status`, `is_verified`, `verified_badge`, `accepts_online_booking`, `auto_confirm_appointment`, `pix_key`, `pix_key_type`, `cancellation_policy`, `commission_rate`, e colunas físicas de estilo/UI) dos **metadados de `branding` JSONB** (`pix_keys`, `operating_hours`, `fee_per_booking`, `monthly_subscription_fee`, `billing_due_day`, `navBgStyle`, etc.).
+  - Implementar **fallback resiliente de schema**: caso o banco Supabase ainda não tenha rodado alguma coluna nova recém-adicionada, o backend detecta `PGRST204`, preserva os dados dentro de `branding` JSONB e reexecuta o `UPDATE` das colunas de endereço (`cep`, `address`, `street_number`, `complement`, `neighborhood`, `city`, `state`, `latitude`, `longitude`) garantindo **100% de gravação física**.
+  - Eliminar todos os falsos positivos (`return { success: true }` em blocos de erro) tanto em `server.ts` quanto em `src/services/supabaseApi.ts`.
 
-### User Review & Critical Decisions
+### 1.2. Resolução de ID Sintético (`su-<uuid>`) e Propagação Automática por CPF (`server.ts`)
+- **Problema Raiz:** Na edição de usuários gestores (`salon_user`), o ID `su-<id_do_salao>` falhava no PostgreSQL (`22P02 invalid input syntax for type uuid`) e não atualizava o endereço real.
+- **Solução:**
+  - Em `PUT /api/admin/users/:type/:id`, detectar prefixos `su-`, resolver o estabelecimento/CPF subjacente e **propagar automaticamente o endereço e as coordenadas (`cep`, `address`, `street_number`, `complement`, `neighborhood`, `city`, `state`, `latitude`, `longitude`)** para todas as tabelas vinculadas ao mesmo CPF/usuário:
+    - `public.salons` (quando for proprietário/gestor e usar o mesmo endereço ou editar dados do salão)
+    - `public.clients`
+    - `public.professionals`
+    - `public.profiles`
+    - `public.salon_users`
+    - `public.system_admins`
 
-> [!IMPORTANT]
-> Esta revisão responde diretamente **onde a solução deve ser implantada na Tríade** e **como ela funcionará dentro do aplicativo principal `mnvapp` (Visão Cliente e Visão Salão/Meu Negócio)**, além da governança no `admvapp` e suporte no `pvapp`.
-
-- **Decisão Confirmada 1 — Onde Implantar na Tríade (Arquitetura Centralizada no Supabase + Operação Nativa no `mnvapp`)**:
-  1. **`mnvapp` (VagouApp Oficial — App Principal do Cliente e do Salão/Profissional)**: É o **palco principal de uso diário (90% da operação)**. Como o `mnvapp` reúne tanto o módulo do **Cliente** quanto o módulo **Meu Negócio (Salão/Profissional)**, toda a experiência interativa de partida, traçado de rota no Google Maps, transmissão de GPS a cada 10s e acompanhamento na Agenda do Salão vive diretamente nele.
-  2. **`admvapp` (Admin VagouApp — Este Projeto)**: É a **Torre de Controle, Fonte do Schema Supabase e Homologador Oficial**. Aqui implantamos a evolução da tabela `public.appointments`, o painel global de monitoramento em tempo real (`AdminAppointmentsMonitor`), o **Simulador Interativo Homologado do `mnvapp`** (para você testar na tela do Admin exatamente como o Cliente e o Salão usam no `mnvapp`) e o **Pacote de Código Pronto (`bol-020`)** para plugar no repositório `mnvapp`.
-  3. **`pvapp` (Portal Web / PWA Consumidor)**: Recebe o espelhamento leve para clientes que agendam pelo navegador web (permitindo confirmar presença, cancelar/remanejar ou acompanhar a Linha estilo Shopee/Correios de um profissional Delivery).
-
-- **Decisão Confirmada 2 — Como Será Implantado Dentro do `mnvapp` (Visão Cliente vs. Visão Salão)**:
-  - **Lado A — Na Visão do Cliente no `mnvapp` (Aba *"Meus Agendamentos"* & Card de Próximo Horário)**:
-    1. **Pré-Partida (`ETA + 10 min`)**: 10 minutos antes do horário ideal de saída, abre o modal automático no celular do cliente: *"Faltam X min. Você já está de partida?"* (`Sim` / `Não`).
-    2. **Se `NÃO`**: Pergunta se vai **Comparecer** (dispara alerta de pressa com o tempo da rota) ou **Não vai comparecer** (abre botão **Cancelar** com campo obrigatório de motivo ou **Remanejar** abrindo direto a grade de horários livres do salão).
-    3. **Se `SIM`**: Abre o **Traçador de Rota Google Maps In-App** (mostrando Rota 1 Recomendada vs. Rota 2 Alternativa com todas as ruas do caminho) e pergunta se deseja **Compartilhar o Trajeto Ao Vivo**.
-    4. **Transmissão a cada 10s + Botão de Adversidade**: Um hook nativo (`useLiveRouteTracker`) lê o GPS do celular a cada `10 segundos`, atualiza a rua atual na rota traçada e oferece botões de 1 toque (*"Trânsito inesperado +X min"*, *"Obra na via"*, *"Procurando vaga"*) caso o trânsito pare.
-    5. **Quando for Delivery (`home_delivery`)**: Na mesma aba *"Meus Agendamentos"*, o papel se inverte e o cliente vê o botão **"Acompanhar Chegada do Profissional"** (com o Mapa 10s e a Linha do Tempo estilo Shopee/Correios).
-  - **Lado B — Na Visão do Salão / Profissional no `mnvapp` (Aba *"Agenda do Dia"* no Meu Negócio)**:
-    1. **Selo de Status Ao Vivo no Card do Agendamento**: Sem precisar abrir outra tela, cada horário da agenda do salão mostra uma pílula dinâmica:
-       - `🟢 A caminho • Av. Rebouças (ETA 12 min)`
-       - `⚠️ Trânsito na rota (+6 min) • Novo ETA 14:41`
-       - `🔔 Chegando em 5 min — Prepare a cadeira!`
-       - `🚶 A caminho (sem mapa compartilhado)`
-       - `🔄 Remanejado pelo cliente` ou `❌ Cancelado (Motivo exibido no card)`
-    2. **Gaveta de Rastreamento em 1 Toque (Mapa 10s ⇄ Linha Shopee/Correios)**: Ao tocar no card do agendamento na agenda do salão, abre um *Bottom Sheet* / Modal com o alternador no topo:
-       - **Aba 1 (Linha de Trajeto Shopee/Correios)**: Lista todas as ruas da rota traçada pelo cliente, marcando com `✔` as ruas por onde já passou, `●` a rua exata onde está agora, `⚠️` eventual retenção com os minutos acrescidos e `○` as próximas ruas até o salão.
-       - **Aba 2 (Mapa Ao Vivo 10s)**: Mostra o mapa Dark com a rota verde, o pino do cliente se movendo a cada 10s e o pino do salão.
-    3. **Quando o Profissional atende Delivery (`home_delivery`)**: No card da agenda do profissional aparece o botão **"Iniciar Deslocamento até o Cliente (Traçar Rota)"**, ativando o transmissor de 10s para que o cliente acompanhe de casa.
-
-- **Decisão Confirmada 3 — Traçador de Rota In-App (Google Maps API) + Alerta de Chegada (`ETA <= 5 min`)**:
-  - Ao traçar a rota na partida via Google Maps Routes API, o app extrai a polilinha e o vetor `steps[]` (todas as ruas da rota), garantindo precisão de rua atual a cada 10s, alerta automático aos **5 minutos restantes** e desligamento automático do GPS no check-in (privacidade LGPD).
+### 1.3. Mapeamento Completo na Leitura (`mapSalonRow` em `src/services/supabaseApi.ts` & `src/types/admin.ts`)
+- Mapear integralmente `street_number`, `complement`, `phone_landline`, `owner_cpf`, `latitude`, `longitude`, `formatted_address` e `google_place_id` em `mapSalonRow` e na interface `AdminSalonItem`, impedindo que a leitura do banco apague número, complemento ou coordenadas na tela.
 
 ---
 
-### 1. Mapa Arquitetural de Implantação na Tríade VagouApp
+## 2. Geocodificação Automática + Ajuste Fino de Pino no Mapa nos Formulários
 
-```
-┌──────────────────────────────────────────────────────────────────────────────────────────┐
-│                     BANCO DE DADOS UNIFICADO SUPABASE (REALTIME 10s)                     │
-│        Tabela `public.appointments` + Canal Realtime `appointment_live_tracking`         │
-└──────────────▲─────────────────────────────────────▲─────────────────────────────────────┘
-               │                                     │
-               │ (90% da Operação Diária Ao Vivo)    │ (Governança, Monitor Global & Sync)
-               ▼                                     ▼
-┌─────────────────────────────────────────┐   ┌────────────────────────────────────────────┐
-│  1. APP PRINCIPAL: `mnvapp`             │   │  2. GOVERNANÇA MASTER: `admvapp` (Aqui)    │
-│  (Cliente + Meu Negócio / Salão)        │   │  (Torre de Controle & Homologação)         │
-├─────────────────────────────────────────┤   ├────────────────────────────────────────────┤
-│ 📱 MÓDULO CLIENTE ("Meus Agendamentos"):│   │ 🖥️ CENTRAL `AdminAppointmentsMonitor`:     │
-│ • Modal Inteligente (ETA + 10m preparo) │   │ • Monitora todos os trajetos da rede 10s   │
-│ • Fluxo Sim/Não (Comparecer, Cancelar   │   │ • Alterna Mapa Ao Vivo ⇄ Linha Shopee      │
-│   c/ motivo ou Remanejar na agenda)     │   │ • Simulador Interativo Homologado do       │
-│ • Traçador de Rota Google Maps In-App   │   │   `mnvapp` (Testa Visão Cliente + Salão)   │
-│ • Transmissor GPS 10s + Adversidades    │   │ • Auditoria de Atrasos e Cancelamentos     │
-│ • Visão Inversa: Acompanha Delivery     │   │ • Emite Script SQL + Código Pronto (`bol-20`)│
-│                                         │   └─────────────────────▲──────────────────────┘
-│ 💈 MÓDULO MEU NEGÓCIO ("Agenda Salão"): │                         │
-│ • Badge Ao Vivo no Card da Agenda       │   ┌─────────────────────┴──────────────────────┐
-│ • Gaveta: Mapa 10s ⇄ Linha Shopee/Ruas  │   │  3. PORTAL WEB / PWA: `pvapp`              │
-│ • Alerta Visual/Sonoro: "Chega em 5m!"  │   │  • Permite ao cliente web confirmar saída, │
-│ • Modo Delivery: Profissional traça rota│   │    remanejar ou ver chegada de Delivery    │
-└─────────────────────────────────────────┘   └────────────────────────────────────────────┘
-```
+### 2.1. Serviços de Geocodificação e Rotas no Backend (`server.ts`)
+- Configurar suporte nativo à chave Google Maps (`GOOGLE_MAPS_API_KEY` / `VITE_GOOGLE_MAPS_API_KEY`):
+  - **`GET /api/geo/config`**: Retorna o status da chave e expõe a configuração segura para o SDK JS do navegador.
+  - **`POST /api/geo/geocode`**: Recebe `{ cep, address, street_number, neighborhood, city, state }` (ou `{ lat, lng }` para geocodificação reversa) e consulta a **Google Maps Geocoding API** (com fallback automático para Nominatim/BrasilAPI) retornando `{ latitude, longitude, formatted_address, place_id, precision }`.
+  - **Auto-Geocode Transparente no Salvamento**: Sempre que `POST /api/admin/salons`, `PATCH /api/admin/salons/:id`, `POST /api/admin/users/register` ou `PUT /api/admin/users/:type/:id` receberem um endereço sem `latitude`/`longitude` (ou quando o endereço mudar), o próprio backend resolve as coordenadas antes do `UPDATE`/`INSERT` no Supabase.
+
+### 2.2. Componente de Mapa com Pino Arrastável (`src/components/admin/GoogleAddressPinPicker.tsx`)
+- Componente visual compacto integrado aos formulários de endereço:
+  - Geocodifica automaticamente assim que o CEP + Número (ou endereço) são preenchidos.
+  - Exibe as coordenadas resolvidas (`Lat / Lng`) com selo de precisão e botão **"Ajustar Pino no Mapa"**.
+  - Permite arrastar o marcador (`marker`) ou clicar no mapa Google Maps para cravar a posição exata da fachada do estabelecimento ou residência do usuário, atualizando `latitude` e `longitude` instantaneamente.
+
+### 2.3. Revisão Completa dos 4 Formulários do Sistema
+1. **`AdminEditSalonModal.tsx` (Edição de Estabelecimento):**
+   - Adicionar campos `street_number` (Número), `complement` (Complemento), busca automática ViaCEP ao digitar o CEP e o seletor `GoogleAddressPinPicker` com `latitude` e `longitude`.
+2. **`TriadeEstablishmentMasterForm.tsx` (Cadastro Master de Estabelecimento):**
+   - Integrar geocodificação automática + `GoogleAddressPinPicker` tanto no passo do Proprietário quanto no passo do Estabelecimento, sincronizando endereço e coordenadas do proprietário existente no Supabase.
+3. **`TriadeUserRegisterForm.tsx` (Cadastro Master de Usuário):**
+   - Integrar geocodificação automática + `GoogleAddressPinPicker` para Clientes, Profissionais e Administradores.
+4. **`AdminUserGeneralDataModal.tsx` (Ficha Cadastral / Edição de Usuário):**
+   - Integrar busca automática por CEP, geocodificação automática + `GoogleAddressPinPicker` e salvamento sincronizado em todas as tabelas do CPF.
 
 ---
 
-### 2. User Experience & Visual Design (No `mnvapp` e no Monitor `admvapp`)
+## 3. Integração do Comunicado `mnvapp` (`bol-023`): `InteractiveGoogleRouteMap` e Rota Viária em 3 Camadas
 
-- **Como o Dono do Salão / Profissional vê na Agenda do `mnvapp` (e o Admin no `admvapp`)**:
+### 3.1. Resolução de Geometria Viária em 3 Camadas (`POST /api/geo/route` + Frontend)
+- Implementar exatamente a arquitetura do comunicado do `mnvapp`:
+  - **Camada 1 (Backend `POST /api/geo/route`):** Consulta `https://routes.googleapis.com/directions/v2:computeRoutes` com cabeçalho `Referer` e `X-Goog-FieldMask: routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline`.
+  - **Camada 2 (Browser SDK `google.maps.DirectionsService`):** Se a Routes API v2 tiver restrição de HTTP Referrer no servidor, o componente resolve diretamente no navegador via `DirectionsService`.
+  - **Camada 3 (Fallback Viário Real OSRM):** Consulta `router.project-osrm.org/route/v1/driving/...` retornando a `encodedPolyline` real da malha viária (eliminando qualquer linha reta de 2 pontos).
 
-```
-┌──────────────────────────────────────────────┐ ┌──────────────────────────────────────────────┐
-│ 💈 AGENDA DO SALÃO (`mnvapp` - Meu Negócio)  │ │ 📦 GAVETA: LINHA DE RUAS (ESTILO SHOPEE)     │
-├──────────────────────────────────────────────┤ ├──────────────────────────────────────────────┤
-│ 15:00 • Corte Degradê & Barba                │ │ [📦 Linha de Ruas]  [🗺️ Mapa Ao Vivo (10s)]  │
-│ Cliente: Carlos Mendes • 🚗 Carro (4,2 km)   │ │ Rota Traçada: Via Av. Rebouças • Ciclo: 10s  │
-│ ┌──────────────────────────────────────────┐ │ ├──────────────────────────────────────────────┤
-│ │ 🟢 EM TRÂNSITO • Agora: Av. Rebouças     │ │ │  ✔ 14:15 • Partida: Rua dos Pinheiros, 410   │
-│ │ ⚠️ +6 min (Trânsito lento na via)        │ │ │  │  (Rota traçada pelo cliente no Google)    │
-│ │ ⏱️ Chegada estimada (ETA): 12 min        │ │ │  ✔ 14:22 • Passou por Av. Henrique Schaumann │
-│ └──────────────────────────────────────────┘ │ │  │                                           │
-│ ┌────────────────────┐ ┌───────────────────┐ │ │  ● 14:29 • AGORA: Av. Rebouças, alt. nº 1900 │
-│ │ 📦 Ver Linha Ruas  │ │ 🗺️ Ver Mapa 10s   │ │ │  │  ⚠️ Retenção na via (+6 min acrescidos)   │
-│ └────────────────────┘ └───────────────────┘ │ │  │     "Sem precisar ligar: novo ETA 14:41"  │
-├──────────────────────────────────────────────┤ │  ○ Próxima rua: Rua Oscar Freire (1,1 km)    │
-│ 🔔 Quando ETA = 5 min: Dispara banner verde  │ │  │                                           │
-│    "Cliente a 5 min! Prepare a cadeira!"     │ │  🏁 Chegada: Studio Prime (faltam 12 min)    │
-└──────────────────────────────────────────────┘ └──────────────────────────────────────────────┘
-```
-
-- **Visual Identity & Theme**:
-  - *Aesthetic Direction*: Atmosfera Dark Mode Executiva (`slate-950` / `#0F172A` e superfícies `slate-900` / `#1E293B`), layout plano sem caixas aninhadas (*Zero Box-inside-Box*) e síntese mobile com ícones exclusivos da biblioteca `lucide-react`.
-  - *Color Palette & Mood*:
-    - Destaques primários, rota principal traçada e botões de confirmação em **Verde Vagou (`#20C933` / `bg-emerald-500`)** respeitando a regra inegociável: **qualquer fundo verde sólido possui texto e ícones obrigatoriamente brancos (`text-white`)**.
-    - Marcadores de Adversidade/Retenção (`+X min`) em Âmbar (`text-amber-400`) e Cancelamentos em Rubi (`text-rose-400`).
-  - *Typography & Hierarchy*: Números de distância (`km`), cronômetro de atualização (`10s`), acréscimo de atraso (`+X min`) e contagem regressiva (`ETA`) com alinhamento numérico tabular (`tabular-nums` / `font-mono`).
+### 3.2. Componente `InteractiveGoogleRouteMap.tsx` e Integração no `LiveAppointmentTrackingHub.tsx`
+- Criar `src/components/admin/InteractiveGoogleRouteMap.tsx` seguindo as travas anti-flickering:
+  - Instância `new google.maps.Map` isolada em `useEffect([sdkReady, isDark])`.
+  - Atualizações imperativas de polilinha (`polylineRef.current.setPath(...)`) e marcadores (`setPosition`) com throttle de movimento (`>= 20m` ou `15s`) e `fitBounds` único por rota.
+  - Memorização de `stableCoords` (`originLat/originLng` e `destLat/destLng`) por protocolo/ID do agendamento no `LiveAppointmentTrackingHub.tsx`.
 
 ---
 
-### 3. Key Product Decisions & Trade-Offs
-
-- **Decisão 1: Implantação Dupla Sincronizada (`admvapp` Agora + Pacote Plug-and-Play para `mnvapp`)**
-  - *Chosen Approach*: Construímos imediatamente no `admvapp` toda a infraestrutura de banco de dados (`supabase_schema.sql` e `supabase_safe_migration.sql`), a Central de Monitoramento Ao Vivo (`AdminAppointmentsMonitor.tsx`) com o **Simulador Fiel do `mnvapp` (Visão Cliente + Visão Salão)** e geramos no Boletim Técnico `bol-020` os componentes prontos para o repositório `mnvapp`.
-  - *Why*: Assim você já valida e interage com 100% da solução funcionando aqui no painel agora mesmo, e o banco de dados Supabase já fica pronto para o `mnvapp` consumir as mesmas colunas e eventos de 10 segundos sem retrabalho.
-
-- **Decisão 2: Traçado de Rota In-App via Google Maps Routes API (`computeRoutes` / `DirectionsService`)**
-  - *Chosen Approach*: Ao confirmar a partida no `mnvapp`, o usuário/profissional seleciona a rota sugerida pelo Google Maps dentro do próprio app. O sistema salva a `route_polyline` e converte os `steps[]` da rota em `route_checkpoints` (lista ordenada de ruas).
-  - *Why*: É o que permite que a **Linha de Rastreamento estilo Shopee/Correios** mostre todas as ruas pelas quais a pessoa já passou, a rua exata atual e as próximas ruas que faltam até o destino, além de identificar automaticamente atrasos (`+X min`) em qualquer trecho.
-
-- **Decisão 3: Ciclo de 10 Segundos com Inversão Automática (`No Salão` vs. `Delivery`)**
-  - *Chosen Approach*: O pacote de telemetria é enviado a cada `10 segundos` apenas enquanto `tracking_status` estiver ativo (`live_sharing` ou `arriving_5min`), invertendo automaticamente quem transmite e quem assiste conforme o tipo de serviço (`in_salon` vs. `home_delivery`).
-  - *Why*: Equilibra fluidez em tempo real (padrão Uber/Shopee), economia de bateria no celular e privacidade total (desligamento automático na chegada).
-
----
-
-### 4. Technical Architecture & Data Strategy *(Technical Reference)*
-
-- **Data Model & Schema Evolution (`supabase_schema.sql` & `supabase_safe_migration.sql`)**:
-  - Novas colunas na tabela `public.appointments` compartilhada entre `mnvapp`, `pvapp` e `admvapp`:
-    - `service_location_type TEXT DEFAULT 'in_salon'` (`'in_salon'`, `'home_delivery'`)
-    - `transport_mode TEXT DEFAULT 'driving'` (`'walking'`, `'transit'`, `'rideshare'`, `'driving'`, `'motorcycle'`)
-    - `tracking_status TEXT DEFAULT 'idle'` (`'idle'`, `'alerted'`, `'hurry_confirmed'`, `'on_way_no_map'`, `'live_sharing'`, `'arriving_5min'`, `'arrived'`, `'rescheduled'`, `'cancelled'`)
-    - `selected_route_summary TEXT` (Ex.: `'Rota 1 • Via Av. Rebouças e Rua Oscar Freire'`)
-    - `route_polyline TEXT` (Polilinha codificada oficial da Google Maps API)
-    - `current_street_name TEXT` (Rua onde está no momento, atualizada a cada 10s)
-    - `route_checkpoints JSONB DEFAULT '[]'::jsonb` (Vetor de ruas extraído dos `steps` do Google Maps com `street`, `status: 'passed'|'current'|'upcoming'`, `timestamp` e `adversity`)
-    - `active_adversity JSONB DEFAULT NULL` (`{ type, label, street, addedMinutes, reportedAt }`)
-    - `delay_minutes INTEGER DEFAULT 0`
-    - `client_lat DOUBLE PRECISION`, `client_lng DOUBLE PRECISION`, `distance_km NUMERIC(6,2)`, `eta_minutes INTEGER`, `prep_buffer_minutes INTEGER DEFAULT 10`
-    - `cancellation_reason TEXT`, `last_location_update TIMESTAMPTZ`
-
-- **O Que Será Construído e Entregue na Execução Deste Plano**:
-  1. **Evolução do Banco de Dados (`supabase_schema.sql` & `supabase_safe_migration.sql`)**:
-     - Inclusão de todas as colunas de rota Google Maps, checkpoints de ruas estilo Shopee/Correios, adversidades e suporte Delivery na tabela `public.appointments`.
-  2. **Central de Rastreamento & Simulador `mnvapp` em `AdminAppointmentsMonitor.tsx`**:
-     - **Visão Executiva & Agenda do Salão (`mnvapp` Preview)**: Lista agendamentos presenciais (`No Salão`) e domiciliares (`Delivery`) com status ao vivo, rua atual, contador de 10 segundos e alertas de adversidades (`+X min`).
-     - **Visualizador Duplo de Rastreamento (Mapa 10s + Linha de Ruas Shopee/Correios)**:
-       - Alternância instantânea entre o **Mapa Ao Vivo (10s)** com a rota traçada no Google Maps e a **Linha de Rastreamento por Ruas (Estilo Shopee/Correios)** mostrando as ruas já percorridas (`✔`), o marcador na rua atual (`●`), o card de retenção/adversidade (`⚠️ +X min`) e as próximas ruas (`○`).
-       - Gatilho automático do **Alerta de 5 Minutos (`ETA <= 5 min`)** (*"Prepare a cadeira!"* ou *"Profissional chegando na sua casa!"*).
-     - **Simulador Interativo da Partida e Traçador de Rota (`mnvapp` Cliente / Profissional Delivery)**:
-       - Permite testar na prática o modal de `ETA + 10 min`, a escolha do meio de transporte, o **Traçador de Rota Google Maps In-App** (escolhendo entre opções de rota e vendo as ruas extraídas), a árvore de decisão `Sim / Não` (Comparecer com alerta de pressa, Cancelar com motivo obrigatório ou Remanejar na agenda) e o disparo de adversidades em 1 toque.
-  3. **Comunicado Técnico Oficial da Tríade (`server.ts` Boletim `bol-020` & `CHANGELOG.md`)**:
-     - Instruções passo a passo e código de integração para o `mnvapp` (módulos Cliente e Meu Negócio) e `pvapp`.
+## 4. Script SQL Master & Governança da Tríade (`supabase_master_convergence_20261023.sql` & `AdminTriadeGovernance.tsx`)
+- Atualizar `supabase_master_convergence_20261023.sql` garantindo as colunas físicas `latitude DOUBLE PRECISION`, `longitude DOUBLE PRECISION`, `formatted_address TEXT` e `google_place_id TEXT` em `public.salons`, `public.clients`, `public.professionals`, `public.profiles`, `public.salon_users` e `public.system_admins`, além de índices espaciais rápidos e trigger de sincronização de endereço/coordenadas por CPF.
+- Registrar o Comunicado Recebido do `mnvapp` (`bol-023`) e emitir o Comunicado Oficial Cruzado do `admvapp` (`bol-024`) para `mnvapp` e `pvapp` em `AdminTriadeGovernance.tsx` e `CHANGELOG.md`.

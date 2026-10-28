@@ -48,26 +48,64 @@ export async function fetchAdminSalons(): Promise<AdminSalonItem[]> {
       category: resolveCategory(row) as any,
       status: (row.status as any) || (row.is_active ? 'active' : 'pending'),
       is_verified: row.is_verified ?? true,
-      phone_whatsapp: row.phone_whatsapp || row.phone || '',
-      email: row.email || '',
-      document_number: row.document_number || '',
+      phone_whatsapp: row.phone_whatsapp || row.phone || row.whatsapp || '',
+      phone_landline: row.phone_landline || row.branding?.phoneLandline || row.branding?.phone_landline || '',
+      email: row.email || row.owner_email || '',
+      document_type: row.document_type || row.branding?.document_type || (row.cnpj ? 'CNPJ' : 'CPF'),
+      document_number: row.document_number || row.cpf_cnpj || row.cnpj || '',
       has_cnpj:
         row.document_type === 'CNPJ' ||
+        row.branding?.has_cnpj === true ||
         (row.document_number && String(row.document_number).replace(/\D/g, '').length === 14),
-      owner_cpf: row.owner_cpf || row.branding?.ownerCpf || '',
+      owner_cpf: row.owner_cpf || row.branding?.ownerCpf || row.branding?.owner_cpf || '',
+      owner_name: row.owner_name || row.legal_name || '',
+      owner_email: row.owner_email || row.email || '',
+      owner_phone: row.owner_phone || row.phone_whatsapp || '',
+      operating_model: row.operating_model || row.branding?.operating_model || 'physical',
+      commission_rate: row.commission_rate ?? row.branding?.commission_rate ?? 5,
+      billing_plan: row.billing_plan || row.branding?.billing_plan || 'per_booking',
+      fee_per_booking: row.fee_per_booking ?? row.branding?.fee_per_booking ?? 2.5,
+      monthly_subscription_fee: row.monthly_subscription_fee ?? row.branding?.monthly_subscription_fee ?? 89.9,
+      billing_due_day: row.billing_due_day ?? row.branding?.billing_due_day ?? 10,
       pix_key: row.pix_key || '',
       pix_keys: Array.isArray(row.branding?.pixKeys)
         ? row.branding.pixKeys
+        : Array.isArray(row.branding?.pix_keys)
+        ? row.branding.pix_keys
         : Array.isArray(row.pix_keys)
         ? row.pix_keys
         : row.pix_key
         ? [{ id: 'pix-1', type: 'phone', key: row.pix_key, isPrimary: true, verified: true }]
         : [],
-      address: row.address || '',
-      neighborhood: row.neighborhood || '',
-      city: row.city || 'São Paulo',
-      state: row.state || 'SP',
-      cep: row.cep || '',
+      operating_hours: Array.isArray(row.branding?.operating_hours)
+        ? row.branding.operating_hours
+        : Array.isArray(row.branding?.operatingHours)
+        ? row.branding.operatingHours
+        : Array.isArray(row.operating_hours)
+        ? row.operating_hours
+        : undefined,
+      address: row.address || row.branding?.address || '',
+      street_number: row.street_number || row.branding?.streetNumber || row.branding?.street_number || '',
+      complement: row.complement || row.branding?.complement || '',
+      neighborhood: row.neighborhood || row.branding?.neighborhood || '',
+      city: row.city || row.branding?.city || 'São Paulo',
+      state: row.state || row.branding?.state || 'SP',
+      cep: row.cep || row.branding?.cep || '',
+      latitude:
+        row.latitude !== undefined && row.latitude !== null
+          ? Number(row.latitude)
+          : row.branding?.latitude !== undefined && row.branding?.latitude !== null
+          ? Number(row.branding.latitude)
+          : null,
+      longitude:
+        row.longitude !== undefined && row.longitude !== null
+          ? Number(row.longitude)
+          : row.branding?.longitude !== undefined && row.branding?.longitude !== null
+          ? Number(row.branding.longitude)
+          : null,
+      formatted_address: row.formatted_address || row.branding?.formatted_address || '',
+      google_place_id: row.google_place_id || row.branding?.google_place_id || '',
+      description: row.description || row.branding?.description || '',
       logo_url: row.logo_url || row.logo || row.logo_light_url || row.logo_dark_url || '',
       logo_dark_url: row.logo_dark_url || row.branding?.logoDarkUrl || '',
       logo_light_url: row.logo_light_url || row.branding?.logoLightUrl || '',
@@ -1181,100 +1219,91 @@ export async function fetchTablesSummary(): Promise<Record<string, { count: numb
 export async function updateAdminSalon(
   salonId: string,
   updates: Partial<AdminSalonItem>
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; salon?: AdminSalonItem; error?: string }> {
   try {
-    // 1. Tenta via backend Service Role
+    let apiErrorMsg = '';
+    // 1. Tenta via backend Service Role (/api/admin/salons/:id) com sanitização e geocoding automático
     try {
       const resp = await fetch(`/api/admin/salons/${salonId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
       });
-      if (resp.ok) {
-        const json = await resp.json();
-        if (json.success) {
-          // Atualiza storage local
-          try {
-            const saved = localStorage.getItem('vagou_admin_custom_salons');
-            let customList: AdminSalonItem[] = saved ? JSON.parse(saved) : [];
-            const index = customList.findIndex((s) => s.id === salonId);
-            if (index >= 0) customList[index] = { ...customList[index], ...updates };
-            else customList.push({ id: salonId, ...updates } as AdminSalonItem);
-            localStorage.setItem('vagou_admin_custom_salons', JSON.stringify(customList));
-          } catch {}
-          return { success: true };
-        }
+      const json = await resp.json().catch(() => ({}));
+      if (resp.ok && json.success) {
+        const mergedUpdates = {
+          ...updates,
+          ...(json.salon
+            ? {
+                latitude: json.salon.latitude ?? updates.latitude,
+                longitude: json.salon.longitude ?? updates.longitude,
+                formatted_address: json.salon.formatted_address ?? updates.formatted_address,
+                street_number: json.salon.street_number ?? updates.street_number,
+                complement: json.salon.complement ?? updates.complement,
+              }
+            : {}),
+        };
+        try {
+          const saved = localStorage.getItem('vagou_admin_custom_salons');
+          let customList: AdminSalonItem[] = saved ? JSON.parse(saved) : [];
+          const index = customList.findIndex((s) => s.id === salonId);
+          if (index >= 0) customList[index] = { ...customList[index], ...mergedUpdates };
+          else customList.push({ id: salonId, ...mergedUpdates } as AdminSalonItem);
+          localStorage.setItem('vagou_admin_custom_salons', JSON.stringify(customList));
+        } catch {}
+        return { success: true, salon: json.salon };
+      } else if (json.error) {
+        apiErrorMsg = json.error;
       }
-    } catch {}
+    } catch (fetchErr: any) {
+      apiErrorMsg = fetchErr?.message || '';
+    }
 
-    // 2. Fallback Supabase client
+    // 2. Fallback Supabase client (inclui todos os campos de endereço e coordenadas)
     const dbPayload: Record<string, any> = {};
-    if (updates.trade_name !== undefined) dbPayload.trade_name = updates.trade_name;
+    if (updates.trade_name !== undefined) {
+      dbPayload.trade_name = updates.trade_name;
+      dbPayload.name = updates.trade_name;
+    }
     if (updates.legal_name !== undefined) dbPayload.legal_name = updates.legal_name;
     if (updates.slug !== undefined) dbPayload.slug = updates.slug;
-    if (updates.category !== undefined) dbPayload.category = updates.category;
-    if (updates.status !== undefined) dbPayload.status = updates.status;
+    if (updates.status !== undefined) {
+      dbPayload.status = updates.status;
+      dbPayload.is_active = updates.status === 'active';
+    }
     if (updates.is_verified !== undefined) dbPayload.is_verified = updates.is_verified;
-    if (updates.phone_whatsapp !== undefined) dbPayload.phone_whatsapp = updates.phone_whatsapp;
+    if (updates.phone_whatsapp !== undefined) {
+      dbPayload.phone_whatsapp = updates.phone_whatsapp;
+      dbPayload.phone = updates.phone_whatsapp;
+    }
+    if (updates.phone_landline !== undefined) dbPayload.phone_landline = updates.phone_landline;
     if (updates.email !== undefined) dbPayload.email = updates.email;
     if (updates.document_number !== undefined) dbPayload.document_number = updates.document_number;
+    if (updates.owner_cpf !== undefined) dbPayload.owner_cpf = updates.owner_cpf;
     if (updates.address !== undefined) dbPayload.address = updates.address;
+    if (updates.street_number !== undefined) dbPayload.street_number = updates.street_number;
+    if (updates.complement !== undefined) dbPayload.complement = updates.complement;
     if (updates.neighborhood !== undefined) dbPayload.neighborhood = updates.neighborhood;
     if (updates.city !== undefined) dbPayload.city = updates.city;
     if (updates.state !== undefined) dbPayload.state = updates.state;
     if (updates.cep !== undefined) dbPayload.cep = updates.cep;
+    if (updates.latitude !== undefined) dbPayload.latitude = updates.latitude;
+    if (updates.longitude !== undefined) dbPayload.longitude = updates.longitude;
     if (updates.logo_url !== undefined) dbPayload.logo_url = updates.logo_url;
     if (updates.primary_color !== undefined) {
       dbPayload.primary_color = updates.primary_color;
-      dbPayload.brand_color = updates.primary_color;
     }
-    if (updates.default_theme !== undefined) dbPayload.default_theme = updates.default_theme;
-    if (updates.pwa_name !== undefined) dbPayload.pwa_name = updates.pwa_name;
-    if (updates.show_slogan !== undefined) dbPayload.show_slogan = updates.show_slogan;
-    if (updates.logo_text_fallback !== undefined) dbPayload.logo_text_fallback = updates.logo_text_fallback;
-    if (updates.logo_text_color !== undefined) dbPayload.logo_text_color = updates.logo_text_color;
-    if (updates.show_hero_slides !== undefined) dbPayload.show_hero_slides = updates.show_hero_slides;
-    if (updates.welcome_style !== undefined) dbPayload.welcome_style = updates.welcome_style;
-    if (updates.section_header_bg_color !== undefined) dbPayload.section_header_bg_color = updates.section_header_bg_color;
-    if (updates.section_header_text_color !== undefined) dbPayload.section_header_text_color = updates.section_header_text_color;
-    if (updates.section_header_icon_color !== undefined) dbPayload.section_header_icon_color = updates.section_header_icon_color;
-    if (updates.section_header_bg_style !== undefined) dbPayload.section_header_bg_style = updates.section_header_bg_style;
-    if (updates.section_header_border !== undefined) dbPayload.section_header_border = updates.section_header_border;
-    if (updates.section_header_btn_bg_color !== undefined) dbPayload.section_header_btn_bg_color = updates.section_header_btn_bg_color;
-    if (updates.section_header_btn_active_bg_color !== undefined) dbPayload.section_header_btn_active_bg_color = updates.section_header_btn_active_bg_color;
-    if (updates.section_header_btn_border !== undefined) dbPayload.section_header_btn_border = updates.section_header_btn_border;
-    if (updates.section_header_btn_shadow !== undefined) dbPayload.section_header_btn_shadow = updates.section_header_btn_shadow;
-    if (updates.section_header_btn_blur !== undefined) dbPayload.section_header_btn_blur = updates.section_header_btn_blur;
-    if (updates.section_header_btn_font !== undefined) dbPayload.section_header_btn_font = updates.section_header_btn_font;
-    if (updates.nav_style !== undefined) dbPayload.nav_style = updates.nav_style;
-    if (updates.nav_shape !== undefined) dbPayload.nav_shape = updates.nav_shape;
-    if (updates.nav_border !== undefined) dbPayload.nav_border = updates.nav_border;
-    if (updates.nav_bg_style !== undefined) dbPayload.nav_bg_style = updates.nav_bg_style;
-    if (updates.nav_bg_color !== undefined) dbPayload.nav_bg_color = updates.nav_bg_color;
-    if (updates.nav_btn_bg_color !== undefined) dbPayload.nav_btn_bg_color = updates.nav_btn_bg_color;
-    if (updates.nav_btn_active_bg_color !== undefined) dbPayload.nav_btn_active_bg_color = updates.nav_btn_active_bg_color;
-    if (updates.nav_active_color !== undefined) dbPayload.nav_active_color = updates.nav_active_color;
-    if (updates.nav_text_color !== undefined) dbPayload.nav_text_color = updates.nav_text_color;
 
     if (Object.keys(dbPayload).length > 0) {
       const { error } = await supabaseAdmin.from('salons').update(dbPayload).eq('id', salonId);
       if (error) {
-        console.warn('[Supabase Admin Update] Supabase warning:', error.message);
+        console.error('[Supabase Admin Update] Erro ao gravar no banco:', error.message);
+        return {
+          success: false,
+          error: apiErrorMsg || error.message || 'Não foi possível gravar as alterações no Supabase.',
+        };
       }
     }
-
-    // Persiste cópia local
-    try {
-      const saved = localStorage.getItem('vagou_admin_custom_salons');
-      let customList: AdminSalonItem[] = saved ? JSON.parse(saved) : [];
-      const index = customList.findIndex((s) => s.id === salonId);
-      if (index >= 0) {
-        customList[index] = { ...customList[index], ...updates };
-      } else {
-        customList.push({ id: salonId, ...updates } as AdminSalonItem);
-      }
-      localStorage.setItem('vagou_admin_custom_salons', JSON.stringify(customList));
-    } catch {}
 
     return { success: true };
   } catch (err: any) {
@@ -3237,11 +3266,45 @@ export async function updateAdminRole(adminId: string, newRole: SystemAdminUser[
 // 👥 FUNÇÕES DE GERENCIAMENTO UNIFICADO DE USUÁRIOS (CRUD GERAL)
 // ============================================================================
 
+export async function geocodeAddressViaApi(params: {
+  cep?: string;
+  address?: string;
+  street_number?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
+  lat?: number;
+  lng?: number;
+}): Promise<{
+  success: boolean;
+  latitude: number | null;
+  longitude: number | null;
+  formatted_address?: string | null;
+  google_place_id?: string | null;
+  source?: string;
+}> {
+  try {
+    const resp = await fetch('/api/geo/geocode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data.success && data.latitude && data.longitude) {
+        return data;
+      }
+    }
+  } catch {}
+  return { success: false, latitude: null, longitude: null };
+}
+
 export async function updateUnifiedUserData(
   kind: 'client' | 'professional' | 'salon_user' | 'admin',
   id: string,
   payload: any
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; user?: any; error?: string }> {
+  let apiErrorMsg = '';
   try {
     const resp = await fetch(`/api/admin/users/${kind}/${id}`, {
       method: 'PUT',
@@ -3252,41 +3315,72 @@ export async function updateUnifiedUserData(
     if (text && text.trim().startsWith('{')) {
       const json = JSON.parse(text);
       if (resp.ok && json.success) {
-        return { success: true };
+        return { success: true, user: json.user };
+      }
+      if (json.error) {
+        apiErrorMsg = json.error;
       }
     }
-  } catch (err) {
+  } catch (err: any) {
+    apiErrorMsg = err?.message || '';
     console.warn('[updateUnifiedUserData] Fallback direto via Supabase:', err);
   }
 
   // Fallback direto via Supabase client
   try {
+    if (id.startsWith('su-')) {
+      const realSalonId = id.replace(/^su-/, '');
+      const salonPayload: Record<string, any> = {};
+      if (payload.name !== undefined) salonPayload.legal_name = payload.name;
+      if (payload.email !== undefined) salonPayload.email = payload.email;
+      if (payload.phone !== undefined) salonPayload.phone_whatsapp = payload.phone;
+      if (payload.phoneSecondary !== undefined) salonPayload.phone_landline = payload.phoneSecondary;
+      if (payload.cpf !== undefined) salonPayload.owner_cpf = payload.cpf;
+      if (payload.address !== undefined) salonPayload.address = payload.address;
+      if (payload.streetNumber !== undefined) salonPayload.street_number = payload.streetNumber;
+      if (payload.complement !== undefined) salonPayload.complement = payload.complement;
+      if (payload.neighborhood !== undefined) salonPayload.neighborhood = payload.neighborhood;
+      if (payload.city !== undefined) salonPayload.city = payload.city;
+      if (payload.state !== undefined) salonPayload.state = payload.state;
+      if (payload.cep !== undefined) salonPayload.cep = payload.cep;
+      if (payload.latitude !== undefined) salonPayload.latitude = payload.latitude;
+      if (payload.longitude !== undefined) salonPayload.longitude = payload.longitude;
+
+      const { error } = await supabaseAdmin.from('salons').update(salonPayload).eq('id', realSalonId);
+      if (error) {
+        return { success: false, error: apiErrorMsg || error.message };
+      }
+      return { success: true };
+    }
+
     let table = 'clients';
     if (kind === 'professional') table = 'professionals';
     else if (kind === 'salon_user') table = 'salon_users';
     else if (kind === 'admin') table = 'system_admins';
 
     const dbPayload: any = {};
-    if (payload.name) {
+    if (payload.name !== undefined) {
       if (table === 'clients') dbPayload.name = payload.name;
       else dbPayload.full_name = payload.name;
     }
-    if (payload.username) dbPayload.username = payload.username;
-    if (payload.email) dbPayload.email = payload.email;
-    if (payload.phone) {
+    if (payload.username !== undefined) dbPayload.username = payload.username;
+    if (payload.email !== undefined) dbPayload.email = payload.email;
+    if (payload.phone !== undefined) {
       if (table === 'clients') dbPayload.phone = payload.phone;
       else dbPayload.phone_whatsapp = payload.phone;
     }
-    if (payload.phoneSecondary) dbPayload.phone_secondary = payload.phoneSecondary;
-    if (payload.cpf) dbPayload.cpf = payload.cpf;
-    if (payload.address) dbPayload.address = payload.address;
-    if (payload.streetNumber) dbPayload.street_number = payload.streetNumber;
-    if (payload.complement) dbPayload.complement = payload.complement;
-    if (payload.neighborhood) dbPayload.neighborhood = payload.neighborhood;
-    if (payload.city) dbPayload.city = payload.city;
-    if (payload.state) dbPayload.state = payload.state;
-    if (payload.cep) dbPayload.cep = payload.cep;
-    if (payload.accessLevel) dbPayload.access_level = payload.accessLevel;
+    if (payload.phoneSecondary !== undefined) dbPayload.phone_secondary = payload.phoneSecondary;
+    if (payload.cpf !== undefined) dbPayload.cpf = payload.cpf;
+    if (payload.address !== undefined) dbPayload.address = payload.address;
+    if (payload.streetNumber !== undefined) dbPayload.street_number = payload.streetNumber;
+    if (payload.complement !== undefined) dbPayload.complement = payload.complement;
+    if (payload.neighborhood !== undefined) dbPayload.neighborhood = payload.neighborhood;
+    if (payload.city !== undefined) dbPayload.city = payload.city;
+    if (payload.state !== undefined) dbPayload.state = payload.state;
+    if (payload.cep !== undefined) dbPayload.cep = payload.cep;
+    if (payload.latitude !== undefined) dbPayload.latitude = payload.latitude;
+    if (payload.longitude !== undefined) dbPayload.longitude = payload.longitude;
+    if (payload.accessLevel !== undefined) dbPayload.access_level = payload.accessLevel;
     if (payload.isActive !== undefined) {
       if (table === 'professionals') dbPayload.status = payload.isActive ? 'active' : 'suspended';
       else dbPayload.is_active = payload.isActive;
@@ -3294,11 +3388,11 @@ export async function updateUnifiedUserData(
 
     const { error } = await supabaseAdmin.from(table).update(dbPayload).eq('id', id);
     if (error) {
-      console.warn('[updateUnifiedUserData] Aviso Supabase:', error.message);
+      return { success: false, error: apiErrorMsg || error.message };
     }
     return { success: true };
   } catch (err: any) {
-    return { success: true }; // Sempre salva em memória local
+    return { success: false, error: apiErrorMsg || err?.message || 'Erro ao salvar dados do usuário' };
   }
 }
 

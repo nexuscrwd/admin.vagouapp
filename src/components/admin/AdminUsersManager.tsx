@@ -72,6 +72,8 @@ export interface UnifiedUserRow {
   city?: string;
   state?: string;
   cep?: string;
+  latitude?: number | null;
+  longitude?: number | null;
   dependentsCount: number;
   appointmentsCount: number;
   relationInfo: string;
@@ -176,6 +178,8 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
       city: updatedUser.city,
       state: updatedUser.state,
       cep: updatedUser.cep,
+      latitude: updatedUser.latitude,
+      longitude: updatedUser.longitude,
       isActive: updatedUser.isActive,
     });
 
@@ -422,6 +426,8 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         city: c.city || 'São Paulo',
         state: c.state || 'SP',
         cep: c.cep || '',
+        latitude: (c as any).latitude ?? null,
+        longitude: (c as any).longitude ?? null,
         dependentsCount: depCount,
         appointmentsCount: Number(c.total_appointments) || 0,
         relationInfo: depCount > 0 ? `${depCount} dependentes` : `${Number(c.total_appointments) || 0} agendamentos`,
@@ -464,6 +470,8 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         city: p.city || 'São Paulo',
         state: p.state || 'SP',
         cep: p.cep || '',
+        latitude: (p as any).latitude ?? null,
+        longitude: (p as any).longitude ?? null,
         dependentsCount: Number(p.dependents_count) || 0,
         appointmentsCount: Number(p.total_appointments || p.total_services_done) || 0,
         relationInfo: salonName,
@@ -504,6 +512,8 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         city: su.city || 'São Paulo',
         state: su.state || 'SP',
         cep: su.cep || '',
+        latitude: (su as any).latitude ?? null,
+        longitude: (su as any).longitude ?? null,
         dependentsCount: Number(su.dependents_count) || 0,
         appointmentsCount: Number(su.total_appointments) || 0,
         relationInfo: `${salonSlug}.vagouapp.com`,
@@ -543,6 +553,8 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         city: a.city || 'São Paulo',
         state: a.state || 'SP',
         cep: a.cep || '',
+        latitude: (a as any).latitude ?? null,
+        longitude: (a as any).longitude ?? null,
         dependentsCount: Number(a.dependents_count) || 0,
         appointmentsCount: Number(a.total_appointments) || 0,
         relationInfo: 'Governança Master',

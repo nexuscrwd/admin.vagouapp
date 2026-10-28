@@ -51,6 +51,7 @@ import { VagouOfficialLogo } from '../../common/VagouOfficialLogo';
 import { TriadeUserRegisterForm, TriadeUserData } from './TriadeUserRegisterForm';
 import { TriadeUserLoginForm, TriadeUserLoginPayload } from './TriadeUserLoginForm';
 import { SalonWelcomeModal } from '../SalonWelcomeModal';
+import { GoogleAddressPinPicker } from '../GoogleAddressPinPicker';
 import { useDeviceViewport } from '../../../hooks/useDeviceViewport';
 
 export interface EstablishmentMasterPayload {
@@ -86,6 +87,8 @@ export interface EstablishmentMasterPayload {
     neighborhood: string;
     city: string;
     state: string;
+    latitude?: number | null;
+    longitude?: number | null;
   };
 
   // Identidade Visual (Essenciais de Marca & PWA — Sincronizado com mnvapp e pvapp)
@@ -320,7 +323,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
   const operationalModel = initialData?.operationalModel || 'Espaço Físico & Delivery';
   const platformPlan = initialData?.platformPlan || 'PRO / 5% POR AGENDAMENTO';
 
-  // Endereço do Salão com ViaCEP
+  // Endereço do Salão com ViaCEP + Coordenadas Google Maps
   const [cep, setCep] = useState(initialData?.address?.cep || '');
   const [street, setStreet] = useState(initialData?.address?.street || '');
   const [number, setNumber] = useState(initialData?.address?.number || '');
@@ -328,6 +331,8 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
   const [neighborhood, setNeighborhood] = useState(initialData?.address?.neighborhood || '');
   const [city, setCity] = useState(initialData?.address?.city || '');
   const [state, setState] = useState(initialData?.address?.state || '');
+  const [latitude, setLatitude] = useState<number | null>(initialData?.address?.latitude ?? null);
+  const [longitude, setLongitude] = useState<number | null>(initialData?.address?.longitude ?? null);
 
   const [isSearchingCep, setIsSearchingCep] = useState(false);
   const [isSearchingCepByAddress, setIsSearchingCepByAddress] = useState(false);
@@ -1010,6 +1015,8 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         neighborhood,
         city,
         state,
+        latitude,
+        longitude,
       },
       logoUrl,
       faviconUrl: effectiveFavicon,
@@ -1044,6 +1051,8 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         city: city.trim(),
         state: state.trim().toUpperCase(),
         cep: cep.trim(),
+        latitude,
+        longitude,
         logo_url: logoUrl,
         favicon_url: effectiveFavicon,
         slogan: slogan.trim(),
@@ -2185,6 +2194,22 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                           </div>
                         </div>
                       </div>
+
+                      {/* Geocodificação Automática + Ajuste de Pino no Mapa */}
+                      <GoogleAddressPinPicker
+                        cep={cep}
+                        address={street}
+                        streetNumber={number}
+                        neighborhood={neighborhood}
+                        city={city}
+                        state={state}
+                        latitude={latitude}
+                        longitude={longitude}
+                        onCoordinatesChange={({ latitude: lat, longitude: lng }) => {
+                          setLatitude(lat);
+                          setLongitude(lng);
+                        }}
+                      />
                     </div>
 
                     <div className="pt-2 flex items-center justify-between gap-2.5">

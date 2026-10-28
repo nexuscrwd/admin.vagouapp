@@ -49,6 +49,7 @@ import { getPixQrCodeUrl } from '../../services/pixGenerator';
 import { SalonPixPrintModal } from './SalonPixPrintModal';
 import { PixCheckoutModal } from './PixCheckoutModal';
 import { AdminCategoryModal } from './AdminCategoryModal';
+import { GoogleAddressPinPicker } from './GoogleAddressPinPicker';
 
 interface AdminEditSalonModalProps {
   isOpen: boolean;
@@ -158,10 +159,16 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
         document_number: isCnpj ? salon.document_number || '' : '',
         owner_cpf: salon.owner_cpf || (docDigits.length === 11 ? salon.document_number : ''),
         address: salon.address || '',
+        street_number: salon.street_number || '',
+        complement: salon.complement || '',
         neighborhood: salon.neighborhood || '',
         city: salon.city || '',
         state: salon.state || 'SP',
         cep: salon.cep || '',
+        latitude: salon.latitude ?? null,
+        longitude: salon.longitude ?? null,
+        formatted_address: salon.formatted_address || '',
+        google_place_id: salon.google_place_id || '',
         logo_url: salon.logo_url || '',
         primary_color: salon.primary_color || '#10B981',
         billing_plan: salon.billing_plan || 'per_booking',
@@ -668,22 +675,75 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
               <div className="space-y-2.5 pt-2.5 border-t border-slate-200 dark:border-slate-800">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5" />
-                  Endereço Comercial (Radar)
+                  Endereço Comercial & Geolocalização (Radar)
                 </span>
 
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
-                  <div className="sm:col-span-7">
-                    <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">Logradouro & Nº</label>
+                  <div className="sm:col-span-3">
+                    <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">CEP</label>
+                    <input
+                      type="text"
+                      value={formData.cep || ''}
+                      onChange={async (e) => {
+                        const raw = e.target.value.replace(/\D/g, '').slice(0, 8);
+                        const formatted = raw.length > 5 ? `${raw.slice(0, 5)}-${raw.slice(5)}` : raw;
+                        setFormData((prev) => ({ ...prev, cep: formatted }));
+                        if (raw.length === 8) {
+                          try {
+                            const res = await fetch(`https://viacep.com.br/ws/${raw}/json/`);
+                            const data = await res.json();
+                            if (!data.erro) {
+                              setFormData((prev) => ({
+                                ...prev,
+                                cep: formatted,
+                                address: data.logradouro || prev.address || '',
+                                neighborhood: data.bairro || prev.neighborhood || '',
+                                city: data.localidade || prev.city || '',
+                                state: (data.uf || prev.state || 'SP').toUpperCase(),
+                              }));
+                            }
+                          } catch {}
+                        }
+                      }}
+                      className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white outline-none font-mono"
+                      placeholder="01310-200"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-6">
+                    <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">Logradouro (Rua / Av.)</label>
                     <input
                       type="text"
                       value={formData.address || ''}
                       onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                       className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white outline-none"
-                      placeholder="Av. Paulista, 1578"
+                      placeholder="Av. Paulista"
                     />
                   </div>
 
-                  <div className="sm:col-span-5">
+                  <div className="sm:col-span-3">
+                    <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">Número</label>
+                    <input
+                      type="text"
+                      value={formData.street_number || ''}
+                      onChange={(e) => setFormData({ ...formData, street_number: e.target.value })}
+                      className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white outline-none font-mono"
+                      placeholder="1578"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-4">
+                    <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">Complemento</label>
+                    <input
+                      type="text"
+                      value={formData.complement || ''}
+                      onChange={(e) => setFormData({ ...formData, complement: e.target.value })}
+                      className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white outline-none"
+                      placeholder="Sala 12 / Loja B"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-3">
                     <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">Bairro</label>
                     <input
                       type="text"
@@ -694,7 +754,7 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
                     />
                   </div>
 
-                  <div className="sm:col-span-6">
+                  <div className="sm:col-span-3">
                     <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">Cidade</label>
                     <input
                       type="text"
@@ -714,18 +774,28 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
                       className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 focus:border-emerald-500 rounded-lg px-2 py-1.5 text-xs text-slate-900 dark:text-white outline-none uppercase font-mono text-center font-bold"
                     />
                   </div>
-
-                  <div className="sm:col-span-4">
-                    <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">CEP</label>
-                    <input
-                      type="text"
-                      value={formData.cep || ''}
-                      onChange={(e) => setFormData({ ...formData, cep: e.target.value })}
-                      className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white outline-none font-mono"
-                      placeholder="01310-200"
-                    />
-                  </div>
                 </div>
+
+                {/* Geocodificação Automática + Ajuste de Pino no Mapa */}
+                <GoogleAddressPinPicker
+                  cep={formData.cep}
+                  address={formData.address}
+                  streetNumber={formData.street_number}
+                  neighborhood={formData.neighborhood}
+                  city={formData.city}
+                  state={formData.state}
+                  latitude={formData.latitude}
+                  longitude={formData.longitude}
+                  onCoordinatesChange={({ latitude, longitude, formattedAddress, placeId }) => {
+                    setFormData((prev) => ({
+                      ...prev,
+                      latitude,
+                      longitude,
+                      ...(formattedAddress ? { formatted_address: formattedAddress } : {}),
+                      ...(placeId ? { google_place_id: placeId } : {}),
+                    }));
+                  }}
+                />
               </div>
 
               {/* Section 4: Branding (Logo) */}

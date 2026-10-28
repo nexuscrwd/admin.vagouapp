@@ -142,6 +142,42 @@ ${bulletin.instructions}
         </div>
       </div>
 
+      {/* Card Especial de Convergência Mestre do Banco (bol-022) */}
+      <div className="p-5 rounded-2xl bg-slate-900 border-2 border-emerald-500 shadow-xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-[#20C933] text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/20">
+              <Layers className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm font-bold text-white tracking-tight">
+                  Script SQL Mestre de Convergência da Tríade (bol-022)
+                </h3>
+                <span className="text-[10px] font-mono uppercase font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                  SQL Master 2026-10-23
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
+                Script unificado, idôneo e idempotente para rodar direto no Supabase. Corrige os 7 erros críticos de chave estrangeira (client_user_id), gatilhos de dependentes/serviços com proteção anti-loop, RPCs e colunas de live-tracking.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <a
+              href="/api/admin/triade/master-sql"
+              target="_blank"
+              download="supabase_master_convergence_20261023.sql"
+              className="px-3.5 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs transition flex items-center gap-2 cursor-pointer shadow-md shadow-emerald-500/20"
+            >
+              <span>Baixar SQL Mestre</span>
+              <ExternalLink className="w-3.5 h-3.5 text-white" />
+            </a>
+          </div>
+        </div>
+      </div>
+
       {/* Grid: 3 Aplicações da Tríade */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* pvapp */}

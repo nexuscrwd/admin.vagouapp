@@ -26,6 +26,7 @@ import {
   Search,
 } from 'lucide-react';
 import { UnifiedUserRow } from './AdminUsersManager';
+import { GoogleAddressPinPicker } from './GoogleAddressPinPicker';
 
 export interface AdminUserGeneralDataModalProps {
   user: UnifiedUserRow;
@@ -64,6 +65,8 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
   const [city, setCity] = useState(user.city || 'São Paulo');
   const [stateUf, setStateUf] = useState(user.state || 'SP');
   const [cep, setCep] = useState(user.cep || '');
+  const [latitude, setLatitude] = useState<number | null>(user.latitude ?? null);
+  const [longitude, setLongitude] = useState<number | null>(user.longitude ?? null);
 
   const [dependentsCount, setDependentsCount] = useState<number>(user.dependentsCount || 0);
   const [appointmentsCount, setAppointmentsCount] = useState<number>(user.appointmentsCount || 0);
@@ -102,6 +105,8 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
     setCity(user.city || 'São Paulo');
     setStateUf(user.state || 'SP');
     setCep(user.cep || '');
+    setLatitude(user.latitude ?? null);
+    setLongitude(user.longitude ?? null);
     setDependentsCount(Number(user.dependentsCount) || 0);
     setAppointmentsCount(Number(user.appointmentsCount) || 0);
     setIsActive(user.isActive);
@@ -210,6 +215,8 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
         city: city.trim(),
         state: stateUf.trim(),
         cep: cep.trim(),
+        latitude,
+        longitude,
         dependentsCount: Number(dependentsCount) || 0,
         appointmentsCount: Number(appointmentsCount) || 0,
         isActive,
@@ -707,6 +714,26 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Geocodificação Automática + Pino Ajustável Google Maps (Propaga por CPF) */}
+              <div className="mt-3">
+                <GoogleAddressPinPicker
+                  cep={cep}
+                  address={address}
+                  streetNumber={streetNumber}
+                  neighborhood={neighborhood}
+                  city={city}
+                  state={stateUf}
+                  latitude={latitude}
+                  longitude={longitude}
+                  onCoordinatesChange={({ latitude: lat, longitude: lng }) => {
+                    setLatitude(lat);
+                    setLongitude(lng);
+                  }}
+                  label="Geolocalização Exata (Sincroniza por CPF nas Tabelas Vinculadas)"
+                  compact
+                />
               </div>
             </div>
 

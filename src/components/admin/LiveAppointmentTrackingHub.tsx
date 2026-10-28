@@ -35,6 +35,7 @@ import {
   RouteStreetCheckpoint,
   RouteAdversityEvent,
 } from '../../types/admin';
+import { InteractiveGoogleRouteMap } from './InteractiveGoogleRouteMap';
 
 interface GoogleMapsRouteOption {
   id: string;
@@ -50,6 +51,8 @@ interface GoogleMapsRouteOption {
     distanceFromStartKm: number;
     xPercent: number;
     yPercent: number;
+    lat: number;
+    lng: number;
   }[];
 }
 
@@ -64,11 +67,11 @@ const GOOGLE_MAPS_ROUTE_OPTIONS: Record<'in_salon' | 'home_delivery', GoogleMaps
       baseEtaMinutes: 25,
       trafficCondition: 'moderate',
       streets: [
-        { street: 'Rua dos Pinheiros, 410 (Partida)', neighborhood: 'Pinheiros', distanceFromStartKm: 0.0, xPercent: 14, yPercent: 78 },
-        { street: 'Av. Henrique Schaumann, 280', neighborhood: 'Pinheiros', distanceFromStartKm: 1.1, xPercent: 30, yPercent: 64 },
-        { street: 'Av. Rebouças, 1900', neighborhood: 'Jardins', distanceFromStartKm: 2.4, xPercent: 50, yPercent: 48 },
-        { street: 'Rua Bela Cintra, 1450', neighborhood: 'Jardins', distanceFromStartKm: 3.6, xPercent: 70, yPercent: 34 },
-        { street: 'Rua Oscar Freire, 820 (Destino Salão)', neighborhood: 'Jardins', distanceFromStartKm: 4.5, xPercent: 86, yPercent: 20 },
+        { street: 'Rua dos Pinheiros, 410 (Partida)', neighborhood: 'Pinheiros', distanceFromStartKm: 0.0, xPercent: 14, yPercent: 78, lat: -23.5653, lng: -46.6821 },
+        { street: 'Av. Henrique Schaumann, 280', neighborhood: 'Pinheiros', distanceFromStartKm: 1.1, xPercent: 30, yPercent: 64, lat: -23.5618, lng: -46.6778 },
+        { street: 'Av. Rebouças, 1900', neighborhood: 'Jardins', distanceFromStartKm: 2.4, xPercent: 50, yPercent: 48, lat: -23.5639, lng: -46.6728 },
+        { street: 'Rua Bela Cintra, 1450', neighborhood: 'Jardins', distanceFromStartKm: 3.6, xPercent: 70, yPercent: 34, lat: -23.5608, lng: -46.6669 },
+        { street: 'Rua Oscar Freire, 820 (Destino Salão)', neighborhood: 'Jardins', distanceFromStartKm: 4.5, xPercent: 86, yPercent: 20, lat: -23.5616, lng: -46.6691 },
       ],
     },
     {
@@ -80,11 +83,11 @@ const GOOGLE_MAPS_ROUTE_OPTIONS: Record<'in_salon' | 'home_delivery', GoogleMaps
       baseEtaMinutes: 31,
       trafficCondition: 'normal',
       streets: [
-        { street: 'Rua dos Pinheiros, 410 (Partida)', neighborhood: 'Pinheiros', distanceFromStartKm: 0.0, xPercent: 14, yPercent: 78 },
-        { street: 'Av. Brig. Faria Lima, 1800', neighborhood: 'Jardim Paulistano', distanceFromStartKm: 1.5, xPercent: 28, yPercent: 36 },
-        { street: 'Av. Paulista, 2100', neighborhood: 'Consolação', distanceFromStartKm: 3.2, xPercent: 54, yPercent: 26 },
-        { street: 'Rua Augusta, 2400', neighborhood: 'Jardins', distanceFromStartKm: 4.4, xPercent: 72, yPercent: 24 },
-        { street: 'Rua Oscar Freire, 820 (Destino Salão)', neighborhood: 'Jardins', distanceFromStartKm: 5.4, xPercent: 86, yPercent: 20 },
+        { street: 'Rua dos Pinheiros, 410 (Partida)', neighborhood: 'Pinheiros', distanceFromStartKm: 0.0, xPercent: 14, yPercent: 78, lat: -23.5653, lng: -46.6821 },
+        { street: 'Av. Brig. Faria Lima, 1800', neighborhood: 'Jardim Paulistano', distanceFromStartKm: 1.5, xPercent: 28, yPercent: 36, lat: -23.5705, lng: -46.6879 },
+        { street: 'Av. Paulista, 2100', neighborhood: 'Consolação', distanceFromStartKm: 3.2, xPercent: 54, yPercent: 26, lat: -23.5578, lng: -46.6602 },
+        { street: 'Rua Augusta, 2400', neighborhood: 'Jardins', distanceFromStartKm: 4.4, xPercent: 72, yPercent: 24, lat: -23.5629, lng: -46.6656 },
+        { street: 'Rua Oscar Freire, 820 (Destino Salão)', neighborhood: 'Jardins', distanceFromStartKm: 5.4, xPercent: 86, yPercent: 20, lat: -23.5616, lng: -46.6691 },
       ],
     },
   ],
@@ -98,11 +101,11 @@ const GOOGLE_MAPS_ROUTE_OPTIONS: Record<'in_salon' | 'home_delivery', GoogleMaps
       baseEtaMinutes: 20,
       trafficCondition: 'moderate',
       streets: [
-        { street: 'Studio Prime • R. Oscar Freire, 820 (Saída Profissional)', neighborhood: 'Jardins', distanceFromStartKm: 0.0, xPercent: 16, yPercent: 22 },
-        { street: 'Av. Brasil, 1250', neighborhood: 'Jardim América', distanceFromStartKm: 1.0, xPercent: 35, yPercent: 38 },
-        { street: 'Alameda Joaquim Eugênio de Lima, 600', neighborhood: 'Bela Vista', distanceFromStartKm: 2.2, xPercent: 55, yPercent: 54 },
-        { street: 'Alameda Jaú, 1100', neighborhood: 'Jardins', distanceFromStartKm: 3.1, xPercent: 72, yPercent: 68 },
-        { street: 'Alameda Santos, 1780 • Apto 82 (Casa do Cliente)', neighborhood: 'Cerqueira César', distanceFromStartKm: 3.8, xPercent: 86, yPercent: 80 },
+        { street: 'Studio Prime • R. Oscar Freire, 820 (Saída Profissional)', neighborhood: 'Jardins', distanceFromStartKm: 0.0, xPercent: 16, yPercent: 22, lat: -23.5616, lng: -46.6691 },
+        { street: 'Av. Brasil, 1250', neighborhood: 'Jardim América', distanceFromStartKm: 1.0, xPercent: 35, yPercent: 38, lat: -23.5692, lng: -46.6698 },
+        { street: 'Alameda Joaquim Eugênio de Lima, 600', neighborhood: 'Bela Vista', distanceFromStartKm: 2.2, xPercent: 55, yPercent: 54, lat: -23.5665, lng: -46.6525 },
+        { street: 'Alameda Jaú, 1100', neighborhood: 'Jardins', distanceFromStartKm: 3.1, xPercent: 72, yPercent: 68, lat: -23.5626, lng: -46.6594 },
+        { street: 'Alameda Santos, 1780 • Apto 82 (Casa do Cliente)', neighborhood: 'Cerqueira César', distanceFromStartKm: 3.8, xPercent: 86, yPercent: 80, lat: -23.5611, lng: -46.6579 },
       ],
     },
     {
@@ -114,11 +117,11 @@ const GOOGLE_MAPS_ROUTE_OPTIONS: Record<'in_salon' | 'home_delivery', GoogleMaps
       baseEtaMinutes: 24,
       trafficCondition: 'normal',
       streets: [
-        { street: 'Studio Prime • R. Oscar Freire, 820 (Saída Profissional)', neighborhood: 'Jardins', distanceFromStartKm: 0.0, xPercent: 16, yPercent: 22 },
-        { street: 'Av. Nove de Julho, 3400', neighborhood: 'Jardim Paulista', distanceFromStartKm: 1.4, xPercent: 32, yPercent: 60 },
-        { street: 'Rua Pamplona, 900', neighborhood: 'Jardim Paulista', distanceFromStartKm: 2.7, xPercent: 56, yPercent: 72 },
-        { street: 'Rua Campinas, 420', neighborhood: 'Jardim Paulista', distanceFromStartKm: 3.5, xPercent: 72, yPercent: 76 },
-        { street: 'Alameda Santos, 1780 • Apto 82 (Casa do Cliente)', neighborhood: 'Cerqueira César', distanceFromStartKm: 4.3, xPercent: 86, yPercent: 80 },
+        { street: 'Studio Prime • R. Oscar Freire, 820 (Saída Profissional)', neighborhood: 'Jardins', distanceFromStartKm: 0.0, xPercent: 16, yPercent: 22, lat: -23.5616, lng: -46.6691 },
+        { street: 'Av. Nove de Julho, 3400', neighborhood: 'Jardim Paulista', distanceFromStartKm: 1.4, xPercent: 32, yPercent: 60, lat: -23.5697, lng: -46.6634 },
+        { street: 'Rua Pamplona, 900', neighborhood: 'Jardim Paulista', distanceFromStartKm: 2.7, xPercent: 56, yPercent: 72, lat: -23.5648, lng: -46.6558 },
+        { street: 'Rua Campinas, 420', neighborhood: 'Jardim Paulista', distanceFromStartKm: 3.5, xPercent: 72, yPercent: 76, lat: -23.5632, lng: -46.6562 },
+        { street: 'Alameda Santos, 1780 • Apto 82 (Casa do Cliente)', neighborhood: 'Cerqueira César', distanceFromStartKm: 4.3, xPercent: 86, yPercent: 80, lat: -23.5611, lng: -46.6579 },
       ],
     },
   ],
@@ -859,113 +862,43 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
                 </div>
               </div>
 
-              {/* Canvas Interativo do Mapa (Estilo Uber / 99 / Waze) */}
-              <div className="relative h-72 sm:h-80 w-full rounded-xl bg-[#0B1220] overflow-hidden select-none">
-                {/* Grade Cartográfica Estilizada das Vias */}
-                <div
-                  className="absolute inset-0 opacity-20"
-                  style={{
-                    backgroundImage:
-                      'linear-gradient(to right, #334155 1px, transparent 1px), linear-gradient(to bottom, #334155 1px, transparent 1px)',
-                    backgroundSize: '36px 36px',
-                  }}
-                />
+              {/* Canvas Interativo Real Google Maps (Zero Flicker & Polilinha Viária em 3 Camadas - bol-023) */}
+              <InteractiveGoogleRouteMap
+                routeId={`${currentRoute.id}-${serviceLocationType}`}
+                originLat={currentRoute.streets[0].lat}
+                originLng={currentRoute.streets[0].lng}
+                destLat={currentRoute.streets[currentRoute.streets.length - 1].lat}
+                destLng={currentRoute.streets[currentRoute.streets.length - 1].lng}
+                moverLat={currentPointCoords.lat}
+                moverLng={currentPointCoords.lng}
+                originLabel={currentRoute.streets[0].street}
+                destLabel={
+                  serviceLocationType === 'in_salon'
+                    ? `Destino Salão: ${selectedSalonName || activeSampleAppointment.salon_name}`
+                    : `Residência Cliente: ${activeSampleAppointment.client_name}`
+                }
+                moverLabel={`${actorLabel} • ${currentPointCoords.street.split(',')[0]} (ETA ${currentEtaMinutes} min)`}
+                travelMode={transportMode}
+                showSimplifiedOnly={mapDetailLevel === 'simplified'}
+                isDark={true}
+                adversityLabel={
+                  activeAdversity
+                    ? `+${activeAdversity.addedMinutes} min (${activeAdversity.label})`
+                    : null
+                }
+              />
 
-                {/* Polilinha da Rota Traçada no Google Maps (Exibida no Modo Completo) */}
-                {mapDetailLevel === 'full' && (
-                  <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-                    {/* Rota Completa Base */}
-                    <polyline
-                      fill="none"
-                      stroke="#334155"
-                      strokeWidth="1.6"
-                      strokeDasharray="2,2"
-                      points={currentRoute.streets.map((s) => `${s.xPercent},${s.yPercent}`).join(' ')}
-                    />
-                    {/* Rota Ativa Verde Vagou (#20C933) */}
-                    <polyline
-                      fill="none"
-                      stroke="#20C933"
-                      strokeWidth="2.2"
-                      points={currentRoute.streets
-                        .slice(currentStreetIndex)
-                        .map((s) => `${s.xPercent},${s.yPercent}`)
-                        .join(' ')}
-                    />
-                  </svg>
-                )}
-
-                {/* Pontos das Ruas da Rota (No Modo Completo mostra todas as ruas; no Simplificado apenas Origem/Atual e Destino) */}
-                {currentRoute.streets.map((pt, idx) => {
-                  const isCurrent = idx === currentStreetIndex;
-                  const isDestination = idx === currentRoute.streets.length - 1;
-                  if (mapDetailLevel === 'simplified' && !isCurrent && !isDestination) {
-                    return null;
-                  }
-
-                  return (
-                    <div
-                      key={pt.street}
-                      onClick={() => setCurrentStreetIndex(idx)}
-                      style={{ left: `${pt.xPercent}%`, top: `${pt.yPercent}%` }}
-                      className="absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer"
-                    >
-                      {isCurrent ? (
-                        <div className="flex flex-col items-center">
-                          <div className="px-2.5 py-1 rounded-lg bg-[#20C933] text-white text-[10px] font-bold whitespace-nowrap mb-1 shadow-lg flex items-center gap-1">
-                            <Navigation className="w-3 h-3 text-white" />
-                            <span>{pt.street.split(',')[0]} • {currentEtaMinutes} min</span>
-                          </div>
-                          <div className="w-8 h-8 rounded-full bg-[#20C933] text-white flex items-center justify-center ring-4 ring-emerald-500/30">
-                            <Car className="w-4 h-4 text-white" />
-                          </div>
-                          {activeAdversity && (
-                            <div className="mt-1 px-2 py-0.5 rounded bg-amber-500 text-slate-950 text-[10px] font-extrabold whitespace-nowrap">
-                              +{activeAdversity.addedMinutes}m ({activeAdversity.label})
-                            </div>
-                          )}
-                        </div>
-                      ) : isDestination ? (
-                        <div className="flex flex-col items-center">
-                          <div className="px-2 py-0.5 rounded bg-slate-900/90 text-white text-[10px] font-bold whitespace-nowrap mb-1">
-                            {serviceLocationType === 'in_salon' ? 'Destino: Salão' : 'Destino: Casa do Cliente'}
-                          </div>
-                          <div className="w-7 h-7 rounded-full bg-white text-slate-950 flex items-center justify-center">
-                            {serviceLocationType === 'in_salon' ? (
-                              <Scissors className="w-3.5 h-3.5 text-slate-950" />
-                            ) : (
-                              <Home className="w-3.5 h-3.5 text-slate-950" />
-                            )}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center">
-                          <div
-                            className={`w-3 h-3 rounded-full ${
-                              idx < currentStreetIndex ? 'bg-[#20C933]' : 'bg-slate-600'
-                            }`}
-                          />
-                          <span className="text-[9px] text-slate-300 bg-slate-950/80 px-1.5 py-0.5 rounded mt-0.5 whitespace-nowrap">
-                            {pt.street.split(',')[0]}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-
-                {/* HUD Inferior do Mapa */}
-                <div className="absolute bottom-3 left-3 right-3 p-3 rounded-xl bg-slate-950/90 flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>
-                      Rua Atual: <strong className="text-white">{currentPointCoords.street}</strong>
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3 font-mono tabular-nums">
-                    <span className="text-emerald-400 font-bold">Dist: {remainingDistanceKm} km</span>
-                    <span className="text-white font-bold">ETA: {currentEtaMinutes} min</span>
-                  </div>
+              {/* Seletor Rápido de Checkpoints da Rota e HUD Inferior */}
+              <div className="p-3 rounded-xl bg-slate-900 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span className="truncate">
+                    Rua Atual: <strong className="text-white">{currentPointCoords.street}</strong>
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 font-mono tabular-nums shrink-0">
+                  <span className="text-emerald-400 font-bold">Dist: {remainingDistanceKm} km</span>
+                  <span className="text-white font-bold">ETA: {currentEtaMinutes} min</span>
                 </div>
               </div>
             </div>

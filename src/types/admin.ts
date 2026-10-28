@@ -66,6 +66,10 @@ export interface AdminSalonItem {
   city?: string;
   state?: string;
   cep?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  formatted_address?: string;
+  google_place_id?: string;
   logo_url?: string;
   logo_dark_url?: string;
   logo_light_url?: string;

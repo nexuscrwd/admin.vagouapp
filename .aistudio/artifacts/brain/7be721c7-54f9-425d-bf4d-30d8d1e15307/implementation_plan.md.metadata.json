@@ -1,6 +1,6 @@
 {
-  "summary":  "Plano de Implementação Revisado: Mapa de Implantação na Tríade (Papel de mnvapp, admvapp e pvapp), Arquitetura Detalhada dentro do mnvapp (Visão Cliente vs. Visão Salão/Profissional), Traçador de Rota Google Maps In-App, Rastreamento 10s (Mapa + Linha Shopee/Correios) e Detector de Adversidades.",
-  "updatedAt":  "2026-10-22T11:53:06.061799644Z",
+  "summary":  "Plano de Execução: Correção Definitiva de Persistência de Endereços/Formulários no Supabase, Geocodificação Automática + Ajuste de Pino no Mapa (Google Maps API), Colunas de Coordenadas na Tríade e Mapa de Rastreamento Viário em 3 Camadas (Comunicado mnvapp).",
+  "updatedAt":  "2026-10-28T14:33:37.385137675Z",
   "requestFeedback":  true,
   "userFacing":  true
 }
