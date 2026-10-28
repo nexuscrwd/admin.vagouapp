@@ -130,8 +130,13 @@ ALTER TABLE public.dependents
 
 -- G. Endereço Completo & Coordenadas de Geolocalização (salons, clients, professionals, profiles, salon_users)
 ALTER TABLE public.salons
+  ADD COLUMN IF NOT EXISTS address text,
   ADD COLUMN IF NOT EXISTS street_number text,
   ADD COLUMN IF NOT EXISTS complement text,
+  ADD COLUMN IF NOT EXISTS neighborhood text,
+  ADD COLUMN IF NOT EXISTS city text,
+  ADD COLUMN IF NOT EXISTS state text,
+  ADD COLUMN IF NOT EXISTS cep text,
   ADD COLUMN IF NOT EXISTS owner_cpf text,
   ADD COLUMN IF NOT EXISTS latitude double precision,
   ADD COLUMN IF NOT EXISTS longitude double precision,
@@ -139,6 +144,8 @@ ALTER TABLE public.salons
   ADD COLUMN IF NOT EXISTS google_place_id text;
 
 ALTER TABLE public.clients
+  ADD COLUMN IF NOT EXISTS cpf text,
+  ADD COLUMN IF NOT EXISTS address text,
   ADD COLUMN IF NOT EXISTS street_number text,
   ADD COLUMN IF NOT EXISTS complement text,
   ADD COLUMN IF NOT EXISTS neighborhood text,
@@ -151,6 +158,7 @@ ALTER TABLE public.clients
   ADD COLUMN IF NOT EXISTS google_place_id text;
 
 ALTER TABLE public.professionals
+  ADD COLUMN IF NOT EXISTS cpf text,
   ADD COLUMN IF NOT EXISTS address text,
   ADD COLUMN IF NOT EXISTS street_number text,
   ADD COLUMN IF NOT EXISTS complement text,
@@ -164,6 +172,7 @@ ALTER TABLE public.professionals
   ADD COLUMN IF NOT EXISTS google_place_id text;
 
 ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS cpf text,
   ADD COLUMN IF NOT EXISTS address text,
   ADD COLUMN IF NOT EXISTS street_number text,
   ADD COLUMN IF NOT EXISTS complement text,
@@ -172,9 +181,12 @@ ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS state text,
   ADD COLUMN IF NOT EXISTS cep text,
   ADD COLUMN IF NOT EXISTS latitude double precision,
-  ADD COLUMN IF NOT EXISTS longitude double precision;
+  ADD COLUMN IF NOT EXISTS longitude double precision,
+  ADD COLUMN IF NOT EXISTS formatted_address text,
+  ADD COLUMN IF NOT EXISTS google_place_id text;
 
 ALTER TABLE public.salon_users
+  ADD COLUMN IF NOT EXISTS cpf text,
   ADD COLUMN IF NOT EXISTS address text,
   ADD COLUMN IF NOT EXISTS street_number text,
   ADD COLUMN IF NOT EXISTS complement text,
@@ -183,7 +195,16 @@ ALTER TABLE public.salon_users
   ADD COLUMN IF NOT EXISTS state text,
   ADD COLUMN IF NOT EXISTS cep text,
   ADD COLUMN IF NOT EXISTS latitude double precision,
-  ADD COLUMN IF NOT EXISTS longitude double precision;
+  ADD COLUMN IF NOT EXISTS longitude double precision,
+  ADD COLUMN IF NOT EXISTS formatted_address text,
+  ADD COLUMN IF NOT EXISTS google_place_id text;
+
+CREATE INDEX IF NOT EXISTS idx_salons_owner_cpf ON public.salons(owner_cpf);
+CREATE INDEX IF NOT EXISTS idx_salons_coords ON public.salons(latitude, longitude);
+CREATE INDEX IF NOT EXISTS idx_clients_cpf ON public.clients(cpf);
+CREATE INDEX IF NOT EXISTS idx_professionals_cpf ON public.professionals(cpf);
+CREATE INDEX IF NOT EXISTS idx_profiles_cpf ON public.profiles(cpf);
+CREATE INDEX IF NOT EXISTS idx_salon_users_cpf ON public.salon_users(cpf);
 
 
 
@@ -494,6 +515,9 @@ END $$;
 
 COMMIT;
 
+-- Força a recarga imediata do cache de schema da API PostgREST do Supabase
+NOTIFY pgrst, 'reload schema';
+
 -- ============================================================================
--- FIM DA MIGRAÇÃO MASTER DE CONVERGÊNCIA DA TRÍADE VAGOUAPP (bol-022)
+-- FIM DA MIGRAÇÃO MASTER DE CONVERGÊNCIA DA TRÍADE VAGOUAPP (bol-022 / bol-023)
 -- ============================================================================
