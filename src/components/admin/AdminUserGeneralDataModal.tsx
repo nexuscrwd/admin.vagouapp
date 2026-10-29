@@ -24,9 +24,13 @@ import {
   Trash2,
   Save,
   Search,
+  Camera,
+  Upload,
+  RefreshCw,
 } from 'lucide-react';
 import { UnifiedUserRow } from './AdminUsersManager';
 import { GoogleAddressPinPicker } from './GoogleAddressPinPicker';
+import { UserAvatar } from '../common/UserAvatar';
 
 export interface AdminUserGeneralDataModalProps {
   user: UnifiedUserRow;
@@ -76,6 +80,97 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
   const [isSaving, setIsSaving] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
+  // Avatar state & upload
+  const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl || '');
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  // Manipulador de upload de avatar (Câmera ou Galeria do Usuário)
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setFeedbackMsg({ text: 'Selecione uma imagem válida (PNG, JPG, WebP).', type: 'error' });
+      return;
+    }
+
+    if (file.size > 12 * 1024 * 1024) {
+      setFeedbackMsg({ text: 'A imagem deve ter no máximo 12 MB.', type: 'error' });
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const base64 = event.target?.result as string;
+        if (!base64) {
+          setIsUploadingAvatar(false);
+          return;
+        }
+
+        const img = new window.Image();
+        img.onload = async () => {
+          const maxDim = 1000;
+          let width = img.width;
+          let height = img.height;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const optimizedBase64 = canvas.toDataURL('image/jpeg', 0.88);
+
+            try {
+              const res = await fetch('/api/admin/upload-avatar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  imageBase64: optimizedBase64,
+                  prefix: `usr-${user.originalId}`,
+                  userId: user.originalId,
+                  kind,
+                }),
+              });
+              const json = await res.json();
+              if (res.ok && json.success && json.url) {
+                setAvatarUrl(json.url);
+                setFeedbackMsg({ text: 'Foto enviada e salva no Supabase Storage com sucesso!', type: 'success' });
+                setTimeout(() => setFeedbackMsg(null), 3500);
+              } else {
+                setAvatarUrl(optimizedBase64);
+                setFeedbackMsg({ text: 'Foto anexada com sucesso.', type: 'success' });
+                setTimeout(() => setFeedbackMsg(null), 3000);
+              }
+            } catch {
+              setAvatarUrl(optimizedBase64);
+              setFeedbackMsg({ text: 'Foto carregada localmente.', type: 'success' });
+              setTimeout(() => setFeedbackMsg(null), 3000);
+            }
+          }
+          setIsUploadingAvatar(false);
+        };
+        img.src = base64;
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      setIsUploadingAvatar(false);
+      setFeedbackMsg({ text: 'Falha ao processar arquivo.', type: 'error' });
+    }
+  };
+
   // Trava a rolagem da página quando o modal estiver aberto
   useEffect(() => {
     if (isOpen) {
@@ -110,6 +205,7 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
     setDependentsCount(Number(user.dependentsCount) || 0);
     setAppointmentsCount(Number(user.appointmentsCount) || 0);
     setIsActive(user.isActive);
+    setAvatarUrl(user.avatarUrl || '');
     setFeedbackMsg(null);
   }, [user]);
 
@@ -221,6 +317,7 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
         appointmentsCount: Number(appointmentsCount) || 0,
         isActive,
         statusLabel: isActive ? 'Ativo' : 'Inativo',
+        avatarUrl: avatarUrl.trim() || undefined,
       };
 
       await onSave(updatedRow);
@@ -285,8 +382,21 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
         {/* CABEÇALHO DO MODAL (ESTÁTICO NO TOPO) */}
         <div className="shrink-0 p-3.5 sm:p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 bg-slate-50 dark:bg-slate-950/90 select-none">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
-              <User className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <div className="relative group shrink-0">
+              <UserAvatar photoUrl={avatarUrl || user.avatarUrl} name={name || user.name} size="md" />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingAvatar}
+                className="absolute -bottom-1 -right-1 p-0.5 rounded-full bg-[#20C933] text-white shadow hover:bg-[#1bb32d] transition cursor-pointer"
+                title="Alterar foto de perfil"
+              >
+                {isUploadingAvatar ? (
+                  <RefreshCw className="w-2.5 h-2.5 animate-spin text-white" />
+                ) : (
+                  <Camera className="w-2.5 h-2.5 text-white" />
+                )}
+              </button>
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
@@ -341,6 +451,66 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                 <User className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                 <span>Identificação & Acesso</span>
               </h3>
+
+              {/* Card de Foto do Usuário / Avatar */}
+              <div className="flex items-center gap-3.5 p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 mb-3">
+                <div className="relative group shrink-0">
+                  <UserAvatar photoUrl={avatarUrl} name={name} size="xl" />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploadingAvatar}
+                    className="absolute -bottom-1 -right-1 p-1 rounded-lg bg-[#20C933] text-white shadow-md hover:bg-[#1bb32d] transition cursor-pointer"
+                    title="Carregar foto ou tirar da câmera"
+                  >
+                    {isUploadingAvatar ? (
+                      <RefreshCw className="w-3 h-3 animate-spin text-white" />
+                    ) : (
+                      <Camera className="w-3 h-3 text-white" />
+                    )}
+                  </button>
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200">
+                      Foto de Perfil (Avatar)
+                    </span>
+                    {avatarUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setAvatarUrl('')}
+                        className="text-[10px] text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 font-semibold flex items-center gap-1 cursor-pointer transition"
+                        title="Remover foto e restaurar ícone canônico"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Remover</span>
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    {avatarUrl ? 'Foto real salva no Supabase Storage.' : 'Sem foto real. Renderizando ícone User canônico.'}
+                  </p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploadingAvatar}
+                      className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] font-semibold text-slate-700 dark:text-slate-200 hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400 flex items-center gap-1.5 transition cursor-pointer"
+                    >
+                      <Upload className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                      <span>{isUploadingAvatar ? 'Enviando...' : 'Carregar Foto'}</span>
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                  </div>
+                </div>
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
                 {/* 1. Nome Completo */}

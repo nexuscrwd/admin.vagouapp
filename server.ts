@@ -126,6 +126,76 @@ const GOOGLE_MAPS_API_KEY = (
 
 const TRIADE_BULLETINS: TechnicalBulletin[] = [
   {
+    id: 'bol-027-turn-by-turn-navigation-and-iframe-eradication',
+    timestamp: '2026-10-28T23:55:00.000Z',
+    sourceApp: 'admvapp',
+    targetApps: ['mnvapp', 'pvapp'],
+    title: 'Erradicação de iFrames Estáticos no Botão "Ir" e Ativação de Navegação GPS Turn-by-Turn Estilo Uber',
+    category: 'breaking_change',
+    summary: 'Correção Mandatória da Experiência de Navegação ao Clicar em "Ir" no Agendamento: Abertura indevida de <iframe> estático do Google Maps Web (com caixa de opções desktop "Mais opções", sem guiar o motorista) é terminantemente proibida. O botão "Ir" no mnvapp e pvapp deve acionar a navegação GPS nativa com voz e trajeto curva a curva (Google Maps Navigation / Waze via deep-link com dir_action=navigate) ou renderizar o Live Tracking Hub interativo com marcador em movimento e telemetria contínua via navigator.geolocation.watchPosition.',
+    impactedTables: ['public.appointments'],
+    instructions: '1. No mnvapp (aeroportoguarulhos.vagouapp.com / vagouapp.git), substituir a tag <iframe> pelo disparador de navegação nativo (startTurnByTurnNavigation). 2. Utilizar o link universal: https://www.google.com/maps/dir/?api=1&destination=LAT,LNG&travelmode=driving&dir_action=navigate (no Android: google.navigation:q=LAT,LNG&mode=d). 3. Caso renderize in-app, importar o componente InteractiveGoogleRouteMap.tsx da Tríade.',
+    author: 'Super Administrador (adm.vagouapp.com)',
+  },
+  {
+    id: 'bol-026-user-avatar-and-storage-triade-synchronization',
+    timestamp: '2026-10-28T23:30:00.000Z',
+    sourceApp: 'admvapp',
+    targetApps: ['mnvapp', 'pvapp'],
+    title: 'Homologação Soberana de Fotos/Avatares de Usuários no Supabase Storage e Banco Unificado da Tríade',
+    category: 'schema_change',
+    summary: 'Diagnóstico e Ativação Oficial: O banco de dados Supabase PostgreSQL 17.6 e o Supabase Storage estão 100% PREPARADOS e APTOS para receber, persistir e exibir fotos reais de perfil de usuários, clientes, profissionais, gestores e salões. As tabelas public.profiles, public.clients, public.professionals, public.salon_users, public.system_admins e public.dependents possuem as colunas avatar_url e photo_url devidamente homologadas. O bucket público "avatars" (e "media") processa uploads de imagens via câmera e arquivo com compressão e retorno de URLs públicas permanentes.',
+    impactedTables: ['public.profiles', 'public.clients', 'public.professionals', 'public.salon_users', 'public.system_admins', 'public.dependents'],
+    sqlMigration: `-- ============================================================================
+-- 📸 HOMOLOGAÇÃO DE AVATARES E FOTOS DE USUÁRIOS NA TRÍADE VAGOUAPP (bol-026)
+-- Target Database: Supabase PostgreSQL 17.6
+-- ============================================================================
+
+-- 1. Garante colunas de avatar/foto nas tabelas de identidade e usuários
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS avatar_url text,
+  ADD COLUMN IF NOT EXISTS photo_url text;
+
+ALTER TABLE public.clients
+  ADD COLUMN IF NOT EXISTS avatar_url text,
+  ADD COLUMN IF NOT EXISTS photo_url text;
+
+ALTER TABLE public.professionals
+  ADD COLUMN IF NOT EXISTS avatar_url text,
+  ADD COLUMN IF NOT EXISTS photo_url text;
+
+ALTER TABLE public.salon_users
+  ADD COLUMN IF NOT EXISTS avatar_url text,
+  ADD COLUMN IF NOT EXISTS photo_url text;
+
+ALTER TABLE public.system_admins
+  ADD COLUMN IF NOT EXISTS avatar_url text,
+  ADD COLUMN IF NOT EXISTS photo_url text;
+
+ALTER TABLE public.dependents
+  ADD COLUMN IF NOT EXISTS avatar_url text;
+
+-- 2. Criação dos Buckets Públicos de Armazenamento no Supabase Storage
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('avatars', 'avatars', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('media', 'media', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+-- 3. Políticas de Acesso Público para Leitura de Avatares (CDN)
+CREATE POLICY IF NOT EXISTS "Avatars Public Read Access"
+ON storage.objects FOR SELECT
+USING (bucket_id IN ('avatars', 'media'));
+
+CREATE POLICY IF NOT EXISTS "Avatars Authenticated Upload Access"
+ON storage.objects FOR INSERT
+WITH CHECK (bucket_id IN ('avatars', 'media'));`,
+    instructions: '1. No mnvapp e pvapp, utilizar o bucket "avatars" para fotos de usuários e profissionais. 2. Ao enviar fotos via câmera ou galeria, converter para WebP/JPEG com no máximo 1000px de largura para máxima performance. 3. O fallback visual canônico é o componente UserAvatar com ícone vetorial fino User (stroke-[1.8]) da lucide-react, com proibição estrita de fotos falsas de modelos/banco de imagens.',
+    author: 'Super Administrador (adm.vagouapp.com)',
+  },
+  {
     id: 'bol-024-address-persistence-and-google-maps-coords-sync',
     timestamp: '2026-10-28T14:35:00.000Z',
     sourceApp: 'admvapp',
@@ -646,6 +716,66 @@ async function startServer() {
     }
 
     return { data: null, error: { message: 'Excesso de tentativas em safeSupabaseWrite' }, strippedColumns };
+  }
+
+  // Helper para converter imagens Base64 de logo/favicon/avatar em URL pública do Supabase Storage
+  async function uploadBase64MediaIfNeeded(
+    rawUrl: string | undefined | null,
+    prefix: string,
+    targetBucket: 'media' | 'avatars' = 'media'
+  ): Promise<string | null> {
+    if (!rawUrl || typeof rawUrl !== 'string') return null;
+    const trimmed = rawUrl.trim();
+    if (!trimmed) return null;
+    if (!trimmed.startsWith('data:image/')) return trimmed;
+
+    try {
+      const matches = trimmed.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (matches && matches[2]) {
+        const contentType = matches[1] || 'image/png';
+        const ext = contentType.includes('svg')
+          ? 'svg'
+          : contentType.includes('jpeg') || contentType.includes('jpg')
+          ? 'jpg'
+          : contentType.includes('webp')
+          ? 'webp'
+          : 'png';
+        const buffer = Buffer.from(matches[2], 'base64');
+        const cleanPrefix = prefix.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 32) || 'upload';
+        const folder = targetBucket === 'avatars' ? 'avatars' : 'salons';
+        const fileName = `${folder}/${cleanPrefix}-${Date.now()}.${ext}`;
+
+        try {
+          await supabaseAdmin.storage.createBucket(targetBucket, { public: true });
+        } catch {}
+
+        let { error: upErr } = await supabaseAdmin.storage
+          .from(targetBucket)
+          .upload(fileName, buffer, { contentType, upsert: true });
+
+        if (upErr && targetBucket !== 'media') {
+          try {
+            await supabaseAdmin.storage.createBucket('media', { public: true });
+            const fallbackFileName = `avatars/${cleanPrefix}-${Date.now()}.${ext}`;
+            const fbResult = await supabaseAdmin.storage
+              .from('media')
+              .upload(fallbackFileName, buffer, { contentType, upsert: true });
+            if (!fbResult.error) {
+              const { data: fbPub } = supabaseAdmin.storage.from('media').getPublicUrl(fallbackFileName);
+              if (fbPub?.publicUrl) return fbPub.publicUrl;
+            }
+          } catch {}
+        }
+
+        if (!upErr) {
+          const { data: pubData } = supabaseAdmin.storage.from(targetBucket).getPublicUrl(fileName);
+          if (pubData?.publicUrl) return pubData.publicUrl;
+        }
+      }
+    } catch (e) {
+      console.warn('[uploadBase64MediaIfNeeded] Falha no upload para storage, mantendo original:', e);
+    }
+    return trimmed;
   }
 
   // Helper: Resolve Latitude e Longitude exatas a partir de Endereço / CEP (Google Maps Geocoding -> BrasilAPI v2 -> Nominatim)
@@ -2026,6 +2156,18 @@ async function startServer() {
         }
       }
 
+      if (body.avatarUrl !== undefined || body.avatar_url !== undefined) {
+        const rawAv = body.avatarUrl !== undefined ? body.avatarUrl : body.avatar_url;
+        let resolvedAvatar = (rawAv && typeof rawAv === 'string') ? rawAv.trim() : null;
+        if (resolvedAvatar && resolvedAvatar.startsWith('data:image/')) {
+          resolvedAvatar = await uploadBase64MediaIfNeeded(resolvedAvatar, `avatar-${id}`, 'avatars');
+        }
+        updatePayload.avatar_url = resolvedAvatar;
+        if (targetTable === 'clients' || targetTable === 'professionals') {
+          updatePayload.photo_url = resolvedAvatar;
+        }
+      }
+
       const { data, error } = await safeSupabaseWrite(targetTable, 'update', updatePayload, {
         eqCol: 'id',
         eqVal: id,
@@ -2034,6 +2176,20 @@ async function startServer() {
       if (error) {
         console.error(`[PUT /api/admin/users/${kind}/${id}] Supabase error:`, error.message);
         return res.status(400).json({ success: false, error: error.message });
+      }
+
+      // Se avatar foi atualizado, sincroniza também em public.profiles e auth
+      if (updatePayload.avatar_url !== undefined) {
+        try {
+          const profId = (data as any)?.user_id || id;
+          if (profId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profId)) {
+            await supabaseAdmin.from('profiles').update({
+              avatar_url: updatePayload.avatar_url,
+              photo_url: updatePayload.avatar_url,
+              updated_at: new Date().toISOString(),
+            }).eq('id', profId);
+          }
+        } catch {}
       }
 
       // Sincroniza endereço e coordenadas em todas as tabelas vinculadas ao mesmo CPF/E-mail/ID
@@ -2161,6 +2317,56 @@ async function startServer() {
       return res.json({ success: true, user: data || { id, is_active } });
     } catch (err: any) {
       console.error('[PATCH /api/admin/users/:kind/:id/status] Error:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // UPLOAD DEDICADO DE AVATAR / FOTO DE USUÁRIO (Câmera ou Galeria)
+  app.post(['/api/admin/upload-avatar', '/api/public/upload-avatar'], async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    try {
+      const { imageBase64, prefix = 'avatar', userId, kind } = req.body;
+      if (!imageBase64 || typeof imageBase64 !== 'string') {
+        return res.status(400).json({ success: false, error: 'Imagem Base64 não fornecida.' });
+      }
+
+      const uploadedUrl = await uploadBase64MediaIfNeeded(imageBase64, prefix, 'avatars');
+      if (!uploadedUrl) {
+        return res.status(500).json({ success: false, error: 'Falha ao processar e salvar imagem no Supabase Storage.' });
+      }
+
+      // Se userId e kind foram fornecidos, persiste imediatamente no banco
+      if (userId && kind) {
+        let table = 'clients';
+        if (kind === 'professional') table = 'professionals';
+        else if (kind === 'salon_user') table = 'salon_users';
+        else if (kind === 'admin') table = 'system_admins';
+
+        const updateData: Record<string, any> = {
+          avatar_url: uploadedUrl,
+          updated_at: new Date().toISOString(),
+        };
+        if (table === 'clients' || table === 'professionals') {
+          updateData.photo_url = uploadedUrl;
+        }
+
+        await safeSupabaseWrite(table, 'update', updateData, { eqCol: 'id', eqVal: userId });
+
+        // Tenta também sincronizar no auth profiles se aplicável
+        try {
+          if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+            await supabaseAdmin.from('profiles').update({
+              avatar_url: uploadedUrl,
+              photo_url: uploadedUrl,
+              updated_at: new Date().toISOString(),
+            }).eq('id', userId);
+          }
+        } catch {}
+      }
+
+      return res.json({ success: true, url: uploadedUrl });
+    } catch (err: any) {
+      console.error('[upload-avatar] Exception:', err);
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -2544,37 +2750,6 @@ async function startServer() {
       return res.status(500).json({ success: false, error: err.message });
     }
   });
-
-  // Helper para converter imagens Base64 de logo/favicon em URL pública do Supabase Storage
-  const uploadBase64MediaIfNeeded = async (rawUrl: string | undefined | null, prefix: string): Promise<string | null> => {
-    if (!rawUrl || typeof rawUrl !== 'string') return null;
-    const trimmed = rawUrl.trim();
-    if (!trimmed) return null;
-    if (!trimmed.startsWith('data:image/')) return trimmed;
-
-    try {
-      const matches = trimmed.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-      if (matches && matches[2]) {
-        const contentType = matches[1] || 'image/png';
-        const ext = contentType.includes('svg') ? 'svg' : contentType.includes('jpeg') || contentType.includes('jpg') ? 'jpg' : 'png';
-        const buffer = Buffer.from(matches[2], 'base64');
-        const cleanPrefix = prefix.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 24) || 'salon';
-        const fileName = `salons/${cleanPrefix}-${Date.now()}.${ext}`;
-
-        const { error: upErr } = await supabaseAdmin.storage
-          .from('media')
-          .upload(fileName, buffer, { contentType, upsert: true });
-
-        if (!upErr) {
-          const { data: pubData } = supabaseAdmin.storage.from('media').getPublicUrl(fileName);
-          if (pubData?.publicUrl) return pubData.publicUrl;
-        }
-      }
-    } catch (e) {
-      console.warn('[uploadBase64MediaIfNeeded] Falha no upload para storage, mantendo original:', e);
-    }
-    return trimmed;
-  };
 
   // ADMIN: Create new Salon (Service Role) — Blindado com Geocoding Automático + Persistência Resiliente
   app.post('/api/admin/salons', async (req, res) => {

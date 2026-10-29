@@ -3386,6 +3386,14 @@ export async function updateUnifiedUserData(
       else dbPayload.is_active = payload.isActive;
     }
 
+    if (payload.avatarUrl !== undefined || payload.avatar_url !== undefined) {
+      const av = payload.avatarUrl !== undefined ? payload.avatarUrl : payload.avatar_url;
+      dbPayload.avatar_url = av || null;
+      if (table === 'clients' || table === 'professionals') {
+        dbPayload.photo_url = av || null;
+      }
+    }
+
     const { error } = await supabaseAdmin.from(table).update(dbPayload).eq('id', id);
     if (error) {
       return { success: false, error: apiErrorMsg || error.message };
@@ -3393,6 +3401,28 @@ export async function updateUnifiedUserData(
     return { success: true };
   } catch (err: any) {
     return { success: false, error: apiErrorMsg || err?.message || 'Erro ao salvar dados do usuário' };
+  }
+}
+
+export async function uploadUserAvatarImage(
+  imageBase64: string,
+  prefix: string = 'avatar',
+  userId?: string,
+  kind?: string
+): Promise<{ success: boolean; url?: string; error?: string }> {
+  try {
+    const resp = await fetch('/api/admin/upload-avatar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageBase64, prefix, userId, kind }),
+    });
+    const json = await resp.json();
+    if (resp.ok && json.success) {
+      return { success: true, url: json.url };
+    }
+    return { success: false, error: json.error || 'Erro ao carregar avatar' };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Falha na conexão ao enviar foto' };
   }
 }
 

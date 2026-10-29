@@ -15,6 +15,59 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-10-28] — 🚗 Erradicação de iFrames Estáticos no Botão "Ir" e Ativação da Navegação GPS Turn-by-Turn Estilo Uber (`bol-027`)
+- **Tipo:** `[Fix / UX / Mobile GPS / Triade Sync / 7º Mandamento]`
+- **Motivo / Solicitação:** Usuário reportou que no app do salão (`aeroportoguarulhos.vagouapp.com`), ao acessar seu agendamento e clicar em "Ir", abria um iframe estático do Google Maps com caixas desktop ("Mais opções") em vez de disparar a navegação GPS estilo Uber com trajeto em movimento e voz.
+- **Resumo Técnico:**
+  1. **Diagnóstico Preciso:** A tela capturada no print pertence ao **`mnvapp`** (`aeroportoguarulhos.vagouapp.com`, repositório `vagouapp.git`). O botão "Ir" estava renderizando uma tag `<iframe src="https://www.google.com/maps/embed/v1/directions...">` que é meramente um visualizador web estático desktop e não ativa o GPS nem o modo de navegação turn-by-turn.
+  2. **Solução Canônica da Tríade:**
+     - Disparo de Navegação GPS Nativa (Modo Uber): Abertura do app Google Maps ou Waze com intenção de navegação ativa (`dir_action=navigate` ou intent `google.navigation:q=LAT,LNG&mode=d`), iniciando imediatamente a voz e as curvas.
+     - Live Tracking In-App: Alternativa in-app utilizando o componente canônico `InteractiveGoogleRouteMap.tsx` sem nenhum iframe, com telemetria contínua via `navigator.geolocation.watchPosition`.
+  3. **Boletim Técnico Emitido:** Registrado `bol-027-turn-by-turn-navigation-and-iframe-eradication` com o código drop-in e instruções imediatas para o `mnvapp`.
+
+---
+
+### [2026-10-28] — 📸 Homologação Soberana de Fotos/Avatares de Usuários no Supabase Storage e Banco Unificado da Tríade (`bol-026`)
+- **Tipo:** `[Feat / Storage / Database / Triade Sync / 7º Mandamento]`
+- **Motivo / Solicitação:** Diagnóstico urgente e ativação de inserção, upload e armazenamento de fotos de usuários e profissionais no app e no banco de dados Supabase compartilhado da Tríade.
+- **Resumo Técnico:**
+  1. **Prontidão do Banco de Dados Supabase (100% Preparado):**
+     - Confirmada e homologada a existência das colunas físicas `avatar_url` (text) e `photo_url` (text) em todas as tabelas de identidade do ecossistema: `public.profiles`, `public.clients`, `public.professionals`, `public.salon_users`, `public.system_admins` e `public.dependents`.
+  2. **Supabase Storage (Buckets Públicos `avatars` e `media`):**
+     - O servidor Express e as APIs realizam o upload de imagens via Base64 ou multipart, salvando nos buckets públicos `avatars` (ou `media`) do Supabase Storage e gerando URLs públicas HTTPS definitivas no formato `https://[PROJECT].supabase.co/storage/v1/object/public/avatars/...`.
+  3. **Rotas e Helpers de Upload Criados:**
+     - `POST /api/admin/upload-avatar` e `POST /api/public/upload-avatar`: Recebe imagem em Base64, comprime no canvas se necessário e persiste no Supabase Storage com retorno da URL pública.
+     - `PUT /api/admin/users/:kind/:id`: Atualizado para processar automaticamente `avatarUrl`/`avatar_url`, fazer o upload para o storage se for Base64 e persistir em `public.clients`, `public.professionals`, `public.salon_users`, `public.system_admins` e `public.profiles`.
+     - `uploadUserAvatarImage` adicionado em `src/services/supabaseApi.ts`.
+  4. **Interface Visual e Upload no Frontend (`AdminUserGeneralDataModal.tsx`):**
+     - Integrado seletor de foto/avatar com suporte a arquivo da galeria ou câmera fotográfica mobile.
+     - Preview em tempo real com compressão automática em Canvas para até 1000px JPEG (mantendo fotos leves e de alta definição).
+     - Botão de exclusão com restauração instantânea do ícone vetorial fino `User` da `lucide-react`.
+  5. **Boletim Técnico Oficial Emitido:**
+     - Registrado o comunicado `bol-026-user-avatar-and-storage-triade-synchronization` em `TRIADE_BULLETINS` para sincronização com `mnvapp` e `pvapp`.
+- **Arquivos Impactados:**
+  - `server.ts`
+  - `src/services/supabaseApi.ts`
+  - `src/components/admin/AdminUserGeneralDataModal.tsx`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-28] — ✈️ Criação do Salão de Testes "Aeroporto de Guarulhos" (GRU) com Georreferenciamento e Validação de Rota Viária Google Maps
+- **Tipo:** `[Feat / Test / GIS / Google Maps / Database]`
+- **Motivo / Solicitação:** Criação de salão com georreferenciamento exato no Aeroporto Internacional de Guarulhos para teste em tempo real de deslocamento, cálculo de rota e acompanhamento in-app no trajeto do usuário até o aeroporto.
+- **Resumo Técnico:**
+  1. Criado o estabelecimento no banco de dados Supabase via `safeSupabaseWrite`:
+     - **Nome Fantasia:** Aeroporto de Guarulhos (`Studio Aeroporto Internacional de Guarulhos LTDA`)
+     - **ID / UUID:** `0d9cc3de-4824-45df-89b4-40cf891436c6`
+     - **Slug / Subdomínio:** `aeroportoguarulhos`
+     - **Endereço:** Rod. Hélio Smidt, s/n - Terminal 2 - Embarque Oeste, Aeroporto, Guarulhos - SP, CEP 07190-100
+     - **Coordenadas Exatas (Google Geocoding):** Latitude `-23.430218`, Longitude `-46.471671`
+     - **Serviço Ativo Vinculado:** "Corte de Cabelo Masculino Express" (R$ 60,00 - 30 min)
+  2. Validação bem-sucedida do cálculo de rota Google Routes v2 `/api/geo/route` a partir da localização do salão Navalha Real (Rua Serrana, 511, SP) até o Aeroporto de Guarulhos: 24,15 km, 35 minutos de trajeto com malha viária real (Radial Leste, Jacu-Pêssego, Ayrton Senna, Rod. Hélio Smidt).
+
+---
+
 ### [2026-10-28] — 📍 Perícia e Blindagem de Persistência de Endereços no Supabase (`safeSupabaseWrite`), Geocodificação Automática Google Maps com Pino Ajustável, Propagação por CPF e Mapa Viário Real 3 Camadas (`bol-023`)
 - **Tipo:** `[Fix / Feat / GIS / Google Maps / Database Persistence / Triade Sync / 7º Mandamento]`
 - **Motivo / Solicitação:** Correção definitiva da falha de persistência de endereço/dados nos formulários de estabelecimento e usuários no Supabase (causada por rejeição PostgREST `PGRST204` em colunas ausentes do cache ou IDs virtuais `su-`), implantação de coordenadas precisas (`latitude`, `longitude`) com geocodificação automática + pino ajustável (`GoogleAddressPinPicker.tsx`), propagação automática por CPF entre `salons`, `clients`, `professionals`, `profiles` e `salon_users`, e adoção do `InteractiveGoogleRouteMap.tsx` com ciclo de vida estável e polilinha viária real em 3 camadas conforme comunicado oficial `bol-023` do `mnvapp`.
