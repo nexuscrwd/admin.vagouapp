@@ -52,9 +52,11 @@ export interface AdminSalonItem {
   has_cnpj?: boolean;
   owner_cpf?: string;
   operating_model?: 'physical' | 'home_service' | 'hybrid' | string;
+  home_delivery_enabled?: boolean;
   commission_rate?: number;
-  billing_plan?: 'subscription' | 'per_booking' | string;
+  billing_plan?: 'PER_APPOINTMENT' | 'SUBSCRIPTION' | 'subscription' | 'per_booking' | string;
   fee_per_booking?: number;
+  billing_fee_value?: number;
   monthly_subscription_fee?: number;
   billing_due_day?: number;
   pix_key?: string;
@@ -85,6 +87,8 @@ export interface AdminSalonItem {
   secondary_color?: string;
   operating_hours?: DayOperatingHour[];
   created_at?: string;
+  updated_at?: string;
+  created_via?: string;
   professionals_count?: number;
   active_offers_count?: number;
   fixed_clients_count?: number;
@@ -116,6 +120,7 @@ export interface AdminSalonItem {
   nav_style?: SalonNavStyle;
   nav_shape?: SalonNavShape;
   nav_border?: SalonNavBorder;
+  nav_icon_border?: SalonNavBorder;
   nav_bg_style?: SalonNavBgStyle;
   nav_bg_color?: string;
   nav_btn_bg_color?: string;
@@ -160,12 +165,14 @@ export interface SalonUiSettings {
   nav_style?: SalonNavStyle;
   nav_shape?: SalonNavShape;
   nav_border?: SalonNavBorder;
+  nav_icon_border?: SalonNavBorder;
   nav_bg_style?: SalonNavBgStyle;
   nav_bg_color?: string;
   nav_btn_bg_color?: string;
   nav_btn_active_bg_color?: string;
   nav_active_color?: string;
   nav_text_color?: string;
+  branding_snapshot?: Record<string, any>;
   raw_settings?: Record<string, any>;
   created_at?: string;
   updated_at?: string;
@@ -244,6 +251,8 @@ export interface SystemAdminUser {
   dependents_count?: number;
   total_appointments?: number;
   created_at?: string;
+  updated_at?: string;
+  created_via?: string;
   last_login_at?: string;
   password?: string;
 }
@@ -302,9 +311,29 @@ export interface AdminAppointmentItem {
   professional_id?: string;
   professional_name?: string;
   price: number;
+  discount?: number;
+  final_price?: number;
+  commission_fee?: number;
+  is_paid?: boolean;
+  paid_at?: string | null;
+  payment_status?: 'pending' | 'paid' | 'refunded' | string;
+  payment_method?: string | null;
   appointment_date: string;
+  date_str?: string;
   time_slot: string;
-  status: 'confirmado' | 'em_atendimento' | 'concluido' | 'cancelado' | 'no_show';
+  start_time?: string;
+  end_time?: string;
+  status: 'pendente' | 'confirmado' | 'em_atendimento' | 'concluido' | 'cancelado' | 'no_show' | 'BLOQUEADO';
+  is_blocked_slot?: boolean;
+  block_reason?: string | null;
+  swap_state?: Record<string, any> | null;
+  collision_warning?: {
+    has_collision: boolean;
+    reason?: string;
+    conflicting_salon_name?: string;
+    conflicting_time?: string;
+    travel_buffer_minutes?: number;
+  } | null;
   is_radar_offer: boolean;
   radar_discount_percent?: number;
   billing_status: 'unbilled' | 'billed' | 'paid';
@@ -365,6 +394,7 @@ export interface UserFamilyDependent {
   is_unlinked: boolean; // Soft delete / desvinculado pelo titular
   unlinked_at?: string;
   created_at: string;
+  created_via?: string;
 }
 
 // Usuário Cliente (Titular ou Emancipado)
@@ -392,7 +422,13 @@ export interface UserClientItem {
   completed_appointments: number;
   no_show_count: number;
   dependents: UserFamilyDependent[];
+  security_question_code?: string | null;
+  has_security_question?: boolean;
+  security_questions_configured?: string[];
+  origin_type?: string;
+  created_via?: string;
   created_at: string;
+  updated_at?: string;
   last_appointment_at?: string;
 }
 
@@ -424,7 +460,9 @@ export interface UserSalonAccessItem {
   can_manage_professionals: boolean;
   total_appointments?: number;
   dependents_count?: number;
+  created_via?: string;
   created_at: string;
+  updated_at?: string;
   last_login_at?: string;
 }
 
@@ -462,7 +500,9 @@ export interface UserProfessionalItem {
   total_appointments?: number;
   dependents_count?: number;
   rating: number;
+  created_via?: string;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface SalonServiceMediaItem {

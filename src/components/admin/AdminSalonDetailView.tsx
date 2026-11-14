@@ -54,6 +54,7 @@ import {
   SlidersHorizontal,
   Smartphone,
   Compass,
+  MapPin,
 } from 'lucide-react';
 import {
   AdminSalonItem,
@@ -82,6 +83,7 @@ import { TriadeMnvClientLoginForm } from './triade-forms/TriadeMnvClientLoginFor
 import { TriadeUserRegisterForm } from './triade-forms/TriadeUserRegisterForm';
 import { SalonWelcomeModal } from './SalonWelcomeModal';
 import { AdminSalonUtilitiesAndSyncPanel, SalonUtilitiesData } from './AdminSalonUtilitiesAndSyncPanel';
+import { formatCreatedAtParts, resolveRecordOriginInfo } from '../../utils/dateTimeFormat';
 
 const CHAMELEON_THEME_PRESETS = [
   { id: 'emerald', name: 'Esmeralda Vagou', primary: '#20C933', secondary: '#059669' },
@@ -132,7 +134,13 @@ export interface SalonProfessionalRecord {
 
 export type SalonMediaMainTab = 'fotos' | 'videos' | 'imagens';
 export type SalonMediaSubTab = 'all' | 'servicos' | 'profissionais' | 'espaco' | 'banner' | 'logotipo';
-export type SalonThemePresetId = 'emerald-dark' | 'gold-luxury' | 'rose-glam' | 'purple-neon' | 'clean-light';
+export type SalonThemePresetId =
+  | 'pastel-light-mint'
+  | 'emerald-dark'
+  | 'gold-luxury'
+  | 'rose-glam'
+  | 'purple-neon'
+  | 'clean-light';
 
 export interface SalonMediaItem {
   id: string;
@@ -157,37 +165,38 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [isWelcomeQrModalOpen, setIsWelcomeQrModalOpen] = useState(false);
 
-  // Estado do Tema Camaleão & Identidade Visual (Sincronizado com mnvapp)
+  // Estado do Tema Camaleão & Identidade Visual (Sincronizado com mnvapp — SQL v5.0 Pastel Light Mint)
   const [themeForm, setThemeForm] = useState({
-    themePresetId: (salon.theme_preset_id as SalonThemePresetId) || 'emerald-dark',
-    primaryColor: salon.primary_color || '#20C933',
-    secondaryColor: salon.secondary_color || '#059669',
+    themePresetId: (salon.theme_preset_id as SalonThemePresetId) || 'pastel-light-mint',
+    primaryColor: salon.primary_color || '#10B981',
+    secondaryColor: salon.secondary_color || '#065F46',
     facadePhotoUrl: salon.facade_photo_url || '',
     interiorPhotoUrl: salon.interior_photo_url || '',
     logoDarkUrl: salon.logo_dark_url || salon.logo_url || '',
     logoLightUrl: salon.logo_light_url || salon.logo_url || '',
-    // Configurações Físicas de UI / Layout (Tríade Sync)
-    defaultTheme: (salon.default_theme as SalonThemeMode) || 'dark',
+    // Configurações Físicas de UI / Layout (Tríade Sync v5.0 — bol-158 / bol-159)
+    defaultTheme: (salon.default_theme as SalonThemeMode) || 'light',
     pwaName: salon.pwa_name || salon.trade_name || '',
     showSlogan: salon.show_slogan ?? true,
     logoTextFallback: salon.logo_text_fallback || '',
-    logoTextColor: salon.logo_text_color || '#10b981',
+    logoTextColor: salon.logo_text_color || '#10B981',
     showHeroSlides: salon.show_hero_slides ?? true,
     welcomeStyle: (salon.welcome_style as SalonWelcomeStyle) || 'atmospheric',
-    sectionHeaderBgColor: salon.section_header_bg_color || '',
-    sectionHeaderTextColor: salon.section_header_text_color || '',
-    sectionHeaderIconColor: salon.section_header_icon_color || '#10b981',
-    sectionHeaderBgStyle: (salon.section_header_bg_style as SalonSectionHeaderBgStyle) || 'glass',
+    sectionHeaderBgColor: salon.section_header_bg_color || '#ECFDF5',
+    sectionHeaderTextColor: salon.section_header_text_color || '#065F46',
+    sectionHeaderIconColor: salon.section_header_icon_color || '#059669',
+    sectionHeaderBgStyle: (salon.section_header_bg_style as SalonSectionHeaderBgStyle) || 'solid',
     sectionHeaderBorder: (salon.section_header_border as SalonSectionHeaderBorder) || 'bordered',
     navStyle: (salon.nav_style as SalonNavStyle) || 'minimal',
     navShape: (salon.nav_shape as SalonNavShape) || 'square',
     navBorder: (salon.nav_border as SalonNavBorder) || 'bordered',
-    navBgStyle: (salon.nav_bg_style as SalonNavBgStyle) || 'glass',
-    navBgColor: salon.nav_bg_color || '',
+    navIconBorder: (salon.nav_icon_border as 'none' | 'bordered') || 'none',
+    navBgStyle: (salon.nav_bg_style as SalonNavBgStyle) || 'solid',
+    navBgColor: salon.nav_bg_color || '#D1FAE5',
     navBtnBgColor: salon.nav_btn_bg_color || '',
-    navBtnActiveBgColor: salon.nav_btn_active_bg_color || '',
-    navActiveColor: salon.nav_active_color || '#10b981',
-    navTextColor: salon.nav_text_color || '',
+    navBtnActiveBgColor: salon.nav_btn_active_bg_color || '#FFFFFF',
+    navActiveColor: salon.nav_active_color || '#10B981',
+    navTextColor: salon.nav_text_color || '#065F46',
   });
   const [isSavingTheme, setIsSavingTheme] = useState(false);
   const [themeSaveSuccess, setThemeSaveSuccess] = useState(false);
@@ -196,38 +205,25 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
   const [isCuratedPresetsModalOpen, setIsCuratedPresetsModalOpen] = useState(false);
   const [curatedPresetTargetServiceId, setCuratedPresetTargetServiceId] = useState<string | null>(null);
   const [curatedPresetCategoryFilter, setCuratedPresetCategoryFilter] = useState<string>('all');
-  const [previewNavTab, setPreviewNavTab] = useState<'home' | 'services' | 'appointments' | 'profile'>('home');
+  const [previewNavTab, setPreviewNavTab] = useState<'home' | 'services' | 'appointments' | 'space'>('home');
 
-  // Estado de Utilidades Operacionais (Energia, Água, Equipamentos, DRE e Estoque)
+  // Estado de Utilidades Operacionais (Zero Mocks — Carregado exclusivamente do Supabase)
   const [utilitiesData, setUtilitiesData] = useState<SalonUtilitiesData>({
-    energyMeters: [{ id: 'em-1', name: 'Quadro Geral Salão (Bifásico)', code: 'UC-78945120', tariffPerKwh: 0.92, status: 'active' }],
-    energyReadings: [
-      { id: 'er-1', meterId: 'em-1', readingKwh: 1420, costEstimated: 386.4, date: '2026-10-01', notes: 'Leitura mensal consolidada' },
-      { id: 'er-2', meterId: 'em-1', readingKwh: 1615, costEstimated: 179.4, date: '2026-10-15', notes: 'Quinzena atual' },
-    ],
-    waterMeters: [{ id: 'wm-1', name: 'Hidrômetro Lavatórios & Spa', code: 'SABESP-44129', tariffPerM3: 14.5, status: 'active' }],
-    waterReadings: [
-      { id: 'wr-1', meterId: 'wm-1', readingM3: 118.5, costEstimated: 261.0, date: '2026-10-01', notes: 'Consumo normal lavatórios' },
-      { id: 'wr-2', meterId: 'wm-1', readingM3: 127.0, costEstimated: 123.25, date: '2026-10-15', notes: 'Sem vazamentos' },
-    ],
-    appliances: [
-      { id: 'ap-1', name: 'Secador Profissional Taiff 2400W (x3)', category: 'Bancada', powerWatts: 7200, dailyHours: 4.5, monthlyKwh: 972 },
-      { id: 'ap-2', name: 'Ar Condicionado Inverter 18.000 BTUs', category: 'Climatização', powerWatts: 1600, dailyHours: 8, monthlyKwh: 384 },
-    ],
+    energyMeters: [],
+    energyReadings: [],
+    waterMeters: [],
+    waterReadings: [],
+    appliances: [],
     financialDre: {
-      grossRevenue: 18450,
-      commissionsPaid: 7380,
-      fixedCosts: 3200,
-      utilitiesCost: 750,
-      suppliesCost: 1120,
-      netProfit: 6000,
+      grossRevenue: 0,
+      commissionsPaid: 0,
+      fixedCosts: 0,
+      utilitiesCost: 0,
+      suppliesCost: 0,
+      netProfit: 0,
       updatedAt: new Date().toISOString().slice(0, 10),
     },
-    inventoryItems: [
-      { id: 'inv-1', name: 'Pomada Modeladora Matte 120g', category: 'Finalizadores', stockQty: 18, minQty: 5, unitCost: 22.5, sellPrice: 55.0 },
-      { id: 'inv-2', name: 'Shampoo Neutro Galão 5L', category: 'Lavatório', stockQty: 4, minQty: 2, unitCost: 68.0, sellPrice: 0 },
-      { id: 'inv-3', name: 'Lâminas Descartáveis (Caixa c/ 100)', category: 'Descartáveis', stockQty: 3, minQty: 5, unitCost: 39.9, sellPrice: 0 },
-    ],
+    inventoryItems: [],
   });
 
   // Modal de Cadastro / Edição de Profissional na Equipe (public.professionals)
@@ -347,16 +343,16 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
       if (resp.ok) {
         const json = await resp.json();
         if (json.success) {
-          if (Array.isArray(json.services) && json.services.length > 0) {
+          if (Array.isArray(json.services)) {
             setServices(json.services);
           }
-          if (Array.isArray(json.mediaItems) && json.mediaItems.length > 0) {
+          if (Array.isArray(json.mediaItems)) {
             setSalonMedia(json.mediaItems);
           }
-          if (Array.isArray(json.professionals) && json.professionals.length > 0) {
+          if (Array.isArray(json.professionals)) {
             setTeam(json.professionals);
           }
-          if (Array.isArray(json.clients) && json.clients.length > 0) {
+          if (Array.isArray(json.clients)) {
             setClients(json.clients);
           }
           if (json.utilities) {
@@ -390,6 +386,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
               navStyle: u.nav_style || s.nav_style || b.navStyle || prev.navStyle,
               navShape: u.nav_shape || s.nav_shape || b.navShape || prev.navShape,
               navBorder: u.nav_border || s.nav_border || b.navBorder || prev.navBorder,
+              navIconBorder: u.nav_icon_border || s.nav_icon_border || b.navIconBorder || prev.navIconBorder,
               navBgStyle: u.nav_bg_style || s.nav_bg_style || b.navBgStyle || prev.navBgStyle,
               navBgColor: u.nav_bg_color || s.nav_bg_color || b.navBgColor || prev.navBgColor,
               navBtnBgColor: u.nav_btn_bg_color || s.nav_btn_bg_color || b.navBtnBgColor || prev.navBtnBgColor,
@@ -444,58 +441,26 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             }))
           );
         } else {
-          // Fallback padrão simulado com base no dono e dados
-          setTeam([
-            {
-              id: salon.owner_id || 'pro-1',
-              name: salon.owner_name || salon.legal_name || 'Beto Roberto (Proprietário)',
-              role: 'Proprietário & Master Stylist',
-              access_level: 'admin',
-              phone: salon.phone_whatsapp || '(11) 98765-4321',
-              avatar_url: salon.owner_avatar_url || '',
-              commission_rate: 100,
-              is_active: true,
-              services_count: 8,
-            },
-            {
-              id: 'pro-2',
-              name: 'Lucas Ferreira',
-              role: 'Barbeiro / Especialista em Degradê',
-              phone: '(11) 97654-3210',
-              avatar_url: '',
-              commission_rate: 60,
-              is_active: true,
-              services_count: 4,
-            },
-            {
-              id: 'pro-3',
-              name: 'Camila Alcantara',
-              role: 'Manicure & Designer de Unhas',
-              phone: '(11) 98888-2222',
-              avatar_url: '',
-              commission_rate: 55,
-              is_active: true,
-              services_count: 6,
-            },
-          ]);
+          setTeam([]);
         }
 
-        // 2. Busca Clientes (via appointments ou clients)
+        // 2. Busca Clientes reais (via appointments)
         const { data: apptsData } = await supabase
           .from('appointments')
           .select('client_id, client_name, client_phone, client_email, appointment_date, status')
           .eq('salon_id', salon.id)
-          .limit(20);
+          .limit(50);
 
         if (apptsData && apptsData.length > 0) {
           const clientMap = new Map<string, SalonClientRecord>();
           apptsData.forEach((apt) => {
             const key = apt.client_id || apt.client_email || apt.client_name;
+            if (!key) return;
             if (!clientMap.has(key)) {
               clientMap.set(key, {
                 id: apt.client_id || `cl-${Math.random()}`,
                 name: apt.client_name || 'Cliente Cadastrado',
-                phone: apt.client_phone || '(11) 99999-9999',
+                phone: apt.client_phone || '',
                 email: apt.client_email || '',
                 total_appointments: 1,
                 last_appointment_date: apt.appointment_date,
@@ -508,48 +473,10 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
           });
           setClients(Array.from(clientMap.values()));
         } else {
-          // Fallback clientes da casa
-          setClients([
-            {
-              id: 'cl-1',
-              name: 'Carlos Eduardo Mendes',
-              phone: '(11) 98111-2233',
-              email: 'carlos.mendes@gmail.com',
-              total_appointments: 14,
-              last_appointment_date: '2026-10-02',
-              status: 'active',
-            },
-            {
-              id: 'cl-2',
-              name: 'Marcelo Pires de Castro',
-              phone: '(11) 99222-4455',
-              email: 'marcelo.pires@outlook.com',
-              total_appointments: 8,
-              last_appointment_date: '2026-09-28',
-              status: 'active',
-            },
-            {
-              id: 'cl-3',
-              name: 'Renata Silva Santos',
-              phone: '(11) 97333-6677',
-              email: 'renata.silva@uol.com.br',
-              total_appointments: 6,
-              last_appointment_date: '2026-09-25',
-              status: 'active',
-            },
-            {
-              id: 'cl-4',
-              name: 'Gabriel Martins',
-              phone: '(11) 98444-8899',
-              email: 'gabriel.martins@gmail.com',
-              total_appointments: 3,
-              last_appointment_date: '2026-09-15',
-              status: 'active',
-            },
-          ]);
+          setClients([]);
         }
 
-        // 3. Busca Catálogo de Serviços (tabela 'services' do Supabase)
+        // 3. Busca Catálogo de Serviços reais (tabela 'services')
         setIsLoadingServices(true);
         const { data: servData } = await supabase
           .from('services')
@@ -562,7 +489,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             servData.map((s) => ({
               id: s.id,
               salon_id: s.salon_id,
-              name: s.name || 'Serviço',
+              name: s.name || s.title || 'Serviço',
               description: s.description || '',
               category: s.category || 'Geral',
               price: typeof s.price === 'number' ? s.price : Number(s.price) || 0,
@@ -577,427 +504,33 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             }))
           );
         } else {
-          // Fallback contextualizado para o segmento do salão com Mídias e Slides
-          const isBarbershop = salon.category === 'barbearia' || salon.slug?.toLowerCase().includes('barber');
-          const defaultServices: SalonServiceRecord[] = isBarbershop
-            ? [
-                {
-                  id: 'srv-1',
-                  salon_id: salon.id,
-                  name: 'Corte Degradê Navalhado (Fade)',
-                  description: 'Corte moderno com acabamento na lâmina e toalha quente.',
-                  category: 'Cabelo',
-                  price: 55,
-                  duration_minutes: 40,
-                  is_active: true,
-                  target_audience: 'men',
-                  photos: [
-                    'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800&auto=format&fit=crop&q=80',
-                    'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800&auto=format&fit=crop&q=80',
-                    'https://images.unsplash.com/photo-1621605815971-fbc98d665033?w=800&auto=format&fit=crop&q=80',
-                  ],
-                  videos: [
-                    {
-                      id: 'v-1',
-                      url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-                      title: 'Fade em 360° - 5s',
-                      duration_seconds: 5,
-                    },
-                  ],
-                  slides: [
-                    'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800&auto=format&fit=crop&q=80',
-                    'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800&auto=format&fit=crop&q=80',
-                    'https://images.unsplash.com/photo-1621605815971-fbc98d665033?w=800&auto=format&fit=crop&q=80',
-                    'https://images.unsplash.com/photo-1599351431202-1e0f0137899a?w=800&auto=format&fit=crop&q=80',
-                  ],
-                },
-                {
-                  id: 'srv-2',
-                  salon_id: salon.id,
-                  name: 'Barboterapia & Alinhamento',
-                  description: 'Vapor de ozônio, óleos essenciais, hidratação e navalha.',
-                  category: 'Barba',
-                  price: 45,
-                  duration_minutes: 30,
-                  is_active: true,
-                  target_audience: 'men',
-                  photos: [
-                    'https://images.unsplash.com/photo-1621605815971-fbc98d665033?w=800&auto=format&fit=crop&q=80',
-                    'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800&auto=format&fit=crop&q=80',
-                  ],
-                  videos: [
-                    {
-                      id: 'v-2',
-                      url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-                      title: 'Toalha quente e navalha 5s',
-                      duration_seconds: 5,
-                    },
-                  ],
-                  slides: [
-                    'https://images.unsplash.com/photo-1621605815971-fbc98d665033?w=800&auto=format&fit=crop&q=80',
-                    'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800&auto=format&fit=crop&q=80',
-                    'https://images.unsplash.com/photo-1599351431202-1e0f0137899a?w=800&auto=format&fit=crop&q=80',
-                  ],
-                },
-                {
-                  id: 'srv-3',
-                  salon_id: salon.id,
-                  name: 'Combo Master (Corte + Barba + Sobrancelha)',
-                  description: 'Experiência completa com direito a higienização capilar.',
-                  category: 'Combos',
-                  price: 90,
-                  duration_minutes: 60,
-                  is_active: true,
-                  target_audience: 'men',
-                  photos: [
-                    'https://images.unsplash.com/photo-1599351431202-1e0f0137899a?w=800&auto=format&fit=crop&q=80',
-                    'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800&auto=format&fit=crop&q=80',
-                  ],
-                  videos: [],
-                  slides: [
-                    'https://images.unsplash.com/photo-1599351431202-1e0f0137899a?w=800&auto=format&fit=crop&q=80',
-                    'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800&auto=format&fit=crop&q=80',
-                  ],
-                },
-                {
-                  id: 'srv-4',
-                  salon_id: salon.id,
-                  name: 'Pigmentação de Barba & Cabelo',
-                  description: 'Correção de falhas e realce de linhas com tinta especial.',
-                  category: 'Tratamentos',
-                  price: 40,
-                  duration_minutes: 25,
-                  is_active: true,
-                  target_audience: 'men',
-                  photos: [
-                    'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800&auto=format&fit=crop&q=80',
-                  ],
-                  videos: [],
-                  slides: [],
-                },
-                {
-                  id: 'srv-5',
-                  salon_id: salon.id,
-                  name: 'Selagem Capilar Antifrizz',
-                  description: 'Alinhamento térmico suave com redução de volume.',
-                  category: 'Tratamentos',
-                  price: 110,
-                  duration_minutes: 50,
-                  is_active: false,
-                  target_audience: 'all',
-                  photos: [],
-                  videos: [],
-                  slides: [],
-                },
-              ]
-            : [
-                {
-                  id: 'srv-1',
-                  salon_id: salon.id,
-                  name: 'Corte Feminino com Finalização',
-                  description: 'Visagismo, lavagem especial com massagem e escova modeladora.',
-                  category: 'Cabelo',
-                  price: 120,
-                  duration_minutes: 50,
-                  is_active: true,
-                  target_audience: 'women',
-                  photos: [
-                    'https://images.unsplash.com/photo-1560869713-7d0a29430803?w=800&auto=format&fit=crop&q=80',
-                    'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&auto=format&fit=crop&q=80',
-                  ],
-                  videos: [
-                    {
-                      id: 'v-3',
-                      url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-                      title: 'Movimento e Escova 5s',
-                      duration_seconds: 5,
-                    },
-                  ],
-                  slides: [
-                    'https://images.unsplash.com/photo-1560869713-7d0a29430803?w=800&auto=format&fit=crop&q=80',
-                    'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&auto=format&fit=crop&q=80',
-                    'https://images.unsplash.com/photo-1580618672591-eb180b1a973f?w=800&auto=format&fit=crop&q=80',
-                  ],
-                },
-                {
-                  id: 'srv-2',
-                  salon_id: salon.id,
-                  name: 'Mechas Criativas & Iluminação',
-                  description: 'Técnica personalizada com proteção dos fios (Plex).',
-                  category: 'Coloração',
-                  price: 320,
-                  duration_minutes: 180,
-                  is_active: true,
-                  target_audience: 'women',
-                  photos: [
-                    'https://images.unsplash.com/photo-1580618672591-eb180b1a973f?w=800&auto=format&fit=crop&q=80',
-                  ],
-                  videos: [],
-                  slides: [
-                    'https://images.unsplash.com/photo-1580618672591-eb180b1a973f?w=800&auto=format&fit=crop&q=80',
-                    'https://images.unsplash.com/photo-1560869713-7d0a29430803?w=800&auto=format&fit=crop&q=80',
-                  ],
-                },
-                {
-                  id: 'srv-3',
-                  salon_id: salon.id,
-                  name: 'Tratamento de Nutrição Profunda',
-                  description: 'Cronograma capilar intensivo para recuperação imediata.',
-                  category: 'Tratamentos',
-                  price: 150,
-                  duration_minutes: 45,
-                  is_active: true,
-                  target_audience: 'all',
-                  photos: [
-                    'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&auto=format&fit=crop&q=80',
-                  ],
-                  videos: [],
-                  slides: [],
-                },
-                {
-                  id: 'srv-4',
-                  salon_id: salon.id,
-                  name: 'Manicure & Pedicure Completa',
-                  description: 'Esmaltação em gel ou tradicional com cutilagem fina.',
-                  category: 'Unhas',
-                  price: 75,
-                  duration_minutes: 60,
-                  is_active: true,
-                  target_audience: 'all',
-                  photos: [],
-                  videos: [],
-                  slides: [],
-                },
-              ];
-          setServices(defaultServices);
+          setServices([]);
         }
 
-        // 4. Carrega Acervo Geral de Mídias do Estabelecimento (Estruturado em Fotos, Vídeos 5s e Imagens)
-        const isBarbershopForMedia = salon.category === 'barbearia' || salon.slug?.toLowerCase().includes('barber');
-        const defaultMediaList: SalonMediaItem[] = isBarbershopForMedia
-          ? [
-              // --- FOTOS: Serviços ---
-              {
-                id: 'med-f-srv-1',
-                title: 'Fade Navalhado & Barba Alinhada',
-                url: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800&auto=format&fit=crop&q=80',
-                type: 'image',
-                media_group: 'fotos',
-                category: 'servicos',
-                created_at: '2026-10-01',
-              },
-              {
-                id: 'med-f-srv-2',
-                title: 'Finalização com Navalhete e Toalha Quente',
-                url: 'https://images.unsplash.com/photo-1621605815971-fbc98d665033?w=800&auto=format&fit=crop&q=80',
-                type: 'image',
-                media_group: 'fotos',
-                category: 'servicos',
-                created_at: '2026-10-04',
-              },
-              {
-                id: 'med-f-srv-3',
-                title: 'Barboterapia & Hidratação de Barba',
-                url: 'https://images.unsplash.com/photo-1599351431202-1e0f0137899a?w=800&auto=format&fit=crop&q=80',
-                type: 'image',
-                media_group: 'fotos',
-                category: 'servicos',
-                created_at: '2026-10-06',
-              },
-              // --- FOTOS: Profissionais ---
-              {
-                id: 'med-f-prof-1',
-                title: 'Equipe de Barbeiros em Atendimento',
-                url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=80',
-                type: 'image',
-                media_group: 'fotos',
-                category: 'profissionais',
-                created_at: '2026-09-22',
-              },
-              {
-                id: 'med-f-prof-2',
-                title: 'Master Barber - Perfil Profissional',
-                url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&auto=format&fit=crop&q=80',
-                type: 'image',
-                media_group: 'fotos',
-                category: 'profissionais',
-                created_at: '2026-09-25',
-              },
-              // --- FOTOS: Espaço ---
-              {
-                id: 'med-f-esp-1',
-                title: 'Bancadas de Atendimento & Espelhos Vintage',
-                url: 'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=800&auto=format&fit=crop&q=80',
-                type: 'image',
-                media_group: 'fotos',
-                category: 'espaco',
-                created_at: '2026-09-18',
-              },
-              {
-                id: 'med-f-esp-2',
-                title: 'Recepção, Sala de Espera & Poltronas',
-                url: 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=800&auto=format&fit=crop&q=80',
-                type: 'image',
-                media_group: 'fotos',
-                category: 'espaco',
-                created_at: '2026-09-20',
-              },
-              // --- VÍDEOS: Serviços (5s) ---
-              {
-                id: 'med-v-srv-1',
-                title: 'Fade em 360° - Giro Completo (5s)',
-                url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-                type: 'video',
-                duration_seconds: 5,
-                media_group: 'videos',
-                category: 'servicos',
-                created_at: '2026-10-08',
-              },
-              // --- VÍDEOS: Espaço (5s) ---
-              {
-                id: 'med-v-esp-1',
-                title: 'Tour Rápido pelo Salão (5s)',
-                url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-                type: 'video',
-                duration_seconds: 5,
-                media_group: 'videos',
-                category: 'espaco',
-                created_at: '2026-10-10',
-              },
-              // --- IMAGENS: Banner (Cabeçalho do App) ---
-              {
-                id: 'med-i-ban-1',
-                title: 'Banner Principal de Cabeçalho • 1200x500',
-                url: salon.cover_image_url || 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=1200&auto=format&fit=crop&q=80',
-                type: 'image',
-                media_group: 'imagens',
-                category: 'banner',
-                created_at: '2026-09-15',
-                is_cover: true,
-              },
-              // --- IMAGENS: Logotipo (App) ---
-              {
-                id: 'med-i-log-1',
-                title: 'Logotipo Oficial Redondo do Estabelecimento',
-                url: salon.logo_url || 'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=400&auto=format&fit=crop&q=80',
-                type: 'image',
-                media_group: 'imagens',
-                category: 'logotipo',
-                created_at: '2026-09-15',
-              },
-            ]
-          : [
-              // --- FOTOS: Serviços ---
-              {
-                id: 'med-f-srv-1',
-                title: 'Mechas Loiro Pérola & Escova Modelada',
-                url: 'https://images.unsplash.com/photo-1560869713-7d0a29430803?w=800&auto=format&fit=crop&q=80',
-                type: 'image',
-                media_group: 'fotos',
-                category: 'servicos',
-                created_at: '2026-10-01',
-              },
-              {
-                id: 'med-f-srv-2',
-                title: 'Corte em Camadas & Hidratação',
-                url: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800&auto=format&fit=crop&q=80',
-                type: 'image',
-                media_group: 'fotos',
-                category: 'servicos',
-                created_at: '2026-10-04',
-              },
-              {
-                id: 'med-f-srv-3',
-                title: 'Esmaltação em Gel & Alongamento em Fibra',
-                url: 'https://images.unsplash.com/photo-1604654894610-df63bc536371?w=800&auto=format&fit=crop&q=80',
-                type: 'image',
-                media_group: 'fotos',
-                category: 'servicos',
-                created_at: '2026-10-06',
-              },
-              // --- FOTOS: Profissionais ---
-              {
-                id: 'med-f-prof-1',
-                title: 'Equipe de Cabeleireiras e Coloristas',
-                url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=800&auto=format&fit=crop&q=80',
-                type: 'image',
-                media_group: 'fotos',
-                category: 'profissionais',
-                created_at: '2026-09-22',
-              },
-              {
-                id: 'med-f-prof-2',
-                title: 'Visagista & Terapeuta Capilar',
-                url: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=800&auto=format&fit=crop&q=80',
-                type: 'image',
-                media_group: 'fotos',
-                category: 'profissionais',
-                created_at: '2026-09-25',
-              },
-              // --- FOTOS: Espaço ---
-              {
-                id: 'med-f-esp-1',
-                title: 'Salão Principal & Bancadas de Cabelo',
-                url: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800&auto=format&fit=crop&q=80',
-                type: 'image',
-                media_group: 'fotos',
-                category: 'espaco',
-                created_at: '2026-09-18',
-              },
-              {
-                id: 'med-f-esp-2',
-                title: 'Área de Lavatório & Spa Capilar',
-                url: 'https://images.unsplash.com/photo-1527799820374-dcf8d9d4a388?w=800&auto=format&fit=crop&q=80',
-                type: 'image',
-                media_group: 'fotos',
-                category: 'espaco',
-                created_at: '2026-09-20',
-              },
-              // --- VÍDEOS: Serviços (5s) ---
-              {
-                id: 'med-v-srv-1',
-                title: 'Movimento e Balanço Pós-Escova (5s)',
-                url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-                type: 'video',
-                duration_seconds: 5,
-                media_group: 'videos',
-                category: 'servicos',
-                created_at: '2026-10-08',
-              },
-              // --- VÍDEOS: Espaço (5s) ---
-              {
-                id: 'med-v-esp-1',
-                title: 'Tour pelo Ambiente do Salão (5s)',
-                url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-                type: 'video',
-                duration_seconds: 5,
-                media_group: 'videos',
-                category: 'espaco',
-                created_at: '2026-10-10',
-              },
-              // --- IMAGENS: Banner (Cabeçalho do App) ---
-              {
-                id: 'med-i-ban-1',
-                title: 'Banner Principal de Cabeçalho • Vitrine App',
-                url: salon.cover_image_url || 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=1200&auto=format&fit=crop&q=80',
-                type: 'image',
-                media_group: 'imagens',
-                category: 'banner',
-                created_at: '2026-09-15',
-                is_cover: true,
-              },
-              // --- IMAGENS: Logotipo (App) ---
-              {
-                id: 'med-i-log-1',
-                title: 'Logotipo Oficial Redondo do Estabelecimento',
-                url: salon.logo_url || 'https://images.unsplash.com/photo-1560869713-7d0a29430803?w=400&auto=format&fit=crop&q=80',
-                type: 'image',
-                media_group: 'imagens',
-                category: 'logotipo',
-                created_at: '2026-09-15',
-              },
-            ];
-        setSalonMedia(defaultMediaList);
+        // 4. Carrega Acervo Geral de Mídias reais do Estabelecimento
+        const { data: mediaData } = await supabase
+          .from('salon_media_items')
+          .select('*')
+          .eq('salon_id', salon.id)
+          .order('created_at', { ascending: false });
+
+        if (mediaData && mediaData.length > 0) {
+          setSalonMedia(
+            mediaData.map((m: any) => ({
+              id: m.id,
+              title: m.title || m.caption || 'Mídia',
+              url: m.url || m.media_url,
+              type: (m.type || m.media_type || 'image') === 'video' ? 'video' : 'image',
+              duration_seconds: m.duration_seconds || 5,
+              media_group: m.media_group || 'fotos',
+              category: m.category || 'servicos',
+              created_at: m.created_at,
+              is_cover: Boolean(m.is_cover),
+            }))
+          );
+        } else {
+          setSalonMedia([]);
+        }
       } catch (err) {
         console.warn('Erro ao carregar dados do salão:', err);
       } finally {
@@ -1609,6 +1142,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
       salon.nav_style = themeForm.navStyle;
       salon.nav_shape = themeForm.navShape;
       salon.nav_border = themeForm.navBorder;
+      salon.nav_icon_border = themeForm.navIconBorder;
       salon.nav_bg_style = themeForm.navBgStyle;
       salon.nav_bg_color = themeForm.navBgColor;
       salon.nav_btn_bg_color = themeForm.navBtnBgColor;
@@ -1639,6 +1173,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         nav_style: themeForm.navStyle,
         nav_shape: themeForm.navShape,
         nav_border: themeForm.navBorder,
+        nav_icon_border: themeForm.navIconBorder,
         nav_bg_style: themeForm.navBgStyle,
         nav_bg_color: themeForm.navBgColor,
         nav_btn_bg_color: themeForm.navBtnBgColor,
@@ -1960,6 +1495,22 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                     {salon.status === 'active' ? 'Ativo' : salon.status === 'pending' ? 'Pendente' : 'Suspenso'}
                   </span>
                 </div>
+                {(() => {
+                  const createdParts = formatCreatedAtParts(salon.created_at);
+                  const originInfo = resolveRecordOriginInfo(salon.created_via, salon.created_at);
+                  return (
+                    <div className="flex flex-wrap items-center gap-2 mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                      <span className="inline-flex items-center gap-1 font-mono">
+                        <Clock className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        <span>Criado em: {createdParts.valid ? createdParts.fullLabel : '—'}</span>
+                      </span>
+                      <span className="text-slate-300 dark:text-slate-700">•</span>
+                      <span className="font-semibold text-slate-600 dark:text-slate-300">
+                        Origem: {originInfo.label}
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>
@@ -2178,13 +1729,13 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
 
               <div className="pt-3 flex items-center gap-3">
                 <UserAvatar
-                  fullName={salon.owner_name || salon.legal_name || 'Beto Roberto'}
+                  fullName={salon.owner_name || salon.legal_name || salon.trade_name || 'Titular'}
                   photoUrl={salon.owner_avatar_url}
                   size="md"
                 />
                 <div className="min-w-0">
                   <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                    {salon.owner_name || salon.legal_name || 'Beto Roberto'}
+                    {salon.owner_name || salon.legal_name || salon.trade_name || 'Titular não informado'}
                   </h4>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
                     Proprietário Master • profiles/clients
@@ -2199,7 +1750,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                   <Phone className="w-3.5 h-3.5 text-slate-400" /> WhatsApp:
                 </span>
                 <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
-                  {salon.owner_phone || salon.phone_whatsapp || '(11) 98765-4321'}
+                  {salon.owner_phone || salon.phone_whatsapp || 'Não informado'}
                 </span>
               </div>
               <div className="flex items-center justify-between py-0.5">
@@ -2207,7 +1758,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                   <Mail className="w-3.5 h-3.5 text-slate-400" /> E-mail:
                 </span>
                 <span className="font-mono text-slate-800 dark:text-slate-200 truncate max-w-[150px]">
-                  {salon.owner_email || salon.email || `contato@${salon.slug}.com`}
+                  {salon.owner_email || salon.email || 'Não informado'}
                 </span>
               </div>
             </div>
@@ -2223,25 +1774,39 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
               <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800">
                 <span className="text-slate-500">Documento:</span>
                 <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">
-                  {salon.document_type || 'CNPJ'}: {salon.document_number || '45.123.890/0001-44'}
+                  {salon.document_number
+                    ? `${salon.document_type || 'DOC'}: ${salon.document_number}`
+                    : salon.owner_cpf
+                    ? `CPF: ${salon.owner_cpf}`
+                    : 'Autônomo / Não informado'}
                 </span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800">
                 <span className="text-slate-500">Chave PIX:</span>
                 <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold truncate max-w-[180px]">
-                  {salon.pix_key || salon.phone_whatsapp || 'pix@vagouapp.com'}
+                  {salon.pix_key || salon.phone_whatsapp || 'Não cadastrada'}
                 </span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800">
                 <span className="text-slate-500">Modelo Operacional:</span>
                 <span className="font-semibold text-slate-800 dark:text-slate-200 capitalize">
-                  {salon.operating_model || 'Espaço Físico & Delivery'}
+                  {salon.operating_model || 'Espaço Físico'}
+                </span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800">
+                <span className="text-slate-500">Data e Hora de Criação:</span>
+                <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">
+                  {formatCreatedAtParts(salon.created_at).valid
+                    ? formatCreatedAtParts(salon.created_at).fullLabel
+                    : '—'}
                 </span>
               </div>
               <div className="flex justify-between py-1">
                 <span className="text-slate-500">Plano na Plataforma:</span>
-                <span className="font-bold text-[#20C933] uppercase text-[11px]">
-                  {salon.billing_plan || 'Pro / 5% por agendamento'}
+                <span className="font-bold text-emerald-600 dark:text-emerald-400 uppercase text-[11px]">
+                  {String(salon.billing_plan || '').toUpperCase() === 'SUBSCRIPTION'
+                    ? `SUBSCRIPTION (R$ ${(salon.monthly_subscription_fee ?? 89.9).toFixed(2).replace('.', ',')}/mês)`
+                    : `PER_APPOINTMENT (R$ ${(salon.fee_per_booking ?? salon.billing_fee_value ?? 2.5).toFixed(2).replace('.', ',')}/agend.)`}
                 </span>
               </div>
             </div>
@@ -2347,42 +1912,54 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             </button>
           </div>
 
-          {/* 5 Presets Oficiais do Tema Camaleão (idênticos ao SalonConfigModal do mnvapp) */}
+          {/* Presets Oficiais do Tema Camaleão (Incluindo Padrão Verde Pastel Clarinho SQL v5.0 — bol-158/159) */}
           <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
             <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
               Presets Oficiais do Tema Camaleão (theme_preset_id)
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
               {[
                 {
+                  id: 'pastel-light-mint',
+                  name: 'Verde Pastel Clarinho (v5.0)',
+                  primary: '#10B981',
+                  secondary: '#065F46',
+                  isPastelDefault: true,
+                },
+                {
                   id: 'emerald-dark',
-                  name: 'Esmeralda Dark (Padrão)',
+                  name: 'Esmeralda Dark',
                   primary: '#10b981',
                   secondary: '#059669',
+                  isPastelDefault: false,
                 },
                 {
                   id: 'gold-luxury',
                   name: 'Ouro Luxury & Barber',
                   primary: '#f59e0b',
                   secondary: '#d97706',
+                  isPastelDefault: false,
                 },
                 {
                   id: 'rose-glam',
                   name: 'Rose Glam & Studio',
                   primary: '#f43f5e',
                   secondary: '#e11d48',
+                  isPastelDefault: false,
                 },
                 {
                   id: 'purple-neon',
                   name: 'Cyber Purple & Urbano',
                   primary: '#a855f7',
                   secondary: '#9333ea',
+                  isPastelDefault: false,
                 },
                 {
                   id: 'clean-light',
                   name: 'Clean Light & Spa',
                   primary: '#10b981',
                   secondary: '#0d9488',
+                  isPastelDefault: false,
                 },
               ].map((preset) => {
                 const isSelected = themeForm.themePresetId === preset.id;
@@ -2396,6 +1973,21 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                         themePresetId: preset.id as SalonThemePresetId,
                         primaryColor: preset.primary,
                         secondaryColor: preset.secondary,
+                        ...(preset.isPastelDefault
+                          ? {
+                              defaultTheme: 'light' as SalonThemeMode,
+                              navBgStyle: 'solid' as SalonNavBgStyle,
+                              navBgColor: '#D1FAE5',
+                              navBtnActiveBgColor: '#FFFFFF',
+                              navActiveColor: '#10B981',
+                              navTextColor: '#065F46',
+                              navIconBorder: 'none' as const,
+                              sectionHeaderBgStyle: 'solid' as SalonSectionHeaderBgStyle,
+                              sectionHeaderBgColor: '#ECFDF5',
+                              sectionHeaderTextColor: '#065F46',
+                              sectionHeaderIconColor: '#059669',
+                            }
+                          : {}),
                       }))
                     }
                     className={`p-3.5 rounded-xl text-left transition cursor-pointer flex flex-col justify-between gap-3 ${
@@ -2686,15 +2278,15 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 </div>
               </div>
 
-              {/* 3. Borda Externa (nav_border) */}
+              {/* 3. Borda Externa (nav_border) & Borda dos Ícones (nav_icon_border) */}
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
-                  Borda do Rodapé (nav_border)
+                  Bordas (nav_border / nav_icon_border)
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   {[
-                    { id: 'bordered', label: 'Com Borda Sutil' },
-                    { id: 'none', label: 'Sem Borda (Clean)' },
+                    { id: 'bordered', label: 'Barra c/ Borda' },
+                    { id: 'none', label: 'Barra Clean' },
                   ].map((border) => (
                     <button
                       key={border.id}
@@ -2709,6 +2301,23 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                       {border.label}
                     </button>
                   ))}
+                  {[
+                    { id: 'none', label: 'Ícone S/ Borda' },
+                    { id: 'bordered', label: 'Ícone C/ Borda' },
+                  ].map((iconBorder) => (
+                    <button
+                      key={`icon-${iconBorder.id}`}
+                      type="button"
+                      onClick={() => setThemeForm((prev) => ({ ...prev, navIconBorder: iconBorder.id as 'none' | 'bordered' }))}
+                      className={`p-1.5 rounded-xl text-center transition cursor-pointer text-[11px] font-semibold ${
+                        themeForm.navIconBorder === iconBorder.id
+                          ? 'bg-[#10B981] text-white shadow-xs'
+                          : 'bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-400'
+                      }`}
+                    >
+                      {iconBorder.label}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
@@ -2721,7 +2330,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 <div className="flex items-center gap-1.5">
                   <input
                     type="color"
-                    value={themeForm.navBgColor || '#020617'}
+                    value={themeForm.navBgColor || '#D1FAE5'}
                     onChange={(e) => setThemeForm((prev) => ({ ...prev, navBgColor: e.target.value }))}
                     className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent shrink-0"
                   />
@@ -2729,7 +2338,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                     type="text"
                     value={themeForm.navBgColor}
                     onChange={(e) => setThemeForm((prev) => ({ ...prev, navBgColor: e.target.value }))}
-                    placeholder="Padrão"
+                    placeholder="#D1FAE5"
                     className="font-mono text-xs w-full bg-transparent text-slate-800 dark:text-slate-200 border-0 p-0 focus:outline-none"
                   />
                 </div>
@@ -2741,7 +2350,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 <div className="flex items-center gap-1.5">
                   <input
                     type="color"
-                    value={themeForm.navActiveColor || '#10b981'}
+                    value={themeForm.navActiveColor || '#10B981'}
                     onChange={(e) => setThemeForm((prev) => ({ ...prev, navActiveColor: e.target.value }))}
                     className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent shrink-0"
                   />
@@ -2749,7 +2358,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                     type="text"
                     value={themeForm.navActiveColor}
                     onChange={(e) => setThemeForm((prev) => ({ ...prev, navActiveColor: e.target.value }))}
-                    placeholder="#10b981"
+                    placeholder="#10B981"
                     className="font-mono text-xs w-full bg-transparent text-slate-800 dark:text-slate-200 border-0 p-0 focus:outline-none"
                   />
                 </div>
@@ -2761,7 +2370,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 <div className="flex items-center gap-1.5">
                   <input
                     type="color"
-                    value={themeForm.navTextColor || '#94a3b8'}
+                    value={themeForm.navTextColor || '#065F46'}
                     onChange={(e) => setThemeForm((prev) => ({ ...prev, navTextColor: e.target.value }))}
                     className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent shrink-0"
                   />
@@ -2769,7 +2378,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                     type="text"
                     value={themeForm.navTextColor}
                     onChange={(e) => setThemeForm((prev) => ({ ...prev, navTextColor: e.target.value }))}
-                    placeholder="#94a3b8"
+                    placeholder="#065F46"
                     className="font-mono text-xs w-full bg-transparent text-slate-800 dark:text-slate-200 border-0 p-0 focus:outline-none"
                   />
                 </div>
@@ -2801,7 +2410,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 <div className="flex items-center gap-1.5">
                   <input
                     type="color"
-                    value={themeForm.navBtnActiveBgColor || '#10b981'}
+                    value={themeForm.navBtnActiveBgColor || '#FFFFFF'}
                     onChange={(e) => setThemeForm((prev) => ({ ...prev, navBtnActiveBgColor: e.target.value }))}
                     className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent shrink-0"
                   />
@@ -2809,19 +2418,19 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                     type="text"
                     value={themeForm.navBtnActiveBgColor}
                     onChange={(e) => setThemeForm((prev) => ({ ...prev, navBtnActiveBgColor: e.target.value }))}
-                    placeholder="Auto"
+                    placeholder="#FFFFFF"
                     className="font-mono text-xs w-full bg-transparent text-slate-800 dark:text-slate-200 border-0 p-0 focus:outline-none"
                   />
                 </div>
               </div>
             </div>
 
-            {/* PREVIEW INTERATIVO AO VIVO DA BARRA DE NAVEGAÇÃO INFERIOR */}
+            {/* PREVIEW INTERATIVO AO VIVO DA BARRA DE NAVEGAÇÃO INFERIOR (Abas Oficiais da Vitrine v5.0) */}
             <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-bold text-slate-200 flex items-center gap-1.5">
                   <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Preview Interativo do Rodapé no App Mobile (Clique nas abas para testar)</span>
+                  <span>Preview Interativo do Rodapé da Vitrine (Início • Serviços • Agenda • Espaço/Atendimento)</span>
                 </span>
                 <span className="text-[10px] font-mono text-emerald-400 font-bold">
                   Forma: {themeForm.navShape} &bull; Estilo: {themeForm.navBgStyle}
@@ -2857,55 +2466,83 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                         : undefined,
                   }}
                 >
-                  {[
-                    { id: 'home', label: 'Início', icon: Building2 },
-                    { id: 'services', label: 'Serviços', icon: Scissors },
-                    { id: 'appointments', label: 'Agenda', icon: Clock },
-                    { id: 'profile', label: 'Perfil', icon: Users },
-                  ].map((item) => {
-                    const isActive = previewNavTab === item.id;
-                    const IconComp = item.icon;
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => setPreviewNavTab(item.id as any)}
-                        className={`flex flex-col items-center justify-center py-1.5 px-3 transition-all cursor-pointer ${
-                          themeForm.navShape === 'pill'
-                            ? 'rounded-full'
-                            : themeForm.navShape === 'circular'
-                            ? 'rounded-full aspect-square'
-                            : 'rounded-xl'
-                        }`}
-                        style={{
-                          backgroundColor: isActive
-                            ? themeForm.navBtnActiveBgColor || (themeForm.navActiveColor ? `${themeForm.navActiveColor}20` : 'rgba(16,185,129,0.15)')
-                            : themeForm.navBtnBgColor || 'transparent',
-                        }}
-                      >
-                        <IconComp
-                          className="w-4 h-4 transition-transform active:scale-125"
-                          style={{
-                            color: isActive
-                              ? themeForm.navActiveColor || '#10b981'
-                              : themeForm.navTextColor || '#94a3b8',
-                          }}
-                        />
-                        <span
-                          className={`text-[10px] mt-0.5 tracking-tight ${
-                            isActive ? 'font-bold' : 'font-medium'
+                  {(() => {
+                    const modelLower = String(salon.operating_model || '').toLowerCase();
+                    const isHomeCare =
+                      modelLower === 'home_service' ||
+                      modelLower === 'home_care' ||
+                      modelLower.includes('domicil');
+                    const tabs = [
+                      { id: 'home', label: 'Início', icon: Building2 },
+                      { id: 'services', label: 'Serviços', icon: Scissors },
+                      { id: 'appointments', label: 'Agenda', icon: Clock },
+                      { id: 'space', label: isHomeCare ? 'Atendimento' : 'Espaço', icon: MapPin },
+                    ];
+                    return tabs.map((item) => {
+                      const isActive = previewNavTab === item.id;
+                      const IconComp = item.icon;
+                      const activeBgUpper = (themeForm.navBtnActiveBgColor || '').trim().toUpperCase();
+                      const isWhiteActiveBg =
+                        activeBgUpper === '#FFFFFF' || activeBgUpper === '#FFF' || activeBgUpper === 'WHITE';
+                      const isSolidGreenActiveBg =
+                        activeBgUpper === '#10B981' ||
+                        activeBgUpper === '#20C933' ||
+                        activeBgUpper === '#059669';
+                      const resolvedActiveFg = isWhiteActiveBg
+                        ? themeForm.primaryColor || '#10B981'
+                        : isSolidGreenActiveBg
+                        ? '#FFFFFF'
+                        : themeForm.navActiveColor || '#10B981';
+
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => setPreviewNavTab(item.id as any)}
+                          className={`flex flex-col items-center justify-center py-1.5 px-3 transition-all cursor-pointer ${
+                            themeForm.navShape === 'pill'
+                              ? 'rounded-full'
+                              : themeForm.navShape === 'circular'
+                              ? 'rounded-full aspect-square'
+                              : 'rounded-xl'
                           }`}
                           style={{
-                            color: isActive
-                              ? themeForm.navActiveColor || '#10b981'
-                              : themeForm.navTextColor || '#94a3b8',
+                            backgroundColor: isActive
+                              ? themeForm.navBtnActiveBgColor ||
+                                (themeForm.navActiveColor ? `${themeForm.navActiveColor}20` : 'rgba(16,185,129,0.15)')
+                              : themeForm.navBtnBgColor || 'transparent',
                           }}
                         >
-                          {item.label}
-                        </span>
-                      </button>
-                    );
-                  })}
+                          <span
+                            className={`flex items-center justify-center ${
+                              themeForm.navIconBorder === 'bordered'
+                                ? 'p-1 rounded-lg border border-current/30'
+                                : ''
+                            }`}
+                            style={{
+                              color: isActive
+                                ? resolvedActiveFg
+                                : themeForm.navTextColor || '#065F46',
+                            }}
+                          >
+                            <IconComp className="w-4 h-4 transition-transform active:scale-125" />
+                          </span>
+                          <span
+                            className={`text-[10px] mt-0.5 tracking-tight whitespace-nowrap ${
+                              isActive ? 'font-bold' : 'font-medium'
+                            }`}
+                            style={{
+                              color: isActive
+                                ? resolvedActiveFg
+                                : themeForm.navTextColor || '#065F46',
+                            }}
+                          >
+                            {item.label}
+                          </span>
+                        </button>
+                      );
+                    });
+                  })()}
                 </nav>
               </div>
             </div>

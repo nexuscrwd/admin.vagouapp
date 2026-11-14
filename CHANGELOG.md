@@ -15,6 +15,240 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-11-14] — 🛡️ Saneamento e Blindagem Anti-Duplicidade de Contas — 1 Pessoa = 1 Único Cadastro Soberano (`bol-162`)
+- **Tipo:** `[Fix / Data Integrity / Database Governance / Tríade Sync]`
+- **Motivo / Solicitação:** Identificação via print de tela de dois cadastros para a mesma pessoa (**Anderson Pires** — `Anderson@` / `andersonhpires@gmail.com` / `(11) 91353-1030`), sendo um como `Administrador` (`15/10/26 19:07 • Admin Master` em `public.system_admins`) e outro como `Cliente` (`27/10/26 17:34 • Portal VAPP` em `public.clients` com 3 agendamentos). Solicitação de consolidação imediata, blindagem para que jamais ocorram cadastros duplicados e entrega do script SQL correspondente.
+- **Resumo Técnico & Implementação:**
+  1. **Consolidação Automática & Limpeza no Banco Real (`consolidateDuplicateUsersInSupabase` em `server.ts`):**
+     - Ao detectar que uma mesma pessoa (mesmo `email` case-insensitive ou mesmo `@username` normalizado) existe em `public.system_admins` e em `public.clients`, o sistema transfere e soma automaticamente `total_appointments`, `dependents_count`, `avatar_url`, `phone_whatsapp` e `cpf` válido para o registro canônico em `public.system_admins`, desvincula `public.appointments.client_id = NULL` (sem perder histórico) e remove o registro sombra de `public.clients`.
+     - Consolida também eventuais duplicatas intra-tabela em `public.system_admins` e `public.clients` mantendo sempre o registro mais antigo (`created_at ASC`).
+  2. **Remoção de Auto-Upsert Legado entre Tabelas e Guardas de Unicidade no Backend (`server.ts` & `src/services/supabaseApi.ts`):**
+     - Removido o espelhamento legado de `POST /api/admin/auth/login` (que replicava administradores em `clients` e `professionals` durante o login) e de `POST /api/admin/salons`.
+     - Adicionada validação cruzada em `POST /api/public/register-user`, `POST /api/admin/auth/register` e `registerTriadeUser`: se o e-mail ou `@username` já pertencer a `public.system_admins` ou `public.clients`, o sistema bloqueia a criação de ficha duplicada ou promove o registro existente.
+  3. **Deduplicação Hierárquica no Painel de Usuários (`AdminUsersManager.tsx`):**
+     - A unificação de `allUnifiedUsers` agora processa as tabelas na ordem estrita de precedência (`1. Administrador` ➔ `2. Proprietário` ➔ `3. Profissional` ➔ `4. Cliente` ➔ `5. Dependente`) indexando por `email`, `username` e `cpf` de 11 dígitos (`registerOrMergeCanonicalUser`), mesclando contadores na conta de maior privilégio e impedindo exibição duplicada na grade.
+  4. **Migração SQL Idempotente com Índices Únicos e Triggers (`/supabase/migrations/20261114_deduplicate_users_and_unique_guards.sql`):**
+     - Saneamento transacional + criação dos índices únicos parciais `idx_system_admins_unique_lower_email`, `idx_system_admins_unique_norm_username`, `idx_clients_unique_lower_email` e triggers `trg_prevent_client_duplicate_of_admin` (`BEFORE INSERT ON public.clients`) e `trg_consolidate_client_on_admin_upsert` (`AFTER INSERT OR UPDATE ON public.system_admins`).
+- **Arquivos Impactados:**
+  - `/supabase/migrations/20261114_deduplicate_users_and_unique_guards.sql`
+  - `/supabase_schema.sql`, `/supabase/migrations/20261111_master_convergence_v5_0.sql`
+  - `/server.ts`, `/src/services/supabaseApi.ts`, `/src/components/admin/AdminUsersManager.tsx`, `/CHANGELOG.md`
+
+---
+
+### [2026-11-14] — 🕒 Auditoria de Data/Hora de Criação (`created_at`), Rastreio de Origem (`created_via`) & Erradicação de Registros Fantasmas (`bol-161`)
+- **Tipo:** `[Feat / Fix / Audit Governance / Tríade Sync]`
+- **Motivo / Solicitação:** Diagnóstico de registros não reconhecidos exibidos no painel Admin Master e implementação completa de registro e exibição de data/hora exata de criação (e canal de origem) para **Usuários** e **Estabelecimentos**.
+- **Resumo Técnico & Implementação:**
+  1. **Erradicação de Contas Sintéticas Fantasmas (`su-<salon.id>`) e Fallbacks Falsos de Data:**
+     - Corrigida a rota `GET /api/admin/salon-users` em `server.ts` e o fallback de `fetchAdminSalonUsers` em `src/services/supabaseApi.ts` para consultar **exclusivamente** a tabela real `public.salon_users`, eliminando a geração sintética de contas duplicadas a partir da razão social de `public.salons` (que reapareciam após exclusão).
+     - Removido o fallback enganoso `row.created_at || new Date().toISOString()` na leitura de estabelecimentos (`mapSalonRow`) e limpo qualquer resquício de `vagou_admin_custom_salons` no `localStorage`.
+  2. **Rastreio Determinístico de Data/Hora (`America/Sao_Paulo`) e Canal de Origem (`created_via`):**
+     - Criado utilitário `/src/utils/dateTimeFormat.ts` formatando `created_at` em fuso `America/Sao_Paulo` (`dd/mm/aa • HH:mm` compacto, `dd/mm/aaaa às HH:mm:ss` completo e `dd/mm/aaaa HH:mm:ss` em CSV) + resolução de origem (`Admin Master`, `Portal VAPP`, `Meu Negócio`, `Seed / Legado`, `Banco Tríade`).
+     - Gravação explícita de `created_at`, `updated_at` e `created_via` (`admvapp` / `mnvapp` / `pvapp`) em `POST /api/admin/salons`, `POST /api/public/register-user`, `createAdminSalon` e `TriadeUserRegisterForm` (`origin="admin"`).
+  3. **Exibição Completa em Estabelecimentos e Usuários (Tabelas Sticky, Cards, Modais, Detalhes e CSV):**
+     - Adicionada coluna fixa `Criado em` (`sticky top-0 z-20`) e linha nos cards em `AdminSalonsList.tsx` e `AdminUsersManager.tsx` (preservando layout `p-0 m-0`, rolagem exclusiva do `tbody` e ausência das colunas removidas `Whatsapp Sec` e `Nível de acesso`), com ordenação padrão do mais recente ao mais antigo.
+     - Exibição completa (`dd/mm/aaaa às HH:mm:ss` + `Origem`) em `AdminSalonDetailView.tsx`, `AdminUserGeneralDataModal.tsx`, `AdminUserDetailView.tsx` e exportações CSV.
+  4. **Migração SQL Aditiva 100% Idempotente (`/supabase/migrations/20261114_audit_created_at_origin.sql`):**
+     - Garantidas colunas `created_at`, `updated_at`, `created_via`, índices `idx_*_created_at` e publicação `supabase_realtime` em `salons`, `clients`, `dependents`, `professionals`, `salon_users` e `system_admins` (zero `DROP TABLE`).
+- **Arquivos Impactados:**
+  - `/src/utils/dateTimeFormat.ts`, `/src/types/admin.ts`, `/src/types/database.types.ts`
+  - `/server.ts`, `/src/services/supabaseApi.ts`
+  - `/src/components/admin/AdminSalonsList.tsx`, `/src/components/admin/AdminSalonDetailView.tsx`
+  - `/src/components/admin/AdminUsersManager.tsx`, `/src/components/admin/AdminUserGeneralDataModal.tsx`, `/src/components/admin/AdminUserDetailView.tsx`
+  - `/src/components/admin/triade-forms/TriadeUserRegisterForm.tsx`
+  - `/supabase/migrations/20261114_audit_created_at_origin.sql`, `/supabase/migrations/20261111_master_convergence_v5_0.sql`, `/supabase_schema.sql`, `/CHANGELOG.md`
+
+---
+
+### [2026-11-11] — 🏛️ Auditoria 360º & Convergência Soberana Supabase SQL v5.0 (`bol-159` & `bol-160`)
+- **Tipo:** `[Database Convergence v5.0 / Zero Mocks / Tríade Sync / UI & Billing Unification / Security]`
+- **Motivo / Solicitação:** Convergência 100% do `admvapp` (`adm.vagouapp.com`) com o `mnvapp` (`meunegocio.vagouapp.com`), `pvapp` (`portal.vagouapp.com`) e o contrato soberano **Supabase SQL v5.0** (`bol-159`).
+- **Resumo Técnico & Implementação:**
+  1. **Expurgo Total de Mocks, Seeds Automáticos e SQL Destrutivo:**
+     - Excluídos permanentemente `/src/data.ts` e `/supabase/migrations/20261019_seed_real_salons.sql`.
+     - Removido auto-seed de inicialização no `server.ts` e zerados todos os arrays/contadores fictícios de fallback em `supabaseApi.ts`, `AdminEditSalonModal.tsx` e `AdminSalonDetailView.tsx`.
+     - Homologado `/supabase/migrations/20261111_master_convergence_v5_0.sql` (espelhado em `/supabase_schema.sql` e `/supabase_security_questions.sql`) — 100% idempotente, zero `DROP TABLE CASCADE` e único seed permitido restrito às 3 perguntas oficiais (`first_pet`, `city_at_10`, `childhood_friend`).
+  2. **Monitor Cronológico de Agendamentos, Baixa de Caixa, Bloqueio, Permuta & Colisão GPS (`AdminAppointmentsMonitor.tsx`):**
+     - Ordenação estritamente cronológica crescente (`date_str ASC, start_time ASC`) com competências dinâmicas (`YYYY-MM` + `Todos os Períodos`).
+     - Badges reais de caixa (**Pago** `bg-[#10B981] text-white` vs **À pagar**), **Horário Bloqueado** (`is_blocked_slot` / `status === 'BLOQUEADO'` + `block_reason`), **Permuta** (`swap_state`) e **Alerta de Colisão Geotemporal Inter-Salões** (`collision_warning` via RPC `check_client_inter_salon_collision`).
+  3. **Paleta Default Verde Pastel Clarinho & Faturamento Unificado (`bol-158` / `bol-159`):**
+     - Criação e edição de salões alinhadas com `default_theme = 'light'`, `primary_color = '#10B981'`, `secondary_color = '#065F46'`, `nav_bg_style = 'solid'`, `nav_bg_color = '#D1FAE5'`, `section_header_bg_color = '#ECFDF5'`, `section_header_text_color = '#065F46'`, `section_header_icon_color = '#059669'`, `nav_icon_border = 'none'`, sincronizando `public.salons` e `public.salon_ui_settings`.
+     - Campos financeiros unificados expostos e persistidos: `billing_plan` (`PER_APPOINTMENT` / `SUBSCRIPTION`), `fee_per_booking` ⇄ `billing_fee_value` (`R$ 2,50`), `monthly_subscription_fee` (`R$ 89,90`) e `billing_due_day` (`10`).
+  4. **Perguntas Secretas & Reset Administrativo de Suporte (`AdminUsersManager.tsx` & `AdminUserGeneralDataModal.tsx`):**
+     - Indicador de status de Pergunta Secreta (`has_security_question` / `security_questions_configured`) com escuta Realtime em `public.user_security_answers`.
+     - Rota `POST /api/admin/users/:kind/:id/reset-security` integrada ao modal geral para resetar respostas secretas (`user_security_answers` + `clients.security_question_code`) e redefinir senha no Supabase Auth + tabelas relacionais.
+  5. **Nomenclatura Oficial das Vitrines & Trava de Contraste (`AdminSalonDetailView.tsx`):**
+     - Preview White-Label atualizado para **`Início`**, **`Serviços`**, **`Agenda`** e **`Espaço` / `Atendimento`**, respeitando fundo verde sólido com texto/ícone branco puro (`#FFFFFF`) e botão ativo branco assumindo a cor primária do tema.
+- **Arquivos Impactados:**
+  - `/supabase/migrations/20261111_master_convergence_v5_0.sql`, `/supabase_schema.sql`, `/supabase_security_questions.sql`
+  - `/server.ts`, `/src/services/supabaseApi.ts`, `/src/types/database.types.ts`, `/src/types/admin.ts`
+  - `/src/components/admin/AdminAppointmentsMonitor.tsx`, `/src/components/admin/AdminEditSalonModal.tsx`, `/src/components/admin/AdminSalonDetailView.tsx`, `/src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`
+  - `/src/components/admin/AdminUsersManager.tsx`, `/src/components/admin/AdminUserGeneralDataModal.tsx`
+  - `/ARCHITECTURE.md`, `/ECOSYSTEM_CONTRACT.md`, `/PVAPP_MNVAPP_MASTER_SYNC_GUIDE.md`, `/CHANGELOG.md`
+
+---
+
+### [2026-11-02] — 🏛️ Script Mestre de Convergência do Banco de Dados (bol-106) & Suporte a AppointmentStatus = 'BLOQUEADO'
+- **Tipo:** `[Database Convergence / Tríade Sync / TypeScript Schema / Governance]`
+- **Motivo / Solicitação:** Homologação do Comunicado Técnico Inter-Projetos `bol-106` (mnvapp ➔ pvapp & admvapp).
+- **Resumo Técnico & Implementação:**
+  1. **Arquivo Mestre de Convergência (`/supabase/migrations/20261102_master_database_convergence.sql`):**
+     - Criado script 100% idempotente com cláusulas `IF NOT EXISTS` consolidando as 15 tabelas do ecossistema, colunas de endereço físico e coordenadas nos nós `salons`, `clients`, `professionals`, `profiles` e `salon_users`.
+     - Adicionadas as colunas de telemetria RTLS/GPS (`tracking_status`, `transport_mode`, `route_polyline`, `current_street_name`, etc.), suporte a pausa emergencial (`is_emergency_paused`, `emergency_pause_reason`), comodidades e comissões.
+     - Trigger oficial `public.fn_sync_triade_geo_by_cpf` para propagação automática de coordenadas e endereços entre tabelas com base no CPF.
+  2. **Tipagens TypeScript Atualizadas (`src/types/database.types.ts` & `src/types/admin.ts`):**
+     - Criado `database.types.ts` com o schema relacional completo e união oficial de status `AppointmentStatus = 'pendente' | 'confirmado' | 'em_atendimento' | 'concluido' | 'cancelado' | 'no_show' | 'BLOQUEADO'`.
+     - Adicionado badge e estilização para o status `BLOQUEADO` em `AdminAppointmentsMonitor.tsx`.
+  3. **Registro no Catálogo de Governança (`server.ts`):**
+     - Registrados os comunicados oficiais `bol-106` e `bol-039` em `TRIADE_BULLETINS`, disponíveis para consulta e download na Central de Governança do painel.
+- **Arquivos Impactados:**
+  - `/supabase/migrations/20261102_master_database_convergence.sql`
+  - `/src/types/database.types.ts`
+  - `/src/types/admin.ts`
+  - `/src/components/admin/AdminAppointmentsMonitor.tsx`
+  - `server.ts`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-30] — ⚡ Exclusão Otimista Imediata de Usuários, Sincronização Supabase Realtime, Filtro Reorganizado & Remoção de Colunas
+- **Tipo:** `[Fix / Realtime Engine / Database Governance / UI Simplification]`
+- **Motivo / Solicitação:** Usuário reportou que a exclusão de um usuário só foi concretizada na 2ª tentativa (questionando se não deveria ser Realtime), solicitou reestruturação rigorosa das opções de filtro de contas e pediu a remoção das colunas "Whatsapp Sec" e "Nível de acesso".
+- **Resumo Técnico & Implementação:**
+  1. **Diagnóstico da Causa Raiz do Delay / Erro na 1ª Tentativa:**
+     - A rota backend de exclusão de usuários (`DELETE /api/admin/users/:kind/:id`) não estava explicitamente declarada em `server.ts`, forçando um fallback no client-side.
+     - Ao excluir clientes com dependentes vinculados (`public.dependents`), o PostgreSQL do Supabase rejeitava por integridade referencial (FK Constraint) até que os vínculos fossem previamente limpos.
+     - A interface não aplicava atualização otimista imediata na tabela antes da resposta do banco.
+  2. **Correção de Exclusão & Cascata Segura no Backend (`server.ts`):**
+     - Criadas as rotas `DELETE /api/admin/users/:kind/:id` e `POST /api/admin/users/batch-delete` rodando com Service Role (`supabaseAdmin`), limpando dependentes, desvinculando agendamentos e removendo com segurança os registros sem violação de FK.
+     - Implementada **Atualização Otimista Imediata** (`handleDeleteUser`): o item é instantaneamente removido do estado local (`setClients`, etc.) com feedback visual na hora (zero delay).
+  3. **Sincronização 100% Realtime via Supabase:**
+     - Adicionado listener de canal Supabase Realtime (`supabase.channel('admvapp-users-realtime')`) escutando `postgres_changes` em `clients`, `dependents`, `professionals`, `salon_users` e `system_admins`. Qualquer alteração (mesmo feita em outro app da Tríade) atualiza a listagem automaticamente.
+  4. **Reorganização Estrita das Opções de Filtro de Categoria:**
+     - Estruturado rigorosamente na ordem e nomenclatura solicitadas:
+       1. **Todas as contas**
+       2. **Admin Sistema**
+       3. **Clientes**
+       4. **Dependentes**
+       5. **Profissionais**
+       6. **Proprietários**
+     - Mapeados os dependentes da Conta Família como categoria filtrável de primeira classe.
+  5. **Remoção de Colunas Solicitadas:**
+     - Removidas as colunas **"Whatsapp Sec."** e **"Nível de Acesso"** de todo o cabeçalho (`thead`) e linhas (`tbody`) da tabela, ajustando o colSpan do estado vazio para 10.
+- **Arquivos Impactados:**
+  - `server.ts`
+  - `src/components/admin/AdminUsersManager.tsx`
+  - `src/services/supabaseApi.ts`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-30] — 🔒 Fixação Definitiva da Linha de Cabeçalho das Colunas da Tabela (`sticky top-0 z-20`) & Rolagem Exclusiva dos Dados (`tbody`)
+- **Tipo:** `[UI/UX / Focus Mode / Table Engine / CSS Sticky Fix]`
+- **Motivo / Solicitação:** Usuário selecionou o cabeçalho da coluna (`th:nth-of-type(2)`) via Focus Mode e solicitou:
+  *"pereito, mas a linha das colnas de dados devem ser fixas, 'ROANDO SOMENTOE OS DADOS DA TABELA'"*
+- **Resumo Técnico & Implementação:**
+  1. **Diagnóstico & Resolução da Quebra de Sticky:**
+     - Identificado que contêineres intermediários com `overflow-hidden` ou `overflow-x-auto` isolavam o contexto de transbordo e impediam a propriedade CSS `position: sticky` do `thead` de ancorar no topo durante o scroll da página.
+     - A estrutura foi refatorada: o contêiner direto da `<table>` foi convertido no próprio contexto de rolagem (`flex-1 overflow-auto min-h-0 custom-scrollbar w-full bg-white dark:bg-slate-900`).
+  2. **Travamento das Colunas no Topo:**
+     - Aplicado `border-separate border-spacing-0` na `<table>` para assegurar que as bordas dos cabeçalhos não colapsem visualmente durante a rolagem.
+     - Cada elemento `<th>` recebeu individualmente `sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs select-none`.
+     - Isso garante que a linha com os títulos das colunas permaneça 100% congelada no topo, rolando estritamente as linhas de dados (`tbody`) por baixo.
+  3. **Extensão a Todas as Tabelas do Sistema:**
+     - Padrão propagado e validado em `AdminSalonsList.tsx`, `AdminUsersManager.tsx` e `AdminAppointmentsMonitor.tsx`.
+- **Arquivos Impactados:**
+  - `src/components/admin/AdminSalonsList.tsx`
+  - `src/components/admin/AdminUsersManager.tsx`
+  - `src/components/admin/AdminAppointmentsMonitor.tsx`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-30] — 🎯 Eliminação Absoluta de Espaçamento/Padding na Div de Dados (`p-0 m-0`) & Tabelas 100% Flush
+- **Tipo:** `[UI/UX / Focus Mode / Clean Code / Zero Box-in-Box]`
+- **Motivo / Solicitação:** Usuário selecionou via Focus Mode o contêiner de rolagem de dados (`main > div:nth-of-type(1) > div:nth-of-type(2)`) e exigiu:
+  *"nãooooo deve ter espaço nessa div!!!!!! Entend meu pedidoooooooooooooooo"*
+- **Resumo Técnico & Implementação:**
+  1. **Zero Padding e Zero Margem na Div Selecionada:**
+     - A div de rolagem de dados (`div:nth-of-type(2)`) agora possui estritamente `flex-1 overflow-y-auto p-0 m-0 min-h-0 custom-scrollbar`.
+     - Foram eliminados todos os `p-4 lg:p-6` e `space-y-4` que criavam folgas e lacunas indesejadas ao redor das tabelas e do topo do conteúdo.
+  2. **Tabelas 100% Flush com Borda Nítida:**
+     - Eliminadas as caixas flutuantes arredondadas (`rounded-xl border`) em volta da tabela.
+     - As tabelas agora ocupam 100% da largura (`w-full`), conectando-se rente (`flush`) ao subcabeçalho, com o cabeçalho (`thead`) fixo colado na linha divisória superior (`border-b border-slate-200 dark:border-slate-800`), sem nenhuma margem ou espaço.
+     - Quando o modo cards for ativado pelo usuário, o espaçamento interno fica confinado exclusivamente à visualização de cards (`p-4 lg:p-6 space-y-4`), mantendo o contêiner mestre com zero espaço.
+- **Arquivos Impactados:**
+  - `src/components/admin/AdminSalonsList.tsx`
+  - `src/components/admin/AdminUsersManager.tsx`
+  - `src/components/admin/AdminAppointmentsMonitor.tsx`
+  - `src/components/admin/AdminPortalManager.tsx`
+  - `src/components/admin/AdminSettingsPanel.tsx`
+  - `src/components/admin/AdminTriadeFormsCatalog.tsx`
+  - `src/components/admin/AdminMasterApp.tsx`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-30] — 📐 Arquitetura de Layout: Fixação de Cabeçalhos e Subcabeçalhos, Zero Gap e Rolagem Vertical Exclusiva de Dados
+- **Tipo:** `[UI/UX / Refactor / Layout Engine / Zero Slop]`
+- **Motivo / Solicitação:** Atendimento estrito à especificação do usuário:
+  1. "Não deve haver espaçamento (padding) entre os cabeçalhos."
+  2. "Tudo deve ser separado por linhas."
+  3. "Deve haver uma barra de rolagem vertical se a seção se estender de dados."
+  4. "Os cabeçalhos e subcabeçalhos devem ser fixos ao todo, permitindo somente os dados rolarem para cima e para baixo."
+- **Resumo Técnico & Implementação:**
+  1. **Remoção de Padding Entre Cabeçalhos (`AdminMasterApp.tsx`):**
+     - O container `<main>` deixou de possuir `p-4 lg:p-6 space-y-6` na camada superior externa, passando a adotar `flex-1 flex flex-col min-h-0 overflow-hidden p-0 m-0`.
+     - O cabeçalho global (`AdminHeader`) conecta-se rente (0px de espaço/padding) a todos os subcabeçalhos e barras de controle de cada módulo, unidos por divisores nítidos (`border-b border-slate-200 dark:border-slate-800`).
+  2. **Fixação dos Subcabeçalhos (`shrink-0 z-10`):**
+     - Os subcabeçalhos de todos os módulos (`AdminSalonsList`, `AdminUsersManager`, `AdminAppointmentsMonitor`, `AdminPortalManager`, `AdminSettingsPanel` e `AdminTriadeFormsCatalog`) agora são elementos `shrink-0 w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 lg:px-6 py-2.5 z-10` fixos no topo da viewport.
+     - Cabeçalhos de tabelas (`thead`) também contam com `sticky top-0 z-10 bg-slate-100 dark:bg-slate-900 shadow-2xs backdrop-blur-xs`.
+  3. **Isolamento da Área de Dados & Rolagem Vertical Customizada:**
+     - Apenas a área de dados/conteúdo interno rola para cima e para baixo com `flex-1 overflow-y-auto p-4 lg:p-6 min-h-0 custom-scrollbar`.
+     - Restaurada e aprimorada a barra de rolagem vertical visível em `src/index.css` (`7px`, trilha translúcida `rgba(15, 23, 42, 0.5)`, barra `slate-500` e hover verde `#20C933`), eliminando o antigo bloqueio global de `display: none !important; scrollbar-width: none;`.
+- **Arquivos Impactados:**
+  - `src/index.css`
+  - `src/components/admin/AdminMasterApp.tsx`
+  - `src/components/admin/AdminSalonsList.tsx`
+  - `src/components/admin/AdminUsersManager.tsx`
+  - `src/components/admin/AdminAppointmentsMonitor.tsx`
+  - `src/components/admin/AdminPortalManager.tsx`
+  - `src/components/admin/AdminSettingsPanel.tsx`
+  - `src/components/admin/AdminTriadeFormsCatalog.tsx`
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-30] — 🏛️ Recepção & Homologação do Comunicado bol-033: Exclusão Definitiva de Iframes no mnvapp e Soberania Local
+- **Tipo:** `[Breaking Change / Triade Sync / 7º Mandamento / bol-033]`
+- **Origem:** `mnvapp` (VagouApp Oficial / Meu Negócio — `meunegocio.vagouapp.com` & `*.vagouapp.com`)
+- **Destinatários:** `admvapp` (`adm.vagouapp.com`) e `pvapp` (`portal.vagouapp.com`)
+- **Motivo / Solicitação:** Registro oficial da exclusão permanente de todos os iframes/embeds e listeners postMessage (`UnifiedRegisterEmbedModal.tsx`, `VAGOU_REGISTRATION_SUCCESS`, etc.) no `mnvapp`, consolidando a soberania nativa de autenticação (`SalonClientAuthModal.tsx`).
+- **Resumo Técnico & Ações no admvapp:**
+  1. **Homologação no Painel Master:** Registrado o Boletim Técnico Oficial `bol-033-iframe-and-embed-eradication-native-auth-sovereignty` na API central de auditoria da Tríade (`/api/triade/bulletins` em `server.ts`).
+  2. **Ratificação de Desacoplamento:** O `admvapp` atesta que o `mnvapp` opera com autenticação 100% nativa local conectada diretamente às tabelas do Supabase compartilhado (`public.clients`, `public.salons`, `public.professionals`, `public.salon_users`, `public.system_admins`), não havendo mais dependência de embeds cruzados ou postMessage.
+  3. **Catálogo & Exportação Modular:** Os formulários do `admvapp` permanecem disponíveis no Catálogo Administrativo e no pacote exportável (`TriadeUserAuthCard.tsx` / `triade-export`), permitindo consulta de governança e reuso de código nativo sem a necessidade de frames.
+- **Arquivos Impactados:**
+  - `server.ts` (`TRIADE_BULLETINS`)
+  - `CHANGELOG.md`
+
+---
+
+### [2026-10-30] — 📦 Exportação do Pacote Oficial de Login e Cadastro de Usuário da Tríade (`TriadeUserAuthCard`)
+- **Tipo:** `[Feat / Triade Sync / Forms Package / 7º Mandamento]`
+- **Motivo / Solicitação:** Disponibilização do código-fonte completo, modular e pronto para reuso em outros apps da Tríade (`pvapp`, `mnvapp`) dos formulários de Login e Cadastro do Usuário.
+- **Resumo Técnico:**
+  1. Criado o componente unificado `TriadeUserAuthCard.tsx` que encapsula `TriadeUserLoginForm` e `TriadeUserRegisterForm` com chaveamento de abas ("Já tenho conta" / "Criar nova conta").
+  2. Exportado em `src/triade-export/index.ts` para consumo centralizado no ecossistema.
+  3. Disponibilizados os códigos e instruções para integração direta (Drop-in React) ou via iFrame Embed universal.
+- **Arquivos Impactados:**
+  - `src/components/admin/triade-forms/TriadeUserAuthCard.tsx`
+  - `src/triade-export/index.ts`
+  - `CHANGELOG.md`
+
+---
+
 ### [2026-10-28] — 🚗 Erradicação de iFrames Estáticos no Botão "Ir" e Ativação da Navegação GPS Turn-by-Turn Estilo Uber (`bol-027`)
 - **Tipo:** `[Fix / UX / Mobile GPS / Triade Sync / 7º Mandamento]`
 - **Motivo / Solicitação:** Usuário reportou que no app do salão (`aeroportoguarulhos.vagouapp.com`), ao acessar seu agendamento e clicar em "Ir", abria um iframe estático do Google Maps com caixas desktop ("Mais opções") em vez de disparar a navegação GPS estilo Uber com trajeto em movimento e voz.

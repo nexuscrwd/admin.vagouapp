@@ -170,38 +170,35 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
   };
 
   return (
-    <div className="space-y-5 animate-fadeIn">
-      {/* 1. Header do Portal VAPP com Ações Rápidas de Criação */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xs">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-start sm:items-center gap-3.5">
-            <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 shrink-0">
-              <Globe className="w-6 h-6 text-emerald-500" />
+    <div className="h-full flex flex-col min-h-0 overflow-hidden animate-fadeIn">
+      {/* Subcabeçalho Fixo do Portal VAPP com Ações Rápidas & Abas */}
+      <div className="shrink-0 w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 lg:px-6 py-2.5 z-10 space-y-2.5">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 shrink-0">
+              <Globe className="w-4 h-4 text-emerald-500" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+                <h1 className="text-sm lg:text-base font-bold text-slate-900 dark:text-white tracking-tight">
                   Portal VAPP • Gestão de Estabelecimentos
                 </h1>
-                <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 border border-slate-200 dark:border-slate-700">
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 border border-slate-200 dark:border-slate-700">
                   portal.vagouapp.com
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Central de criação, esteira de onboarding e governança de salões parceiros no marketplace.
-              </p>
             </div>
           </div>
 
           {/* Botões de Ação do Topo */}
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
             {onOpenCategoryModal && (
               <button
                 type="button"
                 onClick={onOpenCategoryModal}
-                className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold border border-slate-200 dark:border-slate-700 transition flex items-center gap-1.5 cursor-pointer"
+                className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold border border-slate-200 dark:border-slate-700 transition flex items-center gap-1.5 cursor-pointer"
               >
-                <FolderPlus className="w-4 h-4 text-slate-400" />
+                <FolderPlus className="w-3.5 h-3.5 text-slate-400" />
                 <span>Categorias</span>
               </button>
             )}
@@ -210,103 +207,36 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
               href="https://portal.vagouapp.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold border border-slate-200 dark:border-slate-700 transition flex items-center gap-1.5 cursor-pointer"
+              className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold border border-slate-200 dark:border-slate-700 transition flex items-center gap-1.5 cursor-pointer"
             >
               <span>Ver Portal</span>
-              <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+              <ExternalLink className="w-3 h-3 text-slate-400" />
             </a>
 
             {/* BOTÃO MESTRE: CRIAR NOVO ESTABELECIMENTO */}
             <button
               type="button"
               onClick={onOpenNewSalon}
-              className="px-4 py-2 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-md shadow-emerald-500/20 active:scale-95"
+              className="px-3 py-1.5 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
             >
-              <Plus className="w-4 h-4 text-white" />
+              <Plus className="w-3.5 h-3.5 text-white" />
               <span>Novo Estabelecimento</span>
             </button>
           </div>
         </div>
-      </div>
 
-      {/* 2. KPIs da Esteira de Estabelecimentos do Portal */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* Total no Portal */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 sm:p-4 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
-            <span className="text-xs font-medium">Total de Salões</span>
-            <Building2 className="w-4 h-4 text-slate-400" />
-          </div>
-          <div className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
-            {metrics.total}
-          </div>
-          <span className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 block">
-            {metrics.active} com operação ativa
-          </span>
-        </div>
-
-        {/* Esteira / Novos */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 sm:p-4 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
-            <span className="text-xs font-medium">Esteira de Novos</span>
-            <Sparkles className="w-4 h-4 text-emerald-500" />
-          </div>
-          <div className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-            {metrics.recentCount}
-          </div>
-          <span className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 block">
-            Onboarding e recentes
-          </span>
-        </div>
-
-        {/* Pendentes de Aprovação */}
-        <div
-          onClick={() => {
-            setActiveTab('all');
-            setStatusFilter('pending');
-          }}
-          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 sm:p-4 shadow-xs cursor-pointer hover:border-amber-500/50 transition group"
-        >
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
-            <span className="text-xs font-medium group-hover:text-amber-500 transition">Aguardando Moderação</span>
-            <Clock className="w-4 h-4 text-amber-500" />
-          </div>
-          <div className="text-xl sm:text-2xl font-bold text-amber-500">
-            {metrics.needsAttention}
-          </div>
-          <span className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 block">
-            {metrics.pending} pendentes • {metrics.incomplete} incompletos
-          </span>
-        </div>
-
-        {/* Selo Verificado */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 sm:p-4 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
-            <span className="text-xs font-medium">Selo Verificado</span>
-            <ShieldCheck className="w-4 h-4 text-emerald-500" />
-          </div>
-          <div className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
-            {metrics.verified}
-          </div>
-          <span className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 block">
-            Com selo de confiança oficial
-          </span>
-        </div>
-      </div>
-
-      {/* 3. Abas Principais do Portal VAPP */}
-      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
-        <div className="flex items-center gap-1 sm:gap-2">
+        {/* Abas de Navegação */}
+        <div className="flex items-center gap-1 overflow-x-auto pt-1">
           <button
             type="button"
             onClick={() => setActiveTab('pipeline')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
               activeTab === 'pipeline'
                 ? 'bg-[#20C933] text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
-            <Clock className="w-3.5 h-3.5" />
+            <Clock className="w-3 h-3" />
             <span>Esteira de Novos Salões</span>
             {metrics.needsAttention > 0 && (
               <span
@@ -322,30 +252,98 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('all')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
               activeTab === 'all'
                 ? 'bg-[#20C933] text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
-            <Building2 className="w-3.5 h-3.5" />
+            <Building2 className="w-3 h-3" />
             <span>Todos os Estabelecimentos ({metrics.total})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('onboarding')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
               activeTab === 'onboarding'
                 ? 'bg-[#20C933] text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
-            <LinkIcon className="w-3.5 h-3.5" />
+            <LinkIcon className="w-3 h-3" />
             <span>Onboarding & Domínios</span>
           </button>
         </div>
       </div>
+
+      {/* Área de Dados com Rolagem Vertical Exclusiva — Zero espaço no contêiner */}
+      <div className="flex-1 overflow-y-auto p-0 m-0 min-h-0 custom-scrollbar">
+        <div className="p-4 lg:p-6 space-y-5">
+          {/* KPIs da Esteira de Estabelecimentos do Portal */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          {/* Total no Portal */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 sm:p-4 shadow-xs">
+            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
+              <span className="text-xs font-medium">Total de Salões</span>
+              <Building2 className="w-4 h-4 text-slate-400" />
+            </div>
+            <div className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+              {metrics.total}
+            </div>
+            <span className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 block">
+              {metrics.active} com operação ativa
+            </span>
+          </div>
+
+          {/* Esteira / Novos */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 sm:p-4 shadow-xs">
+            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
+              <span className="text-xs font-medium">Esteira de Novos</span>
+              <Sparkles className="w-4 h-4 text-emerald-500" />
+            </div>
+            <div className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+              {metrics.recentCount}
+            </div>
+            <span className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 block">
+              Onboarding e recentes
+            </span>
+          </div>
+
+          {/* Pendentes de Aprovação */}
+          <div
+            onClick={() => {
+              setActiveTab('all');
+              setStatusFilter('pending');
+            }}
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 sm:p-4 shadow-xs cursor-pointer hover:border-amber-500/50 transition group"
+          >
+            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
+              <span className="text-xs font-medium group-hover:text-amber-500 transition">Aguardando Moderação</span>
+              <Clock className="w-4 h-4 text-amber-500" />
+            </div>
+            <div className="text-xl sm:text-2xl font-bold text-amber-500">
+              {metrics.needsAttention}
+            </div>
+            <span className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 block">
+              {metrics.pending} pendentes • {metrics.incomplete} incompletos
+            </span>
+          </div>
+
+          {/* Selo Verificado */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 sm:p-4 shadow-xs">
+            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
+              <span className="text-xs font-medium">Selo Verificado</span>
+              <ShieldCheck className="w-4 h-4 text-emerald-500" />
+            </div>
+            <div className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+              {metrics.verified}
+            </div>
+            <span className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 block">
+              Com selo de confiança oficial
+            </span>
+          </div>
+        </div>
 
       {/* ABA 1: ESTEIRA DE NOVOS SALÕES & MODERAÇÃO */}
       {activeTab === 'pipeline' && (
@@ -994,6 +992,8 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
           </div>
         </div>
       )}
+        </div>
+      </div>
     </div>
   );
 };

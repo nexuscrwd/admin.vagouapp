@@ -1,144 +1,163 @@
 -- =====================================================================================================
--- 🏛️ ECOSSISTEMA VAGOUAPP — MASTER REBUILD SQL (CLEAN RESET & SINCRONIZAÇÃO 360º DA TRÍADE)
+-- 🏛️ VAGOUAPP — SCRIPT MESTRE SOBERANO DE CONVERGÊNCIA UNIFICADA (SUPABASE SQL v5.0)
+-- Data: 11/11/2026 — Cobertura Integral: mnvapp (bol-001..bol-158) ⇄ admvapp ⇄ pvapp
 -- =====================================================================================================
--- Versão: 3.1.2 Master (Unificado e Desacoplado para admvapp ⇄ mnvapp ⇄ pvapp)
--- Repositórios Sincronizados:
---   1. Admin VagouApp (admvapp)  -> https://github.com/nexuscrwd/admin.vagouapp.git
---   2. Meu Negócio / App (mnvapp)-> https://github.com/nexuscrwd/vagouapp.git
---   3. Portal VagouApp (pvapp)   -> https://github.com/nexuscrwd/Portal-VagouApp.git
---
--- O QUE ESTE SCRIPT FAZ DO INÍCIO AO FIM:
---   [1] Limpa/Apaga (DROP CASCADE) todas as tabelas, views, triggers e funções antigas sem erros.
---   [2] Ativa as extensões essenciais (uuid-ossp, pgcrypto).
---   [3] Recria todas as 16 tabelas relacionais da Tríade com todas as colunas de compatibilidade.
---   [4] Cria Triggers Automáticos Inteligentes:
---       • updated_at automático em todas as tabelas
---       • Espelhamento Bidirecional Automático: services ⇄ salon_services (entre mnvapp e admvapp/pvapp)
---       • Sincronismo Automático de Galeria: salon_media_items -> atualiza Capa e Logo em salons
---       • Contador Automático de Conta Família: dependents -> atualiza dependents_count em clients
---       • Sincronismo de Utilidades: dre_records ⇄ financial_dre e supply_items ⇄ inventory_items
---       • Protocolo Automático (#VGA-XXXXX) e contador de agendamentos em appointments
---   [5] Cria todas as Funções RPC (get_offers_in_radius, verify_admin_login, register_system_admin, register_triade_user).
---   [6] Configura Row Level Security (RLS) e Políticas de Acesso para leitura/escrita da Tríade.
---   [7] Configura Storage Buckets (salon-media, avatars, documents) e Políticas Públicas de Upload/Leitura.
---   [8] Ativa SUPABASE REALTIME (REPLICA IDENTITY FULL + Publication supabase_realtime) em TODAS as tabelas.
---   [9] Insere Seeds Iniciais Ricos (Salões, Profissionais, Serviços, Mídias, Vagas Radar, Dependentes, Utilidades e Admin Master).
+-- CARACTERÍSTICAS DESTE SCRIPT:
+--   1. 100% IDEMPOTENTE E NÃO-DESTRUTIVO: Zero DROP TABLE CASCADE. Seguro para rodar em produção.
+--   2. ZERO MOCKS / SEEDS FICTÍCIOS: Mantém apenas o catálogo oficial de perguntas de segurança.
+--   3. 23 TABELAS CONVERGENTES: Une 100% das tabelas do App (mnvapp) e do Gestor Corporativo (admvapp).
+--   4. PADRÃO FINANCEIRO UNIFICADO: R$ 2,50 por agendamento concluído (fee_per_booking ⇄ billing_fee_value)
+--      ou Assinatura Mensal R$ 89,90 (customizável individualmente por estabelecimento no Admin).
+--   5. PALETA DEFAULT VERDE CLARINHO: default_theme = 'light', nav_bg_color = '#D1FAE5', primary_color = '#10B981'.
+--   6. TRIGGERS BIDIRECIONAIS + MOTOR GEOTEMPORAL ANTI-COLISÃO + REALTIME + RLS ESTRUTURADO.
 -- =====================================================================================================
 
+BEGIN;
+
 -- =====================================================================================================
--- PASSO 1: EXTENSÕES ESSENCIAIS
+-- 1. EXTENSÕES POSTGRESQL ESSENCIAIS
 -- =====================================================================================================
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- =====================================================================================================
--- PASSO 2: LIMPEZA TOTAL E SEGURA DO BANCO DE DADOS (DROP CASCADE)
+-- 2. NÚCLEO DE IDENTIDADE GLOBAL & GOVERNANÇA CORPORATIVA (PROFILES, ADMINS, LOGS)
 -- =====================================================================================================
-DROP FUNCTION IF EXISTS public.get_offers_in_radius(DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, TEXT) CASCADE;
-DROP FUNCTION IF EXISTS public.verify_admin_login(TEXT, TEXT) CASCADE;
-DROP FUNCTION IF EXISTS public.register_system_admin(TEXT, TEXT, TEXT, TEXT, TEXT) CASCADE;
-DROP FUNCTION IF EXISTS public.register_triade_user(VARCHAR, VARCHAR, VARCHAR, VARCHAR, TEXT, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, UUID, VARCHAR) CASCADE;
-DROP FUNCTION IF EXISTS public.register_triade_user(VARCHAR, VARCHAR, VARCHAR, VARCHAR, TEXT, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, UUID) CASCADE;
-DROP FUNCTION IF EXISTS public.handle_updated_at() CASCADE;
-DROP FUNCTION IF EXISTS public.sync_salon_fields() CASCADE;
-DROP FUNCTION IF EXISTS public.sync_client_fields() CASCADE;
-DROP FUNCTION IF EXISTS public.sync_professional_fields() CASCADE;
-DROP FUNCTION IF EXISTS public.normalize_service_fields() CASCADE;
-DROP FUNCTION IF EXISTS public.normalize_salon_service_fields() CASCADE;
-DROP FUNCTION IF EXISTS public.sync_services_to_salon_services() CASCADE;
-DROP FUNCTION IF EXISTS public.sync_salon_services_to_services() CASCADE;
-DROP FUNCTION IF EXISTS public.sync_services_bidirectional() CASCADE;
-DROP FUNCTION IF EXISTS public.auto_promote_service_to_radar() CASCADE;
-DROP FUNCTION IF EXISTS public.normalize_service_offer_defaults() CASCADE;
-DROP FUNCTION IF EXISTS public.sync_salon_media_items_and_branding() CASCADE;
-DROP FUNCTION IF EXISTS public.normalize_dependent_fields() CASCADE;
-DROP FUNCTION IF EXISTS public.normalize_client_family_member_fields() CASCADE;
-DROP FUNCTION IF EXISTS public.sync_client_dependents_counter() CASCADE;
-DROP FUNCTION IF EXISTS public.sync_dependents_to_family_members() CASCADE;
-DROP FUNCTION IF EXISTS public.sync_family_members_to_dependents() CASCADE;
-DROP FUNCTION IF EXISTS public.sync_dependents_and_family_members() CASCADE;
-DROP FUNCTION IF EXISTS public.sync_salon_clients_fields() CASCADE;
-DROP FUNCTION IF EXISTS public.sync_salon_utilities_fields() CASCADE;
-DROP FUNCTION IF EXISTS public.handle_appointment_defaults() CASCADE;
-
-DROP TABLE IF EXISTS public.admin_access_logs CASCADE;
-DROP TABLE IF EXISTS public.system_admins CASCADE;
-DROP TABLE IF EXISTS public.billing_invoices CASCADE;
-DROP TABLE IF EXISTS public.financial_transactions CASCADE;
-DROP TABLE IF EXISTS public.salon_utilities_records CASCADE;
-DROP TABLE IF EXISTS public.salon_media_slots CASCADE;
-DROP TABLE IF EXISTS public.salon_media_items CASCADE;
-DROP TABLE IF EXISTS public.appointments CASCADE;
-DROP TABLE IF EXISTS public.client_family_members CASCADE;
-DROP TABLE IF EXISTS public.dependents CASCADE;
-DROP TABLE IF EXISTS public.salon_clients CASCADE;
-DROP TABLE IF EXISTS public.salon_members CASCADE;
-DROP TABLE IF EXISTS public.salon_users CASCADE;
-DROP TABLE IF EXISTS public.clients CASCADE;
-DROP TABLE IF EXISTS public.service_offers CASCADE;
-DROP TABLE IF EXISTS public.salon_services CASCADE;
-DROP TABLE IF EXISTS public.services CASCADE;
-DROP TABLE IF EXISTS public.professionals CASCADE;
-DROP TABLE IF EXISTS public.salons CASCADE;
-DROP TABLE IF EXISTS public.profiles CASCADE;
-
--- =====================================================================================================
--- PASSO 3: CRIAÇÃO DAS TABELAS OFICIAIS DA TRÍADE (ADMVAPP ⇄ MNVAPP ⇄ PVAPP)
--- =====================================================================================================
-
--- 3.1 TABELA: PROFILES (PERFIS GLOBAIS VINCULADOS AO AUTH OU STANDALONE)
-CREATE TABLE public.profiles (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+CREATE TABLE IF NOT EXISTS public.profiles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     email VARCHAR(255),
-    full_name VARCHAR(255),
     name VARCHAR(255),
+    full_name VARCHAR(255),
     username VARCHAR(100),
+    cpf VARCHAR(20),
+    document_number VARCHAR(30),
+    birth_date DATE,
+    role VARCHAR(50) DEFAULT 'consumer',
     phone VARCHAR(30),
     phone_whatsapp VARCHAR(30),
-    cpf VARCHAR(20),
-    birth_date DATE,
-    role VARCHAR(50) DEFAULT 'consumer' CHECK (role IN ('consumer', 'partner', 'professional', 'admin', 'super_admin', 'master')),
     avatar_url TEXT,
+    dependents_count INTEGER DEFAULT 0,
     salon_id UUID,
-    cep VARCHAR(20),
+    status VARCHAR(30) DEFAULT 'active',
     address TEXT,
     street_number VARCHAR(50),
     complement VARCHAR(100),
     neighborhood VARCHAR(150),
     city VARCHAR(150) DEFAULT 'São Paulo',
     state VARCHAR(10) DEFAULT 'SP',
-    dependents_count INTEGER DEFAULT 0,
-    status VARCHAR(30) DEFAULT 'active',
+    cep VARCHAR(20),
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
+    formatted_address TEXT,
+    google_place_id TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.2 TABELA: SALONS (ESTABELECIMENTOS / PARCEIROS MEU NEGÓCIO)
-CREATE TABLE public.salons (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS user_id UUID,
+  ADD COLUMN IF NOT EXISTS email VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS name VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS full_name VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS username VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS cpf VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS document_number VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS birth_date DATE,
+  ADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT 'consumer',
+  ADD COLUMN IF NOT EXISTS phone VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS phone_whatsapp VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS avatar_url TEXT,
+  ADD COLUMN IF NOT EXISTS dependents_count INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS salon_id UUID,
+  ADD COLUMN IF NOT EXISTS status VARCHAR(30) DEFAULT 'active',
+  ADD COLUMN IF NOT EXISTS address TEXT,
+  ADD COLUMN IF NOT EXISTS street_number VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS complement VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS neighborhood VARCHAR(150),
+  ADD COLUMN IF NOT EXISTS city VARCHAR(150) DEFAULT 'São Paulo',
+  ADD COLUMN IF NOT EXISTS state VARCHAR(10) DEFAULT 'SP',
+  ADD COLUMN IF NOT EXISTS cep VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS formatted_address TEXT,
+  ADD COLUMN IF NOT EXISTS google_place_id TEXT;
+
+CREATE TABLE IF NOT EXISTS public.system_admins (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID,
+    username VARCHAR(100) UNIQUE,
+    email VARCHAR(255) UNIQUE,
+    password_hash TEXT,
+    cpf VARCHAR(20) UNIQUE,
+    phone_whatsapp VARCHAR(30),
+    phone_secondary VARCHAR(30),
+    name VARCHAR(255),
+    full_name VARCHAR(255),
+    role VARCHAR(50) DEFAULT 'superadmin',
+    access_level VARCHAR(50) DEFAULT 'Superadmin Master',
+    is_active BOOLEAN DEFAULT TRUE,
+    avatar_url TEXT,
+    last_login_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.system_admins
+  ADD COLUMN IF NOT EXISTS user_id UUID,
+  ADD COLUMN IF NOT EXISTS name VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS full_name VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS username VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS email VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS password_hash TEXT,
+  ADD COLUMN IF NOT EXISTS phone_whatsapp VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS phone_secondary VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS cpf VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS avatar_url TEXT,
+  ADD COLUMN IF NOT EXISTS role VARCHAR(50) DEFAULT 'superadmin',
+  ADD COLUMN IF NOT EXISTS access_level VARCHAR(50) DEFAULT 'Superadmin Master',
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS public.admin_access_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    admin_id UUID REFERENCES public.system_admins(id) ON DELETE CASCADE,
+    username VARCHAR(100) NOT NULL,
+    action_type VARCHAR(50) NOT NULL,
+    ip_address VARCHAR(50),
+    user_agent TEXT,
+    details JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- =====================================================================================================
+-- 3. ESTABELECIMENTOS & PREFERÊNCIAS VISUAIS WHITE-LABEL (SALONS & SALON_UI_SETTINGS)
+-- =====================================================================================================
+CREATE TABLE IF NOT EXISTS public.salons (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     owner_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-    name VARCHAR(255),                             -- Espelhado automaticamente com trade_name
-    trade_name VARCHAR(255) NOT NULL,              -- Nome Fantasia (Ex: Salão X Prime)
-    legal_name VARCHAR(255) DEFAULT '',            -- Razão Social / Nome do Responsável
-    slug VARCHAR(100) UNIQUE NOT NULL,             -- Link exclusivo (ex: vagou.app/salao-x-prime)
-    subdomain VARCHAR(100),                        -- Espelho de compatibilidade para pvapp/mnvapp
-    document_type VARCHAR(20) DEFAULT 'CNPJ',      -- CNPJ ou CPF
+    name VARCHAR(255),
+    trade_name VARCHAR(255) NOT NULL,
+    legal_name VARCHAR(255) NOT NULL DEFAULT '',
+    slug VARCHAR(100) UNIQUE NOT NULL,
+    subdomain VARCHAR(100),
+    document_type VARCHAR(20) DEFAULT 'CNPJ',
     document_number VARCHAR(30),
-    owner_cpf VARCHAR(20),                         -- CPF pessoal do proprietário / titular
-    category VARCHAR(100) DEFAULT 'Barbearia',     -- Categoria principal (Barbearia, Salão de Beleza, Studio, etc.)
+    has_cnpj BOOLEAN DEFAULT FALSE,
+    owner_cpf VARCHAR(20),
+    owner_name VARCHAR(255),
+    owner_email VARCHAR(255),
+    owner_phone VARCHAR(30),
     phone VARCHAR(30),
     phone_whatsapp VARCHAR(30),
     phone_landline VARCHAR(30),
     email VARCHAR(255),
-    website TEXT,
-    instagram VARCHAR(150),
-    instagram_url TEXT,
-    operating_model VARCHAR(50) DEFAULT 'team',    -- solo, team, home_delivery, hybrid
+    category VARCHAR(100) DEFAULT 'Barbearia',
+    operating_model VARCHAR(50) DEFAULT 'team',
     home_delivery_enabled BOOLEAN DEFAULT FALSE,
     home_delivery_area TEXT,
     home_delivery_travel_fee NUMERIC(10,2) DEFAULT 0.00,
-    status VARCHAR(30) DEFAULT 'active' CHECK (status IN ('active', 'pending', 'incomplete', 'suspended', 'blocked', 'trial')),
+    status VARCHAR(30) DEFAULT 'active',
     is_verified BOOLEAN DEFAULT TRUE,
     is_active BOOLEAN DEFAULT TRUE,
     is_featured BOOLEAN DEFAULT FALSE,
@@ -154,255 +173,558 @@ CREATE TABLE public.salons (
     cep VARCHAR(20),
     latitude DOUBLE PRECISION DEFAULT -23.5350,
     longitude DOUBLE PRECISION DEFAULT -46.4520,
+    formatted_address TEXT,
+    google_place_id TEXT,
 
-    -- Identidade Visual, Tema Camaleão & Espaço Físico (mnvapp ⇄ admvapp ⇄ pvapp)
+    -- Identidade Visual, Branding & Paleta Default Verde Pastel Clarinho (bol-158)
+    favicon_url TEXT,
+    slogan VARCHAR(255),
+    brand_font VARCHAR(60) DEFAULT 'Poppins',
     logo_url TEXT,
     logo_light_url TEXT,
     logo_dark_url TEXT,
-    favicon_url TEXT,
     cover_url TEXT,
     cover_image_url TEXT,
     facade_photo_url TEXT,
     interior_photo_url TEXT,
-    space_photos JSONB DEFAULT '[]'::jsonb,
-    theme_preset_id VARCHAR(50) DEFAULT 'emerald-dark', -- emerald-dark, gold-luxury, rose-glam, purple-neon, clean-light, emerald
-    primary_color VARCHAR(30) DEFAULT '#20C933',
-    secondary_color VARCHAR(30) DEFAULT '#0F172A',
-    slogan VARCHAR(255),
-    brand_font VARCHAR(60) DEFAULT 'Poppins',
-    branding JSONB DEFAULT '{"primaryColor": "#20C933", "secondaryColor": "#0F172A", "themePresetId": "emerald-dark", "themeMode": "dark", "brandFont": "Poppins", "slogan": "", "faviconUrl": ""}'::jsonb,
-    bio TEXT,
-    description TEXT,
-    amenities TEXT[] DEFAULT ARRAY[]::TEXT[],
-    gallery JSONB DEFAULT '[]'::jsonb,
+    theme_preset_id VARCHAR(50) DEFAULT 'mint-light',
+    branding JSONB DEFAULT '{"primaryColor": "#10B981", "secondaryColor": "#065F46", "navBgColor": "#D1FAE5", "themeMode": "light"}'::jsonb,
+    primary_color VARCHAR(30) DEFAULT '#10B981',
+    secondary_color VARCHAR(30) DEFAULT '#065F46',
+    default_theme VARCHAR(20) DEFAULT 'light',
+    pwa_name VARCHAR(150),
+    show_slogan BOOLEAN DEFAULT TRUE,
+    logo_text_fallback VARCHAR(100),
+    logo_text_color VARCHAR(20),
+    show_hero_slides BOOLEAN DEFAULT TRUE,
+    welcome_style VARCHAR(50) DEFAULT 'atmospheric',
 
-    -- Financeiro, PIX & Expediente
-    pix_key VARCHAR(150),
-    pix_keys JSONB DEFAULT '[]'::jsonb,
+    -- Subcabeçalhos de Seção (Section Header)
+    section_header_bg_color VARCHAR(30) DEFAULT '#ECFDF5',
+    section_header_text_color VARCHAR(30) DEFAULT '#065F46',
+    section_header_icon_color VARCHAR(30) DEFAULT '#059669',
+    section_header_bg_style VARCHAR(30) DEFAULT 'solid',
+    section_header_border VARCHAR(30) DEFAULT 'bordered',
+    section_header_btn_bg_color VARCHAR(30),
+    section_header_btn_active_bg_color VARCHAR(30),
+    section_header_btn_border VARCHAR(30),
+    section_header_btn_shadow VARCHAR(30),
+    section_header_btn_blur VARCHAR(30),
+    section_header_btn_font VARCHAR(60),
+
+    -- Barra de Navegação Inferior (BottomNav)
+    nav_style VARCHAR(30) DEFAULT 'minimal',
+    nav_shape VARCHAR(30) DEFAULT 'square',
+    nav_border VARCHAR(30) DEFAULT 'bordered',
+    nav_icon_border VARCHAR(30) DEFAULT 'none',
+    nav_bg_style VARCHAR(30) DEFAULT 'solid',
+    nav_bg_color VARCHAR(30) DEFAULT '#D1FAE5',
+    nav_btn_bg_color VARCHAR(30),
+    nav_btn_active_bg_color VARCHAR(30),
+    nav_active_color VARCHAR(30) DEFAULT '#10B981',
+    nav_text_color VARCHAR(30),
+    nav_btn_shadow VARCHAR(30),
+    nav_btn_blur VARCHAR(30),
+    nav_btn_font VARCHAR(60),
+
+    -- Espaço Físico, Expediente, PIX e Redes
+    space_photos JSONB DEFAULT '[]'::jsonb,
+    gallery JSONB DEFAULT '[]'::jsonb,
+    space_description TEXT,
+    description TEXT,
+    bio TEXT,
+    amenities JSONB DEFAULT '[]'::jsonb,
+    holidays JSONB DEFAULT '[]'::jsonb,
+    cancellation_policy JSONB,
     operating_hours JSONB DEFAULT '{}'::jsonb,
     business_hours JSONB DEFAULT '{}'::jsonb,
+    opening_hours_text TEXT,
+    pix_key VARCHAR(150),
+    pix_keys JSONB DEFAULT '[]'::jsonb,
+    website TEXT,
+    website_url TEXT,
+    instagram VARCHAR(150),
+    instagram_url TEXT,
+    facebook_url TEXT,
+    maps_url TEXT,
 
     -- Avaliações & Métricas
     rating_avg NUMERIC(3,2) DEFAULT 5.00,
     rating_count INTEGER DEFAULT 1,
     media_slots_count INTEGER DEFAULT 1,
 
-    -- Modelo de Cobrança / Faturamento Ecossistema
+    -- Monetização & Faturamento Unificado (App ⇄ Admin Master)
     billing_plan VARCHAR(50) DEFAULT 'PER_APPOINTMENT',
     billing_fee_type VARCHAR(50) DEFAULT 'FIXED',
     billing_fee_value NUMERIC(10,2) DEFAULT 2.50,
+    fee_per_booking NUMERIC(10,2) DEFAULT 2.50,
+    monthly_subscription_fee NUMERIC(10,2) DEFAULT 89.90,
+    billing_due_day INTEGER DEFAULT 10,
+    pin_code VARCHAR(30),
+    moderation_notes TEXT,
 
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_salons_slug ON public.salons(slug);
-CREATE INDEX idx_salons_subdomain ON public.salons(subdomain);
-CREATE INDEX idx_salons_status ON public.salons(status);
-CREATE INDEX idx_salons_owner_cpf ON public.salons(owner_cpf);
-CREATE INDEX idx_salons_city_neighborhood ON public.salons(city, neighborhood);
+ALTER TABLE public.salons
+  ADD COLUMN IF NOT EXISTS name VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS subdomain VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS has_cnpj BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS owner_cpf VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS owner_name VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS owner_email VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS owner_phone VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS phone VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS phone_whatsapp VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS phone_landline VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS address TEXT,
+  ADD COLUMN IF NOT EXISTS street_number VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS complement VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS neighborhood VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS city VARCHAR(100) DEFAULT 'São Paulo',
+  ADD COLUMN IF NOT EXISTS state VARCHAR(10) DEFAULT 'SP',
+  ADD COLUMN IF NOT EXISTS cep VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION DEFAULT -23.5350,
+  ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION DEFAULT -46.4520,
+  ADD COLUMN IF NOT EXISTS formatted_address TEXT,
+  ADD COLUMN IF NOT EXISTS google_place_id TEXT,
+  ADD COLUMN IF NOT EXISTS logo_url TEXT,
+  ADD COLUMN IF NOT EXISTS logo_light_url TEXT,
+  ADD COLUMN IF NOT EXISTS logo_dark_url TEXT,
+  ADD COLUMN IF NOT EXISTS favicon_url TEXT,
+  ADD COLUMN IF NOT EXISTS cover_url TEXT,
+  ADD COLUMN IF NOT EXISTS cover_image_url TEXT,
+  ADD COLUMN IF NOT EXISTS facade_photo_url TEXT,
+  ADD COLUMN IF NOT EXISTS interior_photo_url TEXT,
+  ADD COLUMN IF NOT EXISTS theme_preset_id VARCHAR(50) DEFAULT 'mint-light',
+  ADD COLUMN IF NOT EXISTS primary_color VARCHAR(30) DEFAULT '#10B981',
+  ADD COLUMN IF NOT EXISTS secondary_color VARCHAR(30) DEFAULT '#065F46',
+  ADD COLUMN IF NOT EXISTS default_theme VARCHAR(20) DEFAULT 'light',
+  ADD COLUMN IF NOT EXISTS pwa_name VARCHAR(150),
+  ADD COLUMN IF NOT EXISTS slogan VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS brand_font VARCHAR(60) DEFAULT 'Poppins',
+  ADD COLUMN IF NOT EXISTS show_slogan BOOLEAN DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS logo_text_fallback VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS logo_text_color VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS show_hero_slides BOOLEAN DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS welcome_style VARCHAR(50) DEFAULT 'atmospheric',
+  ADD COLUMN IF NOT EXISTS section_header_bg_color VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS section_header_text_color VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS section_header_icon_color VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS section_header_bg_style VARCHAR(30) DEFAULT 'solid',
+  ADD COLUMN IF NOT EXISTS section_header_border VARCHAR(30) DEFAULT 'bordered',
+  ADD COLUMN IF NOT EXISTS section_header_btn_bg_color VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS section_header_btn_active_bg_color VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS section_header_btn_border VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS section_header_btn_shadow VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS section_header_btn_blur VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS section_header_btn_font VARCHAR(60),
+  ADD COLUMN IF NOT EXISTS nav_style VARCHAR(30) DEFAULT 'minimal',
+  ADD COLUMN IF NOT EXISTS nav_shape VARCHAR(30) DEFAULT 'square',
+  ADD COLUMN IF NOT EXISTS nav_border VARCHAR(30) DEFAULT 'bordered',
+  ADD COLUMN IF NOT EXISTS nav_icon_border VARCHAR(30) DEFAULT 'none',
+  ADD COLUMN IF NOT EXISTS nav_bg_style VARCHAR(30) DEFAULT 'solid',
+  ADD COLUMN IF NOT EXISTS nav_bg_color VARCHAR(30) DEFAULT '#D1FAE5',
+  ADD COLUMN IF NOT EXISTS nav_btn_bg_color VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS nav_btn_active_bg_color VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS nav_active_color VARCHAR(30) DEFAULT '#10B981',
+  ADD COLUMN IF NOT EXISTS nav_text_color VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS nav_btn_shadow VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS nav_btn_blur VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS nav_btn_font VARCHAR(60),
+  ADD COLUMN IF NOT EXISTS space_photos JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS gallery JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS space_description TEXT,
+  ADD COLUMN IF NOT EXISTS description TEXT,
+  ADD COLUMN IF NOT EXISTS bio TEXT,
+  ADD COLUMN IF NOT EXISTS amenities JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS holidays JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS cancellation_policy JSONB,
+  ADD COLUMN IF NOT EXISTS operating_hours JSONB DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS business_hours JSONB DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS opening_hours_text TEXT,
+  ADD COLUMN IF NOT EXISTS pix_key VARCHAR(150),
+  ADD COLUMN IF NOT EXISTS pix_keys JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS website TEXT,
+  ADD COLUMN IF NOT EXISTS website_url TEXT,
+  ADD COLUMN IF NOT EXISTS instagram VARCHAR(150),
+  ADD COLUMN IF NOT EXISTS instagram_url TEXT,
+  ADD COLUMN IF NOT EXISTS facebook_url TEXT,
+  ADD COLUMN IF NOT EXISTS maps_url TEXT,
+  ADD COLUMN IF NOT EXISTS billing_plan VARCHAR(50) DEFAULT 'PER_APPOINTMENT',
+  ADD COLUMN IF NOT EXISTS billing_fee_type VARCHAR(50) DEFAULT 'FIXED',
+  ADD COLUMN IF NOT EXISTS billing_fee_value NUMERIC(10,2) DEFAULT 2.50,
+  ADD COLUMN IF NOT EXISTS fee_per_booking NUMERIC(10,2) DEFAULT 2.50,
+  ADD COLUMN IF NOT EXISTS monthly_subscription_fee NUMERIC(10,2) DEFAULT 89.90,
+  ADD COLUMN IF NOT EXISTS billing_due_day INTEGER DEFAULT 10,
+  ADD COLUMN IF NOT EXISTS status VARCHAR(30) DEFAULT 'active',
+  ADD COLUMN IF NOT EXISTS moderation_notes TEXT,
+  ADD COLUMN IF NOT EXISTS pin_code VARCHAR(30);
 
--- 3.3 TABELA: PROFESSIONALS (PROFISSIONAIS / EQUIPE DO ESTABELECIMENTO)
-CREATE TABLE public.professionals (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+ALTER TABLE public.salons ALTER COLUMN primary_color SET DEFAULT '#10B981';
+ALTER TABLE public.salons ALTER COLUMN default_theme SET DEFAULT 'light';
+ALTER TABLE public.salons ALTER COLUMN nav_bg_color SET DEFAULT '#D1FAE5';
+ALTER TABLE public.salons ALTER COLUMN billing_fee_value SET DEFAULT 2.50;
+ALTER TABLE public.salons ALTER COLUMN fee_per_booking SET DEFAULT 2.50;
+
+CREATE TABLE IF NOT EXISTS public.salon_ui_settings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    salon_id UUID NOT NULL UNIQUE REFERENCES public.salons(id) ON DELETE CASCADE,
+    default_theme VARCHAR(20) DEFAULT 'light',
+    primary_color VARCHAR(30) DEFAULT '#10B981',
+    secondary_color VARCHAR(30) DEFAULT '#065F46',
+    brand_font VARCHAR(60) DEFAULT 'Poppins',
+    pwa_name VARCHAR(150),
+    slogan VARCHAR(255),
+    show_slogan BOOLEAN DEFAULT TRUE,
+    logo_text_fallback VARCHAR(100),
+    logo_text_color VARCHAR(20),
+    show_hero_slides BOOLEAN DEFAULT TRUE,
+    welcome_style VARCHAR(50) DEFAULT 'atmospheric',
+    section_header_bg_color VARCHAR(30) DEFAULT '#ECFDF5',
+    section_header_text_color VARCHAR(30) DEFAULT '#065F46',
+    section_header_icon_color VARCHAR(30) DEFAULT '#059669',
+    section_header_bg_style VARCHAR(30) DEFAULT 'solid',
+    section_header_border VARCHAR(30) DEFAULT 'bordered',
+    section_header_btn_bg_color VARCHAR(30),
+    section_header_btn_active_bg_color VARCHAR(30),
+    section_header_btn_border VARCHAR(30),
+    section_header_btn_shadow VARCHAR(30),
+    section_header_btn_blur VARCHAR(30),
+    section_header_btn_font VARCHAR(60),
+    nav_style VARCHAR(30) DEFAULT 'minimal',
+    nav_shape VARCHAR(30) DEFAULT 'square',
+    nav_border VARCHAR(30) DEFAULT 'bordered',
+    nav_icon_border VARCHAR(30) DEFAULT 'none',
+    nav_bg_style VARCHAR(30) DEFAULT 'solid',
+    nav_bg_color VARCHAR(30) DEFAULT '#D1FAE5',
+    nav_btn_bg_color VARCHAR(30),
+    nav_btn_active_bg_color VARCHAR(30),
+    nav_active_color VARCHAR(30) DEFAULT '#10B981',
+    nav_text_color VARCHAR(30),
+    nav_btn_shadow VARCHAR(30),
+    nav_btn_blur VARCHAR(30),
+    nav_btn_font VARCHAR(60),
+    branding_snapshot JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.salon_ui_settings
+  ADD COLUMN IF NOT EXISTS nav_icon_border VARCHAR(30) DEFAULT 'none',
+  ADD COLUMN IF NOT EXISTS branding_snapshot JSONB;
+
+ALTER TABLE public.salon_ui_settings ALTER COLUMN primary_color SET DEFAULT '#10B981';
+ALTER TABLE public.salon_ui_settings ALTER COLUMN default_theme SET DEFAULT 'light';
+ALTER TABLE public.salon_ui_settings ALTER COLUMN nav_bg_color SET DEFAULT '#D1FAE5';
+
+-- =====================================================================================================
+-- 4. GESTÃO DE EQUIPE, MEMBROS E PROFISSIONAIS
+-- =====================================================================================================
+CREATE TABLE IF NOT EXISTS public.salon_members (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     salon_id UUID NOT NULL REFERENCES public.salons(id) ON DELETE CASCADE,
-    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    user_id UUID NOT NULL,
+    role VARCHAR(50) NOT NULL DEFAULT 'staff',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(salon_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.salon_users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    salon_id UUID REFERENCES public.salons(id) ON DELETE CASCADE,
+    user_id UUID,
+    username VARCHAR(100),
+    email VARCHAR(255),
+    password_hash TEXT,
+    cpf VARCHAR(20),
+    name VARCHAR(255),
+    full_name VARCHAR(255),
+    phone VARCHAR(30),
+    phone_whatsapp VARCHAR(30),
+    avatar_url TEXT,
+    role VARCHAR(50) DEFAULT 'manager',
+    access_level VARCHAR(50) DEFAULT 'manager',
+    is_active BOOLEAN DEFAULT TRUE,
+    address TEXT,
+    street_number VARCHAR(50),
+    complement VARCHAR(100),
+    neighborhood VARCHAR(100),
+    city VARCHAR(100),
+    state VARCHAR(10),
+    cep VARCHAR(20),
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
+    formatted_address TEXT,
+    google_place_id TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.salon_users
+  ADD COLUMN IF NOT EXISTS full_name VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS phone_whatsapp VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS avatar_url TEXT,
+  ADD COLUMN IF NOT EXISTS cpf VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS address TEXT,
+  ADD COLUMN IF NOT EXISTS street_number VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS complement VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS neighborhood VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS city VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS state VARCHAR(10),
+  ADD COLUMN IF NOT EXISTS cep VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS formatted_address TEXT,
+  ADD COLUMN IF NOT EXISTS google_place_id TEXT;
+
+CREATE TABLE IF NOT EXISTS public.professionals (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    salon_id UUID NOT NULL REFERENCES public.salons(id) ON DELETE CASCADE,
+    user_id UUID,
     name VARCHAR(255) NOT NULL,
     full_name VARCHAR(255),
     username VARCHAR(100),
     role VARCHAR(150) DEFAULT 'Profissional',
-    access_level VARCHAR(50) DEFAULT 'professional', -- admin, professional, receptionist, MEI Parceiro
-    contract_type VARCHAR(50) DEFAULT 'partner_mei',
-    status VARCHAR(50) DEFAULT 'active',
+    access_level VARCHAR(50) DEFAULT 'professional',
     avatar_url TEXT,
     phone VARCHAR(30),
     phone_whatsapp VARCHAR(30),
     phone_secondary VARCHAR(30),
     email VARCHAR(255),
     cpf VARCHAR(20),
-    password_hash TEXT,
-    bio TEXT,
-
-    -- Endereço do Profissional
     address TEXT,
     street_number VARCHAR(50),
     complement VARCHAR(100),
-    neighborhood VARCHAR(150),
-    city VARCHAR(150) DEFAULT 'São Paulo',
-    state VARCHAR(10) DEFAULT 'SP',
+    neighborhood VARCHAR(100),
+    city VARCHAR(100),
+    state VARCHAR(10),
     cep VARCHAR(20),
-
-    -- Configuração Operacional, Comissões e Escala
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
+    formatted_address TEXT,
+    google_place_id TEXT,
     specialties TEXT[] DEFAULT ARRAY['cabelo']::TEXT[],
     color_hex VARCHAR(20) DEFAULT '#10B981',
     slot_minutes INTEGER DEFAULT 45,
     commission_rate NUMERIC(5,2) DEFAULT 50.00,
     product_commission_rate NUMERIC(5,2) DEFAULT 10.00,
-    service_commissions JSONB DEFAULT '{}'::jsonb,
-    product_commissions JSONB DEFAULT '{}'::jsonb,
-    use_custom_schedule BOOLEAN DEFAULT FALSE,
-    schedule_config JSONB DEFAULT '{}'::jsonb,
-    work_schedule JSONB DEFAULT '{}'::jsonb,
-    portfolio_photos TEXT[] DEFAULT ARRAY[]::TEXT[],
+    contract_type VARCHAR(50),
+    status VARCHAR(30) DEFAULT 'active',
     dependents_count INTEGER DEFAULT 0,
     total_appointments INTEGER DEFAULT 0,
+    use_custom_schedule BOOLEAN DEFAULT FALSE,
+    schedule_config JSONB,
     is_active BOOLEAN DEFAULT TRUE,
-
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_professionals_salon ON public.professionals(salon_id);
-CREATE INDEX idx_professionals_active ON public.professionals(salon_id, is_active);
+ALTER TABLE public.professionals
+  ADD COLUMN IF NOT EXISTS full_name VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS username VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS phone_whatsapp VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS phone_secondary VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS cpf VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS avatar_url TEXT,
+  ADD COLUMN IF NOT EXISTS contract_type VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS status VARCHAR(30) DEFAULT 'active',
+  ADD COLUMN IF NOT EXISTS access_level VARCHAR(50) DEFAULT 'professional',
+  ADD COLUMN IF NOT EXISTS dependents_count INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS total_appointments INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS commission_rate NUMERIC(5,2) DEFAULT 50.00,
+  ADD COLUMN IF NOT EXISTS product_commission_rate NUMERIC(5,2) DEFAULT 10.00,
+  ADD COLUMN IF NOT EXISTS address TEXT,
+  ADD COLUMN IF NOT EXISTS street_number VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS complement VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS neighborhood VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS city VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS state VARCHAR(10),
+  ADD COLUMN IF NOT EXISTS cep VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS formatted_address TEXT,
+  ADD COLUMN IF NOT EXISTS google_place_id TEXT;
 
--- 3.4 TABELA: SERVICES (CATÁLOGO CENTRAL DE SERVIÇOS — LIDO POR ADMVAPP, PVAPP E MNVAPP)
-CREATE TABLE public.services (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+-- =====================================================================================================
+-- 5. CATÁLOGO DE SERVIÇOS (SERVICES ⇄ SALON_SERVICES) & RADAR DE VAGAS (SERVICE_OFFERS)
+-- =====================================================================================================
+CREATE TABLE IF NOT EXISTS public.services (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     salon_id UUID NOT NULL REFERENCES public.salons(id) ON DELETE CASCADE,
-    name VARCHAR(255) NOT NULL,
     title VARCHAR(255) NOT NULL,
+    name VARCHAR(255),
     custom_name VARCHAR(255),
-    category VARCHAR(100) DEFAULT 'cabelo',
+    category VARCHAR(80) DEFAULT 'cabelo',
     price NUMERIC(10,2) NOT NULL DEFAULT 0.00,
     promotional_price NUMERIC(10,2),
-    duration_minutes INTEGER NOT NULL DEFAULT 45,
-    duration_estimated VARCHAR(50) DEFAULT '45 min',
+    duration_minutes INTEGER DEFAULT 45,
+    duration_estimated VARCHAR(30),
     commission_rate NUMERIC(5,2) DEFAULT 50.00,
     description TEXT,
     image_url TEXT,
     video_url TEXT,
-    photos TEXT[] DEFAULT ARRAY[]::TEXT[],
+    photos JSONB DEFAULT '[]'::jsonb,
     videos JSONB DEFAULT '[]'::jsonb,
-    slides TEXT[] DEFAULT ARRAY[]::TEXT[],
-    target_audience VARCHAR(30) DEFAULT 'all',
+    slides JSONB DEFAULT '[]'::jsonb,
+    target_audience VARCHAR(50) DEFAULT 'todos',
     order_index INTEGER DEFAULT 0,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_services_salon ON public.services(salon_id);
-CREATE INDEX idx_services_category ON public.services(salon_id, category);
+ALTER TABLE public.services
+  ADD COLUMN IF NOT EXISTS name VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS custom_name VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS promotional_price NUMERIC(10,2),
+  ADD COLUMN IF NOT EXISTS duration_estimated VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS commission_rate NUMERIC(5,2) DEFAULT 50.00,
+  ADD COLUMN IF NOT EXISTS video_url TEXT,
+  ADD COLUMN IF NOT EXISTS photos JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS videos JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS slides JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS target_audience VARCHAR(50) DEFAULT 'todos',
+  ADD COLUMN IF NOT EXISTS order_index INTEGER DEFAULT 0;
 
--- 3.5 TABELA: SALON_SERVICES (TABELA ESPELHO DO MEU NEGÓCIO — SINCRONIZADA POR TRIGGER COM SERVICES)
-CREATE TABLE public.salon_services (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    salon_id UUID NOT NULL REFERENCES public.salons(id) ON DELETE CASCADE,
-    service_id UUID REFERENCES public.services(id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED,
-    name VARCHAR(255),
+CREATE TABLE IF NOT EXISTS public.salon_services (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    salon_id UUID REFERENCES public.salons(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
     title VARCHAR(255),
     custom_name VARCHAR(255),
-    category VARCHAR(100) DEFAULT 'cabelo',
-    price NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+    category VARCHAR(80) DEFAULT 'Geral',
+    price NUMERIC(10,2) DEFAULT 0.00,
     promotional_price NUMERIC(10,2),
-    duration_minutes INTEGER NOT NULL DEFAULT 45,
-    duration_estimated VARCHAR(50) DEFAULT '45 min',
+    duration_minutes INTEGER DEFAULT 45,
+    duration_estimated VARCHAR(30),
     commission_rate NUMERIC(5,2) DEFAULT 50.00,
     description TEXT,
     image_url TEXT,
     video_url TEXT,
-    photos TEXT[] DEFAULT ARRAY[]::TEXT[],
+    photos JSONB DEFAULT '[]'::jsonb,
     videos JSONB DEFAULT '[]'::jsonb,
-    slides TEXT[] DEFAULT ARRAY[]::TEXT[],
-    target_audience VARCHAR(30) DEFAULT 'all',
+    slides JSONB DEFAULT '[]'::jsonb,
+    target_audience VARCHAR(50) DEFAULT 'todos',
     order_index INTEGER DEFAULT 0,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_salon_services_salon ON public.salon_services(salon_id);
+ALTER TABLE public.salon_services
+  ADD COLUMN IF NOT EXISTS title VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS custom_name VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS promotional_price NUMERIC(10,2),
+  ADD COLUMN IF NOT EXISTS duration_estimated VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS commission_rate NUMERIC(5,2) DEFAULT 50.00,
+  ADD COLUMN IF NOT EXISTS video_url TEXT,
+  ADD COLUMN IF NOT EXISTS photos JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS videos JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS slides JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS target_audience VARCHAR(50) DEFAULT 'todos',
+  ADD COLUMN IF NOT EXISTS order_index INTEGER DEFAULT 0;
 
--- 3.6 TABELA: SERVICE_OFFERS (RADAR DE VAGAS RELÂMPAGO / CADEIRAS VAZIAS / SERVIÇOS PROMOVIDOS)
-CREATE TABLE public.service_offers (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+CREATE TABLE IF NOT EXISTS public.service_offers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     salon_id UUID NOT NULL REFERENCES public.salons(id) ON DELETE CASCADE,
     professional_id UUID REFERENCES public.professionals(id) ON DELETE SET NULL,
     service_id UUID REFERENCES public.services(id) ON DELETE SET NULL,
     service_title VARCHAR(255) NOT NULL,
-    category VARCHAR(50) DEFAULT 'cabelo',
-    price NUMERIC(10,2) NOT NULL DEFAULT 0.00,
+    category VARCHAR(80) DEFAULT 'cabelo',
+    price NUMERIC(10,2) NOT NULL,
     original_price NUMERIC(10,2),
-    discount_percentage INTEGER DEFAULT 0,
-    date_str VARCHAR(20) NOT NULL DEFAULT TO_CHAR(NOW(), 'YYYY-MM-DD'),
-    start_time TIME NOT NULL DEFAULT '14:00:00',
-    end_time TIME NOT NULL DEFAULT '14:45:00',
-    status VARCHAR(30) DEFAULT 'AVAILABLE', -- AVAILABLE, RESERVED, BOOKED, EXPIRED, CANCELLED
-
-    -- Mídia e Nível do Story
-    media_level INTEGER DEFAULT 1,          -- 1 = Fallback estilizado, 2 = Carrossel Fotos, 3 = Vídeo 5s
+    date_str VARCHAR(20) NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    status VARCHAR(30) DEFAULT 'AVAILABLE',
+    media_level INTEGER DEFAULT 1,
     video_url TEXT,
-    audio_url TEXT,
     gallery_images TEXT[] DEFAULT ARRAY[]::TEXT[],
-
-    -- Urgência e Recorrência
     is_flash_deal BOOLEAN DEFAULT TRUE,
     is_recurring BOOLEAN DEFAULT FALSE,
     recurring_count INTEGER DEFAULT 1,
     description TEXT,
-    expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '8 hours'),
-
+    expires_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_service_offers_salon ON public.service_offers(salon_id);
-CREATE INDEX idx_service_offers_active ON public.service_offers(status, expires_at);
-
--- 3.7 TABELA: CLIENTS (CLIENTES TITULARES DO ECOSSISTEMA)
-CREATE TABLE public.clients (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-    auth_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+-- =====================================================================================================
+-- 6. CLIENTES, CARTEIRA DO SALÃO, CONTA FAMÍLIA & PERGUNTAS DE SEGURANÇA
+-- =====================================================================================================
+CREATE TABLE IF NOT EXISTS public.clients (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID,
+    auth_user_id UUID,
+    username VARCHAR(100),
+    password_hash TEXT,
     name VARCHAR(255) NOT NULL,
     full_name VARCHAR(255),
-    username VARCHAR(100),
     cpf VARCHAR(20),
-    birth_date DATE,
-    gender VARCHAR(30),
     phone VARCHAR(30),
     phone_whatsapp VARCHAR(30),
     phone_secondary VARCHAR(30),
     email VARCHAR(255),
-    password_hash TEXT,
     avatar_url TEXT,
-    access_level VARCHAR(50) DEFAULT 'Cliente Titular',
-    status VARCHAR(30) DEFAULT 'active',
     is_active BOOLEAN DEFAULT TRUE,
-
-    -- Endereço Completo
+    access_level VARCHAR(50) DEFAULT 'cliente',
+    dependents_count INTEGER DEFAULT 0,
+    total_appointments INTEGER DEFAULT 0,
+    origin_type VARCHAR(50),
+    origin_salon_id UUID,
+    default_address TEXT,
     address TEXT,
     street_number VARCHAR(50),
     complement VARCHAR(100),
     neighborhood VARCHAR(150),
-    city VARCHAR(150) DEFAULT 'São Paulo',
-    state VARCHAR(10) DEFAULT 'SP',
+    city VARCHAR(150),
+    state VARCHAR(10),
     cep VARCHAR(20),
-    default_address TEXT,
-
-    -- Rastreabilidade de Origem & Métricas
-    origin_type VARCHAR(30) DEFAULT 'portal', -- portal, salon_direct, embed_form, mnvapp
-    origin_salon_id UUID REFERENCES public.salons(id) ON DELETE SET NULL,
-    total_appointments INTEGER DEFAULT 0,
-    total_spent NUMERIC(10,2) DEFAULT 0.00,
-    dependents_count INTEGER DEFAULT 0,
-    notes TEXT,
-
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
+    formatted_address TEXT,
+    google_place_id TEXT,
+    security_question_code TEXT,
+    security_answer_normalized TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_clients_username ON public.clients(LOWER(username));
-CREATE INDEX idx_clients_user_id ON public.clients(user_id);
-CREATE INDEX idx_clients_auth_user_id ON public.clients(auth_user_id);
-CREATE INDEX idx_clients_phone ON public.clients(phone);
-CREATE INDEX idx_clients_email ON public.clients(LOWER(email));
-CREATE INDEX idx_clients_cpf ON public.clients(cpf);
-CREATE INDEX idx_clients_origin_salon ON public.clients(origin_salon_id);
+ALTER TABLE public.clients
+  ADD COLUMN IF NOT EXISTS auth_user_id UUID,
+  ADD COLUMN IF NOT EXISTS full_name VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS username VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS password_hash TEXT,
+  ADD COLUMN IF NOT EXISTS phone_whatsapp VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS phone_secondary VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS cpf VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS avatar_url TEXT,
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS access_level VARCHAR(50) DEFAULT 'cliente',
+  ADD COLUMN IF NOT EXISTS dependents_count INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS total_appointments INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS origin_type VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS origin_salon_id UUID,
+  ADD COLUMN IF NOT EXISTS address TEXT,
+  ADD COLUMN IF NOT EXISTS street_number VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS complement VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS neighborhood VARCHAR(150),
+  ADD COLUMN IF NOT EXISTS city VARCHAR(150),
+  ADD COLUMN IF NOT EXISTS state VARCHAR(10),
+  ADD COLUMN IF NOT EXISTS cep VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS formatted_address TEXT,
+  ADD COLUMN IF NOT EXISTS google_place_id TEXT,
+  ADD COLUMN IF NOT EXISTS security_question_code TEXT,
+  ADD COLUMN IF NOT EXISTS security_answer_normalized TEXT;
 
--- 3.8 TABELA: SALON_CLIENTS (CARTEIRA E FAVORITOS DE CLIENTES VINCULADOS A CADA ESTABELECIMENTO)
-CREATE TABLE public.salon_clients (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+CREATE TABLE IF NOT EXISTS public.salon_clients (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     salon_id UUID NOT NULL REFERENCES public.salons(id) ON DELETE CASCADE,
     client_id UUID REFERENCES public.clients(id) ON DELETE CASCADE,
     client_user_id UUID,
@@ -417,26 +739,20 @@ CREATE TABLE public.salon_clients (
     last_interaction_at TIMESTAMPTZ DEFAULT NOW(),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT uq_salon_client UNIQUE (salon_id, client_id),
-    CONSTRAINT uq_salon_client_user UNIQUE (salon_id, client_user_id)
+    UNIQUE (salon_id, client_id)
 );
 
-CREATE INDEX idx_salon_clients_salon ON public.salon_clients(salon_id);
-CREATE INDEX idx_salon_clients_client ON public.salon_clients(client_id);
-CREATE INDEX idx_salon_clients_user ON public.salon_clients(client_user_id);
-
--- 3.9 TABELAS: DEPENDENTS & CLIENT_FAMILY_MEMBERS (CONTA FAMÍLIA & DEPENDENTES — ESPELHADAS ENTRE OS 3 APPS)
-CREATE TABLE public.dependents (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    parent_client_id UUID NOT NULL REFERENCES public.clients(id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS public.dependents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    parent_client_id UUID REFERENCES public.clients(id) ON DELETE CASCADE,
     guardian_client_id UUID REFERENCES public.clients(id) ON DELETE CASCADE,
-    parent_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-    salon_id UUID REFERENCES public.salons(id) ON DELETE SET NULL,
+    parent_user_id UUID,
+    salon_id UUID,
     full_name VARCHAR(255) NOT NULL,
     name VARCHAR(255),
-    relationship VARCHAR(50) DEFAULT 'son',
-    birth_date DATE,
-    gender VARCHAR(30),
+    relationship VARCHAR(50) DEFAULT 'filho',
+    birth_date VARCHAR(20),
+    gender VARCHAR(20),
     phone VARCHAR(30),
     email VARCHAR(255),
     cpf VARCHAR(20),
@@ -451,21 +767,39 @@ CREATE TABLE public.dependents (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_dependents_parent_client ON public.dependents(parent_client_id);
-CREATE INDEX idx_dependents_active ON public.dependents(parent_client_id, is_unlinked);
+ALTER TABLE public.dependents
+  ADD COLUMN IF NOT EXISTS parent_client_id UUID REFERENCES public.clients(id) ON DELETE CASCADE,
+  ADD COLUMN IF NOT EXISTS guardian_client_id UUID REFERENCES public.clients(id) ON DELETE CASCADE,
+  ADD COLUMN IF NOT EXISTS parent_user_id UUID,
+  ADD COLUMN IF NOT EXISTS salon_id UUID,
+  ADD COLUMN IF NOT EXISTS full_name VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS name VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS relationship VARCHAR(50) DEFAULT 'filho',
+  ADD COLUMN IF NOT EXISTS birth_date VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS gender VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS phone VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS email VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS cpf VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS avatar_url TEXT,
+  ADD COLUMN IF NOT EXISTS avatar_emoji VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS autonomy_level VARCHAR(50) DEFAULT 'parent_controlled',
+  ADD COLUMN IF NOT EXISTS emancipated_user_id UUID,
+  ADD COLUMN IF NOT EXISTS notes TEXT,
+  ADD COLUMN IF NOT EXISTS is_unlinked BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS unlinked_at TIMESTAMPTZ;
 
--- Tabela espelho nativa para compatibilidade 100% imediata com pvapp (client_family_members)
-CREATE TABLE public.client_family_members (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+CREATE TABLE IF NOT EXISTS public.client_family_members (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     guardian_client_id UUID NOT NULL REFERENCES public.clients(id) ON DELETE CASCADE,
     parent_client_id UUID REFERENCES public.clients(id) ON DELETE CASCADE,
-    salon_id UUID REFERENCES public.salons(id) ON DELETE SET NULL,
+    salon_id UUID,
     name VARCHAR(255) NOT NULL,
     full_name VARCHAR(255),
-    relationship VARCHAR(50) DEFAULT 'filho_kids',
-    birth_date DATE,
+    relationship VARCHAR(50) DEFAULT 'filho',
+    birth_date VARCHAR(20),
     avatar_url TEXT,
     avatar_emoji VARCHAR(20),
+    gender VARCHAR(20),
     notes TEXT,
     autonomy_level VARCHAR(50) DEFAULT 'parent_controlled',
     phone VARCHAR(30),
@@ -476,152 +810,198 @@ CREATE TABLE public.client_family_members (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_client_family_members_guardian ON public.client_family_members(guardian_client_id);
+ALTER TABLE public.client_family_members
+  ADD COLUMN IF NOT EXISTS parent_client_id UUID REFERENCES public.clients(id) ON DELETE CASCADE,
+  ADD COLUMN IF NOT EXISTS salon_id UUID,
+  ADD COLUMN IF NOT EXISTS full_name VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS is_unlinked BOOLEAN DEFAULT FALSE;
 
--- 3.10 TABELAS: SALON_USERS & SALON_MEMBERS (GESTORES, PROPRIETÁRIOS E RECEPÇÃO DO ESTABELECIMENTO)
-CREATE TABLE public.salon_users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    salon_id UUID NOT NULL REFERENCES public.salons(id) ON DELETE CASCADE,
-    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-    full_name VARCHAR(255) NOT NULL,
-    username VARCHAR(100),
-    email VARCHAR(255) NOT NULL,
-    phone_whatsapp VARCHAR(30),
-    phone_secondary VARCHAR(30),
-    cpf VARCHAR(20),
-    password_hash TEXT,
-    role VARCHAR(50) DEFAULT 'manager',
-    access_level VARCHAR(50) DEFAULT 'Proprietário (Dono)',
-    is_active BOOLEAN DEFAULT TRUE,
-    address TEXT,
-    street_number VARCHAR(50),
-    complement VARCHAR(100),
-    neighborhood VARCHAR(150),
-    city VARCHAR(150) DEFAULT 'São Paulo',
-    state VARCHAR(10) DEFAULT 'SP',
-    cep VARCHAR(20),
-    can_manage_financial BOOLEAN DEFAULT TRUE,
-    can_manage_professionals BOOLEAN DEFAULT TRUE,
-    total_appointments INTEGER DEFAULT 0,
-    dependents_count INTEGER DEFAULT 0,
-    avatar_url TEXT,
-    last_login_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS public.security_questions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code TEXT UNIQUE NOT NULL,
+    category_label TEXT NOT NULL,
+    question_text TEXT NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_salon_users_salon ON public.salon_users(salon_id);
-CREATE INDEX idx_salon_users_email ON public.salon_users(LOWER(email));
+INSERT INTO public.security_questions (code, category_label, question_text, is_active)
+VALUES
+    ('first_pet', 'Animal de estimação', 'Qual o nome do meu animal de estimação?', TRUE),
+    ('city_at_10', 'Moradia aos 10 anos', 'Onde vc morou aos 10 anos?', TRUE),
+    ('childhood_friend', 'Amigo de infância', 'Nome do seu amigo de infância?', TRUE)
+ON CONFLICT (code) DO UPDATE
+SET category_label = EXCLUDED.category_label,
+    question_text = EXCLUDED.question_text,
+    is_active = EXCLUDED.is_active;
 
-CREATE TABLE public.salon_members (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    salon_id UUID NOT NULL REFERENCES public.salons(id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS public.user_security_answers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    client_id UUID REFERENCES public.clients(id) ON DELETE CASCADE,
     user_id UUID,
-    email VARCHAR(255),
-    role VARCHAR(50) DEFAULT 'owner',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    question_code TEXT NOT NULL REFERENCES public.security_questions(code) ON UPDATE CASCADE,
+    question_text TEXT NOT NULL,
+    answer_normalized TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (client_id, question_code)
 );
 
-CREATE INDEX idx_salon_members_salon ON public.salon_members(salon_id);
-
--- 3.11 TABELA: APPOINTMENTS (AGENDAMENTOS E RESERVAS COM SUPORTE COMPLETO AO DOSSIÊ 3.8 DO PVAPP)
-CREATE TABLE public.appointments (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+-- =====================================================================================================
+-- 7. AGENDAMENTOS UNIFICADOS (ORDENAÇÃO CRONOLÓGICA, CAIXA, PERMUTA A➔B➔C, RTLS & ANTI-COLISÃO)
+-- =====================================================================================================
+CREATE TABLE IF NOT EXISTS public.appointments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     protocol_code VARCHAR(50) UNIQUE NOT NULL,
     salon_id UUID NOT NULL REFERENCES public.salons(id) ON DELETE CASCADE,
+    salon_name VARCHAR(255),
+    salon_logo_url TEXT,
+    salon_lat DOUBLE PRECISION,
+    salon_lng DOUBLE PRECISION,
     professional_id UUID REFERENCES public.professionals(id) ON DELETE SET NULL,
+    professional_name VARCHAR(255),
+    professional_avatar_url TEXT,
     offer_id UUID REFERENCES public.service_offers(id) ON DELETE SET NULL,
-    service_id UUID REFERENCES public.services(id) ON DELETE SET NULL,
     client_id UUID REFERENCES public.clients(id) ON DELETE SET NULL,
     client_user_id UUID,
-    is_dependent BOOLEAN DEFAULT FALSE,
-    dependent_id UUID REFERENCES public.dependents(id) ON DELETE SET NULL,
-    dependent_name VARCHAR(255),
 
     client_name VARCHAR(255) NOT NULL,
     client_phone VARCHAR(30) NOT NULL,
     client_email VARCHAR(255),
+    client_avatar_url TEXT,
+
+    is_dependent BOOLEAN DEFAULT FALSE,
+    dependent_id UUID,
+    dependent_name VARCHAR(255),
 
     service_title VARCHAR(255) NOT NULL,
     service_name VARCHAR(255),
     service_category VARCHAR(50) DEFAULT 'cabelo',
-    service_type VARCHAR(30) DEFAULT 'IN_SALON', -- IN_SALON, HOME_DELIVERY
+    service_type VARCHAR(30) DEFAULT 'IN_SALON',
     client_address TEXT,
     travel_fee NUMERIC(10,2) DEFAULT 0.00,
 
     price NUMERIC(10,2) NOT NULL DEFAULT 0.00,
-    service_price NUMERIC(10,2),
-    service_duration_minutes INTEGER DEFAULT 45,
+    service_price NUMERIC(10,2) DEFAULT 0.00,
+    final_price NUMERIC(10,2) DEFAULT 0.00,
     discount NUMERIC(10,2) DEFAULT 0.00,
-    final_price NUMERIC(10,2),
+    is_paid BOOLEAN DEFAULT FALSE,
+    paid_at TIMESTAMPTZ,
+    payment_status VARCHAR(30) DEFAULT 'pending',
+    payment_method VARCHAR(50),
+
     date_str VARCHAR(20) NOT NULL,
     scheduled_date VARCHAR(20),
-    start_time TIME NOT NULL DEFAULT '14:30:00',
-    end_time TIME NOT NULL DEFAULT '15:15:00',
-    status VARCHAR(50) DEFAULT 'CONFIRMADO',     -- CONFIRMADO, EM_ATENDIMENTO, CONCLUIDO, CANCELADO, NO_SHOW
-    origin VARCHAR(30) DEFAULT 'pvapp',          -- portal, pvapp, mnvapp, admvapp, radar, walk_in
+    appointment_date VARCHAR(20),
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    duration_minutes INTEGER DEFAULT 45,
+    status VARCHAR(50) DEFAULT 'CONFIRMADO',
     commission_fee NUMERIC(10,2) DEFAULT 2.50,
-    payment_method VARCHAR(50) DEFAULT 'PIX',
-    payment_status VARCHAR(30) DEFAULT 'PENDING',
     notes TEXT,
-    booked_at TIMESTAMPTZ DEFAULT NOW(),
 
-    -- Telemetria de Deslocamento Ao Vivo (10s), Rota Google Maps, Linha de Ruas (Shopee/Correios) & Adversidades
-    service_location_type VARCHAR(30) DEFAULT 'in_salon', -- in_salon (Cliente -> Salão) | home_delivery (Profissional -> Casa)
-    transport_mode VARCHAR(30) DEFAULT 'driving',         -- walking, transit, rideshare, driving, motorcycle
-    tracking_status VARCHAR(40) DEFAULT 'idle',           -- idle, alerted, hurry_confirmed, on_way_no_map, live_sharing, arriving_5min, arrived, rescheduled, cancelled
+    -- Pausa de Horários & Permuta em Cascata (A ➔ B ➔ C)
+    is_blocked_slot BOOLEAN DEFAULT FALSE,
+    block_reason TEXT,
+    chair_order INTEGER DEFAULT 0,
+    swap_state JSONB,
+
+    -- Telemetria GPS / RTLS Ao Vivo
+    service_location_type TEXT DEFAULT 'in_salon',
+    transport_mode TEXT DEFAULT 'driving',
+    tracking_status TEXT DEFAULT 'idle',
+    live_status VARCHAR(50),
     selected_route_summary TEXT,
     route_polyline TEXT,
     current_street_name TEXT,
     route_checkpoints JSONB DEFAULT '[]'::jsonb,
     active_adversity JSONB DEFAULT NULL,
     delay_minutes INTEGER DEFAULT 0,
+    origin_lat DOUBLE PRECISION,
+    origin_lng DOUBLE PRECISION,
+    origin_formatted_address TEXT,
     client_lat DOUBLE PRECISION,
     client_lng DOUBLE PRECISION,
-    distance_km NUMERIC(6,2),
+    distance_km NUMERIC(8,2),
     eta_minutes INTEGER,
-    prep_buffer_minutes INTEGER DEFAULT 10,
+    prep_buffer_minutes INTEGER DEFAULT 15,
     cancellation_reason TEXT,
-    rescheduled_from_id UUID,
     last_location_update TIMESTAMPTZ,
 
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_appointments_salon_date ON public.appointments(salon_id, date_str);
-CREATE INDEX idx_appointments_client ON public.appointments(client_id);
-CREATE INDEX idx_appointments_dependent ON public.appointments(dependent_id);
-CREATE INDEX idx_appointments_tracking_status ON public.appointments(salon_id, tracking_status);
+ALTER TABLE public.appointments
+  ADD COLUMN IF NOT EXISTS salon_name VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS salon_logo_url TEXT,
+  ADD COLUMN IF NOT EXISTS salon_lat DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS salon_lng DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS professional_name VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS professional_avatar_url TEXT,
+  ADD COLUMN IF NOT EXISTS client_avatar_url TEXT,
+  ADD COLUMN IF NOT EXISTS duration_minutes INTEGER DEFAULT 45,
+  ADD COLUMN IF NOT EXISTS client_user_id UUID,
+  ADD COLUMN IF NOT EXISTS is_dependent BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS dependent_id UUID,
+  ADD COLUMN IF NOT EXISTS dependent_name VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS service_name VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS service_price NUMERIC(10,2) DEFAULT 0.00,
+  ADD COLUMN IF NOT EXISTS scheduled_date VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS appointment_date VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS final_price NUMERIC(10,2) DEFAULT 0.00,
+  ADD COLUMN IF NOT EXISTS discount NUMERIC(10,2) DEFAULT 0.00,
+  ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS payment_status VARCHAR(30) DEFAULT 'pending',
+  ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS commission_fee NUMERIC(10,2) DEFAULT 2.50,
+  ADD COLUMN IF NOT EXISTS is_blocked_slot BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS block_reason TEXT,
+  ADD COLUMN IF NOT EXISTS chair_order INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS swap_state JSONB,
+  ADD COLUMN IF NOT EXISTS service_location_type TEXT DEFAULT 'in_salon',
+  ADD COLUMN IF NOT EXISTS transport_mode TEXT DEFAULT 'driving',
+  ADD COLUMN IF NOT EXISTS tracking_status TEXT DEFAULT 'idle',
+  ADD COLUMN IF NOT EXISTS live_status VARCHAR(50),
+  ADD COLUMN IF NOT EXISTS selected_route_summary TEXT,
+  ADD COLUMN IF NOT EXISTS route_polyline TEXT,
+  ADD COLUMN IF NOT EXISTS current_street_name TEXT,
+  ADD COLUMN IF NOT EXISTS route_checkpoints JSONB DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS active_adversity JSONB DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS delay_minutes INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS origin_lat DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS origin_lng DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS origin_formatted_address TEXT,
+  ADD COLUMN IF NOT EXISTS client_lat DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS client_lng DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS distance_km NUMERIC(8,2),
+  ADD COLUMN IF NOT EXISTS eta_minutes INTEGER,
+  ADD COLUMN IF NOT EXISTS prep_buffer_minutes INTEGER DEFAULT 15,
+  ADD COLUMN IF NOT EXISTS cancellation_reason TEXT,
+  ADD COLUMN IF NOT EXISTS last_location_update TIMESTAMPTZ;
 
--- 3.12 TABELA: SALON_MEDIA_ITEMS (ACERVO CENTRAL DE MÍDIAS: FOTOS, VÍDEOS 5S, IMAGENS)
-CREATE TABLE public.salon_media_items (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+ALTER TABLE public.appointments ALTER COLUMN commission_fee SET DEFAULT 2.50;
+
+-- =====================================================================================================
+-- 8. MÍDIA, UTILIDADES OPERACIONAIS, FATURAS CORPORATIVAS E TRANSAÇÕES FINANCEIRAS
+-- =====================================================================================================
+CREATE TABLE IF NOT EXISTS public.salon_media_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     salon_id UUID NOT NULL REFERENCES public.salons(id) ON DELETE CASCADE,
-    title VARCHAR(255) NOT NULL,
-    caption TEXT,
+    title VARCHAR(255) DEFAULT 'Mídia do Salão',
     url TEXT NOT NULL,
-    media_url TEXT,
-    type VARCHAR(20) NOT NULL DEFAULT 'image' CHECK (type IN ('image', 'video')),
-    media_type VARCHAR(20) DEFAULT 'image',
-    media_group VARCHAR(20) NOT NULL DEFAULT 'fotos' CHECK (media_group IN ('fotos', 'videos', 'imagens')),
-    category VARCHAR(50) NOT NULL DEFAULT 'servicos', -- servicos, profissionais, espaco, banner, logotipo, ambiente, procedimento, equipe, geral
-    slot_index INTEGER,
-    duration_seconds INTEGER DEFAULT 5,
+    type VARCHAR(30) DEFAULT 'image',
+    media_group VARCHAR(50) DEFAULT 'fotos',
+    category VARCHAR(50) DEFAULT 'servicos',
+    duration_seconds NUMERIC(5,2) DEFAULT 5.00,
     is_cover BOOLEAN DEFAULT FALSE,
-    is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_salon_media_items_salon ON public.salon_media_items(salon_id);
-CREATE INDEX idx_salon_media_items_group ON public.salon_media_items(salon_id, media_group);
-CREATE INDEX idx_salon_media_items_category ON public.salon_media_items(salon_id, category);
-
--- 3.13 TABELA: SALON_MEDIA_SLOTS (COMPATIBILIDADE DE STORIES LEGADOS)
-CREATE TABLE public.salon_media_slots (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+CREATE TABLE IF NOT EXISTS public.salon_media_slots (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     salon_id UUID NOT NULL REFERENCES public.salons(id) ON DELETE CASCADE,
     slot_index INTEGER NOT NULL,
     media_type VARCHAR(20) DEFAULT 'image',
@@ -630,9 +1010,9 @@ CREATE TABLE public.salon_media_slots (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.14 TABELA: SALON_UTILITIES_RECORDS (FERRAMENTAS OPERACIONAIS DO SALÃO: ENERGIA, ÁGUA, EQUIPAMENTOS, DRE E INSUMOS)
-CREATE TABLE public.salon_utilities_records (
-    salon_id UUID PRIMARY KEY REFERENCES public.salons(id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS public.salon_utilities_records (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    salon_id UUID UNIQUE REFERENCES public.salons(id) ON DELETE CASCADE,
     energy_meters JSONB DEFAULT '[]'::jsonb,
     energy_readings JSONB DEFAULT '[]'::jsonb,
     water_meters JSONB DEFAULT '[]'::jsonb,
@@ -646,74 +1026,28 @@ CREATE TABLE public.salon_utilities_records (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3.15 TABELA: SYSTEM_ADMINS & ADMIN_ACCESS_LOGS (GOVERNANÇA SOBERANA MASTER ADMVAPP)
-CREATE TABLE public.system_admins (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    full_name VARCHAR(255) NOT NULL,
-    username VARCHAR(100) NOT NULL UNIQUE,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    phone_whatsapp VARCHAR(30) NOT NULL,
-    phone_secondary VARCHAR(30),
-    cpf VARCHAR(20),
-    password_hash TEXT NOT NULL,
-    role VARCHAR(50) NOT NULL DEFAULT 'superadmin' CHECK (role IN ('superadmin', 'moderator', 'support')),
-    access_level VARCHAR(50) DEFAULT 'Superadmin Master',
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    avatar_url TEXT,
-    address TEXT,
-    street_number VARCHAR(50),
-    complement VARCHAR(100),
-    neighborhood VARCHAR(150),
-    city VARCHAR(150) DEFAULT 'São Paulo',
-    state VARCHAR(10) DEFAULT 'SP',
-    cep VARCHAR(20),
-    total_appointments INTEGER DEFAULT 0,
-    dependents_count INTEGER DEFAULT 0,
-    last_login_at TIMESTAMPTZ,
-    last_login_ip VARCHAR(50),
-    password_reset_token VARCHAR(255),
-    password_reset_expires_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+ALTER TABLE public.salon_utilities_records
+  ADD COLUMN IF NOT EXISTS financial_dre JSONB DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS inventory_items JSONB DEFAULT '[]'::jsonb;
 
-CREATE INDEX idx_system_admins_username ON public.system_admins(LOWER(username));
-CREATE INDEX idx_system_admins_email ON public.system_admins(LOWER(email));
-CREATE INDEX idx_system_admins_phone_whatsapp ON public.system_admins(phone_whatsapp);
-
-CREATE TABLE public.admin_access_logs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    admin_id UUID REFERENCES public.system_admins(id) ON DELETE CASCADE,
-    username VARCHAR(100) NOT NULL,
-    action_type VARCHAR(50) NOT NULL CHECK (action_type IN ('login_success', 'login_failed', 'register', 'recovery_requested', 'password_changed', 'logout')),
-    ip_address VARCHAR(50),
-    user_agent TEXT,
-    details JSONB DEFAULT '{}'::jsonb,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_admin_access_logs_admin_id ON public.admin_access_logs(admin_id);
-CREATE INDEX idx_admin_access_logs_created_at ON public.admin_access_logs(created_at DESC);
-
--- 3.16 TABELAS: BILLING_INVOICES & FINANCIAL_TRANSACTIONS (FATURAMENTO E CAIXA)
-CREATE TABLE public.billing_invoices (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+CREATE TABLE IF NOT EXISTS public.billing_invoices (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     salon_id UUID NOT NULL REFERENCES public.salons(id) ON DELETE CASCADE,
     reference_month VARCHAR(20) NOT NULL,
     total_appointments INTEGER DEFAULT 0,
     total_amount NUMERIC(10,2) DEFAULT 0.00,
-    status VARCHAR(30) DEFAULT 'PENDING', -- PENDING, PAID, OVERDUE, CANCELLED
+    status VARCHAR(30) DEFAULT 'PENDING',
     pix_code TEXT,
     paid_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE public.financial_transactions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+CREATE TABLE IF NOT EXISTS public.financial_transactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     salon_id UUID NOT NULL REFERENCES public.salons(id) ON DELETE CASCADE,
     appointment_id UUID REFERENCES public.appointments(id) ON DELETE SET NULL,
     professional_id UUID REFERENCES public.professionals(id) ON DELETE SET NULL,
-    type VARCHAR(20) NOT NULL DEFAULT 'income' CHECK (type IN ('income', 'expense', 'commission')),
+    type VARCHAR(20) NOT NULL DEFAULT 'income',
     category VARCHAR(100) DEFAULT 'Atendimento',
     description TEXT,
     amount NUMERIC(10,2) NOT NULL DEFAULT 0.00,
@@ -724,197 +1058,82 @@ CREATE TABLE public.financial_transactions (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX idx_financial_transactions_salon ON public.financial_transactions(salon_id, transaction_date);
-
 -- =====================================================================================================
--- PASSO 4: TRIGGERS INTELIGENTES DE SINCRONIZAÇÃO AUTOMÁTICA ENTRE OS 3 APPS
+-- 9. TRIGGERS DE SINCRONIZAÇÃO BIDIRECIONAL ENTRE MNVAPP, ADMVAPP E PVAPP
 -- =====================================================================================================
 
--- 4.1 Trigger Universal de updated_at
+-- 9.1 Trigger Universal updated_at
 CREATE OR REPLACE FUNCTION public.handle_updated_at()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
 BEGIN
     NEW.updated_at = NOW();
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
-CREATE TRIGGER trg_profiles_updated_at BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
-CREATE TRIGGER trg_salons_updated_at BEFORE UPDATE ON public.salons FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
-CREATE TRIGGER trg_professionals_updated_at BEFORE UPDATE ON public.professionals FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
-CREATE TRIGGER trg_services_updated_at BEFORE UPDATE ON public.services FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
-CREATE TRIGGER trg_salon_services_updated_at BEFORE UPDATE ON public.salon_services FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
-CREATE TRIGGER trg_service_offers_updated_at BEFORE UPDATE ON public.service_offers FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
-CREATE TRIGGER trg_clients_updated_at BEFORE UPDATE ON public.clients FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
-CREATE TRIGGER trg_salon_clients_updated_at BEFORE UPDATE ON public.salon_clients FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
-CREATE TRIGGER trg_dependents_updated_at BEFORE UPDATE ON public.dependents FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
-CREATE TRIGGER trg_salon_users_updated_at BEFORE UPDATE ON public.salon_users FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
-CREATE TRIGGER trg_appointments_updated_at BEFORE UPDATE ON public.appointments FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
-CREATE TRIGGER trg_salon_media_items_updated_at BEFORE UPDATE ON public.salon_media_items FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
-CREATE TRIGGER trg_salon_utilities_updated_at BEFORE UPDATE ON public.salon_utilities_records FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
-CREATE TRIGGER trg_system_admins_updated_at BEFORE UPDATE ON public.system_admins FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
-
--- 4.2 Trigger de Normalização de Salões (Mantém name ⇄ trade_name, slug ⇄ subdomain, cover_url ⇄ cover_image_url e branding sincronizados)
+-- 9.2 Normalização e Sincronismo de Campos em Salons (trade_name ⇄ name, billing_fee_value ⇄ fee_per_booking)
 CREATE OR REPLACE FUNCTION public.sync_salon_fields()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
 BEGIN
-    IF NEW.trade_name IS NULL AND NEW.name IS NOT NULL THEN
-        NEW.trade_name := NEW.name;
+    NEW.trade_name := COALESCE(NULLIF(TRIM(NEW.trade_name), ''), NULLIF(TRIM(NEW.name), ''), 'Estabelecimento');
+    NEW.name := COALESCE(NULLIF(TRIM(NEW.name), ''), NEW.trade_name);
+    NEW.subdomain := COALESCE(NULLIF(TRIM(NEW.subdomain), ''), NEW.slug);
+    NEW.phone_whatsapp := COALESCE(NULLIF(TRIM(NEW.phone_whatsapp), ''), NEW.phone);
+    NEW.phone := COALESCE(NULLIF(TRIM(NEW.phone), ''), NEW.phone_whatsapp);
+
+    -- Sincronismo bidirecional de taxa por reserva (App ⇄ Admin Master: padrão R$ 2,50)
+    IF TG_OP = 'INSERT' THEN
+        NEW.fee_per_booking := COALESCE(NEW.fee_per_booking, NEW.billing_fee_value, 2.50);
+        NEW.billing_fee_value := COALESCE(NEW.billing_fee_value, NEW.fee_per_booking, 2.50);
+    ELSE
+        IF NEW.fee_per_booking IS DISTINCT FROM OLD.fee_per_booking THEN
+            NEW.billing_fee_value := NEW.fee_per_booking;
+        ELSIF NEW.billing_fee_value IS DISTINCT FROM OLD.billing_fee_value THEN
+            NEW.fee_per_booking := NEW.billing_fee_value;
+        END IF;
     END IF;
-    IF NEW.name IS NULL AND NEW.trade_name IS NOT NULL THEN
-        NEW.name := NEW.trade_name;
-    END IF;
-    IF NEW.subdomain IS NULL AND NEW.slug IS NOT NULL THEN
-        NEW.subdomain := NEW.slug;
-    END IF;
-    IF NEW.slug IS NULL AND NEW.subdomain IS NOT NULL THEN
-        NEW.slug := NEW.subdomain;
-    END IF;
-    IF NEW.phone_whatsapp IS NULL AND NEW.phone IS NOT NULL THEN
-        NEW.phone_whatsapp := NEW.phone;
-    END IF;
-    IF NEW.phone IS NULL AND NEW.phone_whatsapp IS NOT NULL THEN
-        NEW.phone := NEW.phone_whatsapp;
-    END IF;
-    IF NEW.cover_image_url IS NULL AND NEW.cover_url IS NOT NULL THEN
-        NEW.cover_image_url := NEW.cover_url;
-    END IF;
-    IF NEW.cover_url IS NULL AND NEW.cover_image_url IS NOT NULL THEN
-        NEW.cover_url := NEW.cover_image_url;
-    END IF;
-    IF NEW.operating_hours IS NOT NULL AND (NEW.business_hours IS NULL OR NEW.business_hours = '{}'::jsonb) THEN
-        NEW.business_hours := NEW.operating_hours;
-    END IF;
+
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
+DROP TRIGGER IF EXISTS trg_sync_salon_fields ON public.salons;
 CREATE TRIGGER trg_sync_salon_fields
 BEFORE INSERT OR UPDATE ON public.salons
 FOR EACH ROW EXECUTE FUNCTION public.sync_salon_fields();
 
--- 4.3 Trigger de Normalização de Clientes (Mantém name ⇄ full_name, user_id ⇄ auth_user_id e phone ⇄ phone_whatsapp sincronizados)
-CREATE OR REPLACE FUNCTION public.sync_client_fields()
-RETURNS TRIGGER AS $$
-BEGIN
-    IF NEW.name IS NULL AND NEW.full_name IS NOT NULL THEN
-        NEW.name := NEW.full_name;
-    END IF;
-    IF NEW.full_name IS NULL AND NEW.name IS NOT NULL THEN
-        NEW.full_name := NEW.name;
-    END IF;
-    IF NEW.auth_user_id IS NULL AND NEW.user_id IS NOT NULL THEN
-        NEW.auth_user_id := NEW.user_id;
-    END IF;
-    IF NEW.user_id IS NULL AND NEW.auth_user_id IS NOT NULL THEN
-        NEW.user_id := NEW.auth_user_id;
-    END IF;
-    IF NEW.phone IS NULL AND NEW.phone_whatsapp IS NOT NULL THEN
-        NEW.phone := NEW.phone_whatsapp;
-    END IF;
-    IF NEW.phone_whatsapp IS NULL AND NEW.phone IS NOT NULL THEN
-        NEW.phone_whatsapp := NEW.phone;
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_sync_client_fields
-BEFORE INSERT OR UPDATE ON public.clients
-FOR EACH ROW EXECUTE FUNCTION public.sync_client_fields();
-
--- 4.4 Trigger de Normalização de Profissionais (Mantém name ⇄ full_name e phone ⇄ phone_whatsapp sincronizados)
-CREATE OR REPLACE FUNCTION public.sync_professional_fields()
-RETURNS TRIGGER AS $$
-BEGIN
-    IF NEW.name IS NULL AND NEW.full_name IS NOT NULL THEN
-        NEW.name := NEW.full_name;
-    END IF;
-    IF NEW.full_name IS NULL AND NEW.name IS NOT NULL THEN
-        NEW.full_name := NEW.name;
-    END IF;
-    IF NEW.phone IS NULL AND NEW.phone_whatsapp IS NOT NULL THEN
-        NEW.phone := NEW.phone_whatsapp;
-    END IF;
-    IF NEW.phone_whatsapp IS NULL AND NEW.phone IS NOT NULL THEN
-        NEW.phone_whatsapp := NEW.phone;
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_sync_professional_fields
-BEFORE INSERT OR UPDATE ON public.professionals
-FOR EACH ROW EXECUTE FUNCTION public.sync_professional_fields();
-
--- 4.5 Triggers de Normalização (BEFORE) e Espelhamento Bidirecional (AFTER): services ⇄ salon_services
--- Qualquer serviço criado no Meu Negócio (salon_services) reflete instantaneamente em services (Admin/Portal) e vice-versa!
-
--- Normalização BEFORE para public.services (catálogo mestre)
-CREATE OR REPLACE FUNCTION public.normalize_service_fields()
-RETURNS TRIGGER AS $$
-DECLARE
-    v_label VARCHAR(255);
-BEGIN
-    v_label := COALESCE(NEW.name, NEW.title, NEW.custom_name, 'Procedimento');
-    NEW.name := v_label;
-    NEW.title := v_label;
-    NEW.custom_name := COALESCE(NEW.custom_name, v_label);
-    NEW.duration_estimated := COALESCE(NEW.duration_estimated, COALESCE(NEW.duration_minutes, 45) || ' min');
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_normalize_services_fields
-BEFORE INSERT OR UPDATE ON public.services
-FOR EACH ROW EXECUTE FUNCTION public.normalize_service_fields();
-
--- Normalização BEFORE para public.salon_services (catálogo Meu Negócio)
-CREATE OR REPLACE FUNCTION public.normalize_salon_service_fields()
-RETURNS TRIGGER AS $$
-DECLARE
-    v_label VARCHAR(255);
-BEGIN
-    v_label := COALESCE(NEW.name, NEW.title, NEW.custom_name, 'Procedimento');
-    NEW.name := v_label;
-    NEW.title := v_label;
-    NEW.custom_name := COALESCE(NEW.custom_name, v_label);
-    NEW.duration_estimated := COALESCE(NEW.duration_estimated, COALESCE(NEW.duration_minutes, 45) || ' min');
-    NEW.service_id := COALESCE(NEW.service_id, NEW.id);
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_normalize_salon_services_fields
-BEFORE INSERT OR UPDATE ON public.salon_services
-FOR EACH ROW EXECUTE FUNCTION public.normalize_salon_service_fields();
-
--- Sincronismo AFTER: public.services -> public.salon_services
+-- 9.3 Espelhamento Bidirecional de Catálogo: public.services ⇄ public.salon_services
 CREATE OR REPLACE FUNCTION public.sync_services_to_salon_services()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
 BEGIN
-    -- Previne loop infinito entre as duas tabelas
     IF pg_trigger_depth() > 1 THEN
         RETURN COALESCE(NEW, OLD);
     END IF;
-
     IF TG_OP = 'DELETE' THEN
-        DELETE FROM public.salon_services WHERE id = OLD.id OR service_id = OLD.id;
+        DELETE FROM public.salon_services WHERE id = OLD.id;
         RETURN OLD;
     END IF;
-
     INSERT INTO public.salon_services (
-        id, salon_id, service_id, name, title, custom_name, category, price, promotional_price,
-        duration_minutes, duration_estimated, commission_rate, description, image_url, video_url, photos, videos, slides,
-        target_audience, order_index, is_active, created_at, updated_at
+        id, salon_id, name, title, custom_name, category, price, promotional_price,
+        duration_minutes, duration_estimated, commission_rate, description, image_url,
+        video_url, photos, videos, slides, target_audience, order_index, is_active, created_at, updated_at
     ) VALUES (
-        NEW.id, NEW.salon_id, NEW.id, NEW.name, NEW.title, NEW.custom_name, NEW.category, NEW.price, NEW.promotional_price,
-        NEW.duration_minutes, COALESCE(NEW.duration_estimated, NEW.duration_minutes || ' min'), NEW.commission_rate, NEW.description, NEW.image_url, NEW.video_url, NEW.photos, NEW.videos, NEW.slides,
-        NEW.target_audience, NEW.order_index, NEW.is_active, NEW.created_at, NOW()
+        NEW.id, NEW.salon_id, COALESCE(NEW.name, NEW.title, 'Serviço'), COALESCE(NEW.title, NEW.name, 'Serviço'),
+        NEW.custom_name, COALESCE(NEW.category, 'Geral'), COALESCE(NEW.price, 0), NEW.promotional_price,
+        COALESCE(NEW.duration_minutes, 45), NEW.duration_estimated, COALESCE(NEW.commission_rate, 50),
+        NEW.description, NEW.image_url, NEW.video_url, COALESCE(NEW.photos, '[]'::jsonb),
+        COALESCE(NEW.videos, '[]'::jsonb), COALESCE(NEW.slides, '[]'::jsonb),
+        COALESCE(NEW.target_audience, 'todos'), COALESCE(NEW.order_index, 0), COALESCE(NEW.is_active, TRUE),
+        COALESCE(NEW.created_at, NOW()), NOW()
     )
     ON CONFLICT (id) DO UPDATE SET
         salon_id = EXCLUDED.salon_id,
-        service_id = EXCLUDED.service_id,
         name = EXCLUDED.name,
         title = EXCLUDED.title,
         custom_name = EXCLUDED.custom_name,
@@ -934,46 +1153,44 @@ BEGIN
         order_index = EXCLUDED.order_index,
         is_active = EXCLUDED.is_active,
         updated_at = NOW();
-
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
+DROP TRIGGER IF EXISTS trg_sync_services_to_salon_services ON public.services;
 CREATE TRIGGER trg_sync_services_to_salon_services
 AFTER INSERT OR UPDATE OR DELETE ON public.services
 FOR EACH ROW EXECUTE FUNCTION public.sync_services_to_salon_services();
 
--- Sincronismo AFTER: public.salon_services -> public.services
 CREATE OR REPLACE FUNCTION public.sync_salon_services_to_services()
-RETURNS TRIGGER AS $$
-DECLARE
-    v_srv_id UUID;
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
 BEGIN
-    -- Previne loop infinito entre as duas tabelas
     IF pg_trigger_depth() > 1 THEN
         RETURN COALESCE(NEW, OLD);
     END IF;
-
     IF TG_OP = 'DELETE' THEN
-        DELETE FROM public.services WHERE id = OLD.id OR (OLD.service_id IS NOT NULL AND id = OLD.service_id);
+        DELETE FROM public.services WHERE id = OLD.id;
         RETURN OLD;
     END IF;
-
-    v_srv_id := COALESCE(NEW.service_id, NEW.id);
-
     INSERT INTO public.services (
-        id, salon_id, name, title, custom_name, category, price, promotional_price,
-        duration_minutes, duration_estimated, commission_rate, description, image_url, video_url, photos, videos, slides,
-        target_audience, order_index, is_active, created_at, updated_at
+        id, salon_id, title, name, custom_name, category, price, promotional_price,
+        duration_minutes, duration_estimated, commission_rate, description, image_url,
+        video_url, photos, videos, slides, target_audience, order_index, is_active, created_at, updated_at
     ) VALUES (
-        v_srv_id, NEW.salon_id, NEW.name, NEW.title, NEW.custom_name, NEW.category, NEW.price, NEW.promotional_price,
-        NEW.duration_minutes, COALESCE(NEW.duration_estimated, NEW.duration_minutes || ' min'), NEW.commission_rate, NEW.description, NEW.image_url, NEW.video_url, NEW.photos, NEW.videos, NEW.slides,
-        NEW.target_audience, NEW.order_index, NEW.is_active, NEW.created_at, NOW()
+        NEW.id, NEW.salon_id, COALESCE(NEW.title, NEW.name, 'Serviço'), COALESCE(NEW.name, NEW.title, 'Serviço'),
+        NEW.custom_name, COALESCE(NEW.category, 'cabelo'), COALESCE(NEW.price, 0), NEW.promotional_price,
+        COALESCE(NEW.duration_minutes, 45), NEW.duration_estimated, COALESCE(NEW.commission_rate, 50),
+        NEW.description, NEW.image_url, NEW.video_url, COALESCE(NEW.photos, '[]'::jsonb),
+        COALESCE(NEW.videos, '[]'::jsonb), COALESCE(NEW.slides, '[]'::jsonb),
+        COALESCE(NEW.target_audience, 'todos'), COALESCE(NEW.order_index, 0), COALESCE(NEW.is_active, TRUE),
+        COALESCE(NEW.created_at, NOW()), NOW()
     )
     ON CONFLICT (id) DO UPDATE SET
         salon_id = EXCLUDED.salon_id,
-        name = EXCLUDED.name,
         title = EXCLUDED.title,
+        name = EXCLUDED.name,
         custom_name = EXCLUDED.custom_name,
         category = EXCLUDED.category,
         price = EXCLUDED.price,
@@ -991,233 +1208,41 @@ BEGIN
         order_index = EXCLUDED.order_index,
         is_active = EXCLUDED.is_active,
         updated_at = NOW();
-
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
+DROP TRIGGER IF EXISTS trg_sync_salon_services_to_services ON public.salon_services;
 CREATE TRIGGER trg_sync_salon_services_to_services
 AFTER INSERT OR UPDATE OR DELETE ON public.salon_services
 FOR EACH ROW EXECUTE FUNCTION public.sync_salon_services_to_services();
 
--- 4.5B Trigger de Publicação Automática no Radar ao Promover Serviço (services -> service_offers) e Normalização de Cadeira Vazia
-CREATE OR REPLACE FUNCTION public.normalize_service_offer_defaults()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.status := COALESCE(NEW.status, 'AVAILABLE');
-    NEW.date_str := COALESCE(NEW.date_str, TO_CHAR(NOW(), 'YYYY-MM-DD'));
-    NEW.start_time := COALESCE(NEW.start_time, '14:00:00'::TIME);
-    NEW.end_time := COALESCE(NEW.end_time, (NEW.start_time + INTERVAL '45 minutes')::TIME);
-    NEW.expires_at := COALESCE(NEW.expires_at, NOW() + INTERVAL '8 hours');
-    NEW.original_price := COALESCE(NEW.original_price, ROUND(GREATEST(NEW.price * 1.25, NEW.price + 10), 2));
-
-    IF NEW.original_price > NEW.price AND NEW.original_price > 0 THEN
-        NEW.discount_percentage := ROUND(((NEW.original_price - NEW.price) / NEW.original_price) * 100)::INTEGER;
-    ELSE
-        NEW.discount_percentage := COALESCE(NEW.discount_percentage, 0);
-    END IF;
-
-    IF NEW.video_url IS NOT NULL AND TRIM(NEW.video_url) <> '' THEN
-        NEW.media_level := 3;
-    ELSIF NEW.gallery_images IS NOT NULL AND array_length(NEW.gallery_images, 1) > 0 THEN
-        NEW.media_level := GREATEST(COALESCE(NEW.media_level, 2), 2);
-    ELSE
-        NEW.media_level := COALESCE(NEW.media_level, 1);
-    END IF;
-
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_normalize_service_offer_defaults
-BEFORE INSERT OR UPDATE ON public.service_offers
-FOR EACH ROW EXECUTE FUNCTION public.normalize_service_offer_defaults();
-
-CREATE OR REPLACE FUNCTION public.auto_promote_service_to_radar()
-RETURNS TRIGGER AS $$
-DECLARE
-    v_existing_offer_id UUID;
-    v_default_prof_id UUID;
-    v_gallery TEXT[];
-    v_media_lvl INTEGER;
-BEGIN
-    -- Se o serviço tem preço promocional menor que o preço cheio e está ativo, publica/atualiza no Radar (service_offers)
-    IF NEW.promotional_price IS NOT NULL
-       AND NEW.promotional_price > 0
-       AND NEW.promotional_price < NEW.price
-       AND COALESCE(NEW.is_active, TRUE) = TRUE
-    THEN
-        IF NEW.photos IS NOT NULL AND array_length(NEW.photos, 1) > 0 THEN
-            v_gallery := NEW.photos;
-        ELSIF NEW.image_url IS NOT NULL AND TRIM(NEW.image_url) <> '' THEN
-            v_gallery := ARRAY[NEW.image_url];
-        ELSE
-            v_gallery := ARRAY[]::TEXT[];
-        END IF;
-
-        IF NEW.video_url IS NOT NULL AND TRIM(NEW.video_url) <> '' THEN
-            v_media_lvl := 3;
-        ELSIF array_length(v_gallery, 1) > 0 THEN
-            v_media_lvl := 2;
-        ELSE
-            v_media_lvl := 1;
-        END IF;
-
-        SELECT id INTO v_existing_offer_id
-        FROM public.service_offers
-        WHERE salon_id = NEW.salon_id
-          AND service_id = NEW.id
-          AND status = 'AVAILABLE'
-        ORDER BY created_at DESC
-        LIMIT 1;
-
-        IF v_existing_offer_id IS NOT NULL THEN
-            UPDATE public.service_offers
-            SET service_title = COALESCE(NEW.title, NEW.name, 'Oferta Relâmpago'),
-                category = COALESCE(NEW.category, 'cabelo'),
-                price = NEW.promotional_price,
-                original_price = NEW.price,
-                video_url = NEW.video_url,
-                gallery_images = v_gallery,
-                media_level = v_media_lvl,
-                description = COALESCE(NEW.description, description),
-                expires_at = GREATEST(expires_at, NOW() + INTERVAL '8 hours'),
-                updated_at = NOW()
-            WHERE id = v_existing_offer_id;
-        ELSE
-            SELECT id INTO v_default_prof_id
-            FROM public.professionals
-            WHERE salon_id = NEW.salon_id
-            ORDER BY created_at ASC
-            LIMIT 1;
-
-            INSERT INTO public.service_offers (
-                salon_id, professional_id, service_id, service_title, category,
-                price, original_price, date_str, start_time, end_time,
-                status, media_level, video_url, gallery_images, is_flash_deal,
-                expires_at, description
-            ) VALUES (
-                NEW.salon_id,
-                v_default_prof_id,
-                NEW.id,
-                COALESCE(NEW.title, NEW.name, 'Oferta Relâmpago'),
-                COALESCE(NEW.category, 'cabelo'),
-                NEW.promotional_price,
-                NEW.price,
-                TO_CHAR(NOW(), 'YYYY-MM-DD'),
-                '14:30:00',
-                '15:15:00',
-                'AVAILABLE',
-                v_media_lvl,
-                NEW.video_url,
-                v_gallery,
-                TRUE,
-                NOW() + INTERVAL '8 hours',
-                NEW.description
-            );
-        END IF;
-    ELSIF TG_OP = 'UPDATE' AND (NEW.promotional_price IS NULL OR NEW.promotional_price >= NEW.price OR COALESCE(NEW.is_active, TRUE) = FALSE) THEN
-        UPDATE public.service_offers
-        SET status = 'EXPIRED',
-            updated_at = NOW()
-        WHERE salon_id = NEW.salon_id
-          AND service_id = NEW.id
-          AND status = 'AVAILABLE';
-    END IF;
-
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_auto_promote_service_to_radar
-AFTER INSERT OR UPDATE ON public.services
-FOR EACH ROW EXECUTE FUNCTION public.auto_promote_service_to_radar();
-
--- 4.6 Trigger de Galeria de Mídias (salon_media_items -> Normaliza campos e atualiza Capa/Logo em salons)
-CREATE OR REPLACE FUNCTION public.sync_salon_media_items_and_branding()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.url := COALESCE(NEW.url, NEW.media_url, '');
-    NEW.media_url := COALESCE(NEW.media_url, NEW.url, '');
-    NEW.title := COALESCE(NEW.title, NEW.caption, 'Mídia do Salão');
-    NEW.caption := COALESCE(NEW.caption, NEW.title, 'Mídia do Salão');
-    NEW.type := COALESCE(NEW.type, NEW.media_type, 'image');
-    NEW.media_type := COALESCE(NEW.media_type, NEW.type, 'image');
-
-    -- Se for marcado como capa ou categoria banner, atualiza a foto de capa do salão automaticamente
-    IF (NEW.is_cover = TRUE OR NEW.category = 'banner') AND NEW.url <> '' THEN
-        UPDATE public.salons
-        SET cover_image_url = NEW.url, cover_url = NEW.url, updated_at = NOW()
-        WHERE id = NEW.salon_id;
-    END IF;
-
-    -- Se for categoria logotipo, atualiza a logo do salão automaticamente
-    IF NEW.category = 'logotipo' AND NEW.url <> '' THEN
-        UPDATE public.salons
-        SET logo_url = NEW.url, updated_at = NOW()
-        WHERE id = NEW.salon_id;
-    END IF;
-
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_sync_salon_media_items
-BEFORE INSERT OR UPDATE ON public.salon_media_items
-FOR EACH ROW EXECUTE FUNCTION public.sync_salon_media_items_and_branding();
-
--- 4.7 Triggers de Conta Família & Dependentes (Normaliza campos, espelha dependents ⇄ client_family_members e atualiza clients.dependents_count)
-CREATE OR REPLACE FUNCTION public.normalize_dependent_fields()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.full_name := COALESCE(NEW.full_name, NEW.name, 'Dependente');
-    NEW.name := COALESCE(NEW.name, NEW.full_name, 'Dependente');
-    NEW.parent_client_id := COALESCE(NEW.parent_client_id, NEW.guardian_client_id);
-    NEW.guardian_client_id := COALESCE(NEW.guardian_client_id, NEW.parent_client_id);
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_normalize_dependent_fields
-BEFORE INSERT OR UPDATE ON public.dependents
-FOR EACH ROW EXECUTE FUNCTION public.normalize_dependent_fields();
-
-CREATE OR REPLACE FUNCTION public.normalize_client_family_member_fields()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.name := COALESCE(NEW.name, NEW.full_name, 'Dependente');
-    NEW.full_name := COALESCE(NEW.full_name, NEW.name, 'Dependente');
-    NEW.guardian_client_id := COALESCE(NEW.guardian_client_id, NEW.parent_client_id);
-    NEW.parent_client_id := COALESCE(NEW.parent_client_id, NEW.guardian_client_id);
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_normalize_family_member_fields
-BEFORE INSERT OR UPDATE ON public.client_family_members
-FOR EACH ROW EXECUTE FUNCTION public.normalize_client_family_member_fields();
-
--- Sincronismo AFTER: public.dependents -> public.client_family_members
+-- 9.4 Espelhamento Bidirecional Conta Família: dependents ⇄ client_family_members
 CREATE OR REPLACE FUNCTION public.sync_dependents_to_family_members()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
 BEGIN
     IF pg_trigger_depth() > 1 THEN
         RETURN COALESCE(NEW, OLD);
     END IF;
-
     IF TG_OP = 'DELETE' THEN
         DELETE FROM public.client_family_members WHERE id = OLD.id;
         RETURN OLD;
     END IF;
-
+    IF COALESCE(NEW.parent_client_id, NEW.guardian_client_id) IS NULL THEN
+        RETURN NEW;
+    END IF;
     INSERT INTO public.client_family_members (
         id, guardian_client_id, parent_client_id, salon_id, name, full_name,
-        relationship, birth_date, avatar_url, avatar_emoji, notes,
+        relationship, birth_date, avatar_url, avatar_emoji, gender, notes,
         autonomy_level, phone, email, emancipated_user_id, is_unlinked, created_at, updated_at
     ) VALUES (
-        NEW.id, COALESCE(NEW.parent_client_id, NEW.guardian_client_id), COALESCE(NEW.parent_client_id, NEW.guardian_client_id), NEW.salon_id, COALESCE(NEW.full_name, NEW.name, 'Dependente'), COALESCE(NEW.full_name, NEW.name, 'Dependente'),
-        COALESCE(NEW.relationship, 'son'), NEW.birth_date, NEW.avatar_url, NEW.avatar_emoji, NEW.notes,
-        COALESCE(NEW.autonomy_level, 'parent_controlled'), NEW.phone, NEW.email, NEW.emancipated_user_id, COALESCE(NEW.is_unlinked, FALSE), NEW.created_at, NOW()
+        NEW.id, COALESCE(NEW.parent_client_id, NEW.guardian_client_id), COALESCE(NEW.parent_client_id, NEW.guardian_client_id),
+        NEW.salon_id, COALESCE(NEW.full_name, NEW.name, 'Dependente'), COALESCE(NEW.full_name, NEW.name, 'Dependente'),
+        COALESCE(NEW.relationship, 'filho'), NEW.birth_date, NEW.avatar_url, NEW.avatar_emoji, NEW.gender, NEW.notes,
+        COALESCE(NEW.autonomy_level, 'parent_controlled'), NEW.phone, NEW.email, NEW.emancipated_user_id,
+        COALESCE(NEW.is_unlinked, FALSE), COALESCE(NEW.created_at, NOW()), NOW()
     )
     ON CONFLICT (id) DO UPDATE SET
         guardian_client_id = EXCLUDED.guardian_client_id,
@@ -1229,6 +1254,7 @@ BEGIN
         birth_date = EXCLUDED.birth_date,
         avatar_url = EXCLUDED.avatar_url,
         avatar_emoji = EXCLUDED.avatar_emoji,
+        gender = EXCLUDED.gender,
         notes = EXCLUDED.notes,
         autonomy_level = EXCLUDED.autonomy_level,
         phone = EXCLUDED.phone,
@@ -1236,36 +1262,37 @@ BEGIN
         emancipated_user_id = EXCLUDED.emancipated_user_id,
         is_unlinked = EXCLUDED.is_unlinked,
         updated_at = NOW();
-
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
+DROP TRIGGER IF EXISTS trg_sync_dependents_to_family_members ON public.dependents;
 CREATE TRIGGER trg_sync_dependents_to_family_members
 AFTER INSERT OR UPDATE OR DELETE ON public.dependents
 FOR EACH ROW EXECUTE FUNCTION public.sync_dependents_to_family_members();
 
--- Sincronismo AFTER: public.client_family_members -> public.dependents
 CREATE OR REPLACE FUNCTION public.sync_family_members_to_dependents()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
 BEGIN
     IF pg_trigger_depth() > 1 THEN
         RETURN COALESCE(NEW, OLD);
     END IF;
-
     IF TG_OP = 'DELETE' THEN
         DELETE FROM public.dependents WHERE id = OLD.id;
         RETURN OLD;
     END IF;
-
     INSERT INTO public.dependents (
         id, parent_client_id, guardian_client_id, salon_id, full_name, name,
-        relationship, birth_date, avatar_url, avatar_emoji, notes,
+        relationship, birth_date, avatar_url, avatar_emoji, gender, notes,
         autonomy_level, phone, email, emancipated_user_id, is_unlinked, created_at, updated_at
     ) VALUES (
-        NEW.id, COALESCE(NEW.guardian_client_id, NEW.parent_client_id), COALESCE(NEW.guardian_client_id, NEW.parent_client_id), NEW.salon_id, COALESCE(NEW.name, NEW.full_name, 'Dependente'), COALESCE(NEW.name, NEW.full_name, 'Dependente'),
-        COALESCE(NEW.relationship, 'son'), NEW.birth_date, NEW.avatar_url, NEW.avatar_emoji, NEW.notes,
-        COALESCE(NEW.autonomy_level, 'parent_controlled'), NEW.phone, NEW.email, NEW.emancipated_user_id, COALESCE(NEW.is_unlinked, FALSE), NEW.created_at, NOW()
+        NEW.id, COALESCE(NEW.guardian_client_id, NEW.parent_client_id), COALESCE(NEW.guardian_client_id, NEW.parent_client_id),
+        NEW.salon_id, COALESCE(NEW.name, NEW.full_name, 'Dependente'), COALESCE(NEW.name, NEW.full_name, 'Dependente'),
+        COALESCE(NEW.relationship, 'filho'), NEW.birth_date, NEW.avatar_url, NEW.avatar_emoji, NEW.gender, NEW.notes,
+        COALESCE(NEW.autonomy_level, 'parent_controlled'), NEW.phone, NEW.email, NEW.emancipated_user_id,
+        COALESCE(NEW.is_unlinked, FALSE), COALESCE(NEW.created_at, NOW()), NOW()
     )
     ON CONFLICT (id) DO UPDATE SET
         parent_client_id = EXCLUDED.parent_client_id,
@@ -1277,6 +1304,7 @@ BEGIN
         birth_date = EXCLUDED.birth_date,
         avatar_url = EXCLUDED.avatar_url,
         avatar_emoji = EXCLUDED.avatar_emoji,
+        gender = EXCLUDED.gender,
         notes = EXCLUDED.notes,
         autonomy_level = EXCLUDED.autonomy_level,
         phone = EXCLUDED.phone,
@@ -1284,179 +1312,446 @@ BEGIN
         emancipated_user_id = EXCLUDED.emancipated_user_id,
         is_unlinked = EXCLUDED.is_unlinked,
         updated_at = NOW();
-
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
+DROP TRIGGER IF EXISTS trg_sync_family_members_to_dependents ON public.client_family_members;
 CREATE TRIGGER trg_sync_family_members_to_dependents
 AFTER INSERT OR UPDATE OR DELETE ON public.client_family_members
 FOR EACH ROW EXECUTE FUNCTION public.sync_family_members_to_dependents();
 
 CREATE OR REPLACE FUNCTION public.sync_client_dependents_counter()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
 DECLARE
     v_parent_id UUID;
 BEGIN
-    v_parent_id := COALESCE(NEW.parent_client_id, OLD.parent_client_id);
-
+    v_parent_id := COALESCE(NEW.parent_client_id, NEW.guardian_client_id, OLD.parent_client_id, OLD.guardian_client_id);
     IF v_parent_id IS NOT NULL THEN
         UPDATE public.clients
         SET dependents_count = (
             SELECT COUNT(*)::INTEGER
             FROM public.dependents d
-            WHERE d.parent_client_id = v_parent_id
+            WHERE COALESCE(d.parent_client_id, d.guardian_client_id) = v_parent_id
               AND COALESCE(d.is_unlinked, FALSE) = FALSE
         ),
         updated_at = NOW()
         WHERE id = v_parent_id;
     END IF;
-
     RETURN COALESCE(NEW, OLD);
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
+DROP TRIGGER IF EXISTS trg_sync_client_dependents_counter ON public.dependents;
 CREATE TRIGGER trg_sync_client_dependents_counter
 AFTER INSERT OR UPDATE OR DELETE ON public.dependents
 FOR EACH ROW EXECUTE FUNCTION public.sync_client_dependents_counter();
 
--- 4.7B Trigger de Carteira/Favoritos do Cliente (Normaliza client_id ⇄ client_user_id em salon_clients)
-CREATE OR REPLACE FUNCTION public.sync_salon_clients_fields()
-RETURNS TRIGGER AS $$
-BEGIN
-    IF NEW.client_id IS NULL AND NEW.client_user_id IS NOT NULL THEN
-        IF EXISTS (SELECT 1 FROM public.clients WHERE id = NEW.client_user_id) THEN
-            NEW.client_id := NEW.client_user_id;
-        END IF;
-    END IF;
-    IF NEW.client_user_id IS NULL AND NEW.client_id IS NOT NULL THEN
-        NEW.client_user_id := NEW.client_id;
-    END IF;
-    NEW.last_visit_at := COALESCE(NEW.last_visit_at, NEW.last_interaction_at, NOW());
-    NEW.last_interaction_at := COALESCE(NEW.last_interaction_at, NEW.last_visit_at, NOW());
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_sync_salon_clients_fields
-BEFORE INSERT OR UPDATE ON public.salon_clients
-FOR EACH ROW EXECUTE FUNCTION public.sync_salon_clients_fields();
-
--- 4.8 Trigger de Utilidades do Salão (Mantém dre_records ⇄ financial_dre e supply_items ⇄ inventory_items espelhados)
+-- 9.5 Espelhamento de Utilidades Operacionais (supply_items ⇄ inventory_items, dre_records ⇄ financial_dre)
 CREATE OR REPLACE FUNCTION public.sync_salon_utilities_fields()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
 BEGIN
     IF NEW.supply_items IS NOT NULL AND NEW.supply_items <> '[]'::jsonb AND (NEW.inventory_items IS NULL OR NEW.inventory_items = '[]'::jsonb) THEN
         NEW.inventory_items := NEW.supply_items;
     ELSIF NEW.inventory_items IS NOT NULL AND NEW.inventory_items <> '[]'::jsonb AND (NEW.supply_items IS NULL OR NEW.supply_items = '[]'::jsonb) THEN
         NEW.supply_items := NEW.inventory_items;
     END IF;
-
     IF NEW.dre_records IS NOT NULL AND NEW.dre_records <> '[]'::jsonb AND (NEW.financial_dre IS NULL OR NEW.financial_dre = '{}'::jsonb) THEN
         NEW.financial_dre := jsonb_build_object('records', NEW.dre_records);
     END IF;
-
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
+DROP TRIGGER IF EXISTS trg_sync_salon_utilities_fields ON public.salon_utilities_records;
 CREATE TRIGGER trg_sync_salon_utilities_fields
 BEFORE INSERT OR UPDATE ON public.salon_utilities_records
 FOR EACH ROW EXECUTE FUNCTION public.sync_salon_utilities_fields();
 
--- 4.9 Trigger de Agendamentos (Dossiê 3.8 + Reserva Automática de Cadeira Vazia no Radar)
+-- 9.6 Hidratação Automática de Agendamentos (Protocolo, Salão, Profissional, Datas e Status de Pagamento)
 CREATE OR REPLACE FUNCTION public.handle_appointment_defaults()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
 BEGIN
     IF NEW.protocol_code IS NULL OR TRIM(NEW.protocol_code) = '' THEN
-        NEW.protocol_code := '#VGA-' || UPPER(SUBSTRING(REPLACE(uuid_generate_v4()::TEXT, '-', ''), 1, 6));
+        NEW.protocol_code := '#VGA-' || UPPER(SUBSTRING(MD5(RANDOM()::TEXT || CLOCK_TIMESTAMP()::TEXT) FROM 1 FOR 5));
     END IF;
 
-    NEW.service_title := COALESCE(NEW.service_title, NEW.service_name, 'Procedimento');
-    NEW.service_name := COALESCE(NEW.service_name, NEW.service_title, 'Procedimento');
-    NEW.price := COALESCE(NEW.price, NEW.service_price, 0.00);
-    NEW.service_price := COALESCE(NEW.service_price, NEW.price, 0.00);
-    NEW.date_str := COALESCE(NEW.date_str, NEW.scheduled_date, TO_CHAR(NOW(), 'YYYY-MM-DD'));
+    NEW.service_title := COALESCE(NULLIF(TRIM(NEW.service_title), ''), NULLIF(TRIM(NEW.service_name), ''), 'Atendimento');
+    NEW.service_name := COALESCE(NULLIF(TRIM(NEW.service_name), ''), NEW.service_title);
+    NEW.date_str := COALESCE(NULLIF(TRIM(NEW.date_str), ''), NULLIF(TRIM(NEW.scheduled_date), ''), NULLIF(TRIM(NEW.appointment_date), ''));
     NEW.scheduled_date := COALESCE(NEW.scheduled_date, NEW.date_str);
+    NEW.appointment_date := COALESCE(NEW.appointment_date, NEW.date_str);
 
-    IF NEW.client_id IS NULL AND NEW.client_user_id IS NOT NULL THEN
-        IF EXISTS (SELECT 1 FROM public.clients WHERE id = NEW.client_user_id) THEN
-            NEW.client_id := NEW.client_user_id;
-        END IF;
-    END IF;
-    IF NEW.client_user_id IS NULL AND NEW.client_id IS NOT NULL THEN
-        NEW.client_user_id := NEW.client_id;
-    END IF;
-
-    IF NEW.final_price IS NULL THEN
-        NEW.final_price := GREATEST(0, COALESCE(NEW.price, 0) - COALESCE(NEW.discount, 0));
+    -- Sincronismo bidirecional Pago / À pagar (is_paid ⇄ payment_status)
+    IF NEW.is_paid IS TRUE OR NEW.paid_at IS NOT NULL OR LOWER(COALESCE(NEW.payment_status, '')) = 'paid' THEN
+        NEW.is_paid := TRUE;
+        NEW.payment_status := 'paid';
+        NEW.paid_at := COALESCE(NEW.paid_at, NOW());
+    ELSE
+        NEW.is_paid := FALSE;
+        NEW.payment_status := COALESCE(NULLIF(TRIM(NEW.payment_status), ''), 'pending');
     END IF;
 
-    -- Se o agendamento veio de uma Cadeira Vazia / Vaga Relâmpago (offer_id), marca a vaga como BOOKED!
-    IF TG_OP = 'INSERT' AND NEW.offer_id IS NOT NULL THEN
-        UPDATE public.service_offers
-        SET status = 'BOOKED',
-            updated_at = NOW()
-        WHERE id = NEW.offer_id;
+    -- Hidratação de dados geográficos e logo do salão
+    IF NEW.salon_id IS NOT NULL AND (NEW.salon_name IS NULL OR NEW.salon_lat IS NULL OR NEW.salon_lng IS NULL) THEN
+        SELECT
+            COALESCE(NEW.salon_name, s.trade_name),
+            COALESCE(NEW.salon_logo_url, s.logo_url, s.logo_dark_url, s.logo_light_url),
+            COALESCE(NEW.salon_lat, s.latitude),
+            COALESCE(NEW.salon_lng, s.longitude),
+            COALESCE(NEW.commission_fee, s.fee_per_booking, s.billing_fee_value, 2.50)
+        INTO
+            NEW.salon_name,
+            NEW.salon_logo_url,
+            NEW.salon_lat,
+            NEW.salon_lng,
+            NEW.commission_fee
+        FROM public.salons s
+        WHERE s.id = NEW.salon_id;
     END IF;
 
-    IF TG_OP = 'INSERT' AND NEW.client_id IS NOT NULL THEN
-        UPDATE public.clients
-        SET total_appointments = COALESCE(total_appointments, 0) + 1,
-            updated_at = NOW()
-        WHERE id = NEW.client_id;
+    -- Hidratação do profissional
+    IF NEW.professional_id IS NOT NULL AND (NEW.professional_name IS NULL OR NEW.professional_avatar_url IS NULL) THEN
+        SELECT
+            COALESCE(NEW.professional_name, p.name),
+            COALESCE(NEW.professional_avatar_url, p.avatar_url)
+        INTO
+            NEW.professional_name,
+            NEW.professional_avatar_url
+        FROM public.professionals p
+        WHERE p.id = NEW.professional_id;
     END IF;
 
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
+DROP TRIGGER IF EXISTS trg_handle_appointment_defaults ON public.appointments;
 CREATE TRIGGER trg_handle_appointment_defaults
 BEFORE INSERT OR UPDATE ON public.appointments
 FOR EACH ROW EXECUTE FUNCTION public.handle_appointment_defaults();
 
+-- 9.7 Sincronização Geográfica por CPF entre Tabelas da Tríade
+CREATE OR REPLACE FUNCTION public.fn_sync_triade_geo_by_cpf()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  clean_cpf TEXT;
+BEGIN
+  clean_cpf := regexp_replace(COALESCE(NEW.cpf, ''), '\D', '', 'g');
+  IF length(clean_cpf) = 11 AND (NEW.latitude IS NOT NULL AND NEW.longitude IS NOT NULL) THEN
+    IF TG_TABLE_NAME <> 'clients' THEN
+      UPDATE public.clients
+      SET latitude = NEW.latitude, longitude = NEW.longitude,
+          address = COALESCE(NEW.address, address), street_number = COALESCE(NEW.street_number, street_number),
+          complement = COALESCE(NEW.complement, complement), neighborhood = COALESCE(NEW.neighborhood, neighborhood),
+          city = COALESCE(NEW.city, city), state = COALESCE(NEW.state, state), cep = COALESCE(NEW.cep, cep),
+          formatted_address = COALESCE(NEW.formatted_address, formatted_address),
+          google_place_id = COALESCE(NEW.google_place_id, google_place_id)
+      WHERE regexp_replace(COALESCE(cpf, ''), '\D', '', 'g') = clean_cpf
+        AND (latitude IS DISTINCT FROM NEW.latitude OR longitude IS DISTINCT FROM NEW.longitude);
+    END IF;
+    IF TG_TABLE_NAME <> 'profiles' THEN
+      UPDATE public.profiles
+      SET latitude = NEW.latitude, longitude = NEW.longitude,
+          address = COALESCE(NEW.address, address), street_number = COALESCE(NEW.street_number, street_number),
+          complement = COALESCE(NEW.complement, complement), neighborhood = COALESCE(NEW.neighborhood, neighborhood),
+          city = COALESCE(NEW.city, city), state = COALESCE(NEW.state, state), cep = COALESCE(NEW.cep, cep),
+          formatted_address = COALESCE(NEW.formatted_address, formatted_address),
+          google_place_id = COALESCE(NEW.google_place_id, google_place_id)
+      WHERE regexp_replace(COALESCE(cpf, ''), '\D', '', 'g') = clean_cpf
+        AND (latitude IS DISTINCT FROM NEW.latitude OR longitude IS DISTINCT FROM NEW.longitude);
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
 -- =====================================================================================================
--- PASSO 5: STORED PROCEDURES / FUNÇÕES RPC DO ECOSSISTEMA
+-- 10. MOTOR GEOTEMPORAL ANTI-COLISÃO ENTRE SALÕES & FUNÇÕES RPC OFICIAIS (APP + ADMIN + PORTAL)
 -- =====================================================================================================
 
--- 5.1 RPC Geoespacial do Radar: get_offers_in_radius
+-- 10.1 Cálculo de deslocamento urbano entre Salão A e Salão B
+CREATE OR REPLACE FUNCTION public.calculate_inter_salon_travel_minutes(
+    lat1 DOUBLE PRECISION,
+    lng1 DOUBLE PRECISION,
+    lat2 DOUBLE PRECISION,
+    lng2 DOUBLE PRECISION
+)
+RETURNS INTEGER
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+DECLARE
+    v_straight_km DOUBLE PRECISION;
+    v_road_km DOUBLE PRECISION;
+    v_drive_minutes DOUBLE PRECISION;
+BEGIN
+    IF lat1 IS NULL OR lng1 IS NULL OR lat2 IS NULL OR lng2 IS NULL THEN
+        RETURN 30;
+    END IF;
+
+    v_straight_km := 6371.0 * acos(
+        LEAST(1.0, GREATEST(-1.0,
+            cos(radians(lat1)) * cos(radians(lat2)) *
+            cos(radians(lng2) - radians(lng1)) +
+            sin(radians(lat1)) * sin(radians(lat2))
+        ))
+    );
+
+    IF v_straight_km < 0.08 THEN
+        RETURN 15;
+    END IF;
+
+    v_road_km := GREATEST(0.3, v_straight_km * 1.42);
+    v_drive_minutes := (v_road_km / 16.8) * 60.0;
+
+    RETURN GREATEST(15, CEIL(v_drive_minutes + 10.0)::INTEGER);
+END;
+$$;
+
+-- 10.2 RPC de verificação anti-colisão geotemporal (Salão A ⇄ Salão B)
+CREATE OR REPLACE FUNCTION public.check_client_inter_salon_collision(
+    p_client_phone TEXT,
+    p_client_email TEXT DEFAULT NULL,
+    p_client_id UUID DEFAULT NULL,
+    p_salon_id UUID DEFAULT NULL,
+    p_date_str VARCHAR(20) DEFAULT NULL,
+    p_start_time TIME DEFAULT NULL,
+    p_duration_minutes INTEGER DEFAULT 45,
+    p_exclude_protocol VARCHAR(50) DEFAULT NULL
+)
+RETURNS TABLE (
+    has_conflict BOOLEAN,
+    conflicting_protocol VARCHAR(50),
+    conflicting_salon_name VARCHAR(255),
+    conflicting_start_time TIME,
+    conflicting_end_time TIME,
+    travel_minutes INTEGER,
+    earliest_allowed_time TIME,
+    conflict_message TEXT
+)
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+    v_clean_phone TEXT;
+    v_clean_email TEXT;
+    v_cand_start_min INTEGER;
+    v_cand_dur_min INTEGER;
+    v_cand_end_min INTEGER;
+    v_target_lat DOUBLE PRECISION;
+    v_target_lng DOUBLE PRECISION;
+    r RECORD;
+    v_apt_start_min INTEGER;
+    v_apt_dur_min INTEGER;
+    v_apt_end_min INTEGER;
+    v_travel_min INTEGER;
+    v_earliest_after_min INTEGER;
+    v_latest_before_min INTEGER;
+BEGIN
+    v_clean_phone := REGEXP_REPLACE(COALESCE(p_client_phone, ''), '\D', '', 'g');
+    v_clean_email := LOWER(TRIM(COALESCE(p_client_email, '')));
+
+    IF p_date_str IS NULL OR p_start_time IS NULL THEN
+        RETURN;
+    END IF;
+
+    v_cand_start_min := EXTRACT(HOUR FROM p_start_time)::INTEGER * 60 + EXTRACT(MINUTE FROM p_start_time)::INTEGER;
+    v_cand_dur_min := GREATEST(15, COALESCE(p_duration_minutes, 45));
+    v_cand_end_min := v_cand_start_min + v_cand_dur_min;
+
+    IF p_salon_id IS NOT NULL THEN
+        SELECT s.latitude, s.longitude INTO v_target_lat, v_target_lng
+        FROM public.salons s
+        WHERE s.id = p_salon_id;
+    END IF;
+
+    FOR r IN
+        SELECT
+            a.protocol_code,
+            a.salon_id,
+            COALESCE(a.salon_name, s.trade_name, 'Outro Estabelecimento') AS salon_title,
+            a.start_time,
+            a.end_time,
+            COALESCE(a.duration_minutes, 45) AS dur_min,
+            COALESCE(a.salon_lat, s.latitude) AS s_lat,
+            COALESCE(a.salon_lng, s.longitude) AS s_lng
+        FROM public.appointments a
+        LEFT JOIN public.salons s ON s.id = a.salon_id
+        WHERE a.date_str = p_date_str
+          AND COALESCE(a.is_blocked_slot, FALSE) = FALSE
+          AND UPPER(COALESCE(a.status, 'CONFIRMADO')) NOT IN ('CANCELADO', 'CONCLUÍDO', 'CONCLUIDO')
+          AND (p_exclude_protocol IS NULL OR a.protocol_code <> p_exclude_protocol)
+          AND (
+              (p_client_id IS NOT NULL AND a.client_id = p_client_id)
+              OR (v_clean_phone <> '' AND REGEXP_REPLACE(COALESCE(a.client_phone, ''), '\D', '', 'g') = v_clean_phone)
+              OR (v_clean_email <> '' AND LOWER(TRIM(COALESCE(a.client_email, ''))) = v_clean_email)
+          )
+    LOOP
+        v_apt_start_min := EXTRACT(HOUR FROM r.start_time)::INTEGER * 60 + EXTRACT(MINUTE FROM r.start_time)::INTEGER;
+        v_apt_dur_min := GREATEST(
+            15,
+            CASE
+                WHEN r.end_time IS NOT NULL AND r.end_time > r.start_time THEN
+                    (EXTRACT(HOUR FROM r.end_time)::INTEGER * 60 + EXTRACT(MINUTE FROM r.end_time)::INTEGER) - v_apt_start_min
+                ELSE r.dur_min
+            END
+        );
+        v_apt_end_min := v_apt_start_min + v_apt_dur_min;
+
+        IF p_salon_id IS NOT NULL AND r.salon_id = p_salon_id THEN
+            v_travel_min := 0;
+        ELSE
+            v_travel_min := public.calculate_inter_salon_travel_minutes(r.s_lat, r.s_lng, v_target_lat, v_target_lng);
+        END IF;
+
+        v_earliest_after_min := v_apt_end_min + v_travel_min;
+        v_latest_before_min := v_apt_start_min - v_travel_min;
+
+        IF (v_cand_start_min >= v_apt_start_min AND v_cand_start_min < v_earliest_after_min)
+           OR (v_cand_start_min < v_apt_start_min AND v_cand_end_min > v_latest_before_min) THEN
+            has_conflict := TRUE;
+            conflicting_protocol := r.protocol_code;
+            conflicting_salon_name := r.salon_title;
+            conflicting_start_time := r.start_time;
+            conflicting_end_time := (r.start_time + (v_apt_dur_min || ' minutes')::INTERVAL)::TIME;
+            travel_minutes := v_travel_min;
+            earliest_allowed_time := (TIME '00:00' + (LEAST(1439, v_earliest_after_min) || ' minutes')::INTERVAL)::TIME;
+            conflict_message := FORMAT(
+                'Conflito geotemporal com %s (%s às %s + %s min de deslocamento). Horário livre a partir das %s.',
+                r.salon_title,
+                TO_CHAR(r.start_time, 'HH24:MI'),
+                TO_CHAR(conflicting_end_time, 'HH24:MI'),
+                v_travel_min,
+                TO_CHAR(earliest_allowed_time, 'HH24:MI')
+            );
+            RETURN NEXT;
+            RETURN;
+        END IF;
+    END LOOP;
+
+    RETURN;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.trg_fn_prevent_inter_salon_collision()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_conflict RECORD;
+BEGIN
+    IF COALESCE(NEW.is_blocked_slot, FALSE) = TRUE
+       OR UPPER(COALESCE(NEW.status, 'CONFIRMADO')) IN ('CANCELADO', 'CONCLUÍDO', 'CONCLUIDO') THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT * INTO v_conflict
+    FROM public.check_client_inter_salon_collision(
+        NEW.client_phone,
+        NEW.client_email,
+        NEW.client_id,
+        NEW.salon_id,
+        NEW.date_str,
+        NEW.start_time,
+        COALESCE(NEW.duration_minutes, 45),
+        NEW.protocol_code
+    )
+    WHERE has_conflict = TRUE
+    LIMIT 1;
+
+    IF FOUND AND v_conflict.has_conflict IS TRUE THEN
+        RAISE EXCEPTION '%', v_conflict.conflict_message
+            USING ERRCODE = 'P0001';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_prevent_inter_salon_collision ON public.appointments;
+CREATE TRIGGER trg_prevent_inter_salon_collision
+BEFORE INSERT OR UPDATE OF date_str, start_time, end_time, salon_id, status
+ON public.appointments
+FOR EACH ROW
+EXECUTE FUNCTION public.trg_fn_prevent_inter_salon_collision();
+
+-- 10.3 RPC: get_busy_slots (Horários Ocupados do Dia)
+CREATE OR REPLACE FUNCTION public.get_busy_slots(
+    p_salon_id UUID,
+    p_date_str VARCHAR(20)
+)
+RETURNS TABLE (
+    start_time TIME,
+    end_time TIME,
+    professional_id UUID,
+    professional_name VARCHAR(255)
+)
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT
+        a.start_time,
+        a.end_time,
+        a.professional_id,
+        COALESCE(a.professional_name, p.name) AS professional_name
+    FROM public.appointments a
+    LEFT JOIN public.professionals p ON p.id = a.professional_id
+    WHERE a.salon_id = p_salon_id
+      AND a.date_str = p_date_str
+      AND UPPER(COALESCE(a.status, 'CONFIRMADO')) NOT IN ('CANCELADO');
+$$;
+
+-- 10.4 RPC: get_offers_in_radius (Radar Geoespacial — Portal & App)
 CREATE OR REPLACE FUNCTION public.get_offers_in_radius(
     user_lat DOUBLE PRECISION,
     user_lng DOUBLE PRECISION,
-    radius_km DOUBLE PRECISION DEFAULT 25.0,
+    radius_km DOUBLE PRECISION DEFAULT 15.0,
     filter_category TEXT DEFAULT NULL
 )
 RETURNS TABLE (
     offer_id UUID,
     salon_id UUID,
-    salon_name VARCHAR(255),
-    salon_neighborhood VARCHAR(100),
+    salon_name VARCHAR,
+    salon_neighborhood VARCHAR,
     salon_address TEXT,
     salon_logo TEXT,
     salon_logo_light TEXT,
     salon_logo_dark TEXT,
-    operating_model VARCHAR(50),
+    operating_model VARCHAR,
     home_delivery_enabled BOOLEAN,
     home_delivery_area TEXT,
-    home_delivery_travel_fee NUMERIC(10,2),
-    professional_name VARCHAR(255),
+    home_delivery_travel_fee NUMERIC,
+    professional_name VARCHAR,
     professional_avatar TEXT,
-    rating_avg NUMERIC(3,2),
+    rating_avg NUMERIC,
     rating_count INTEGER,
-    service_title VARCHAR(255),
-    category VARCHAR(50),
-    price NUMERIC(10,2),
-    original_price NUMERIC(10,2),
-    date_str VARCHAR(20),
+    service_title VARCHAR,
+    category VARCHAR,
+    price NUMERIC,
+    original_price NUMERIC,
+    date_str VARCHAR,
     start_time TIME,
     end_time TIME,
     media_level INTEGER,
     video_url TEXT,
     gallery_images TEXT[],
     distance_meters INTEGER,
-    distance_km NUMERIC(5,1),
+    distance_km NUMERIC,
     expires_at TIMESTAMPTZ
-) AS $$
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
 BEGIN
     RETURN QUERY
     SELECT
@@ -1512,13 +1807,22 @@ BEGIN
     WHERE
         so.status = 'AVAILABLE'
         AND so.expires_at > NOW()
+        AND (
+            6371 * acos(
+                LEAST(1.0, GREATEST(-1.0,
+                    cos(radians(user_lat)) * cos(radians(s.latitude)) *
+                    cos(radians(s.longitude) - radians(user_lng)) +
+                    sin(radians(user_lat)) * sin(radians(s.latitude))
+                ))
+            )
+        ) <= radius_km
         AND (filter_category IS NULL OR filter_category = 'todos' OR LOWER(so.category) = LOWER(filter_category))
     ORDER BY
         so.expires_at ASC;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
--- 5.2 RPC Soberana de Login do Admin Master: verify_admin_login
+-- 10.5 RPC Soberana de Autenticação do Gestor Corporativo (admvapp): verify_admin_login
 CREATE OR REPLACE FUNCTION public.verify_admin_login(p_identifier TEXT, p_password TEXT)
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -1537,7 +1841,7 @@ BEGIN
     FROM public.system_admins
     WHERE LOWER(username) = v_clean_id
        OR LOWER(email) = v_clean_id
-       OR (LENGTH(v_digits) >= 8 AND REGEXP_REPLACE(phone_whatsapp, '\D', '', 'g') LIKE '%' || v_digits || '%')
+       OR (LENGTH(v_digits) >= 8 AND REGEXP_REPLACE(COALESCE(phone_whatsapp, ''), '\D', '', 'g') LIKE '%' || v_digits || '%')
     LIMIT 1;
 
     IF v_admin.id IS NULL THEN
@@ -1550,20 +1854,19 @@ BEGIN
 
     IF v_admin.password_hash = p_password
        OR (v_admin.password_hash LIKE '$2%' AND v_admin.password_hash = crypt(p_password, v_admin.password_hash))
-       OR p_password = 'Admin@2026!'
     THEN
         UPDATE public.system_admins
         SET last_login_at = NOW()
         WHERE id = v_admin.id;
 
         INSERT INTO public.admin_access_logs (admin_id, username, action_type, details)
-        VALUES (v_admin.id, v_admin.username, 'login_success', jsonb_build_object('source', 'web_rpc'));
+        VALUES (v_admin.id, COALESCE(v_admin.username, v_admin.email, 'admin'), 'login_success', jsonb_build_object('source', 'web_rpc'));
 
         RETURN jsonb_build_object(
             'success', true,
             'admin', jsonb_build_object(
                 'id', v_admin.id,
-                'full_name', v_admin.full_name,
+                'full_name', COALESCE(v_admin.full_name, v_admin.name),
                 'username', v_admin.username,
                 'email', v_admin.email,
                 'phone_whatsapp', v_admin.phone_whatsapp,
@@ -1579,7 +1882,7 @@ BEGIN
 END;
 $$;
 
--- 5.3 RPC Soberana de Cadastro de Admin Master: register_system_admin
+-- 10.6 RPC Soberana de Registro de Administrador Master (admvapp): register_system_admin
 CREATE OR REPLACE FUNCTION public.register_system_admin(
     p_full_name TEXT,
     p_username TEXT,
@@ -1612,9 +1915,9 @@ BEGIN
     END IF;
 
     INSERT INTO public.system_admins (
-        full_name, username, email, phone_whatsapp, password_hash, role, is_active
+        name, full_name, username, email, phone_whatsapp, password_hash, role, is_active
     ) VALUES (
-        TRIM(p_full_name), v_clean_user, v_clean_email, TRIM(p_phone_whatsapp),
+        TRIM(p_full_name), TRIM(p_full_name), v_clean_user, v_clean_email, TRIM(p_phone_whatsapp),
         crypt(p_password, gen_salt('bf')), 'superadmin', TRUE
     ) RETURNING id INTO v_new_id;
 
@@ -1640,7 +1943,7 @@ BEGIN
 END;
 $$;
 
--- 5.4 RPC de Cadastro e Vínculo Instantâneo de Cliente na Tríade: register_triade_user
+-- 10.7 RPC Unificada de Registro de Usuário da Tríade: register_triade_user
 CREATE OR REPLACE FUNCTION public.register_triade_user(
     p_full_name VARCHAR(255),
     p_username VARCHAR(100),
@@ -1657,14 +1960,19 @@ CREATE OR REPLACE FUNCTION public.register_triade_user(
     p_origin_type VARCHAR(20) DEFAULT 'portal',
     p_origin_salon_id UUID DEFAULT NULL,
     p_cpf VARCHAR(20) DEFAULT NULL
-) RETURNS JSONB AS $$
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
     v_client_id UUID;
-    v_result JSONB;
 BEGIN
     SELECT id INTO v_client_id
     FROM public.clients
-    WHERE LOWER(email) = LOWER(p_email) OR phone = p_phone
+    WHERE (p_email IS NOT NULL AND p_email <> '' AND LOWER(email) = LOWER(p_email))
+       OR (p_phone IS NOT NULL AND p_phone <> '' AND phone = p_phone)
     LIMIT 1;
 
     IF v_client_id IS NOT NULL THEN
@@ -1699,14 +2007,14 @@ BEGIN
         INSERT INTO public.salon_clients (
             salon_id, client_id, source, last_interaction_at
         ) VALUES (
-            p_origin_salon_id, v_client_id, 'embed_form', NOW()
+            p_origin_salon_id, v_client_id, 'triade_form', NOW()
         )
         ON CONFLICT (salon_id, client_id) DO UPDATE SET
             last_interaction_at = NOW(),
             updated_at = NOW();
     END IF;
 
-    v_result := jsonb_build_object(
+    RETURN jsonb_build_object(
         'success', true,
         'client_id', v_client_id,
         'full_name', p_full_name,
@@ -1714,71 +2022,79 @@ BEGIN
         'cpf', p_cpf,
         'origin_salon_id', p_origin_salon_id
     );
-
-    RETURN v_result;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-GRANT EXECUTE ON FUNCTION public.get_offers_in_radius(DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, TEXT) TO anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.verify_admin_login(TEXT, TEXT) TO anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.register_system_admin(TEXT, TEXT, TEXT, TEXT, TEXT) TO anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.register_triade_user(VARCHAR, VARCHAR, VARCHAR, VARCHAR, TEXT, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, VARCHAR, UUID, VARCHAR) TO anon, authenticated, service_role;
+$$;
 
 -- =====================================================================================================
--- PASSO 6: ROW LEVEL SECURITY (RLS) E POLÍTICAS UNIFICADAS DA TRÍADE
+-- 11. ÍNDICES DE ALTA PERFORMANCE (CRONOLÓGICO, BUSCA, GIS & RTLS)
 -- =====================================================================================================
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.salons ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.professionals ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.services ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.salon_services ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.service_offers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.salon_clients ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.dependents ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.client_family_members ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.salon_users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.salon_members ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.salon_media_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.salon_media_slots ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.salon_utilities_records ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.system_admins ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.admin_access_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.billing_invoices ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.financial_transactions ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Triade_All_Profiles" ON public.profiles FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Triade_All_Salons" ON public.salons FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Triade_All_Professionals" ON public.professionals FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Triade_All_Services" ON public.services FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Triade_All_Salon_Services" ON public.salon_services FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Triade_All_Service_Offers" ON public.service_offers FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Triade_All_Clients" ON public.clients FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Triade_All_Salon_Clients" ON public.salon_clients FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Triade_All_Dependents" ON public.dependents FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Triade_All_Client_Family_Members" ON public.client_family_members FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Triade_All_Salon_Users" ON public.salon_users FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Triade_All_Salon_Members" ON public.salon_members FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Triade_All_Appointments" ON public.appointments FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Triade_All_Salon_Media_Items" ON public.salon_media_items FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Triade_All_Salon_Media_Slots" ON public.salon_media_slots FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Triade_All_Salon_Utilities" ON public.salon_utilities_records FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Triade_All_System_Admins" ON public.system_admins FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Triade_All_Admin_Logs" ON public.admin_access_logs FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Triade_All_Billing_Invoices" ON public.billing_invoices FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Triade_All_Financial_Transactions" ON public.financial_transactions FOR ALL USING (true) WITH CHECK (true);
+CREATE INDEX IF NOT EXISTS idx_salons_slug ON public.salons(slug);
+CREATE INDEX IF NOT EXISTS idx_salons_subdomain ON public.salons(subdomain);
+CREATE INDEX IF NOT EXISTS idx_salons_status ON public.salons(status);
+CREATE INDEX IF NOT EXISTS idx_salons_owner_cpf ON public.salons(owner_cpf);
+CREATE INDEX IF NOT EXISTS idx_salons_coords ON public.salons(latitude, longitude);
+CREATE INDEX IF NOT EXISTS idx_appointments_salon_date ON public.appointments(salon_id, date_str);
+CREATE INDEX IF NOT EXISTS idx_appointments_chronological ON public.appointments(date_str ASC, start_time ASC);
+CREATE INDEX IF NOT EXISTS idx_appointments_client_date ON public.appointments(client_phone, date_str, start_time);
+CREATE INDEX IF NOT EXISTS idx_appointments_protocol ON public.appointments(protocol_code);
+CREATE INDEX IF NOT EXISTS idx_appointments_live_tracking ON public.appointments(salon_id, date_str, tracking_status);
+CREATE INDEX IF NOT EXISTS idx_appointments_payment_status ON public.appointments(salon_id, is_paid, payment_status);
+CREATE INDEX IF NOT EXISTS idx_clients_cpf ON public.clients(cpf);
+CREATE INDEX IF NOT EXISTS idx_clients_email ON public.clients(email);
+CREATE INDEX IF NOT EXISTS idx_clients_phone ON public.clients(phone);
+CREATE INDEX IF NOT EXISTS idx_salon_clients_salon ON public.salon_clients(salon_id);
+CREATE INDEX IF NOT EXISTS idx_professionals_salon_id ON public.professionals(salon_id);
+CREATE INDEX IF NOT EXISTS idx_service_offers_radar ON public.service_offers(date_str, status, expires_at);
+CREATE INDEX IF NOT EXISTS idx_financial_transactions_salon ON public.financial_transactions(salon_id, transaction_date);
+CREATE INDEX IF NOT EXISTS idx_user_security_answers_lookup ON public.user_security_answers(question_code, answer_normalized);
 
 -- =====================================================================================================
--- PASSO 7: STORAGE BUCKETS PARA UPLOAD DE FOTOS, VÍDEOS 5S, AVATARES E DOCUMENTOS
+-- 12. ROW LEVEL SECURITY (RLS) ESTRUTURADO & PERMISSÕES DA TRÍADE
+-- =====================================================================================================
+DO $$
+DECLARE
+    t TEXT;
+    triade_tables TEXT[] := ARRAY[
+        'profiles', 'salons', 'salon_ui_settings', 'salon_members', 'salon_users',
+        'professionals', 'services', 'salon_services', 'service_offers',
+        'clients', 'salon_clients', 'dependents', 'client_family_members',
+        'appointments', 'salon_media_items', 'salon_media_slots',
+        'salon_utilities_records', 'billing_invoices', 'financial_transactions',
+        'security_questions', 'user_security_answers'
+    ];
+BEGIN
+    FOREACH t IN ARRAY triade_tables LOOP
+        EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', t);
+        EXECUTE format('DROP POLICY IF EXISTS "Triade_Unified_%s" ON public.%I;', t, t);
+        EXECUTE format('CREATE POLICY "Triade_Unified_%s" ON public.%I FOR ALL USING (true) WITH CHECK (true);', t, t);
+    END LOOP;
+
+    -- Proteção dedicada para tabelas de Governança Corporativa (Admin Master)
+    ALTER TABLE public.system_admins ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Triade_Admin_SystemAdmins_Read" ON public.system_admins;
+    DROP POLICY IF EXISTS "Triade_Admin_SystemAdmins_Write" ON public.system_admins;
+    CREATE POLICY "Triade_Admin_SystemAdmins_Read" ON public.system_admins FOR SELECT USING (true);
+    CREATE POLICY "Triade_Admin_SystemAdmins_Write" ON public.system_admins FOR ALL USING (true) WITH CHECK (true);
+
+    ALTER TABLE public.admin_access_logs ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Triade_Admin_Logs_Access" ON public.admin_access_logs;
+    CREATE POLICY "Triade_Admin_Logs_Access" ON public.admin_access_logs FOR ALL USING (true) WITH CHECK (true);
+END $$;
+
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, service_role;
+
+-- =====================================================================================================
+-- 13. STORAGE BUCKETS PÚBLICOS (AVATARS, SALON-MEDIA, DOCUMENTS, MEDIA)
 -- =====================================================================================================
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'storage' AND table_name = 'buckets') THEN
         INSERT INTO storage.buckets (id, name, public)
         VALUES
-            ('salon-media', 'salon-media', true),
             ('avatars', 'avatars', true),
+            ('salon-media', 'salon-media', true),
             ('documents', 'documents', true),
             ('media', 'media', true)
         ON CONFLICT (id) DO UPDATE SET public = true;
@@ -1803,962 +2119,108 @@ EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
 -- =====================================================================================================
--- PASSO 8: ATIVAÇÃO TOTAL DO SUPABASE REALTIME (REPLICA IDENTITY FULL + PUBLICATION)
+-- 14. ATIVAÇÃO SEGURA DO SUPABASE REALTIME EM TODAS AS TABELAS DA TRÍADE
 -- =====================================================================================================
-ALTER TABLE public.profiles REPLICA IDENTITY FULL;
-ALTER TABLE public.salons REPLICA IDENTITY FULL;
-ALTER TABLE public.professionals REPLICA IDENTITY FULL;
-ALTER TABLE public.services REPLICA IDENTITY FULL;
-ALTER TABLE public.salon_services REPLICA IDENTITY FULL;
-ALTER TABLE public.service_offers REPLICA IDENTITY FULL;
-ALTER TABLE public.clients REPLICA IDENTITY FULL;
-ALTER TABLE public.salon_clients REPLICA IDENTITY FULL;
-ALTER TABLE public.dependents REPLICA IDENTITY FULL;
-ALTER TABLE public.client_family_members REPLICA IDENTITY FULL;
-ALTER TABLE public.salon_users REPLICA IDENTITY FULL;
-ALTER TABLE public.salon_members REPLICA IDENTITY FULL;
-ALTER TABLE public.appointments REPLICA IDENTITY FULL;
-ALTER TABLE public.salon_media_items REPLICA IDENTITY FULL;
-ALTER TABLE public.salon_media_slots REPLICA IDENTITY FULL;
-ALTER TABLE public.salon_utilities_records REPLICA IDENTITY FULL;
-ALTER TABLE public.system_admins REPLICA IDENTITY FULL;
-ALTER TABLE public.admin_access_logs REPLICA IDENTITY FULL;
-ALTER TABLE public.billing_invoices REPLICA IDENTITY FULL;
-ALTER TABLE public.financial_transactions REPLICA IDENTITY FULL;
-
 DO $$
 DECLARE
-    v_table TEXT;
-    v_tables TEXT[] := ARRAY[
-        'profiles', 'salons', 'professionals', 'services', 'salon_services',
-        'service_offers', 'clients', 'salon_clients', 'dependents', 'client_family_members',
-        'salon_users', 'salon_members', 'appointments', 'salon_media_items', 'salon_media_slots',
-        'salon_utilities_records', 'system_admins', 'admin_access_logs',
-        'billing_invoices', 'financial_transactions'
+    tbl TEXT;
+    realtime_tables TEXT[] := ARRAY[
+        'profiles', 'salons', 'salon_ui_settings', 'professionals',
+        'services', 'salon_services', 'service_offers', 'clients',
+        'salon_clients', 'dependents', 'client_family_members',
+        'appointments', 'salon_media_items', 'salon_media_slots',
+        'salon_utilities_records', 'billing_invoices', 'financial_transactions',
+        'salon_users', 'system_admins'
     ];
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
-        CREATE PUBLICATION supabase_realtime;
-    END IF;
-
-    FOREACH v_table IN ARRAY v_tables LOOP
-        BEGIN
+    FOREACH tbl IN ARRAY realtime_tables LOOP
+        EXECUTE format('ALTER TABLE public.%I REPLICA IDENTITY FULL;', tbl);
+        IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
             IF NOT EXISTS (
                 SELECT 1 FROM pg_publication_tables
-                WHERE pubname = 'supabase_realtime'
-                  AND schemaname = 'public'
-                  AND tablename = v_table
+                WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = tbl
             ) THEN
-                EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', v_table);
+                EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I;', tbl);
             END IF;
-        EXCEPTION WHEN OTHERS THEN NULL;
-        END;
+        END IF;
     END LOOP;
+EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
 -- =====================================================================================================
--- PASSO 9: SEEDS INICIAIS COM DUAS EMPRESAS FICTÍCIAS COMPLETAS DE EXEMPLO (TRÍADE VAGOUAPP)
+-- 15. AUDITORIA DE DATA/HORA DE CRIAÇÃO E ORIGEM CADASTRAL (bol-161)
 -- =====================================================================================================
--- Empresa Fictícia 1: Salão X Prime Barbershop (Barbearia Masculina & Estética — Tema Emerald Dark)
--- Empresa Fictícia 2: Lumière Studio & Beauty Spa (Salão de Beleza, Unhas & Estética — Tema Rose Glam)
+ALTER TABLE public.salons ADD COLUMN IF NOT EXISTS created_via VARCHAR(50);
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS created_via VARCHAR(50);
+ALTER TABLE public.dependents ADD COLUMN IF NOT EXISTS created_via VARCHAR(50);
+ALTER TABLE public.professionals ADD COLUMN IF NOT EXISTS created_via VARCHAR(50);
+ALTER TABLE public.salon_users ADD COLUMN IF NOT EXISTS created_via VARCHAR(50);
+ALTER TABLE public.system_admins ADD COLUMN IF NOT EXISTS created_via VARCHAR(50) DEFAULT 'admvapp';
 
--- 9.1 DUAS EMPRESAS FICTÍCIAS DE EXEMPLO (PUBLIC.SALONS)
-INSERT INTO public.salons (
-    id, trade_name, legal_name, slug, category, document_type, document_number, owner_cpf,
-    phone_whatsapp, phone_landline, email, instagram, instagram_url,
-    address, street_number, complement, neighborhood, city, state, cep,
-    latitude, longitude, rating_avg, rating_count, status, is_verified, is_active, is_featured,
-    cover_image_url, logo_url, facade_photo_url, interior_photo_url, space_photos,
-    theme_preset_id, primary_color, secondary_color, slogan, pix_key, bio, amenities
-) VALUES
-(
-    '11111111-1111-1111-1111-111111111101',
-    'Salão X Prime Barbershop',
-    'Lucas Silva Barber & Estética Masculina LTDA',
-    'salao-x-prime',
-    'Barbearia',
-    'CNPJ',
-    '42.158.963/0001-81',
-    '345.678.901-22',
-    '(11) 98123-4567',
-    '(11) 2041-8890',
-    'contato@salaoxprime.com.br',
-    '@salaoxprime',
-    'https://instagram.com/salaoxprime',
-    'Rua Itaquera',
-    '340',
-    'Loja 01 - Térreo',
-    'Itaquera',
-    'São Paulo',
-    'SP',
-    '08210-010',
-    -23.5350,
-    -46.4520,
-    4.95,
-    184,
-    'active',
-    TRUE,
-    TRUE,
-    TRUE,
-    'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=1200&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=400&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=900&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=900&auto=format&fit=crop&q=80',
-    '["https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=900&auto=format&fit=crop&q=80", "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=900&auto=format&fit=crop&q=80"]'::jsonb,
-    'emerald-dark',
-    '#20C933',
-    '#0F172A',
-    'Precisão na navalha e estilo de alto nível.',
-    '42.158.963/0001-81',
-    'Barbearia referência em cortes degradê navalhados, barboterapia com toalha quente e visagismo masculino.',
-    ARRAY['Wi-Fi Grátis', 'Ar Condicionado', 'Café Expresso', 'Chopp Artesanal', 'Estacionamento']::TEXT[]
-),
-(
-    '11111111-1111-1111-1111-111111111102',
-    'Lumière Studio & Beauty Spa',
-    'Camila Rocha Estética, Cabelo e Unhas LTDA',
-    'lumiere-studio-beauty',
-    'Salão de Beleza',
-    'CNPJ',
-    '58.741.236/0001-49',
-    '412.889.301-55',
-    '(11) 96345-6789',
-    '(11) 2098-3344',
-    'contato@lumierestudio.com.br',
-    '@lumierestudiobeauty',
-    'https://instagram.com/lumierestudiobeauty',
-    'Av. Líder',
-    '1200',
-    'Conjunto 14',
-    'Artur Alvim',
-    'São Paulo',
-    'SP',
-    '03586-000',
-    -23.5410,
-    -46.4620,
-    4.92,
-    146,
-    'active',
-    TRUE,
-    TRUE,
-    TRUE,
-    'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=1200&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=900&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1604654894610-df63bc536371?w=900&auto=format&fit=crop&q=80',
-    '["https://images.unsplash.com/photo-1560066984-138dadb4c035?w=900&auto=format&fit=crop&q=80", "https://images.unsplash.com/photo-1604654894610-df63bc536371?w=900&auto=format&fit=crop&q=80"]'::jsonb,
-    'rose-glam',
-    '#EC4899',
-    '#0F172A',
-    'Realçando sua beleza natural com sofisticação.',
-    'financeiro@lumierestudio.com.br',
-    'Studio completo especializado em mechas criativas, unhas em fibra de vidro, lash lifting e spa facial.',
-    ARRAY['Wi-Fi Grátis', 'Ar Condicionado', 'Espaço Café & Chás', 'Acessibilidade', 'Manobrista']::TEXT[]
-);
-
--- 9.2 GESTORES / PROPRIETÁRIOS DAS DUAS EMPRESAS (PUBLIC.SALON_USERS & PUBLIC.PROFILES)
-INSERT INTO public.profiles (
-    id, email, full_name, name, username, phone, phone_whatsapp, cpf, role, salon_id, city, state, status
-) VALUES
-(
-    '66666666-6666-6666-6666-666666666601',
-    'lucas@salaoxprime.com.br',
-    'Lucas Silva',
-    'Lucas Silva',
-    'lucas.prime',
-    '(11) 98123-4567',
-    '(11) 98123-4567',
-    '345.678.901-22',
-    'partner',
-    '11111111-1111-1111-1111-111111111101',
-    'São Paulo',
-    'SP',
-    'active'
-),
-(
-    '66666666-6666-6666-6666-666666666602',
-    'camila@lumierestudio.com.br',
-    'Camila Rocha',
-    'Camila Rocha',
-    'camila.lumiere',
-    '(11) 96345-6789',
-    '(11) 96345-6789',
-    '412.889.301-55',
-    'partner',
-    '11111111-1111-1111-1111-111111111102',
-    'São Paulo',
-    'SP',
-    'active'
-);
-
-INSERT INTO public.salon_users (
-    id, salon_id, full_name, username, email, phone_whatsapp, cpf, role, access_level, is_active, city, state
-) VALUES
-(
-    '66666666-6666-6666-6666-666666666611',
-    '11111111-1111-1111-1111-111111111101',
-    'Lucas Silva',
-    'lucas.prime',
-    'lucas@salaoxprime.com.br',
-    '(11) 98123-4567',
-    '345.678.901-22',
-    'owner',
-    'Proprietário (Dono)',
-    TRUE,
-    'São Paulo',
-    'SP'
-),
-(
-    '66666666-6666-6666-6666-666666666612',
-    '11111111-1111-1111-1111-111111111102',
-    'Camila Rocha',
-    'camila.lumiere',
-    'camila@lumierestudio.com.br',
-    '(11) 96345-6789',
-    '412.889.301-55',
-    'owner',
-    'Proprietário (Dono)',
-    TRUE,
-    'São Paulo',
-    'SP'
-);
-
--- 9.3 PROFISSIONAIS DA EQUIPE DAS DUAS EMPRESAS (PUBLIC.PROFESSIONALS)
-INSERT INTO public.professionals (
-    id, salon_id, name, full_name, role, access_level, phone, phone_whatsapp, email, cpf,
-    specialties, color_hex, slot_minutes, commission_rate, product_commission_rate, avatar_url
-) VALUES
--- Equipe Empresa 1: Salão X Prime Barbershop
-(
-    '22222222-2222-2222-2222-222222222201',
-    '11111111-1111-1111-1111-111111111101',
-    'Lucas Silva',
-    'Lucas Silva',
-    'Barbeiro Master & Visagista',
-    'admin',
-    '(11) 98123-4567',
-    '(11) 98123-4567',
-    'lucas@salaoxprime.com.br',
-    '345.678.901-22',
-    ARRAY['Corte Degradê', 'Barboterapia', 'Pigmentação'],
-    '#059669',
-    45,
-    60.00,
-    15.00,
-    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80'
-),
-(
-    '22222222-2222-2222-2222-222222222202',
-    '11111111-1111-1111-1111-111111111101',
-    'Rafael Costa',
-    'Rafael Costa',
-    'Barbeiro Especialista em Fade',
-    'professional',
-    '(11) 97234-5678',
-    '(11) 97234-5678',
-    'rafael@salaoxprime.com.br',
-    '298.441.520-18',
-    ARRAY['Degradê Navalhado', 'Freestyle', 'Sobrancelha na Navalha'],
-    '#2563eb',
-    40,
-    50.00,
-    10.00,
-    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop&q=80'
-),
--- Equipe Empresa 2: Lumière Studio & Beauty Spa
-(
-    '22222222-2222-2222-2222-222222222203',
-    '11111111-1111-1111-1111-111111111102',
-    'Camila Rocha',
-    'Camila Rocha',
-    'Master Nail Designer & Esteticista',
-    'admin',
-    '(11) 96345-6789',
-    '(11) 96345-6789',
-    'camila@lumierestudio.com.br',
-    '412.889.301-55',
-    ARRAY['Fibra de Vidro', 'Esmaltação em Gel', 'Spa dos Pés'],
-    '#db2777',
-    60,
-    55.00,
-    12.00,
-    'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&auto=format&fit=crop&q=80'
-),
-(
-    '22222222-2222-2222-2222-222222222204',
-    '11111111-1111-1111-1111-111111111102',
-    'Juliana Mendes',
-    'Juliana Mendes',
-    'Hair Stylist & Designer Facial',
-    'professional',
-    '(11) 95456-7890',
-    '(11) 95456-7890',
-    'juliana@lumierestudio.com.br',
-    '521.744.890-04',
-    ARRAY['Mechas Criativas', 'Design com Henna', 'Lash Lifting'],
-    '#7c3aed',
-    45,
-    50.00,
-    10.00,
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80'
-);
-
--- 9.4 CATÁLOGO DE SERVIÇOS DAS DUAS EMPRESAS (O Trigger popula automaticamente salon_services!)
-INSERT INTO public.services (
-    id, salon_id, name, title, category, price, promotional_price, duration_minutes, duration_estimated,
-    commission_rate, description, image_url, video_url, photos, slides, is_active
-) VALUES
--- Serviços Empresa 1: Salão X Prime Barbershop
-(
-    '55555555-5555-5555-5555-555555555501',
-    '11111111-1111-1111-1111-111111111101',
-    'Corte Degradê Navalhado',
-    'Corte Degradê Navalhado',
-    'cabelo',
-    55.00,
-    45.00,
-    45,
-    '45 min',
-    50.00,
-    'Degradê suave na navalha ou shaver, finalizado com lavagem refrescante e pomada matte.',
-    'https://images.unsplash.com/photo-1622286342621-4bd786c2447c?w=900&auto=format&fit=crop&q=80',
-    'https://assets.mixkit.co/videos/preview/mixkit-barber-trimming-a-mans-beard-43093-large.mp4',
-    ARRAY['https://images.unsplash.com/photo-1622286342621-4bd786c2447c?w=900&auto=format&fit=crop&q=80']::TEXT[],
-    ARRAY['https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=900&auto=format&fit=crop&q=80']::TEXT[],
-    TRUE
-),
-(
-    '55555555-5555-5555-5555-555555555502',
-    '11111111-1111-1111-1111-111111111101',
-    'Barboterapia Spa Prime',
-    'Barboterapia Spa Prime',
-    'barba',
-    50.00,
-    40.00,
-    40,
-    '40 min',
-    50.00,
-    'Alinhamento com navalha descartável, toalha quente com essência de eucalipto e massagem facial.',
-    'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=900&auto=format&fit=crop&q=80',
-    NULL,
-    ARRAY['https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=900&auto=format&fit=crop&q=80']::TEXT[],
-    ARRAY[]::TEXT[],
-    TRUE
-),
-(
-    '55555555-5555-5555-5555-555555555503',
-    '11111111-1111-1111-1111-111111111101',
-    'Combo Prime (Cabelo + Barba + Sobrancelha)',
-    'Combo Prime (Cabelo + Barba + Sobrancelha)',
-    'combo',
-    95.00,
-    79.90,
-    75,
-    '1h 15min',
-    55.00,
-    'Pacote completo de corte degradê, barboterapia na toalha quente e alinhamento de sobrancelha.',
-    'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=900&auto=format&fit=crop&q=80',
-    NULL,
-    ARRAY['https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=900&auto=format&fit=crop&q=80']::TEXT[],
-    ARRAY[]::TEXT[],
-    TRUE
-),
--- Serviços Empresa 2: Lumière Studio & Beauty Spa
-(
-    '55555555-5555-5555-5555-555555555504',
-    '11111111-1111-1111-1111-111111111102',
-    'Alongamento em Fibra de Vidro',
-    'Alongamento em Fibra de Vidro',
-    'unhas',
-    160.00,
-    135.00,
-    120,
-    '2h 00min',
-    55.00,
-    'Estrutura fina e natural com acabamento em gel de alta durabilidade e cuticulagem russa.',
-    'https://images.unsplash.com/photo-1604654894610-df63bc536371?w=900&auto=format&fit=crop&q=80',
-    NULL,
-    ARRAY['https://images.unsplash.com/photo-1604654894610-df63bc536371?w=900&auto=format&fit=crop&q=80']::TEXT[],
-    ARRAY[]::TEXT[],
-    TRUE
-),
-(
-    '55555555-5555-5555-5555-555555555505',
-    '11111111-1111-1111-1111-111111111102',
-    'Design de Sobrancelhas com Henna & Spa',
-    'Design de Sobrancelhas com Henna & Spa',
-    'beleza',
-    65.00,
-    49.90,
-    40,
-    '40 min',
-    50.00,
-    'Mapeamento geométrico facial com linha egípcia, aplicação de henna ombré e argiloterapia.',
-    'https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?w=900&auto=format&fit=crop&q=80',
-    NULL,
-    ARRAY['https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?w=900&auto=format&fit=crop&q=80']::TEXT[],
-    ARRAY[]::TEXT[],
-    TRUE
-),
-(
-    '55555555-5555-5555-5555-555555555506',
-    '11111111-1111-1111-1111-111111111102',
-    'Hidratação Joico + Escova Modelada',
-    'Hidratação Joico + Escova Modelada',
-    'cabelo',
-    140.00,
-    110.00,
-    60,
-    '1h 00min',
-    50.00,
-    'Reconstrução capilar profunda em 4 passos seguida de escova modelada com brilho espelhado.',
-    'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=900&auto=format&fit=crop&q=80',
-    NULL,
-    ARRAY['https://images.unsplash.com/photo-1560066984-138dadb4c035?w=900&auto=format&fit=crop&q=80']::TEXT[],
-    ARRAY[]::TEXT[],
-    TRUE
-);
-
--- 9.5 ACERVO CENTRAL DE MÍDIAS DAS DUAS EMPRESAS (PUBLIC.SALON_MEDIA_ITEMS)
-INSERT INTO public.salon_media_items (
-    salon_id, title, url, type, media_group, category, duration_seconds, is_cover
-) VALUES
--- Mídias Empresa 1: Salão X Prime Barbershop
-(
-    '11111111-1111-1111-1111-111111111101',
-    'Degradê Fade Master',
-    'https://images.unsplash.com/photo-1622286342621-4bd786c2447c?w=900&auto=format&fit=crop&q=80',
-    'image',
-    'fotos',
-    'servicos',
-    5,
-    FALSE
-),
-(
-    '11111111-1111-1111-1111-111111111101',
-    'Lucas Silva (Barbeiro Master)',
-    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=900&auto=format&fit=crop&q=80',
-    'image',
-    'fotos',
-    'profissionais',
-    5,
-    FALSE
-),
-(
-    '11111111-1111-1111-1111-111111111101',
-    'Estrutura e Bancadas Vintage',
-    'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=900&auto=format&fit=crop&q=80',
-    'image',
-    'fotos',
-    'espaco',
-    5,
-    FALSE
-),
-(
-    '11111111-1111-1111-1111-111111111101',
-    'Corte Degradê em Ação 5s',
-    'https://assets.mixkit.co/videos/preview/mixkit-barber-trimming-a-mans-beard-43093-large.mp4',
-    'video',
-    'videos',
-    'servicos',
-    5,
-    FALSE
-),
-(
-    '11111111-1111-1111-1111-111111111101',
-    'Banner Oficial Cabeçalho Prime',
-    'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=1200&auto=format&fit=crop&q=80',
-    'image',
-    'imagens',
-    'banner',
-    5,
-    TRUE
-),
-(
-    '11111111-1111-1111-1111-111111111101',
-    'Logotipo Oficial Salão X Prime',
-    'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=400&auto=format&fit=crop&q=80',
-    'image',
-    'imagens',
-    'logotipo',
-    5,
-    FALSE
-),
--- Mídias Empresa 2: Lumière Studio & Beauty Spa
-(
-    '11111111-1111-1111-1111-111111111102',
-    'Alongamento Fibra Natural',
-    'https://images.unsplash.com/photo-1604654894610-df63bc536371?w=900&auto=format&fit=crop&q=80',
-    'image',
-    'fotos',
-    'servicos',
-    5,
-    FALSE
-),
-(
-    '11111111-1111-1111-1111-111111111102',
-    'Camila Rocha (Master Nail Designer)',
-    'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=900&auto=format&fit=crop&q=80',
-    'image',
-    'fotos',
-    'profissionais',
-    5,
-    FALSE
-),
-(
-    '11111111-1111-1111-1111-111111111102',
-    'Lounge & Estações de Beleza Lumière',
-    'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=900&auto=format&fit=crop&q=80',
-    'image',
-    'fotos',
-    'espaco',
-    5,
-    FALSE
-),
-(
-    '11111111-1111-1111-1111-111111111102',
-    'Banner Oficial Lumière Studio',
-    'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=1200&auto=format&fit=crop&q=80',
-    'image',
-    'imagens',
-    'banner',
-    5,
-    TRUE
-),
-(
-    '11111111-1111-1111-1111-111111111102',
-    'Logotipo Oficial Lumière Studio',
-    'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400&auto=format&fit=crop&q=80',
-    'image',
-    'imagens',
-    'logotipo',
-    5,
-    FALSE
-);
-
--- 9.6 VAGAS RELÂMPAGO DO RADAR DAS DUAS EMPRESAS (PUBLIC.SERVICE_OFFERS)
--- Limpa as ofertas geradas automaticamente pelo trigger de promoção do Passo 9.4 para inserir as 4 ofertas curadas com UUIDs fixos:
-DELETE FROM public.service_offers;
-
-INSERT INTO public.service_offers (
-    id, salon_id, professional_id, service_id, service_title, category, price, original_price,
-    discount_percentage, date_str, start_time, end_time, status, media_level, video_url, is_flash_deal, expires_at, description
-) VALUES
--- Ofertas Empresa 1: Salão X Prime Barbershop
-(
-    '33333333-3333-3333-3333-333333333301',
-    '11111111-1111-1111-1111-111111111101',
-    '22222222-2222-2222-2222-222222222201',
-    '55555555-5555-5555-5555-555555555501',
-    'Corte Degradê Navalhado',
-    'cabelo',
-    45.00,
-    55.00,
-    18,
-    TO_CHAR(NOW(), 'YYYY-MM-DD'),
-    '14:30:00',
-    '15:15:00',
-    'AVAILABLE',
-    3,
-    'https://assets.mixkit.co/videos/preview/mixkit-barber-trimming-a-mans-beard-43093-large.mp4',
-    TRUE,
-    NOW() + INTERVAL '6 hours',
-    'Degradê na zero ou navalhado com finalização em pomada matte e toalha refrescante.'
-),
-(
-    '33333333-3333-3333-3333-333333333302',
-    '11111111-1111-1111-1111-111111111101',
-    '22222222-2222-2222-2222-222222222202',
-    '55555555-5555-5555-5555-555555555502',
-    'Barboterapia Spa Prime',
-    'barba',
-    39.90,
-    50.00,
-    20,
-    TO_CHAR(NOW(), 'YYYY-MM-DD'),
-    '15:30:00',
-    '16:10:00',
-    'AVAILABLE',
-    2,
-    NULL,
-    TRUE,
-    NOW() + INTERVAL '5 hours',
-    'Barba alinhada com toalha quente, óleos essenciais e massagem facial relaxante.'
-),
--- Ofertas Empresa 2: Lumière Studio & Beauty Spa
-(
-    '33333333-3333-3333-3333-333333333303',
-    '11111111-1111-1111-1111-111111111102',
-    '22222222-2222-2222-2222-222222222203',
-    '55555555-5555-5555-5555-555555555504',
-    'Alongamento em Fibra de Vidro',
-    'unhas',
-    129.90,
-    160.00,
-    19,
-    TO_CHAR(NOW(), 'YYYY-MM-DD'),
-    '16:00:00',
-    '18:00:00',
-    'AVAILABLE',
-    2,
-    NULL,
-    TRUE,
-    NOW() + INTERVAL '4 hours',
-    'Alongamento completo em fibra de vidro com esmaltação em gel e hidratação de cutículas.'
-),
-(
-    '33333333-3333-3333-3333-333333333304',
-    '11111111-1111-1111-1111-111111111102',
-    '22222222-2222-2222-2222-222222222204',
-    '55555555-5555-5555-5555-555555555505',
-    'Design de Sobrancelhas com Henna',
-    'beleza',
-    45.00,
-    65.00,
-    31,
-    TO_CHAR(NOW(), 'YYYY-MM-DD'),
-    '17:00:00',
-    '17:40:00',
-    'AVAILABLE',
-    1,
-    NULL,
-    TRUE,
-    NOW() + INTERVAL '5 hours',
-    'Mapeamento facial com linha e aplicação de henna personalizada para o seu tom de pele.'
-);
-
--- 9.7 CLIENTES TITULARES + CONTA FAMÍLIA (DEPENDENTES) + CARTEIRA DAS DUAS EMPRESAS
-INSERT INTO public.clients (
-    id, name, full_name, username, cpf, phone, phone_whatsapp, email,
-    address, street_number, neighborhood, city, state, cep, origin_type, origin_salon_id
-) VALUES
-(
-    '77777777-7777-7777-7777-777777777701',
-    'Anderson Silva',
-    'Anderson Silva',
-    'anderson.silva',
-    '321.654.987-00',
-    '(11) 98765-4321',
-    '(11) 98765-4321',
-    'anderson.silva@cliente.com.br',
-    'Rua Flores do Campo',
-    '120',
-    'Itaquera',
-    'São Paulo',
-    'SP',
-    '08210-000',
-    'salon_direct',
-    '11111111-1111-1111-1111-111111111101'
-),
-(
-    '77777777-7777-7777-7777-777777777702',
-    'Beatriz Oliveira',
-    'Beatriz Oliveira',
-    'beatriz.oliveira',
-    '654.987.321-11',
-    '(11) 97654-3210',
-    '(11) 97654-3210',
-    'beatriz.oliveira@cliente.com.br',
-    'Av. Aguia de Haia',
-    '890',
-    'Artur Alvim',
-    'São Paulo',
-    'SP',
-    '03586-010',
-    'salon_direct',
-    '11111111-1111-1111-1111-111111111102'
-);
-
-INSERT INTO public.salon_clients (
-    salon_id, client_id, source, status, total_appointments, total_spent
-) VALUES
-(
-    '11111111-1111-1111-1111-111111111101',
-    '77777777-7777-7777-7777-777777777701',
-    'direct_registration',
-    'active',
-    4,
-    210.00
-),
-(
-    '11111111-1111-1111-1111-111111111102',
-    '77777777-7777-7777-7777-777777777702',
-    'direct_registration',
-    'active',
-    3,
-    385.00
-);
-
--- O Trigger trg_sync_client_dependents_counter atualiza automaticamente dependents_count em public.clients!
-INSERT INTO public.dependents (
-    id, parent_client_id, salon_id, full_name, relationship, birth_date, notes
-) VALUES
--- Dependentes do Cliente da Empresa 1
-(
-    '88888888-8888-8888-8888-888888888801',
-    '77777777-7777-7777-7777-777777777701',
-    '11111111-1111-1111-1111-111111111101',
-    'Gabriel Silva',
-    'son',
-    '2016-05-14',
-    'Corte infantil na tesoura, sem navalha.'
-),
-(
-    '88888888-8888-8888-8888-888888888802',
-    '77777777-7777-7777-7777-777777777701',
-    '11111111-1111-1111-1111-111111111101',
-    'Mariana Silva',
-    'spouse',
-    '1990-11-22',
-    'Preferência por atendimento aos sábados.'
-),
--- Dependente da Cliente da Empresa 2
-(
-    '88888888-8888-8888-8888-888888888803',
-    '77777777-7777-7777-7777-777777777702',
-    '11111111-1111-1111-1111-111111111102',
-    'Sophia Oliveira',
-    'daughter',
-    '2014-08-09',
-    'Esmaltação hipoalergênica infantil e hidratação capilar.'
-);
-
--- 9.8 AGENDAMENTOS INICIAIS DAS DUAS EMPRESAS (PUBLIC.APPOINTMENTS)
-INSERT INTO public.appointments (
-    id, protocol_code, salon_id, professional_id, service_id, client_id, client_name, client_phone,
-    service_title, service_category, price, date_str, start_time, end_time, status
-) VALUES
-(
-    '44444444-4444-4444-4444-444444444401',
-    '#VGA-10001',
-    '11111111-1111-1111-1111-111111111101',
-    '22222222-2222-2222-2222-222222222201',
-    '55555555-5555-5555-5555-555555555501',
-    '77777777-7777-7777-7777-777777777701',
-    'Anderson Silva',
-    '(11) 98765-4321',
-    'Corte Degradê Navalhado',
-    'cabelo',
-    45.00,
-    TO_CHAR(NOW(), 'YYYY-MM-DD'),
-    '14:30:00',
-    '15:15:00',
-    'CONFIRMADO'
-),
-(
-    '44444444-4444-4444-4444-444444444402',
-    '#VGA-10002',
-    '11111111-1111-1111-1111-111111111102',
-    '22222222-2222-2222-2222-222222222203',
-    '55555555-5555-5555-5555-555555555504',
-    '77777777-7777-7777-7777-777777777702',
-    'Beatriz Oliveira',
-    '(11) 97654-3210',
-    'Alongamento em Fibra de Vidro',
-    'unhas',
-    135.00,
-    TO_CHAR(NOW(), 'YYYY-MM-DD'),
-    '15:00:00',
-    '17:00:00',
-    'CONFIRMADO'
-);
-
--- 9.9 UTILIDADES OPERACIONAIS / ERP DAS DUAS EMPRESAS (ENERGIA, ÁGUA, EQUIPAMENTOS, DRE E INSUMOS)
-INSERT INTO public.salon_utilities_records (
-    salon_id, energy_meters, energy_readings, water_meters, water_readings, appliances, dre_records, supply_items
-) VALUES
--- Utilidades Empresa 1: Salão X Prime Barbershop
-(
-    '11111111-1111-1111-1111-111111111101',
-    '[{"id": "em-1", "name": "Relógio Principal Barbearia", "code": "ENEL-99482", "tariffPerKwh": 0.92}]'::jsonb,
-    '[{"id": "er-1", "meterId": "em-1", "date": "2026-10-01", "readingKwh": 340, "estimatedCost": 312.80}]'::jsonb,
-    '[{"id": "wm-1", "name": "Hidrômetro Lavatórios Prime", "code": "SABESP-4412", "tariffPerM3": 14.50}]'::jsonb,
-    '[{"id": "wr-1", "meterId": "wm-1", "date": "2026-10-01", "readingM3": 12, "estimatedCost": 174.00}]'::jsonb,
-    '[{"id": "ap-1", "name": "Ar Condicionado Inverter 18.000 BTUs", "powerWatts": 1600, "dailyHours": 8, "quantity": 1}, {"id": "ap-2", "name": "Secador Profissional Taiff", "powerWatts": 2200, "dailyHours": 3, "quantity": 3}]'::jsonb,
-    '[{"id": "dre-1", "month": "2026-10", "grossRevenue": 18450.00, "commissions": 8200.00, "fixedCosts": 3400.00, "utilitiesCost": 486.80, "suppliesCost": 690.00, "netProfit": 5673.20}]'::jsonb,
-    '[{"id": "sup-1", "name": "Pomada Modeladora Matte 150g", "category": "Finalizadores", "quantity": 18, "minStock": 5, "unitCost": 24.90}, {"id": "sup-2", "name": "Lâminas Descartáveis Premium (Cx 100)", "category": "Descartáveis", "quantity": 4, "minStock": 2, "unitCost": 39.00}]'::jsonb
-),
--- Utilidades Empresa 2: Lumière Studio & Beauty Spa
-(
-    '11111111-1111-1111-1111-111111111102',
-    '[{"id": "em-2", "name": "Relógio Principal Studio Lumière", "code": "ENEL-77815", "tariffPerKwh": 0.92}]'::jsonb,
-    '[{"id": "er-2", "meterId": "em-2", "date": "2026-10-01", "readingKwh": 480, "estimatedCost": 441.60}]'::jsonb,
-    '[{"id": "wm-2", "name": "Hidrômetro Spa & Lavatórios", "code": "SABESP-8829", "tariffPerM3": 14.50}]'::jsonb,
-    '[{"id": "wr-2", "meterId": "wm-2", "date": "2026-10-01", "readingM3": 18, "estimatedCost": 261.00}]'::jsonb,
-    '[{"id": "ap-3", "name": "Cabine LED/UV Gel Unhas 48W", "powerWatts": 48, "dailyHours": 6, "quantity": 4}, {"id": "ap-4", "name": "Climazon Acelerador Químico", "powerWatts": 1400, "dailyHours": 4, "quantity": 2}]'::jsonb,
-    '[{"id": "dre-2", "month": "2026-10", "grossRevenue": 26900.00, "commissions": 12400.00, "fixedCosts": 4800.00, "utilitiesCost": 702.60, "suppliesCost": 1450.00, "netProfit": 7547.40}]'::jsonb,
-    '[{"id": "sup-3", "name": "Gel Construtor Nude Rosé 30g", "category": "Unhas em Gel", "quantity": 12, "minStock": 4, "unitCost": 48.00}, {"id": "sup-4", "name": "Máscara Reconstrutora K-Pak 500ml", "category": "Capilar", "quantity": 6, "minStock": 2, "unitCost": 189.00}]'::jsonb
-);
-
--- 9.10 FATURAS SAAS & TRANSAÇÕES FINANCEIRAS DAS DUAS EMPRESAS
-INSERT INTO public.billing_invoices (
-    salon_id, reference_month, total_appointments, total_amount, status, pix_code
-) VALUES
-(
-    '11111111-1111-1111-1111-111111111101',
-    '2026-10',
-    142,
-    355.00,
-    'PAID',
-    '00020126580014BR.GOV.BCB.PIX0136vagouapp-fatura-salaoxprime-202610'
-),
-(
-    '11111111-1111-1111-1111-111111111102',
-    '2026-10',
-    118,
-    295.00,
-    'PENDING',
-    '00020126580014BR.GOV.BCB.PIX0136vagouapp-fatura-lumiere-202610'
-);
-
-INSERT INTO public.financial_transactions (
-    salon_id, appointment_id, professional_id, type, category, description, amount, payment_method, status
-) VALUES
-(
-    '11111111-1111-1111-1111-111111111101',
-    '44444444-4444-4444-4444-444444444401',
-    '22222222-2222-2222-2222-222222222201',
-    'income',
-    'Atendimento',
-    'Corte Degradê Navalhado - Cliente Anderson Silva',
-    45.00,
-    'PIX',
-    'completed'
-),
-(
-    '11111111-1111-1111-1111-111111111102',
-    '44444444-4444-4444-4444-444444444402',
-    '22222222-2222-2222-2222-222222222203',
-    'income',
-    'Atendimento',
-    'Alongamento em Fibra de Vidro - Cliente Beatriz Oliveira',
-    135.00,
-    'Cartão de Crédito',
-    'completed'
-);
-
--- 9.11 SUPER ADMINISTRADOR MASTER DO ECOSSISTEMA (PUBLIC.SYSTEM_ADMINS)
-INSERT INTO public.system_admins (
-    id, full_name, username, email, phone_whatsapp, password_hash, role, is_active
-) VALUES (
-    '99999999-9999-9999-9999-999999999999',
-    'Administrador Master VagouApp',
-    'admin',
-    'admin@vagouapp.com',
-    '(11) 99999-9999',
-    crypt('Admin@2026!', gen_salt('bf')),
-    'superadmin',
-    TRUE
-) ON CONFLICT (username) DO NOTHING;
+CREATE INDEX IF NOT EXISTS idx_salons_created_at ON public.salons (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_clients_created_at ON public.clients (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_dependents_created_at ON public.dependents (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_professionals_created_at ON public.professionals (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_salon_users_created_at ON public.salon_users (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_system_admins_created_at ON public.system_admins (created_at DESC);
 
 -- =====================================================================================================
--- COMPLEMENTO IDEMPOTENTE DE COMPATIBILIDADE 100% COM FORMULÁRIOS DO MNVAPP (ZERO FALLBACK)
+-- 16. SANEAMENTO E GOVERNANÇA ZERO USUÁRIOS DUPLICADOS (bol-162)
 -- =====================================================================================================
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS phone_whatsapp VARCHAR(30);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_system_admins_unique_lower_email
+  ON public.system_admins (LOWER(BTRIM(email)))
+  WHERE email IS NOT NULL AND BTRIM(email) <> '';
 
-ALTER TABLE public.salons ADD COLUMN IF NOT EXISTS phone_landline VARCHAR(30);
-ALTER TABLE public.salons ADD COLUMN IF NOT EXISTS category VARCHAR(100) DEFAULT 'Barbearia';
-ALTER TABLE public.salons ADD COLUMN IF NOT EXISTS instagram_url TEXT;
-ALTER TABLE public.salons ADD COLUMN IF NOT EXISTS space_photos JSONB DEFAULT '[]'::jsonb;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_system_admins_unique_norm_username
+  ON public.system_admins (LOWER(REGEXP_REPLACE(BTRIM(username), '^@+', '')))
+  WHERE username IS NOT NULL AND BTRIM(username) <> '';
 
-ALTER TABLE public.services ADD COLUMN IF NOT EXISTS duration_estimated VARCHAR(50);
-ALTER TABLE public.services ADD COLUMN IF NOT EXISTS video_url TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_unique_lower_email
+  ON public.clients (LOWER(BTRIM(email)))
+  WHERE email IS NOT NULL AND BTRIM(email) <> '';
 
-ALTER TABLE public.salon_services ADD COLUMN IF NOT EXISTS duration_estimated VARCHAR(50);
-ALTER TABLE public.salon_services ADD COLUMN IF NOT EXISTS video_url TEXT;
+CREATE OR REPLACE FUNCTION public.fn_prevent_client_duplicate_of_admin()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_admin_id UUID;
+BEGIN
+  SELECT sa.id
+  INTO v_admin_id
+  FROM public.system_admins sa
+  WHERE
+    (NEW.email IS NOT NULL AND BTRIM(NEW.email) <> '' AND sa.email IS NOT NULL AND LOWER(BTRIM(sa.email)) = LOWER(BTRIM(NEW.email)))
+    OR (
+      NEW.username IS NOT NULL AND BTRIM(NEW.username) <> '' AND sa.username IS NOT NULL
+      AND LOWER(REGEXP_REPLACE(BTRIM(sa.username), '^@+', '')) = LOWER(REGEXP_REPLACE(BTRIM(NEW.username), '^@+', ''))
+    )
+  LIMIT 1;
 
-
-
--- =====================================================================================================
--- 🏛️ MIGRAÇÃO 20261023: COLUNAS DE UI/ESTILOS, TABELA SALON_UI_SETTINGS E BUCKETS (MNVAPP ⇄ ADMVAPP ⇄ PVAPP)
--- =====================================================================================================
-
--- 1. Colunas físicas na tabela public.salons
-ALTER TABLE public.salons
-  ADD COLUMN IF NOT EXISTS default_theme text DEFAULT 'dark',
-  ADD COLUMN IF NOT EXISTS pwa_name text,
-  ADD COLUMN IF NOT EXISTS show_slogan boolean DEFAULT true,
-  ADD COLUMN IF NOT EXISTS logo_text_fallback text,
-  ADD COLUMN IF NOT EXISTS logo_text_color text DEFAULT '#10b981',
-  ADD COLUMN IF NOT EXISTS show_hero_slides boolean DEFAULT true,
-  ADD COLUMN IF NOT EXISTS welcome_style text DEFAULT 'atmospheric',
-  ADD COLUMN IF NOT EXISTS section_header_bg_color text,
-  ADD COLUMN IF NOT EXISTS section_header_text_color text,
-  ADD COLUMN IF NOT EXISTS section_header_icon_color text DEFAULT '#10b981',
-  ADD COLUMN IF NOT EXISTS section_header_bg_style text DEFAULT 'glass',
-  ADD COLUMN IF NOT EXISTS section_header_border text DEFAULT 'bordered',
-  ADD COLUMN IF NOT EXISTS section_header_btn_bg_color text,
-  ADD COLUMN IF NOT EXISTS section_header_btn_active_bg_color text,
-  ADD COLUMN IF NOT EXISTS section_header_btn_border text,
-  ADD COLUMN IF NOT EXISTS section_header_btn_shadow text,
-  ADD COLUMN IF NOT EXISTS section_header_btn_blur text,
-  ADD COLUMN IF NOT EXISTS section_header_btn_font text,
-  ADD COLUMN IF NOT EXISTS nav_style text DEFAULT 'minimal',
-  ADD COLUMN IF NOT EXISTS nav_shape text DEFAULT 'square',
-  ADD COLUMN IF NOT EXISTS nav_border text DEFAULT 'bordered',
-  ADD COLUMN IF NOT EXISTS nav_bg_style text DEFAULT 'glass',
-  ADD COLUMN IF NOT EXISTS nav_bg_color text,
-  ADD COLUMN IF NOT EXISTS nav_btn_bg_color text,
-  ADD COLUMN IF NOT EXISTS nav_btn_active_bg_color text,
-  ADD COLUMN IF NOT EXISTS nav_active_color text DEFAULT '#10b981',
-  ADD COLUMN IF NOT EXISTS nav_text_color text,
-  ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
-
--- 2. Tabela estruturada dedicada para configurações de UI por Salão
-CREATE TABLE IF NOT EXISTS public.salon_ui_settings (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  salon_id uuid NOT NULL REFERENCES public.salons(id) ON DELETE CASCADE,
-  default_theme text DEFAULT 'dark',
-  pwa_name text,
-  show_slogan boolean DEFAULT true,
-  logo_text_fallback text,
-  logo_text_color text DEFAULT '#10b981',
-  show_hero_slides boolean DEFAULT true,
-  welcome_style text DEFAULT 'atmospheric',
-  section_header_bg_color text,
-  section_header_text_color text,
-  section_header_icon_color text DEFAULT '#10b981',
-  section_header_bg_style text DEFAULT 'glass',
-  section_header_border text DEFAULT 'bordered',
-  nav_style text DEFAULT 'minimal',
-  nav_shape text DEFAULT 'square',
-  nav_border text DEFAULT 'bordered',
-  nav_bg_style text DEFAULT 'glass',
-  nav_bg_color text,
-  nav_btn_bg_color text,
-  nav_btn_active_bg_color text,
-  nav_active_color text DEFAULT '#10b981',
-  nav_text_color text,
-  raw_settings jsonb DEFAULT '{}'::jsonb,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now(),
-  CONSTRAINT salon_ui_settings_salon_unique UNIQUE(salon_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_salon_ui_settings_salon_id ON public.salon_ui_settings(salon_id);
-
--- 3. Habilitação de RLS e Políticas de Acesso
-ALTER TABLE public.salon_ui_settings ENABLE ROW LEVEL SECURITY;
-
-DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'salon_ui_settings_public_read') THEN
-    CREATE POLICY salon_ui_settings_public_read ON public.salon_ui_settings
-      FOR SELECT USING (true);
+  IF v_admin_id IS NOT NULL THEN
+    UPDATE public.system_admins
+    SET
+      total_appointments = GREATEST(COALESCE(total_appointments, 0), COALESCE(NEW.total_appointments, 0)),
+      dependents_count = GREATEST(COALESCE(dependents_count, 0), COALESCE(NEW.dependents_count, 0)),
+      avatar_url = COALESCE(NULLIF(BTRIM(avatar_url), ''), NULLIF(BTRIM(NEW.avatar_url), '')),
+      phone_whatsapp = COALESCE(NULLIF(BTRIM(phone_whatsapp), ''), NULLIF(BTRIM(NEW.phone), ''), NULLIF(BTRIM(NEW.phone_whatsapp), '')),
+      updated_at = NOW()
+    WHERE id = v_admin_id;
+    RETURN NULL;
   END IF;
-END $$;
 
-DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'salon_ui_settings_public_upsert') THEN
-    CREATE POLICY salon_ui_settings_public_upsert ON public.salon_ui_settings
-      FOR ALL USING (true) WITH CHECK (true);
-  END IF;
-END $$;
+  RETURN NEW;
+END;
+$$;
 
--- 4. Buckets no Supabase Storage
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('salon-media', 'salon-media', true)
-ON CONFLICT (id) DO UPDATE SET public = true;
+DROP TRIGGER IF EXISTS trg_prevent_client_duplicate_of_admin ON public.clients;
+CREATE TRIGGER trg_prevent_client_duplicate_of_admin
+  BEFORE INSERT ON public.clients
+  FOR EACH ROW
+  EXECUTE FUNCTION public.fn_prevent_client_duplicate_of_admin();
 
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('avatars', 'avatars', true)
-ON CONFLICT (id) DO UPDATE SET public = true;
+NOTIFY pgrst, 'reload schema';
+
+COMMIT;
+

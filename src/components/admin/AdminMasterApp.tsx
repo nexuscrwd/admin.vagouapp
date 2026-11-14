@@ -280,18 +280,22 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
           onOpenGateway={onOpenGateway}
         />
 
-        {/* Scrollable View Container */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
+        {/* Main Content Viewport: Cabeçalhos e subcabeçalhos fixos ao topo sem padding entre si, separados por linhas, com rolagem vertical exclusiva na área de dados */}
+        <main className="flex-1 flex flex-col min-h-0 overflow-hidden p-0 m-0 bg-slate-100/70 dark:bg-slate-950 transition-colors">
           {/* SCREEN: HOME / INÍCIO (PÁGINA INICIAL COM MÓDULOS EM CARDS) */}
           {currentScreen === 'dashboard' && (
-            <AdminHomeScreen
-              metrics={metrics}
-              salons={salons}
-              onNavigateScreen={setCurrentScreen}
-              onOpenCreateSalon={() => setIsCreateModalOpen(true)}
-              onOpenCreateAdmin={() => setIsCreateAdminModalOpen(true)}
-              onOpenSalonDetail={handleOpenSalonDetail}
-            />
+            <div className="flex-1 overflow-y-auto p-0 m-0 min-h-0 custom-scrollbar">
+              <div className="p-4 lg:p-6 space-y-6">
+                <AdminHomeScreen
+                  metrics={metrics}
+                  salons={salons}
+                  onNavigateScreen={setCurrentScreen}
+                  onOpenCreateSalon={() => setIsCreateModalOpen(true)}
+                  onOpenCreateAdmin={() => setIsCreateAdminModalOpen(true)}
+                  onOpenSalonDetail={handleOpenSalonDetail}
+                />
+              </div>
+            </div>
           )}
 
           {/* SCREEN: PORTAL VAPP (Gestão e Criação de Estabelecimentos do Portal) */}
@@ -310,21 +314,19 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
 
           {/* SCREEN: SALONS */}
           {currentScreen === 'salons' && (
-            <div className="space-y-4">
-              <AdminSalonsList
-                salons={salons}
-                onEditSalon={handleEditSalon}
-                onUpdateStatus={handleUpdateStatus}
-                onBulkUpdateStatus={handleBulkUpdateStatus}
-                onDeleteSalon={handleDeleteSalon}
-                onBulkDeleteSalons={handleBulkDeleteSalons}
-                onOpenNewSalon={() => setIsCreateModalOpen(true)}
-                searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
-                selectedSalonDetail={selectedSalonForDetail}
-                onSelectSalonDetail={setSelectedSalonForDetail}
-              />
-            </div>
+            <AdminSalonsList
+              salons={salons}
+              onEditSalon={handleEditSalon}
+              onUpdateStatus={handleUpdateStatus}
+              onBulkUpdateStatus={handleBulkUpdateStatus}
+              onDeleteSalon={handleDeleteSalon}
+              onBulkDeleteSalons={handleBulkDeleteSalons}
+              onOpenNewSalon={() => setIsCreateModalOpen(true)}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              selectedSalonDetail={selectedSalonForDetail}
+              onSelectSalonDetail={setSelectedSalonForDetail}
+            />
           )}
 
           {/* SCREEN: USERS CRUD */}

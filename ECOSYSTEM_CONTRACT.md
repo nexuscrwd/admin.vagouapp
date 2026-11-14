@@ -1,221 +1,64 @@
-# 🏛️ ECOSYSTEM_CONTRACT.md — Contrato do Ecossistema Vagou
+# 🏛️ ECOSYSTEM_CONTRACT.md — Contrato Soberano da Tríade VagouApp (v5.0)
 
-> **DOCUMENTO MESTRE DE COMPARTILHAMENTO (PAR CLIENTE & PAR EMPRESÁRIO)**  
-> Este arquivo é a fonte única da verdade para a arquitetura, modelos de dados e fluxos de comunicação entre os dois aplicativos que compõem a plataforma **Vagou**. Ambos os projetos compartilham o mesmo banco de dados e devem respeitar estritamente as definições deste contrato.
-
----
-
-## 🗺️ 1. Diagrama de Arquitetura do Ecossistema (ASCII)
-
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                           ECOSSISTEMA DE DUAS PONTAS                           │
-└─────────────────────────────────────────────────────────────────────────────────┘
-
-     [ APP CONSUMIDOR (Vagou) ]                       [ APP EMPRESÁRIO (Vagou Pro) ]
-      Foco: Cliente / Descoberta                       Foco: Salão / Operacional
-      Tecnologia: React + Tailwind v4                  Tecnologia: Ionic + Capacitor
-      Identidade: Vagou Dark + Emerald                 Identidade: Theming Dinâmico (Salão)
-           │                                                │
-           │ 1. Busca Salões (GPS/Raio)                     │ 1. Dono/Profissional faz Login
-           │ 2. Assiste Reels (5s)                          │ 2. Aplica Tokens de Cor e Logo
-           │ 3. Clica em "Agendar Vaga"                     │ 3. Clica em "Publicar Vaga (5s)"
-           │                                                │ 4. Recebe Notificação Sonora
-           ▼                                                ▼
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                    BANCO DE DADOS COMPARTILHADO (Supabase / Postgres)           │
-│                                                                                 │
-│   ┌─────────────────────┐    ┌──────────────────────┐    ┌──────────────────┐   │
-│   │       salons        │    │    professionals     │    │  service_offers  │   │
-│   │ (Dados & Branding)  │───<│  (Equipe & Escala)   │───<│ (Vagas do Radar) │   │
-│   └──────────┬──────────┘    └──────────────────────┘    └────────┬─────────┘   │
-│              │                                                    │             │
-│              ▼                                                    ▼             │
-│   ┌─────────────────────┐                                ┌──────────────────┐   │
-│   │ salon_media_library │                                │   appointments   │   │
-│   │ (Vídeos e Fotos 5s) │                                │ (Reservas Reais) │   │
-│   └─────────────────────┘                                └──────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────────┘
-```
+> **FONTE ÚNICA DA VERDADE (`admvapp` ⇄ `mnvapp` ⇄ `pvapp`)**  
+> Este documento consolida o contrato de arquitetura, design system, regras financeiras, segurança e banco de dados compartilhado (**Supabase SQL v5.0 — `20261111_master_convergence_v5_0.sql`**) entre os três repositórios oficiais do ecossistema VagouApp.
 
 ---
 
-## 📱 2. Papel de Cada Aplicação no Ecossistema & Repositórios Oficiais
+## 🔗 1. Matriz Oficial da Tríade VagouApp
 
-### 🔗 Matriz Oficial de Repositórios Git da Tríade:
-| Sigla | Aplicação | Domínio Principal | Repositório Oficial no GitHub |
-|---|---|---|---|
-| **`admvapp`** | **Admin VagouApp** | `adm.vagouapp.com` | `https://github.com/nexuscrwd/admin.vagouapp.git` |
-| **`vapp`** / **`mnvapp`** | **VagouApp Oficial** (Consumidor & Meu Negócio) | `vagouapp.com` / `meunegocio.vagouapp.com` | `https://github.com/nexuscrwd/vagouapp.git` |
-| **`pvapp`** | **Portal VagouApp** (Marketplace Web & PWA) | `portal.vagouapp.com` | `https://github.com/nexuscrwd/Portal-VagouApp.git` |
-
----
-
-### A. App Consumidor (`Vagou` / `PortalVagouApp` — `pvapp` / `vapp`)
-- **Repositório GitHub (Portal):** `https://github.com/nexuscrwd/Portal-VagouApp.git`
-- **Repositório GitHub (Oficial):** `https://github.com/nexuscrwd/vagouapp.git`
-- **Público:** Clientes finais procurando serviços de beleza e bem-estar para agora ou hoje.
-- **Identidade Visual:** **100% Marca Vagou** (Fundo Dark `slate-950`, cartões `slate-900`, destaques em `emerald-500` e acentos em `emerald-400`).
-- **Telas Principais:**
-  - `HomeScreen`: Feed estilo Reels imersivo com vídeos de 5s, stories do radar e lista de serviços disponíveis.
-  - `MapScreen`: Mapa com geolocalização e raio de distância.
-  - `ConfirmationScreen`: Protocolo de agendamento com QR Code e rota GPS.
-  - `AgendaScreen`: Histórico e agendamentos futuros do cliente.
-
-### B. App Empresário (`Meu Negócio` / `Vagou Pro` — `mnvapp` / `vapp`)
-- **Repositório GitHub:** `https://github.com/nexuscrwd/vagouapp.git`
-- **Público:** Donos de salões, barbeiros, manicures, cabeleireiros e esteticistas.
-- **Identidade Visual:** **White-label Dinâmico (Theming)**. Carrega o logo, o nome e as cores primárias do salão autenticado.
-- **Telas Principais:**
-  - `PartnerAgendaScreen`: Grade de horários do dia com visualização rápida por profissional e status.
-  - `FastPublishModal`: Disparo de vaga relâmpago em 2 toques (seleciona horário livre + escolhe vídeo da biblioteca pré-salva).
-  - `PartnerScheduleConfigScreen`: Configuração de expediente, pausas de almoço e escala semanal.
-  - `SalonMediaLibraryScreen`: Gestão dos vídeos curtos (5s) e fotos institucionais para o radar.
-  - `PartnerFinancialScreen`: Resumo de atendimentos e comissões da equipe.
-
-### C. App Governança Master Soberana (`Admin-VagouApp` — `admvapp`) — *Este Repositório*
-- **Repositório GitHub:** `https://github.com/nexuscrwd/admin.vagouapp.git`
-- **Público:** Diretoria executiva, suporte operacional e central de conciliação do VagouApp.
-- **Mecânica Principal:**
-  - Governança multi-tenant de estabelecimentos, profissionais e usuários.
-  - Auditoria de dados, comissões de R$ 2,50/agendamento, faturamento e relatórios executivos.
-  - Central soberana de formulários embed (`/embed/estabelecimento`, `/embed/mnv-cadastro`, `/embed/mnv-acesso`).
+| Sigla | Aplicação | Domínio Principal | Papel no Ecossistema | Repositório Oficial |
+|---|---|---|---|---|
+| **`admvapp`** | **Admin VagouApp** | `adm.vagouapp.com` | Governança Soberana, Moderação, Financeiro, Segurança & DNS | `https://github.com/nexuscrwd/admin.vagouapp.git` |
+| **`mnvapp`** | **Meu Negócio & Vitrines** | `meunegocio.vagouapp.com` & `*.vagouapp.com` | Painel Operacional do Salão + Micro-App White-Label & GPS Ao Vivo | `https://github.com/nexuscrwd/vagouapp.git` |
+| **`pvapp`** | **Portal VagouApp** | `portal.vagouapp.com` | Marketplace Consumidor, Descoberta GIS & Radar de Vagas Relâmpago | `https://github.com/nexuscrwd/Portal-VagouApp.git` |
 
 ---
 
-## 🎨 3. Especificação do Theming Dinâmico (White-Label)
+## 🛡️ 2. Cláusulas Inegociáveis (Contrato v5.0 — `bol-159` & `bol-160`)
 
-No **App Empresário**, as cores e a marca são injetadas no momento do login através de variáveis CSS raiz (`CSS Custom Properties`).
-
-### Estrutura de Branding (`JSON` na tabela `salons`):
-```json
-{
-  "logo_url": "https://storage.vagou.app/salons/vintage-barber/logo.png",
-  "primary_color": "#D97706",
-  "secondary_color": "#1E293B",
-  "background_color": "#0B0F17",
-  "accent_color": "#F59E0B",
-  "text_primary": "#FFFFFF",
-  "text_muted": "#94A3B8"
-}
-```
-
-### Injeção no Ionic/CSS:
-```css
-:root {
-  --brand-primary: var(--salon-primary, #10B981); /* fallback emerald */
-  --brand-secondary: var(--salon-secondary, #0F172A);
-  --brand-bg: var(--salon-bg, #020617);
-  --brand-accent: var(--salon-accent, #34D399);
-}
-```
-
----
-
-## 📐 4. Dimensões, Layout & Configurações de Hardware
-
-| Parâmetro | App Consumidor | App Empresário (Ionic) |
-| :--- | :--- | :--- |
-| **Padrão de Layout** | Mobile-first estrito (`max-w-md mx-auto` centralizado em desktop) | Mobile-first com suporte a modo bancada/tablet (`max-w-4xl` em telas amplas) |
-| **Largura Alvo** | `360px` a `430px` (smartphones) | `375px` a `820px` (smartphones e tablets de balcão) |
-| **Alvos de Toque** | Mínimo `44px × 44px` | Mínimo `48px × 48px` (operação rápida entre clientes) |
-| **Safe Areas** | `padding-top: env(safe-area-inset-top)` e `padding-bottom: env(safe-area-inset-bottom)` em ambos |
-| **Som de Notificação** | Discreto (confirmação no app) | **Alerta Sonoro Alto** no Ionic via Capacitor quando chega agendamento relâmpago |
+1. **Zero Mocks & Zero `DROP TABLE`:**
+   - Nenhum projeto da Tríade pode manter registros fictícios em código ou seeds SQL destrutivos.
+   - Único seed permitido no banco: as 3 perguntas oficiais em `public.security_questions` (`first_pet`, `city_at_10`, `childhood_friend`).
+2. **Paleta Default Verde Pastel Clarinho (`bol-158`):**
+   - Valores default em `public.salons` e `public.salon_ui_settings`:
+     - `default_theme = 'light'`
+     - `primary_color = '#10B981'`
+     - `secondary_color = '#065F46'`
+     - `nav_bg_style = 'solid'`
+     - `nav_bg_color = '#D1FAE5'`
+     - `nav_icon_border = 'none'`
+     - `nav_active_color = '#10B981'`
+     - `section_header_bg_color = '#ECFDF5'`
+     - `section_header_text_color = '#065F46'`
+     - `section_header_icon_color = '#059669'`
+3. **Trava Inegociável de Contraste:**
+   - Qualquer elemento com fundo verde sólido (`#10B981`, `#20C933`, `bg-emerald-500`, `bg-emerald-600`) **DEVE OBRIGATORIAMENTE** exibir texto e ícones em branco puro (`#FFFFFF` / `text-white`).
+   - No `BottomNav` da vitrine white-label, o botão ativo com fundo branco (`#FFFFFF`) assume obrigatoriamente a cor primária do tema (`primary_color`).
+4. **Abas Padronizadas da Vitrine White-Label (`*.vagouapp.com`):**
+   - Estritamente **`Início`**, **`Serviços`**, **`Agenda`** e **`Espaço`** (ou **`Atendimento`** para negócios delivery/domicílio).
+5. **Padrão Financeiro Unificado (`public.salons`):**
+   - `billing_plan`: `'PER_APPOINTMENT'` (padrão) ou `'SUBSCRIPTION'`.
+   - `fee_per_booking` ⇄ `billing_fee_value`: `2.50` (espelhados automaticamente por `trg_sync_salon_fields`).
+   - `monthly_subscription_fee`: `89.90` | `billing_due_day`: `10`.
 
 ---
 
-## 🗄️ 5. Dicionário de Dados Compartilhado (Contrato de Banco)
+## 🗄️ 3. Tabelas e RPCs Críticas Sincronizadas (SQL v5.0)
 
-### Tabela: `salons` (Estabelecimentos)
-| Coluna | Tipo | Descrição |
-| :--- | :--- | :--- |
-| `id` | `UUID` (PK) | Identificador único |
-| `name` | `VARCHAR(100)` | Nome da empresa |
-| `slug` | `VARCHAR(100)` (Unique) | URL para PWA do salão |
-| `latitude` | `DECIMAL(10, 8)` | Posição geográfica |
-| `longitude` | `DECIMAL(11, 8)` | Posição geográfica |
-| `address` | `TEXT` | Endereço completo |
-| `neighborhood`| `VARCHAR(60)` | Bairro de localização |
-| `city` | `VARCHAR(60)` | Cidade |
-| `phone_whatsapp`| `VARCHAR(20)` | WhatsApp para disparo de avisos |
-| `branding` | `JSONB` | Tokens de cores, logo e capas |
-| `is_verified` | `BOOLEAN` | Selo de verificado Vagou |
-
-### Tabela: `professionals` (Membros da Equipe)
-| Coluna | Tipo | Descrição |
-| :--- | :--- | :--- |
-| `id` | `UUID` (PK) | Identificador do profissional |
-| `salon_id` | `UUID` (FK -> salons.id) | Salão ao qual pertence |
-| `name` | `VARCHAR(80)` | Nome do profissional |
-| `avatar_url` | `TEXT` | Foto de perfil |
-| `specialties` | `TEXT[]` | Categorias (`cabelo`, `barba`, `unhas`) |
-| `color_hex` | `VARCHAR(7)` | Cor de identificação na grade da agenda |
-| `slot_minutes` | `INT` | Duração padrão de cada atendimento (ex: 45) |
-| `is_active` | `BOOLEAN` | Ativo na equipe |
-
-### Tabela: `service_offers` (Vagas do Radar)
-| Coluna | Tipo | Descrição |
-| :--- | :--- | :--- |
-| `id` | `UUID` (PK) | Identificador da vaga |
-| `salon_id` | `UUID` (FK) | Estabelecimento ofertante |
-| `professional_id` | `UUID` (FK) | Profissional com a cadeira livre |
-| `service_title` | `VARCHAR(100)` | Título (ex: "Degradê + Barboterapia") |
-| `category` | `VARCHAR(30)` | `cabelo`, `barba`, `unhas`, `estetica`, `beleza` |
-| `original_price` | `NUMERIC(10,2)`| Preço de tabela |
-| `price` | `NUMERIC(10,2)`| Preço com desconto relâmpago |
-| `date_str` | `DATE` | Data do atendimento (`YYYY-MM-DD`) |
-| `start_time` | `TIME` | Horário inicial da vaga (`HH:MM`) |
-| `end_time` | `TIME` | Horário final previsto (`HH:MM`) |
-| `video_url` | `TEXT` | URL do vídeo de 5s da biblioteca |
-| `status` | `VARCHAR(20)` | `AVAILABLE`, `BOOKED`, `EXPIRED`, `CANCELLED` |
-| `expires_at` | `TIMESTAMPTZ` | Momento exato em que a oferta sai do radar |
-
-### Tabela: `appointments` (Agendamentos Efetivados)
-| Coluna | Tipo | Descrição |
-| :--- | :--- | :--- |
-| `id` | `UUID` (PK) | Identificador da reserva |
-| `protocol_code` | `VARCHAR(12)` | Código amigável (ex: `VG-9482`) |
-| `offer_id` | `UUID` (FK) | Vaga original |
-| `salon_id` | `UUID` (FK) | Salão |
-| `professional_id` | `UUID` (FK) | Profissional |
-| `client_name` | `VARCHAR(100)` | Nome do cliente |
-| `client_phone` | `VARCHAR(20)` | Telefone do cliente |
-| `status` | `VARCHAR(20)` | `CONFIRMADO`, `EM_ATENDIMENTO`, `CONCLUIDO`, `CANCELADO`, `NO_SHOW` |
-| `booked_at` | `TIMESTAMPTZ` | Carimbo de data/hora do clique |
+| Entidade / RPC | Colunas / Assinatura Chave | Uso na Tríade |
+|---|---|---|
+| **`public.salons`** | `trade_name`, `slug`, `subdomain`, `default_theme`, `primary_color`, `secondary_color`, `nav_bg_color`, `nav_icon_border`, `section_header_bg_color`, `billing_plan`, `fee_per_booking`, `billing_fee_value`, `monthly_subscription_fee`, `billing_due_day`, `branding` | Identidade cadastral, white-label e regras de cobrança individual do parceiro. |
+| **`public.salon_ui_settings`** | `salon_id` (UNIQUE), `default_theme`, `primary_color`, `secondary_color`, `nav_bg_style`, `nav_bg_color`, `nav_icon_border`, `nav_active_color`, `section_header_*`, `branding_snapshot` | Persistência dedicada de personalização visual da vitrine white-label. |
+| **`public.appointments`** | `date_str`, `start_time`, `end_time`, `status` (incl. `'BLOQUEADO'`), `is_blocked_slot`, `block_reason`, `is_paid`, `paid_at`, `payment_status` (`'pending'` \| `'paid'`), `swap_state` (JSONB), `tracking_status`, `eta_minutes`, `distance_meters` | Agenda cronológica (`date_str ASC, start_time ASC`), baixa de caixa, bloqueio de horários, permuta em cascata e telemetria RTLS/GPS. |
+| **`public.security_questions`** & **`public.user_security_answers`** | `code` (`first_pet`, `city_at_10`, `childhood_friend`), `user_id`, `client_id`, `question_code`, `answer_hash` | Recuperação nativa de `@username`/acesso e reset de suporte pelo `admvapp`. |
+| **RPC `check_client_inter_salon_collision`** | `(p_client_id, p_client_phone, p_date_str, p_start_time, p_duration_minutes, p_target_salon_id, p_exclude_appointment_id)` | Alerta preventivo de sobreposição de horário + deslocamento Haversiano entre dois salões distintos no mesmo dia. |
 
 ---
 
-## ⚡ 6. Máquina de Estados da Vaga Relâmpago
+## 🔄 4. Protocolo do 7º Mandamento (Sincronização Obrigatória)
 
-```
-   [ Cadeira Vazia ]
-          │
-          ▼
-   ( App Empresário ) ──► Lança Vaga no Radar ──► status: 'AVAILABLE'
-                                                       │
-                           ┌───────────────────────────┴───────────────────────────┐
-                           ▼                                                       ▼
-                [ Cliente Clica no Vagou ]                               [ Tempo Esgotado ]
-                           │                                                       │
-                           ▼                                                       ▼
-                   status: 'BOOKED'                                        status: 'EXPIRED'
-                           │                                                 (Some do feed)
-                           ▼
-              ( Toca Alarme no Salão )
-                           │
-             ┌─────────────┴─────────────┐
-             ▼                           ▼
-     [ Cliente Comparece ]       [ Cliente Não Foi ]
-             │                           │
-             ▼                           ▼
-    status: 'CONCLUIDO'          status: 'NO_SHOW'
-```
-
----
-
-## 🔄 7. Protocolo de Sincronização entre Equipes / Agentes
-
-Sempre que uma alteração exigir nova coluna no banco, novo status ou mudança de rota:
-1. Altere este arquivo (`ECOSYSTEM_CONTRACT.md`).
-2. Registre a mudança no `CHANGELOG.md` com a tag `[ECOSYSTEM_UPDATE]`.
-3. Copie o arquivo atualizado para o repositório irmão para manter os agentes de IA perfeitamente alinhados.
+Qualquer alteração de schema, coluna, status, trigger ou contrato de API em um projeto exige:
+1. Atualização de `20261111_master_convergence_v5_0.sql` (sempre idempotente com `IF NOT EXISTS`, sem `DROP TABLE`).
+2. Registro em `CHANGELOG.md` e `TRIADE_BULLETINS` (`server.ts`).
+3. Emissão imediata do **Comunicado Técnico Inter-Projetos** formal para os outros dois repositórios irmãos.

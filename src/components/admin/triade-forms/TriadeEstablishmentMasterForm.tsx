@@ -321,7 +321,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
   const [lookingUpPixId, setLookingUpPixId] = useState<string | null>(null);
 
   const operationalModel = initialData?.operationalModel || 'Espaço Físico & Delivery';
-  const platformPlan = initialData?.platformPlan || 'PRO / 5% POR AGENDAMENTO';
+  const platformPlan = initialData?.platformPlan || 'PER_APPOINTMENT';
 
   // Endereço do Salão com ViaCEP + Coordenadas Google Maps
   const [cep, setCep] = useState(initialData?.address?.cep || '');
@@ -504,7 +504,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
   const [logoUrl, setLogoUrl] = useState(initialData?.logoUrl || '');
   const [faviconUrl, setFaviconUrl] = useState(initialData?.faviconUrl || '');
   const [useLogoAsFavicon, setUseLogoAsFavicon] = useState(true);
-  const [primaryColor, setPrimaryColor] = useState(initialData?.primaryColor || '#20C933');
+  const [primaryColor, setPrimaryColor] = useState(initialData?.primaryColor || '#10B981');
   const [slogan, setSlogan] = useState(initialData?.slogan || '');
   const [brandFont, setBrandFont] = useState<string>(initialData?.brandFont || 'Poppins');
 
@@ -1039,7 +1039,14 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         pix_key: resolvedPrimaryPixKey,
         pix_keys: validPixKeys,
         operating_model: operationalModel,
-        billing_plan: platformPlan,
+        billing_plan:
+          String(platformPlan || '').toUpperCase() === 'SUBSCRIPTION'
+            ? 'SUBSCRIPTION'
+            : 'PER_APPOINTMENT',
+        fee_per_booking: 2.5,
+        billing_fee_value: 2.5,
+        monthly_subscription_fee: 89.9,
+        billing_due_day: 10,
         owner_name: ownerName.trim(),
         category: category as any,
         status: 'active',
@@ -1057,7 +1064,16 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         favicon_url: effectiveFavicon,
         slogan: slogan.trim(),
         brand_font: brandFont,
-        primary_color: primaryColor,
+        default_theme: 'light',
+        primary_color: primaryColor || '#10B981',
+        secondary_color: '#065F46',
+        nav_bg_style: 'solid',
+        nav_bg_color: '#D1FAE5',
+        nav_icon_border: 'none',
+        section_header_bg_style: 'solid',
+        section_header_bg_color: '#ECFDF5',
+        section_header_text_color: '#065F46',
+        section_header_icon_color: '#059669',
       });
 
       setIsLoading(false);
@@ -2396,6 +2412,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                       />
                       <div className="flex items-center gap-1.5 pl-0.5">
                         {[
+                          { hex: '#10B981', label: 'Esmeralda Pastel (v5.0)' },
                           { hex: '#20C933', label: 'Verde Vagou' },
                           { hex: '#D97706', label: 'Dourado' },
                           { hex: '#E11D48', label: 'Rose' },

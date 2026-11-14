@@ -13,13 +13,13 @@ import {
   CheckCircle2,
   X,
   RefreshCw,
-  ExternalLink,
   ShieldCheck,
+  KeyRound,
   Edit,
   Trash2,
   Phone,
-  Calendar,
   AlertTriangle,
+  Clock,
 } from 'lucide-react';
 import {
   SystemAdminUser,
@@ -28,9 +28,9 @@ import {
   UserSalonAccessItem,
   UserProfessionalItem,
 } from '../../types/admin';
+import { supabase } from '../../services/supabase';
 import {
   fetchSystemAdmins,
-  toggleAdminStatus,
   updateAdminRole,
   fetchAdminClients,
   unlinkClientDependent,
@@ -47,14 +47,15 @@ import { UserAvatar } from '../common/UserAvatar';
 import { TriadeUserRegisterForm } from './triade-forms/TriadeUserRegisterForm';
 import { AdminUserDetailView, UnifiedUserDetailType } from './AdminUserDetailView';
 import { AdminUserGeneralDataModal } from './AdminUserGeneralDataModal';
+import { formatCreatedAtParts, resolveRecordOriginInfo } from '../../utils/dateTimeFormat';
 
-export type UserCategoryFilter = 'all' | 'clients' | 'professionals' | 'salon_users' | 'admins';
+export type UserCategoryFilter = 'all' | 'admins' | 'clients' | 'dependents' | 'professionals' | 'salon_users';
 export type UserStatusFilter = 'all' | 'active' | 'inactive';
 
 export interface UnifiedUserRow {
   id: string;
   originalId: string;
-  kind: 'client' | 'professional' | 'salon_user' | 'admin';
+  kind: 'client' | 'professional' | 'salon_user' | 'admin' | 'dependent';
   name: string;
   username: string;
   cpf?: string;
@@ -80,6 +81,12 @@ export interface UnifiedUserRow {
   isActive: boolean;
   statusLabel: string;
   avatarUrl?: string;
+  hasSecurityQuestion?: boolean;
+  securityQuestionsConfigured?: string[];
+  securityQuestionCode?: string | null;
+  createdAt: string;
+  originLabel: string;
+  originBadgeClass: string;
   rawData: UnifiedUserDetailType;
 }
 
@@ -120,9 +127,10 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
   const [isCreateAdminModalOpen, setIsCreateAdminModalOpen] = useState(false);
   const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState(false);
 
-  // Modal de Confirmação de Exclusão em Massa
+  // Modal de Confirmação de Exclusão em Massa e Individual
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [userPendingDelete, setUserPendingDelete] = useState<{ kind: string; id: string; name: string } | null>(null);
 
   // Carregar dados de todos os usuários
   const loadAll = async () => {
@@ -134,10 +142,10 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         fetchAdminSalonUsers().catch(() => []),
         fetchAdminProfessionals().catch(() => []),
       ]);
-      setAdmins(Array.isArray(admList) && admList.length > 0 ? admList : []);
-      setClients(Array.isArray(cliList) && cliList.length > 0 ? cliList : []);
-      setSalonUsers(Array.isArray(slnUsrList) && slnUsrList.length > 0 ? slnUsrList : []);
-      setProfessionals(Array.isArray(profList) && profList.length > 0 ? profList : []);
+      setAdmins(Array.isArray(admList) ? admList : []);
+      setClients(Array.isArray(cliList) ? cliList : []);
+      setSalonUsers(Array.isArray(slnUsrList) ? slnUsrList : []);
+      setProfessionals(Array.isArray(profList) ? profList : []);
     } catch (err) {
       console.warn('Erro ao carregar usuários:', err);
     } finally {
@@ -147,6 +155,33 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
 
   useEffect(() => {
     loadAll();
+
+    // Sincronização em Tempo Real (Realtime) via Supabase
+    const channel = supabase
+      .channel('admvapp-users-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, () => {
+        loadAll();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dependents' }, () => {
+        loadAll();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'professionals' }, () => {
+        loadAll();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'salon_users' }, () => {
+        loadAll();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'system_admins' }, () => {
+        loadAll();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_security_answers' }, () => {
+        loadAll();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const triggerFeedback = (msg: string) => {
@@ -288,20 +323,19 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
     triggerFeedback(`Dados de "${updatedUser.name}" atualizados com sucesso.`);
   };
 
-  // Exclusão de usuário
-  const handleDeleteUser = async (kind: string, id: string, userName?: string) => {
-    if (
-      !confirm(
-        `Excluir permanentemente o usuário "${userName || id}"?\n\nEsta ação removerá o registro e os acessos vinculados no sistema.`
-      )
-    ) {
-      return;
-    }
-
-    await deleteUnifiedUserData(kind as any, id);
-
+  // Executa exclusão de usuário após confirmação
+  const executeDeleteUser = async (kind: string, id: string, userName?: string) => {
+    // 1. Atualização Otimista Imediata (Zero Delay / Realtime na UI)
     if (kind === 'client') {
       setClients((prev) => prev.filter((c) => c.id !== id));
+    } else if (kind === 'dependent') {
+      setClients((prev) =>
+        prev.map((c) => ({
+          ...c,
+          dependents: (c.dependents || []).filter((d) => d.id !== id),
+          dependents_count: Math.max(0, (c.dependents_count || 1) - 1),
+        }))
+      );
     } else if (kind === 'professional') {
       setProfessionals((prev) => prev.filter((p) => p.id !== id));
     } else if (kind === 'salon_user') {
@@ -314,8 +348,28 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
       setIsGeneralModalOpen(false);
       setSelectedUserForModal(null);
     }
+    setUserPendingDelete(null);
 
     triggerFeedback(`Usuário "${userName || id}" excluído com sucesso.`);
+
+    // 2. Persistência Resiliente no Supabase / Backend Service Role
+    try {
+      const res = await deleteUnifiedUserData(kind as any, id);
+      if (!res.success && res.error) {
+        console.warn('[handleDeleteUser] Aviso do backend:', res.error);
+      }
+    } catch (err) {
+      console.warn('[handleDeleteUser] Erro ao persistir exclusão:', err);
+    }
+  };
+
+  // Abre modal de confirmação ou exclui direto quando já confirmado no modal geral
+  const handleDeleteUser = async (kind: string, id: string, userName?: string, skipConfirm = false) => {
+    if (skipConfirm) {
+      await executeDeleteUser(kind, id, userName);
+      return;
+    }
+    setUserPendingDelete({ kind, id, name: userName || id });
   };
 
   // Alternar status ativo/inativo
@@ -353,7 +407,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
 
   // Handlers legados do DetailView
   const handleUnlinkDependent = async (dep: UserFamilyDependent) => {
-    if (!confirm(`Desvincular dependente "${dep.full_name}" do titular?`)) return;
     const res = await unlinkClientDependent(dep.id);
     if (res.success) {
       setClients((prev) =>
@@ -368,7 +421,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
 
   const handleUnlinkProfessional = async (prof: UserProfessionalItem) => {
     if (!prof.current_salon_id) return;
-    if (!confirm(`Desvincular o profissional "${prof.full_name}" do salão?`)) return;
     const res = await unlinkProfessionalFromSalon(prof.id, prof.current_salon_id);
     if (res.success) {
       setProfessionals((prev) =>
@@ -392,139 +444,66 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
     }
   };
 
-  // Mapeamento Unificado de Todas as Contas do Sistema com as novas colunas
+  // Mapeamento Unificado de Todas as Contas do Sistema com Desduplicação Soberana (bol-162: 1 Pessoa = 1 Único Cadastro)
   const allUnifiedUsers = useMemo<UnifiedUserRow[]>(() => {
     const list: UnifiedUserRow[] = [];
+    const byEmail = new Map<string, UnifiedUserRow>();
+    const byUsername = new Map<string, UnifiedUserRow>();
+    const byCpf = new Map<string, UnifiedUserRow>();
 
-    // 1. Clientes
-    (clients || []).forEach((c) => {
-      const depCount = Array.isArray(c.dependents) ? c.dependents.length : (Number(c.dependents_count) || 0);
-      const fullName = c.full_name || (c as any).name || 'Cliente';
-      const cleanEmail = c.email || '';
-      let usr = (c.username || '').replace(/^@+/, '');
-      if (!usr) {
-        usr = cleanEmail ? cleanEmail.split('@')[0] : fullName.toLowerCase().replace(/\s+/g, '');
+    const normEmail = (val?: string) => {
+      const clean = (val || '').trim().toLowerCase();
+      return clean && clean !== '—' ? clean : '';
+    };
+    const normUser = (val?: string) => {
+      const clean = (val || '').trim().replace(/^@+/, '').toLowerCase();
+      return clean && clean !== '—' ? clean : '';
+    };
+    const normCpf = (val?: string) => {
+      const digits = (val || '').replace(/\D/g, '');
+      return digits.length === 11 && !/^(\d)\1{10}$/.test(digits) ? digits : '';
+    };
+
+    const registerOrMergeCanonicalUser = (candidate: UnifiedUserRow) => {
+      const em = normEmail(candidate.email);
+      const us = normUser(candidate.username);
+      const cp = normCpf(candidate.cpf);
+
+      const existing =
+        (em ? byEmail.get(em) : undefined) ||
+        (us ? byUsername.get(us) : undefined) ||
+        (cp ? byCpf.get(cp) : undefined);
+
+      if (existing) {
+        existing.appointmentsCount = Math.max(existing.appointmentsCount, candidate.appointmentsCount);
+        existing.dependentsCount = Math.max(existing.dependentsCount, candidate.dependentsCount);
+        if (!normCpf(existing.cpf) && cp) {
+          existing.cpf = candidate.cpf;
+        }
+        if ((!existing.phone || existing.phone === '—') && candidate.phone && candidate.phone !== '—') {
+          existing.phone = candidate.phone;
+        }
+        if (!existing.avatarUrl && candidate.avatarUrl) {
+          existing.avatarUrl = candidate.avatarUrl;
+        }
+        if (candidate.hasSecurityQuestion) {
+          existing.hasSecurityQuestion = true;
+          existing.securityQuestionsConfigured = candidate.securityQuestionsConfigured;
+          existing.securityQuestionCode = candidate.securityQuestionCode;
+        }
+        if (em && !byEmail.has(em)) byEmail.set(em, existing);
+        if (us && !byUsername.has(us)) byUsername.set(us, existing);
+        if (cp && !byCpf.has(cp)) byCpf.set(cp, existing);
+        return;
       }
-      list.push({
-        id: `cli-${c.id}`,
-        originalId: c.id,
-        kind: 'client',
-        name: fullName,
-        username: usr,
-        cpf: c.cpf || '',
-        phone: c.phone || '—',
-        phoneSecondary: c.phone_secondary || c.phone || '—',
-        email: cleanEmail || '—',
-        password: c.password || 'Vagou@2026!',
-        roleLabel: 'Cliente',
-        roleBadgeClass: 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30 font-bold',
-        accessLevel: c.access_level || 'Cliente Titular',
-        address: c.address || '',
-        streetNumber: c.street_number || '',
-        complement: c.complement || '',
-        neighborhood: c.neighborhood || '',
-        city: c.city || 'São Paulo',
-        state: c.state || 'SP',
-        cep: c.cep || '',
-        latitude: (c as any).latitude ?? null,
-        longitude: (c as any).longitude ?? null,
-        dependentsCount: depCount,
-        appointmentsCount: Number(c.total_appointments) || 0,
-        relationInfo: depCount > 0 ? `${depCount} dependentes` : `${Number(c.total_appointments) || 0} agendamentos`,
-        isActive: c.is_active !== undefined ? !!c.is_active : true,
-        statusLabel: c.is_active !== false ? 'Ativo' : 'Inativo',
-        avatarUrl: c.avatar_url,
-        rawData: { kind: 'client', data: c },
-      });
-    });
 
-    // 2. Profissionais
-    (professionals || []).forEach((p) => {
-      const fullName = p.full_name || (p as any).name || 'Profissional';
-      const cleanEmail = p.email || '';
-      const nick = p.nickname || '';
-      let usr = (p.username || '').replace(/^@+/, '');
-      if (!usr) {
-        usr = nick ? nick.toLowerCase().replace(/\s+/g, '') : (cleanEmail ? cleanEmail.split('@')[0] : fullName.toLowerCase().replace(/\s+/g, ''));
-      }
-      const salonName = p.current_salon_name || (p as any).salons?.trade_name || 'Sem Salão Ativo';
-      const isAct = p.status === 'active' || (p as any).is_active === true;
-      list.push({
-        id: `prof-${p.id}`,
-        originalId: p.id,
-        kind: 'professional',
-        name: fullName,
-        username: usr,
-        cpf: p.cpf || p.document_number || '',
-        phone: p.phone_whatsapp || (p as any).phone || '—',
-        phoneSecondary: p.phone_secondary || p.phone_whatsapp || (p as any).phone || '—',
-        email: cleanEmail || '—',
-        password: p.password || 'Vagou@2026!',
-        roleLabel: 'Profissional',
-        roleBadgeClass: 'bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/30 font-bold',
-        accessLevel: p.access_level || (p.contract_type === 'partner_mei' ? 'MEI Parceiro' : 'CLT Profissional'),
-        address: p.address || '',
-        streetNumber: p.street_number || '',
-        complement: p.complement || '',
-        neighborhood: p.neighborhood || '',
-        city: p.city || 'São Paulo',
-        state: p.state || 'SP',
-        cep: p.cep || '',
-        latitude: (p as any).latitude ?? null,
-        longitude: (p as any).longitude ?? null,
-        dependentsCount: Number(p.dependents_count) || 0,
-        appointmentsCount: Number(p.total_appointments || p.total_services_done) || 0,
-        relationInfo: salonName,
-        isActive: isAct,
-        statusLabel: isAct ? 'Ativo' : 'Suspenso',
-        avatarUrl: p.avatar_url,
-        rawData: { kind: 'professional', data: p },
-      });
-    });
+      list.push(candidate);
+      if (em) byEmail.set(em, candidate);
+      if (us) byUsername.set(us, candidate);
+      if (cp) byCpf.set(cp, candidate);
+    };
 
-    // 3. Usuários de Salão
-    (salonUsers || []).forEach((su) => {
-      const fullName = su.full_name || (su as any).name || 'Gestor de Salão';
-      const cleanEmail = su.email || '';
-      let usr = (su.username || '').replace(/^@+/, '');
-      if (!usr) {
-        usr = cleanEmail ? cleanEmail.split('@')[0] : fullName.toLowerCase().replace(/\s+/g, '');
-      }
-      const salonSlug = su.salon_slug || (su as any).salons?.slug || 'parceiro';
-      list.push({
-        id: `sln-${su.id}`,
-        originalId: su.id,
-        kind: 'salon_user',
-        name: fullName,
-        username: usr,
-        cpf: su.cpf || '',
-        phone: su.phone_whatsapp || (su as any).phone || '—',
-        phoneSecondary: su.phone_secondary || su.phone_whatsapp || (su as any).phone || '—',
-        email: cleanEmail || '—',
-        password: su.password || 'Vagou@2026!',
-        roleLabel: 'Gestor / Salão',
-        roleBadgeClass: 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/30 font-bold',
-        accessLevel: su.access_level || (su.role === 'owner' ? 'Proprietário (Dono)' : su.role === 'manager' ? 'Gerente Geral' : 'Recepção & Atendimento'),
-        address: su.address || '',
-        streetNumber: su.street_number || '',
-        complement: su.complement || '',
-        neighborhood: su.neighborhood || '',
-        city: su.city || 'São Paulo',
-        state: su.state || 'SP',
-        cep: su.cep || '',
-        latitude: (su as any).latitude ?? null,
-        longitude: (su as any).longitude ?? null,
-        dependentsCount: Number(su.dependents_count) || 0,
-        appointmentsCount: Number(su.total_appointments) || 0,
-        relationInfo: `${salonSlug}.vagouapp.com`,
-        isActive: su.is_active !== false,
-        statusLabel: su.is_active !== false ? 'Ativo' : 'Inativo',
-        avatarUrl: su.avatar_url,
-        rawData: { kind: 'salon_user', data: su },
-      });
-    });
-
-    // 4. Admins do Portal
+    // 1. Admins do Portal (Prioridade Soberana Máxima)
     (admins || []).forEach((a) => {
       const fullName = a.full_name || (a as any).name || 'Administrador Master';
       const cleanEmail = a.email || '';
@@ -532,7 +511,8 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
       if (!usr) {
         usr = cleanEmail ? cleanEmail.split('@')[0] : fullName.toLowerCase().replace(/\s+/g, '');
       }
-      list.push({
+      const admOrigin = resolveRecordOriginInfo(a.created_via || 'admvapp', a.created_at);
+      registerOrMergeCanonicalUser({
         id: `adm-${a.id}`,
         originalId: a.id,
         kind: 'admin',
@@ -542,7 +522,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         phone: a.phone_whatsapp || (a as any).phone || '—',
         phoneSecondary: a.phone_secondary || a.phone_whatsapp || (a as any).phone || '—',
         email: cleanEmail || '—',
-        password: a.password || 'Admin@2026!',
+        password: a.password || '',
         roleLabel: 'Administrador',
         roleBadgeClass: 'bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-500/30 font-bold',
         accessLevel: a.access_level || (a.role === 'superadmin' ? 'Superadmin Master' : a.role === 'moderator' ? 'Moderador' : 'Suporte Técnico'),
@@ -561,14 +541,224 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         isActive: a.is_active !== false,
         statusLabel: a.is_active !== false ? 'Ativo' : 'Inativo',
         avatarUrl: a.avatar_url,
+        createdAt: a.created_at || '',
+        originLabel: admOrigin.label,
+        originBadgeClass: admOrigin.badgeClass,
         rawData: { kind: 'admin', data: a },
       });
     });
 
-    return list;
+    // 2. Usuários de Salão / Proprietários
+    (salonUsers || []).forEach((su) => {
+      const fullName = su.full_name || (su as any).name || 'Gestor de Salão';
+      const cleanEmail = su.email || '';
+      let usr = (su.username || '').replace(/^@+/, '');
+      if (!usr) {
+        usr = cleanEmail ? cleanEmail.split('@')[0] : fullName.toLowerCase().replace(/\s+/g, '');
+      }
+      const salonSlug = su.salon_slug || (su as any).salons?.slug || 'parceiro';
+      const suOrigin = resolveRecordOriginInfo(su.created_via || 'mnvapp', su.created_at);
+      registerOrMergeCanonicalUser({
+        id: `sln-${su.id}`,
+        originalId: su.id,
+        kind: 'salon_user',
+        name: fullName,
+        username: usr,
+        cpf: su.cpf || '',
+        phone: su.phone_whatsapp || (su as any).phone || '—',
+        phoneSecondary: su.phone_secondary || su.phone_whatsapp || (su as any).phone || '—',
+        email: cleanEmail || '—',
+        password: su.password || '',
+        roleLabel: 'Proprietário',
+        roleBadgeClass: 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/30 font-bold',
+        accessLevel: su.access_level || (su.role === 'owner' ? 'Proprietário (Dono)' : su.role === 'manager' ? 'Gerente Geral' : 'Recepção & Atendimento'),
+        address: su.address || '',
+        streetNumber: su.street_number || '',
+        complement: su.complement || '',
+        neighborhood: su.neighborhood || '',
+        city: su.city || 'São Paulo',
+        state: su.state || 'SP',
+        cep: su.cep || '',
+        latitude: (su as any).latitude ?? null,
+        longitude: (su as any).longitude ?? null,
+        dependentsCount: Number(su.dependents_count) || 0,
+        appointmentsCount: Number(su.total_appointments) || 0,
+        relationInfo: `${salonSlug}.vagouapp.com`,
+        isActive: su.is_active !== false,
+        statusLabel: su.is_active !== false ? 'Ativo' : 'Inativo',
+        avatarUrl: su.avatar_url,
+        createdAt: su.created_at || '',
+        originLabel: suOrigin.label,
+        originBadgeClass: suOrigin.badgeClass,
+        rawData: { kind: 'salon_user', data: su },
+      });
+    });
+
+    // 3. Profissionais
+    (professionals || []).forEach((p) => {
+      const fullName = p.full_name || (p as any).name || 'Profissional';
+      const cleanEmail = p.email || '';
+      const nick = p.nickname || '';
+      let usr = (p.username || '').replace(/^@+/, '');
+      if (!usr) {
+        usr = nick ? nick.toLowerCase().replace(/\s+/g, '') : (cleanEmail ? cleanEmail.split('@')[0] : fullName.toLowerCase().replace(/\s+/g, ''));
+      }
+      const salonName = p.current_salon_name || (p as any).salons?.trade_name || 'Sem Salão Ativo';
+      const isAct = p.status === 'active' || (p as any).is_active === true;
+      const profOrigin = resolveRecordOriginInfo(p.created_via || (p.current_salon_id ? 'mnvapp' : undefined), p.created_at);
+      registerOrMergeCanonicalUser({
+        id: `prof-${p.id}`,
+        originalId: p.id,
+        kind: 'professional',
+        name: fullName,
+        username: usr,
+        cpf: p.cpf || p.document_number || '',
+        phone: p.phone_whatsapp || (p as any).phone || '—',
+        phoneSecondary: p.phone_secondary || p.phone_whatsapp || (p as any).phone || '—',
+        email: cleanEmail || '—',
+        password: p.password || '',
+        roleLabel: 'Profissional',
+        roleBadgeClass: 'bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/30 font-bold',
+        accessLevel: p.access_level || (p.contract_type === 'partner_mei' ? 'MEI Parceiro' : 'CLT Profissional'),
+        address: p.address || '',
+        streetNumber: p.street_number || '',
+        complement: p.complement || '',
+        neighborhood: p.neighborhood || '',
+        city: p.city || 'São Paulo',
+        state: p.state || 'SP',
+        cep: p.cep || '',
+        latitude: (p as any).latitude ?? null,
+        longitude: (p as any).longitude ?? null,
+        dependentsCount: Number(p.dependents_count) || 0,
+        appointmentsCount: Number(p.total_appointments || p.total_services_done) || 0,
+        relationInfo: salonName,
+        isActive: isAct,
+        statusLabel: isAct ? 'Ativo' : 'Suspenso',
+        avatarUrl: p.avatar_url,
+        createdAt: p.created_at || '',
+        originLabel: profOrigin.label,
+        originBadgeClass: profOrigin.badgeClass,
+        rawData: { kind: 'professional', data: p },
+      });
+    });
+
+    // 4. Clientes & Dependentes da Conta Família
+    (clients || []).forEach((c) => {
+      const depCount = Array.isArray(c.dependents) ? c.dependents.length : (Number(c.dependents_count) || 0);
+      const fullName = c.full_name || (c as any).name || 'Cliente';
+      const cleanEmail = c.email || '';
+      let usr = (c.username || '').replace(/^@+/, '');
+      if (!usr) {
+        usr = cleanEmail ? cleanEmail.split('@')[0] : fullName.toLowerCase().replace(/\s+/g, '');
+      }
+      const configuredCodes = Array.isArray(c.security_questions_configured)
+        ? c.security_questions_configured
+        : c.security_question_code
+        ? [c.security_question_code]
+        : [];
+      const hasSecQuestion = Boolean(c.has_security_question || c.security_question_code || configuredCodes.length > 0);
+      const clientOrigin = resolveRecordOriginInfo(c.created_via || c.origin_type, c.created_at);
+
+      registerOrMergeCanonicalUser({
+        id: `cli-${c.id}`,
+        originalId: c.id,
+        kind: 'client',
+        name: fullName,
+        username: usr,
+        cpf: c.cpf || '',
+        phone: c.phone || '—',
+        phoneSecondary: c.phone_secondary || c.phone || '—',
+        email: cleanEmail || '—',
+        password: c.password || '',
+        roleLabel: 'Cliente',
+        roleBadgeClass: 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30 font-bold',
+        accessLevel: c.access_level || 'Cliente Titular',
+        address: c.address || '',
+        streetNumber: c.street_number || '',
+        complement: c.complement || '',
+        neighborhood: c.neighborhood || '',
+        city: c.city || 'São Paulo',
+        state: c.state || 'SP',
+        cep: c.cep || '',
+        latitude: (c as any).latitude ?? null,
+        longitude: (c as any).longitude ?? null,
+        dependentsCount: depCount,
+        appointmentsCount: Number(c.total_appointments) || 0,
+        relationInfo: depCount > 0 ? `${depCount} dependentes` : `${Number(c.total_appointments) || 0} agendamentos`,
+        isActive: c.is_active !== undefined ? !!c.is_active : true,
+        statusLabel: c.is_active !== false ? 'Ativo' : 'Inativo',
+        avatarUrl: c.avatar_url,
+        hasSecurityQuestion: hasSecQuestion,
+        securityQuestionsConfigured: configuredCodes,
+        securityQuestionCode: c.security_question_code || null,
+        createdAt: c.created_at || '',
+        originLabel: clientOrigin.label,
+        originBadgeClass: clientOrigin.badgeClass,
+        rawData: { kind: 'client', data: c },
+      });
+
+      // 4.1 Dependentes da Conta Família
+      const deps = Array.isArray(c.dependents) ? c.dependents : [];
+      deps.forEach((d: any) => {
+        const relLabel = d.relationship === 'son' ? 'Filho(a)' : d.relationship === 'spouse' ? 'Cônjuge' : d.relationship === 'parent' ? 'Pai/Mãe' : 'Dependente';
+        const dName = d.full_name || d.name || 'Dependente';
+        const isAct = !d.is_unlinked;
+        const depCreatedAt = d.created_at || c.created_at || '';
+        const depOrigin = resolveRecordOriginInfo(d.created_via || c.created_via || c.origin_type, depCreatedAt);
+        list.push({
+          id: `dep-${d.id}`,
+          originalId: d.id,
+          kind: 'dependent',
+          name: dName,
+          username: relLabel,
+          cpf: d.cpf || '',
+          phone: c.phone || '—',
+          phoneSecondary: '',
+          email: c.email || '—',
+          password: '—',
+          roleLabel: 'Dependente',
+          roleBadgeClass: 'bg-teal-50 dark:bg-teal-500/15 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-500/30 font-bold',
+          accessLevel: `Conta Família (${fullName})`,
+          address: c.address || '',
+          streetNumber: c.street_number || '',
+          complement: c.complement || '',
+          neighborhood: c.neighborhood || '',
+          city: c.city || 'São Paulo',
+          state: c.state || 'SP',
+          cep: c.cep || '',
+          latitude: (c as any).latitude ?? null,
+          longitude: (c as any).longitude ?? null,
+          dependentsCount: 0,
+          appointmentsCount: 0,
+          relationInfo: `Titular: ${fullName}`,
+          isActive: isAct,
+          statusLabel: isAct ? 'Ativo' : 'Desvinculado',
+          avatarUrl: undefined,
+          createdAt: depCreatedAt,
+          originLabel: depOrigin.label,
+          originBadgeClass: depOrigin.badgeClass,
+          rawData: { kind: 'client', data: c } as any,
+        });
+      });
+    });
+
+    return list.sort((a, b) => {
+      const ta = formatCreatedAtParts(a.createdAt).timestampMs;
+      const tb = formatCreatedAtParts(b.createdAt).timestampMs;
+      return tb - ta;
+    });
   }, [clients, professionals, salonUsers, admins]);
 
+  const isOwnerUser = (u: UnifiedUserRow) =>
+    u.kind === 'salon_user' || (u.accessLevel || '').toLowerCase().includes('proprietário');
+
   // Contadores para os filtros
+  const adminsCount = useMemo(() => allUnifiedUsers.filter((u) => u.kind === 'admin').length, [allUnifiedUsers]);
+  const clientsCount = useMemo(() => allUnifiedUsers.filter((u) => u.kind === 'client').length, [allUnifiedUsers]);
+  const dependentsCount = useMemo(() => allUnifiedUsers.filter((u) => u.kind === 'dependent').length, [allUnifiedUsers]);
+  const professionalsCount = useMemo(() => allUnifiedUsers.filter((u) => u.kind === 'professional').length, [allUnifiedUsers]);
+  const salonUsersCount = useMemo(() => allUnifiedUsers.filter(isOwnerUser).length, [allUnifiedUsers]);
+
   const activeUsersCount = useMemo(() => allUnifiedUsers.filter((u) => u.isActive).length, [allUnifiedUsers]);
   const inactiveUsersCount = useMemo(() => allUnifiedUsers.filter((u) => !u.isActive).length, [allUnifiedUsers]);
 
@@ -580,10 +770,11 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
     return allUnifiedUsers.filter((u) => {
       // 1. Filtro por Categoria
       if (categoryFilter !== 'all') {
-        if (categoryFilter === 'clients' && u.kind !== 'client') return false;
-        if (categoryFilter === 'professionals' && u.kind !== 'professional') return false;
-        if (categoryFilter === 'salon_users' && u.kind !== 'salon_user') return false;
         if (categoryFilter === 'admins' && u.kind !== 'admin') return false;
+        if (categoryFilter === 'clients' && u.kind !== 'client') return false;
+        if (categoryFilter === 'dependents' && u.kind !== 'dependent') return false;
+        if (categoryFilter === 'professionals' && u.kind !== 'professional') return false;
+        if (categoryFilter === 'salon_users' && !isOwnerUser(u)) return false;
       }
 
       // 2. Filtro por Status
@@ -687,26 +878,29 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
       'Nome Usuário',
       'WhatsApp',
       'Tipo',
-      'Nível Acesso',
-      'WhatsApp Secundário',
       'E-mail',
       'Dependentes',
       'Agendamentos',
+      'Criado em',
+      'Origem',
       'Status',
     ];
-    const rows = filteredUsers.map((u) => [
-      `"${u.originalId}"`,
-      `"${u.name}"`,
-      `"${u.username}"`,
-      `"${u.phone}"`,
-      `"${u.roleLabel}"`,
-      `"${u.accessLevel}"`,
-      `"${u.phoneSecondary}"`,
-      `"${u.email}"`,
-      `"${u.dependentsCount}"`,
-      `"${u.appointmentsCount}"`,
-      `"${u.statusLabel}"`,
-    ]);
+    const rows = filteredUsers.map((u) => {
+      const createdParts = formatCreatedAtParts(u.createdAt);
+      return [
+        `"${u.originalId}"`,
+        `"${u.name}"`,
+        `"${u.username}"`,
+        `"${u.phone}"`,
+        `"${u.roleLabel}"`,
+        `"${u.email}"`,
+        `"${u.dependentsCount}"`,
+        `"${u.appointmentsCount}"`,
+        `"${createdParts.csvLabel}"`,
+        `"${u.originLabel}"`,
+        `"${u.statusLabel}"`,
+      ];
+    });
 
     const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -750,9 +944,9 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
   }
 
   return (
-    <div className="space-y-4">
-      {/* Control Bar & Filtros */}
-      <div className="p-3 sm:p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 shadow-xs dark:shadow-none">
+    <div className="h-full flex flex-col min-h-0 overflow-hidden">
+      {/* Control Bar & Filtros — Fixo ao Topo sem espaçamento com o cabeçalho superior, separado por linha */}
+      <div className="shrink-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 lg:px-6 py-2.5 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5 z-10 transition-colors shadow-2xs dark:shadow-none">
         {/* Left Side: Title & Compact Filters */}
         <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0">
           <div className="flex items-center gap-2 mr-1">
@@ -776,19 +970,22 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
               title="Filtrar por Categoria"
             >
               <option value="all" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
-                Todas as Contas ({allUnifiedUsers.length})
-              </option>
-              <option value="clients" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
-                Clientes & Família ({clients.length})
-              </option>
-              <option value="professionals" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
-                Profissionais da Rede ({professionals.length})
-              </option>
-              <option value="salon_users" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
-                Proprietários & Gestores ({salonUsers.length})
+                Todas as contas ({allUnifiedUsers.length})
               </option>
               <option value="admins" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
-                Admins do Portal ({admins.length})
+                Admin Sistema ({adminsCount})
+              </option>
+              <option value="clients" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                Clientes ({clientsCount})
+              </option>
+              <option value="dependents" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                Dependentes ({dependentsCount})
+              </option>
+              <option value="professionals" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                Profissionais ({professionalsCount})
+              </option>
+              <option value="salon_users" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                Proprietários ({salonUsersCount})
               </option>
             </select>
           </div>
@@ -882,71 +1079,70 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         </div>
       </div>
 
-      {/* Alerta de Feedback de Ações */}
-      {actionFeedback && (
-        <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-xs text-emerald-700 dark:text-emerald-400 font-semibold animate-fadeIn flex items-center gap-2 shadow-xs">
-          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-          <span>{actionFeedback}</span>
-        </div>
-      )}
-
-      {/* Banner de Ações em Massa */}
-      {selectedIds.length > 0 && (
-        <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/90 border border-emerald-300 dark:border-emerald-500/50 flex flex-wrap items-center justify-between gap-2.5 animate-fadeIn shadow-xs">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            <span className="text-xs font-bold text-slate-900 dark:text-white">
-              {selectedIds.length} {selectedIds.length === 1 ? 'usuário selecionado' : 'usuários selecionados'}
-            </span>
+      {/* Área de Dados — Container Mestre com Zero Espaço */}
+      <div className="flex-1 flex flex-col min-h-0 p-0 m-0 overflow-hidden">
+        {/* Alerta de Feedback de Ações */}
+        {actionFeedback && (
+          <div className="shrink-0 p-3 bg-emerald-50 dark:bg-emerald-500/10 border-b border-emerald-200 dark:border-emerald-500/30 text-xs text-emerald-700 dark:text-emerald-400 font-semibold animate-fadeIn flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <span>{actionFeedback}</span>
           </div>
+        )}
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleBulkActivate}
-              className="px-3 py-1 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition cursor-pointer shadow-xs active:scale-95"
-            >
-              Ativar Todos
-            </button>
+        {/* Banner de Ações em Massa */}
+        {selectedIds.length > 0 && (
+          <div className="shrink-0 p-3 bg-emerald-50 dark:bg-emerald-950/90 border-b border-emerald-300 dark:border-emerald-500/50 flex flex-wrap items-center justify-between gap-2.5 animate-fadeIn">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-xs font-bold text-slate-900 dark:text-white">
+                {selectedIds.length} {selectedIds.length === 1 ? 'usuário selecionado' : 'usuários selecionados'}
+              </span>
+            </div>
 
-            <button
-              onClick={handleBulkSuspend}
-              className="px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950/80 text-amber-700 dark:text-amber-300 hover:text-amber-800 dark:hover:text-amber-200 font-semibold text-xs transition cursor-pointer border border-amber-200 dark:border-amber-900/50"
-            >
-              Suspender Todos
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleBulkActivate}
+                className="px-3 py-1 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition cursor-pointer shadow-xs active:scale-95"
+              >
+                Ativar Todos
+              </button>
 
-            <button
-              onClick={() => setIsBulkDeleteModalOpen(true)}
-              className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition cursor-pointer shadow-xs active:scale-95 flex items-center gap-1.5"
-              title="Excluir permanentemente todos os usuários selecionados"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-white" />
-              <span>Excluir Selecionados</span>
-            </button>
+              <button
+                onClick={handleBulkSuspend}
+                className="px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950/80 text-amber-700 dark:text-amber-300 hover:text-amber-800 dark:hover:text-amber-200 font-semibold text-xs transition cursor-pointer border border-amber-200 dark:border-amber-900/50"
+              >
+                Suspender Todos
+              </button>
 
-            <button
-              onClick={() => setSelectedIds([])}
-              className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white px-2 py-1 transition cursor-pointer"
-              title="Desmarcar todos os usuários"
-            >
-              Desmarcar
-            </button>
+              <button
+                onClick={() => setIsBulkDeleteModalOpen(true)}
+                className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition cursor-pointer shadow-xs active:scale-95 flex items-center gap-1.5"
+                title="Excluir permanentemente todos os usuários selecionados"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-white" />
+                <span>Excluir Selecionados</span>
+              </button>
+
+              <button
+                onClick={() => setSelectedIds([])}
+                className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white px-2 py-1 transition cursor-pointer"
+                title="Desmarcar todos os usuários"
+              >
+                Desmarcar
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* ======================================================== */}
-      {/* VIEW 1: TABELA REORGANIZADA CONFORME SOLICITAÇÃO          */}
-      {/* Colunas: Nome, Nome Usuário, WhatsApp, Tipo, Nível Acesso, */}
-      {/*          WhatsApp, E-mail, Depend., Agend., Status, Ações  */}
-      {/* ======================================================== */}
-      {viewMode === 'table' && (
-        <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs dark:shadow-none">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs min-w-[1000px]">
-              <thead className="bg-slate-100 dark:bg-slate-950/80 text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 select-none">
+        {/* ======================================================== */}
+        {/* VIEW 1: TABELA REORGANIZADA — Cabeçalho das colunas 100% fixo ao topo (sticky top-0), rolando SOMENTE os dados */}
+        {/* ======================================================== */}
+        {viewMode === 'table' && (
+          <div className="flex-1 overflow-auto min-h-0 custom-scrollbar w-full bg-white dark:bg-slate-900">
+            <table className="w-full text-left text-xs min-w-[1000px] border-separate border-spacing-0">
+              <thead className="sticky top-0 z-20">
                 <tr>
-                  <th className="py-3 px-3 w-10 text-center">
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 w-10 text-center border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs select-none">
                     <button
                       onClick={toggleSelectAll}
                       className="cursor-pointer text-slate-400 hover:text-emerald-500 transition"
@@ -959,23 +1155,22 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                       )}
                     </button>
                   </th>
-                  <th className="py-3 px-3 font-semibold">Nome</th>
-                  <th className="py-3 px-3 font-semibold">Nome Usuário</th>
-                  <th className="py-3 px-3 font-semibold">WhatsApp</th>
-                  <th className="py-3 px-3 font-semibold">Tipo</th>
-                  <th className="py-3 px-3 font-semibold">Nível Acesso</th>
-                  <th className="py-3 px-3 font-semibold">WhatsApp Sec.</th>
-                  <th className="py-3 px-3 font-semibold">E-mail</th>
-                  <th className="py-3 px-3 font-semibold text-center">Depend.</th>
-                  <th className="py-3 px-3 font-semibold text-center">Agend.</th>
-                  <th className="py-3 px-3 font-semibold text-center">Status</th>
-                  <th className="py-3 px-3 font-semibold text-right">Ações</th>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">Nome</th>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">Nome Usuário</th>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">WhatsApp</th>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">Tipo</th>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">E-mail</th>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-center text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">Depend.</th>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-center text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">Agend.</th>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">Criado em</th>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-center text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">Status</th>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-right text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200/80 dark:divide-slate-800/80">
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="py-12 text-center text-slate-500 dark:text-slate-400">
+                    <td colSpan={11} className="py-12 text-center text-slate-500 dark:text-slate-400">
                       Nenhum usuário encontrado com os filtros aplicados.
                     </td>
                   </tr>
@@ -983,6 +1178,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                   filteredUsers.map((user) => {
                     const isSelected = selectedIds.includes(user.id);
                     const statusBadge = getStatusBadge(user.isActive);
+                    const createdParts = formatCreatedAtParts(user.createdAt);
 
                     return (
                       <tr
@@ -1042,28 +1238,33 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                           </div>
                         </td>
 
-                        {/* 4. Tipo */}
+                        {/* 4. Tipo + Indicador Compacto de Pergunta Secreta */}
                         <td className="py-3 px-3">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap ${user.roleBadgeClass}`}>
-                            {user.roleLabel}
-                          </span>
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap ${user.roleBadgeClass}`}>
+                              {user.roleLabel}
+                            </span>
+                            {user.kind === 'client' && (
+                              <span
+                                title={
+                                  user.hasSecurityQuestion
+                                    ? 'Pergunta secreta configurada'
+                                    : 'Pergunta secreta não configurada'
+                                }
+                                className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold border whitespace-nowrap ${
+                                  user.hasSecurityQuestion
+                                    ? 'bg-[#10B981] text-white border-[#10B981]'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                                }`}
+                              >
+                                <KeyRound className={`w-2.5 h-2.5 ${user.hasSecurityQuestion ? 'text-white' : 'text-slate-400'}`} />
+                                <span>{user.hasSecurityQuestion ? 'Seg. OK' : 'S/ Seg.'}</span>
+                              </span>
+                            )}
+                          </div>
                         </td>
 
-                        {/* 5. Nível Acesso */}
-                        <td className="py-3 px-3">
-                          <span className="text-slate-800 dark:text-slate-200 text-xs font-medium block truncate max-w-[150px]">
-                            {user.accessLevel}
-                          </span>
-                        </td>
-
-                        {/* 6. WhatsApp (Secundário) */}
-                        <td className="py-3 px-3">
-                          <span className="font-mono text-slate-500 dark:text-slate-400 block truncate max-w-[130px]">
-                            {user.phoneSecondary || '—'}
-                          </span>
-                        </td>
-
-                        {/* 7. E-mail */}
+                        {/* 5. E-mail */}
                         <td className="py-3 px-3">
                           <span className="text-slate-700 dark:text-slate-300 font-mono text-[11px] block truncate max-w-[160px]">
                             {user.email}
@@ -1096,7 +1297,28 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                           </span>
                         </td>
 
-                        {/* 10. Status */}
+                        {/* 10. Criado em (Data + Hora + Origem) */}
+                        <td
+                          className="py-3 px-3 whitespace-nowrap"
+                          title={`Criado em: ${createdParts.fullLabel} • Origem: ${user.originLabel}`}
+                        >
+                          {createdParts.valid ? (
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-1 font-mono text-[11px] font-semibold text-slate-800 dark:text-slate-200">
+                                <span>{createdParts.dateShort}</span>
+                                <Clock className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                <span className="text-emerald-700 dark:text-emerald-400">{createdParts.timeShort}</span>
+                              </div>
+                              <span className="text-[9px] font-medium text-slate-500 dark:text-slate-400 block">
+                                {user.originLabel}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="font-mono text-[11px] text-slate-400">—</span>
+                          )}
+                        </td>
+
+                        {/* 11. Status */}
                         <td className="py-3 px-3 text-center">
                           <span
                             className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusBadge.className}`}
@@ -1151,14 +1373,14 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
               </tbody>
             </table>
           </div>
-        </div>
-      )}
+        )}
 
       {/* ======================================================== */}
       {/* VIEW 2: CARDS GRID (Visão em Cartões)                    */}
       {/* ======================================================== */}
       {viewMode === 'cards' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
+        <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar p-4 lg:p-6 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
           {filteredUsers.length === 0 ? (
             <div className="col-span-full py-12 text-center text-slate-500 dark:text-slate-400 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
               Nenhum usuário encontrado com os filtros aplicados.
@@ -1167,6 +1389,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
             filteredUsers.map((user) => {
               const isSelected = selectedIds.includes(user.id);
               const statusBadge = getStatusBadge(user.isActive);
+              const createdParts = formatCreatedAtParts(user.createdAt);
 
               return (
                 <div
@@ -1264,6 +1487,12 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                           {user.appointmentsCount}
                         </span>
                       </div>
+                      <div className="flex items-center justify-between" title={`${createdParts.fullLabel} • ${user.originLabel}`}>
+                        <span>Criado em:</span>
+                        <span className="font-mono text-slate-800 dark:text-slate-300 font-semibold">
+                          {createdParts.compactLabel}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -1307,6 +1536,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
               );
             })
           )}
+          </div>
         </div>
       )}
 
@@ -1321,9 +1551,55 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
           }}
           onSave={handleSaveGeneralModal}
           onToggleStatus={(kind, id, nextStatus) => handleToggleGenericStatus(kind, id, nextStatus)}
-          onDelete={(kind, id) => handleDeleteUser(kind, id, selectedUserForModal.name)}
+          onDelete={(kind, id) => handleDeleteUser(kind, id, selectedUserForModal.name, true)}
+          onSecurityReset={() => {
+            loadAll();
+            triggerFeedback('Segurança da conta redefinida no Supabase com sucesso.');
+          }}
         />
       )}
+
+      {/* Modal de Confirmação de Exclusão Individual */}
+      {userPendingDelete &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+            <div className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-4 space-y-3 animate-scaleUp">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-500/20 border border-rose-200 dark:border-rose-500/30 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-bold text-slate-900 dark:text-white text-sm truncate">
+                    Excluir "{userPendingDelete.name}"?
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Remove o registro e os acessos vinculados.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setUserPendingDelete(null)}
+                  className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs transition cursor-pointer border border-slate-200 dark:border-slate-700"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    executeDeleteUser(userPendingDelete.kind, userPendingDelete.id, userPendingDelete.name)
+                  }
+                  className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-white" />
+                  <span>Excluir</span>
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {/* Modal Dedicado para Cadastrar Novo Administrador */}
       <AdminCreateAdminModal
@@ -1341,7 +1617,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
             <div className="w-full max-w-md bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl relative my-auto max-h-[90vh] overflow-y-auto">
               <TriadeUserRegisterForm
-                origin="portal"
+                origin="admin"
                 onClose={() => setIsRegistrationModalOpen(false)}
                 onSuccess={() => {
                   setIsRegistrationModalOpen(false);
@@ -1440,6 +1716,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
           </div>,
           document.body
         )}
+      </div>
     </div>
   );
 };

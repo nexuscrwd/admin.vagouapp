@@ -10,12 +10,9 @@ import {
   Scissors,
   Building2,
   Users,
-  Calendar,
   Star,
   ExternalLink,
-  Edit,
-  Save,
-  X,
+  Clock,
 } from 'lucide-react';
 import {
   SystemAdminUser,
@@ -25,6 +22,7 @@ import {
   UserProfessionalItem,
 } from '../../types/admin';
 import { UserAvatar } from '../common/UserAvatar';
+import { formatCreatedAtParts, resolveRecordOriginInfo } from '../../utils/dateTimeFormat';
 
 export type UnifiedUserDetailType =
   | { kind: 'client'; data: UserClientItem }
@@ -50,7 +48,6 @@ export const AdminUserDetailView: React.FC<AdminUserDetailViewProps> = ({
   onPromoteAdmin,
 }) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'relations'>('profile');
-  const [isEditingNote, setIsEditingNote] = useState(false);
   const [adminRole, setAdminRole] = useState<SystemAdminUser['role']>(
     user.kind === 'admin' ? user.data.role : 'support'
   );
@@ -59,10 +56,14 @@ export const AdminUserDetailView: React.FC<AdminUserDetailViewProps> = ({
     switch (user.kind) {
       case 'client': {
         const c = user.data;
+        const created = formatCreatedAtParts(c.created_at);
+        const origin = resolveRecordOriginInfo(c.created_via || c.origin_type, c.created_at);
         return {
           id: c.id,
           name: c.full_name,
-          subTitle: `CPF: ${c.cpf || 'Não informado'} • Cadastro: ${new Date(c.created_at).toLocaleDateString('pt-BR')}`,
+          subTitle: `CPF: ${c.cpf || 'Não informado'} • Criado em: ${created.valid ? created.fullLabel : '—'} (${origin.label})`,
+          createdFull: created.valid ? created.fullLabel : '—',
+          originLabel: origin.label,
           email: c.email,
           phone: c.phone,
           avatarUrl: c.avatar_url,
@@ -74,10 +75,14 @@ export const AdminUserDetailView: React.FC<AdminUserDetailViewProps> = ({
       }
       case 'professional': {
         const p = user.data;
+        const created = formatCreatedAtParts(p.created_at);
+        const origin = resolveRecordOriginInfo(p.created_via || (p.current_salon_id ? 'mnvapp' : undefined), p.created_at);
         return {
           id: p.id,
           name: p.full_name,
-          subTitle: p.nickname ? `"${p.nickname}" • Prestador Parceiro` : 'Prestador Parceiro da Rede',
+          subTitle: `${p.nickname ? `"${p.nickname}"` : 'Prestador Parceiro'} • Criado em: ${created.valid ? created.fullLabel : '—'} (${origin.label})`,
+          createdFull: created.valid ? created.fullLabel : '—',
+          originLabel: origin.label,
           email: p.email || 'Não informado',
           phone: p.phone_whatsapp,
           avatarUrl: p.avatar_url,
@@ -89,10 +94,14 @@ export const AdminUserDetailView: React.FC<AdminUserDetailViewProps> = ({
       }
       case 'salon_user': {
         const su = user.data;
+        const created = formatCreatedAtParts(su.created_at);
+        const origin = resolveRecordOriginInfo(su.created_via || 'mnvapp', su.created_at);
         return {
           id: su.id,
           name: su.full_name,
-          subTitle: `${su.salon_name} • ${su.salon_slug}.vagouapp.com`,
+          subTitle: `${su.salon_name} • Criado em: ${created.valid ? created.fullLabel : '—'} (${origin.label})`,
+          createdFull: created.valid ? created.fullLabel : '—',
+          originLabel: origin.label,
           email: su.email,
           phone: su.phone_whatsapp,
           avatarUrl: su.avatar_url,
@@ -104,10 +113,14 @@ export const AdminUserDetailView: React.FC<AdminUserDetailViewProps> = ({
       }
       case 'admin': {
         const a = user.data;
+        const created = formatCreatedAtParts(a.created_at);
+        const origin = resolveRecordOriginInfo(a.created_via || 'admvapp', a.created_at);
         return {
           id: a.id,
           name: a.full_name,
-          subTitle: `${a.username.replace(/^@+/, '')} • Governança Tríade`,
+          subTitle: `${a.username.replace(/^@+/, '')} • Criado em: ${created.valid ? created.fullLabel : '—'} (${origin.label})`,
+          createdFull: created.valid ? created.fullLabel : '—',
+          originLabel: origin.label,
           email: a.email,
           phone: a.phone_whatsapp,
           avatarUrl: a.avatar_url,
@@ -344,6 +357,16 @@ export const AdminUserDetailView: React.FC<AdminUserDetailViewProps> = ({
                   </a>
                 )}
               </div>
+            </div>
+
+            <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
+              <span className="text-slate-400 text-[11px] block flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Criado em ({info.originLabel})</span>
+              </span>
+              <span className="font-mono text-slate-900 dark:text-white font-bold block">
+                {info.createdFull}
+              </span>
             </div>
 
             {user.kind === 'client' && (

@@ -15,8 +15,6 @@ import {
   MapPin,
   Home,
   Building,
-  Navigation,
-  Globe,
   Users,
   Calendar,
   CheckCircle2,
@@ -27,10 +25,16 @@ import {
   Camera,
   Upload,
   RefreshCw,
+  KeyRound,
+  HelpCircle,
+  RotateCcw,
+  Clock,
 } from 'lucide-react';
 import { UnifiedUserRow } from './AdminUsersManager';
 import { GoogleAddressPinPicker } from './GoogleAddressPinPicker';
 import { UserAvatar } from '../common/UserAvatar';
+import { resetUserSecurityAdmin } from '../../services/supabaseApi';
+import { formatCreatedAtParts } from '../../utils/dateTimeFormat';
 
 export interface AdminUserGeneralDataModalProps {
   user: UnifiedUserRow;
@@ -39,6 +43,7 @@ export interface AdminUserGeneralDataModalProps {
   onSave: (updatedUser: UnifiedUserRow) => Promise<void> | void;
   onToggleStatus: (kind: string, id: string, nextStatus: boolean) => Promise<void> | void;
   onDelete: (kind: string, id: string) => Promise<void> | void;
+  onSecurityReset?: () => void;
 }
 
 export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps> = ({
@@ -48,6 +53,7 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
   onSave,
   onToggleStatus,
   onDelete,
+  onSecurityReset,
 }) => {
   // Form state
   const [name, setName] = useState(user.name || '');
@@ -56,10 +62,10 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
   const [phone, setPhone] = useState(user.phone || '');
   const [phoneSecondary, setPhoneSecondary] = useState(user.phoneSecondary || '');
   const [email, setEmail] = useState(user.email || '');
-  const [password, setPassword] = useState(user.password || 'Vagou@2026!');
+  const [password, setPassword] = useState(user.password || '');
   const [showPassword, setShowPassword] = useState(false);
 
-  const [kind, setKind] = useState<'client' | 'professional' | 'salon_user' | 'admin'>(user.kind);
+  const [kind, setKind] = useState<'client' | 'professional' | 'salon_user' | 'admin' | 'dependent'>(user.kind);
   const [accessLevel, setAccessLevel] = useState(user.accessLevel || 'Cliente Titular');
 
   const [address, setAddress] = useState(user.address || '');
@@ -75,6 +81,12 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
   const [dependentsCount, setDependentsCount] = useState<number>(user.dependentsCount || 0);
   const [appointmentsCount, setAppointmentsCount] = useState<number>(user.appointmentsCount || 0);
   const [isActive, setIsActive] = useState<boolean>(user.isActive);
+
+  const [hasSecurityQuestion, setHasSecurityQuestion] = useState<boolean>(Boolean(user.hasSecurityQuestion));
+  const [securityCodes, setSecurityCodes] = useState<string[]>(user.securityQuestionsConfigured || []);
+  const [supportNewPassword, setSupportNewPassword] = useState('');
+  const [isResettingSecurity, setIsResettingSecurity] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const [isSearchingCep, setIsSearchingCep] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -190,7 +202,7 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
     setPhone(user.phone === '—' ? '' : user.phone || '');
     setPhoneSecondary(user.phoneSecondary === '—' ? '' : user.phoneSecondary || '');
     setEmail(user.email === '—' ? '' : user.email || '');
-    setPassword(user.password || 'Vagou@2026!');
+    setPassword(user.password || '');
     setKind(user.kind);
     setAccessLevel(user.accessLevel || getDefaultAccessLevel(user.kind));
     setAddress(user.address || '');
@@ -206,13 +218,21 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
     setAppointmentsCount(Number(user.appointmentsCount) || 0);
     setIsActive(user.isActive);
     setAvatarUrl(user.avatarUrl || '');
+    setHasSecurityQuestion(Boolean(user.hasSecurityQuestion));
+    setSecurityCodes(user.securityQuestionsConfigured || []);
+    setSupportNewPassword('');
+    setConfirmingDelete(false);
     setFeedbackMsg(null);
   }, [user]);
 
-  function getDefaultAccessLevel(targetKind: 'client' | 'professional' | 'salon_user' | 'admin'): string {
+  function getDefaultAccessLevel(
+    targetKind: 'client' | 'professional' | 'salon_user' | 'admin' | 'dependent'
+  ): string {
     switch (targetKind) {
       case 'client':
         return 'Cliente Titular';
+      case 'dependent':
+        return 'Dependente Familiar';
       case 'professional':
         return 'MEI Parceiro';
       case 'salon_user':
@@ -223,7 +243,9 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
   }
 
   // Ao alterar o Tipo, atualiza as opções coerentes de Nível de Acesso
-  const handleKindChange = (newKind: 'client' | 'professional' | 'salon_user' | 'admin') => {
+  const handleKindChange = (
+    newKind: 'client' | 'professional' | 'salon_user' | 'admin' | 'dependent'
+  ) => {
     setKind(newKind);
     setAccessLevel(getDefaultAccessLevel(newKind));
   };
@@ -273,6 +295,8 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
       const roleLabel =
         kind === 'client'
           ? 'Cliente'
+          : kind === 'dependent'
+          ? 'Dependente'
           : kind === 'professional'
           ? 'Profissional'
           : kind === 'salon_user'
@@ -282,6 +306,8 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
       const roleBadgeClass =
         kind === 'client'
           ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30 font-bold'
+          : kind === 'dependent'
+          ? 'bg-teal-50 dark:bg-teal-500/15 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-500/30 font-bold'
           : kind === 'professional'
           ? 'bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/30 font-bold'
           : kind === 'salon_user'
@@ -344,13 +370,11 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
     setTimeout(() => setFeedbackMsg(null), 3000);
   };
 
-  // Excluir usuário
+  // Excluir usuário (confirmação em 2 toques sem window.confirm)
   const handleDeleteUser = async () => {
-    if (
-      !confirm(
-        `Tem certeza que deseja excluir o usuário "${name}" (${username})?\n\nEsta ação excluirá o registro no sistema e desativará os acessos correspondentes.`
-      )
-    ) {
+    if (!confirmingDelete) {
+      setConfirmingDelete(true);
+      setTimeout(() => setConfirmingDelete(false), 4000);
       return;
     }
 
@@ -360,6 +384,71 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
     } catch {
       setFeedbackMsg({ text: 'Erro ao excluir usuário.', type: 'error' });
     }
+  };
+
+  // Reset administrativo de Pergunta Secreta (user_security_answers + clients)
+  const handleResetSecurityQuestion = async () => {
+    setIsResettingSecurity(true);
+    try {
+      const res = await resetUserSecurityAdmin(kind, user.originalId, {
+        resetSecurityQuestion: true,
+      });
+      if (res.success) {
+        setHasSecurityQuestion(false);
+        setSecurityCodes([]);
+        setFeedbackMsg({
+          text: res.message || 'Pergunta secreta limpa. O usuário poderá cadastrar nova pergunta no próximo acesso.',
+          type: 'success',
+        });
+        onSecurityReset?.();
+      } else {
+        setFeedbackMsg({ text: res.error || 'Falha ao resetar pergunta secreta.', type: 'error' });
+      }
+    } catch {
+      setFeedbackMsg({ text: 'Erro de conexão ao resetar pergunta secreta.', type: 'error' });
+    } finally {
+      setIsResettingSecurity(false);
+      setTimeout(() => setFeedbackMsg(null), 4000);
+    }
+  };
+
+  // Reset administrativo direto de Senha
+  const handleSupportPasswordReset = async () => {
+    const cleanPass = supportNewPassword.trim();
+    if (cleanPass.length < 4) {
+      setFeedbackMsg({ text: 'Informe uma nova senha com pelo menos 4 caracteres.', type: 'error' });
+      setTimeout(() => setFeedbackMsg(null), 3000);
+      return;
+    }
+    setIsResettingSecurity(true);
+    try {
+      const res = await resetUserSecurityAdmin(kind, user.originalId, {
+        newPassword: cleanPass,
+      });
+      if (res.success) {
+        setPassword(cleanPass);
+        setSupportNewPassword('');
+        setFeedbackMsg({
+          text: res.message || 'Nova senha gravada no Auth e tabela relacional com sucesso.',
+          type: 'success',
+        });
+        onSecurityReset?.();
+      } else {
+        setFeedbackMsg({ text: res.error || 'Falha ao redefinir senha.', type: 'error' });
+      }
+    } catch {
+      setFeedbackMsg({ text: 'Erro de conexão ao redefinir senha.', type: 'error' });
+    } finally {
+      setIsResettingSecurity(false);
+      setTimeout(() => setFeedbackMsg(null), 4000);
+    }
+  };
+
+  const formatQuestionCodeLabel = (code: string): string => {
+    if (code === 'first_pet') return '1º Pet';
+    if (code === 'city_at_10') return 'Cidade aos 10 anos';
+    if (code === 'childhood_friend') return 'Amigo de Infância';
+    return code;
   };
 
   if (!isOpen) return null;
@@ -409,6 +498,12 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono truncate">
                 ID: {user.originalId} • {username || user.name}
+              </p>
+              <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-mono truncate flex items-center gap-1 mt-0.5">
+                <Clock className="w-3 h-3 shrink-0" />
+                <span>
+                  Criado em: {formatCreatedAtParts(user.createdAt).valid ? formatCreatedAtParts(user.createdAt).fullLabel : '—'} • {user.originLabel}
+                </span>
               </p>
             </div>
           </div>
@@ -662,13 +757,16 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                       value={kind}
                       onChange={(e) =>
                         handleKindChange(
-                          e.target.value as 'client' | 'professional' | 'salon_user' | 'admin'
+                          e.target.value as 'client' | 'professional' | 'salon_user' | 'admin' | 'dependent'
                         )
                       }
                       className="bg-transparent text-xs font-semibold text-slate-900 dark:text-white outline-none w-full cursor-pointer"
                     >
                       <option value="client" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
                         Cliente do Portal
+                      </option>
+                      <option value="dependent" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                        Dependente Familiar
                       </option>
                       <option value="professional" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
                         Profissional da Rede
@@ -695,7 +793,7 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                       onChange={(e) => setAccessLevel(e.target.value)}
                       className="bg-transparent text-xs font-semibold text-slate-900 dark:text-white outline-none w-full cursor-pointer"
                     >
-                      {kind === 'client' && (
+                      {(kind === 'client' || kind === 'dependent') && (
                         <>
                           <option value="Cliente Titular" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
                             Cliente Titular
@@ -977,18 +1075,108 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                   </button>
                 </div>
               </div>
+
+              <div className="mt-2.5 py-2 px-3 rounded-lg bg-slate-50 dark:bg-slate-950 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>Registro de Criação:</span>
+                </span>
+                <span className="font-mono font-semibold text-slate-900 dark:text-white">
+                  {formatCreatedAtParts(user.createdAt).valid
+                    ? `${formatCreatedAtParts(user.createdAt).fullLabel} (${user.originLabel})`
+                    : '—'}
+                </span>
+              </div>
             </div>
+
+            {/* SEÇÃO 4: Segurança & Recuperação (SQL v5.0 — Perguntas Secretas & Suporte) */}
+            {kind !== 'dependent' && (
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+                <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2.5 flex items-center gap-1.5">
+                  <KeyRound className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span>Segurança & Recuperação (Suporte Admin)</span>
+                </h3>
+
+                <div className="space-y-2.5">
+                  {/* Status e Reset de Pergunta Secreta */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 py-2 px-3 rounded-lg bg-slate-50 dark:bg-slate-950">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <HelpCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200">
+                            Pergunta Secreta
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              hasSecurityQuestion
+                                ? 'bg-[#10B981] text-white'
+                                : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                            }`}
+                          >
+                            {hasSecurityQuestion ? 'Configurada' : 'Não configurada'}
+                          </span>
+                        </div>
+                        {securityCodes.length > 0 && (
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                            Ativas: {securityCodes.map(formatQuestionCodeLabel).join(', ')}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isResettingSecurity}
+                      onClick={handleResetSecurityQuestion}
+                      className="px-2.5 py-1 rounded bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 text-[10px] font-bold transition cursor-pointer flex items-center gap-1 shrink-0 disabled:opacity-50"
+                      title="Limpar respostas secretas para o usuário cadastrar novamente"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Resetar Pergunta</span>
+                    </button>
+                  </div>
+
+                  {/* Redefinição Imediata de Senha */}
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 focus-within:border-emerald-500 transition">
+                      <Lock className="w-3.5 h-3.5 text-slate-400 mr-1.5 shrink-0" />
+                      <input
+                        type="text"
+                        value={supportNewPassword}
+                        onChange={(e) => setSupportNewPassword(e.target.value)}
+                        placeholder="Nova senha temporária p/ suporte"
+                        className="bg-transparent text-xs text-slate-900 dark:text-white outline-none w-full font-mono"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isResettingSecurity || !supportNewPassword.trim()}
+                      onClick={handleSupportPasswordReset}
+                      className="px-3 py-1.5 rounded-lg bg-[#10B981] hover:bg-[#059669] text-white text-[11px] font-bold transition cursor-pointer flex items-center gap-1 shrink-0 disabled:opacity-40 whitespace-nowrap"
+                    >
+                      <KeyRound className="w-3 h-3 text-white" />
+                      <span className="text-white">Redefinir Senha</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* RODAPÉ FIXO DE AÇÃO */}
-          <div className="shrink-0 p-3.5 sm:p-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 select-none">
+          <div className="shrink-0 sticky bottom-0 z-20 p-3.5 sm:p-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 select-none">
             <button
               type="button"
               onClick={handleDeleteUser}
-              className="px-3 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-600 dark:hover:bg-rose-600 text-rose-600 dark:text-rose-400 hover:text-white dark:hover:text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border border-rose-200 dark:border-rose-500/30 active:scale-95"
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border active:scale-95 ${
+                confirmingDelete
+                  ? 'bg-rose-600 text-white border-rose-600'
+                  : 'bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-600 dark:hover:bg-rose-600 text-rose-600 dark:text-rose-400 hover:text-white dark:hover:text-white border-rose-200 dark:border-rose-500/30'
+              }`}
             >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Excluir</span>
+              <Trash2 className={`w-3.5 h-3.5 ${confirmingDelete ? 'text-white' : ''}`} />
+              <span>{confirmingDelete ? 'Confirmar Exclusão' : 'Excluir'}</span>
             </button>
 
             <div className="flex items-center gap-2">

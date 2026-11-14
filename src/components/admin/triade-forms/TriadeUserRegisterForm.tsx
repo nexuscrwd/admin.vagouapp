@@ -46,7 +46,7 @@ export interface TriadeUserData {
     latitude?: number | null;
     longitude?: number | null;
   };
-  origin?: 'portal' | 'establishment';
+  origin?: 'portal' | 'establishment' | 'admin';
   salonId?: string;
   salonName?: string;
 }
@@ -70,7 +70,7 @@ export interface TriadeUserRegisterFormProps {
   subtitle?: string;
   activePhase?: UserRegisterPhase;
   onPhaseChange?: (phase: UserRegisterPhase) => void;
-  origin?: 'portal' | 'establishment';
+  origin?: 'portal' | 'establishment' | 'admin';
   salonId?: string;
   salonName?: string;
   salonLogoUrl?: string;
@@ -486,6 +486,12 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
 
     const cleanUsername = username.trim().replace(/^@+/, '');
 
+    const resolvedOrigin: 'portal' | 'establishment' | 'admin' = isEstablishmentMode
+      ? 'establishment'
+      : origin === 'admin'
+      ? 'admin'
+      : 'portal';
+
     const payload: TriadeUserData = {
       id: `usr_${Date.now()}`,
       fullName: fullName.trim(),
@@ -505,7 +511,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
         latitude,
         longitude,
       },
-      origin: isEstablishmentMode ? 'establishment' : 'portal',
+      origin: resolvedOrigin,
       salonId: isEstablishmentMode ? salonId : undefined,
       salonName: isEstablishmentMode ? effectiveSalonName : undefined,
     };
@@ -540,7 +546,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
         const messagePayload = {
           source: 'VAGOUAPP_FORM',
           action: 'USER_REGISTERED',
-          origin: isEstablishmentMode ? 'establishment' : 'portal',
+          origin: isEstablishmentMode ? 'establishment' : origin,
           salonId,
           salonName: effectiveSalonName,
           payload: finalPayload,

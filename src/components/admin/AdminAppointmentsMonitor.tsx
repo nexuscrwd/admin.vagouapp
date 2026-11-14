@@ -17,7 +17,9 @@ import {
   LayoutList,
   LayoutGrid,
   QrCode,
-  Send,
+  Lock,
+  ArrowLeftRight,
+  AlertTriangle,
 } from 'lucide-react';
 import { AdminAppointmentItem, AdminSalonItem } from '../../types/admin';
 import { fetchAdminAppointments, fetchAdminSalons } from '../../services/supabaseApi';
@@ -36,8 +38,10 @@ export const AdminAppointmentsMonitor: React.FC = () => {
   // Navegação Mestre-Detalhe
   const [selectedSalonId, setSelectedSalonId] = useState<string | null>(null);
 
-  // Filtros Globais
-  const [selectedCompetence, setSelectedCompetence] = useState<string>('2026-09');
+  const currentCompetence = useMemo(() => new Date().toISOString().slice(0, 7), []);
+
+  // Filtros Globais (Competência dinâmica YYYY-MM ou 'all')
+  const [selectedCompetence, setSelectedCompetence] = useState<string>(currentCompetence);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [filterType, setFilterType] = useState<'all' | 'radar' | 'standard'>('all');
@@ -62,12 +66,59 @@ export const AdminAppointmentsMonitor: React.FC = () => {
         ]);
         setAppointments(apts);
         setSalons(slns);
+        if (
+          apts.length > 0 &&
+          !apts.some((a) => (a.date_str || a.appointment_date || '').startsWith(currentCompetence))
+        ) {
+          setSelectedCompetence('all');
+        }
       } finally {
         setLoading(false);
       }
     };
     load();
-  }, []);
+  }, [currentCompetence]);
+
+  const formatCompetenceLabel = (ym: string) => {
+    if (ym === 'all') return 'Todos os Períodos';
+    const [year, month] = ym.split('-');
+    const monthNames = [
+      'Janeiro',
+      'Fevereiro',
+      'Março',
+      'Abril',
+      'Maio',
+      'Junho',
+      'Julho',
+      'Agosto',
+      'Setembro',
+      'Outubro',
+      'Novembro',
+      'Dezembro',
+    ];
+    const mIdx = Number(month) - 1;
+    if (mIdx >= 0 && mIdx < 12 && year) {
+      return `${monthNames[mIdx]} / ${year}`;
+    }
+    return ym;
+  };
+
+  const availableCompetences = useMemo(() => {
+    const set = new Set<string>();
+    const now = new Date();
+    for (let offset = 1; offset >= -5; offset--) {
+      const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+      const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      set.add(ym);
+    }
+    appointments.forEach((apt) => {
+      const ym = (apt.date_str || apt.appointment_date || '').slice(0, 7);
+      if (/^\d{4}-\d{2}$/.test(ym)) {
+        set.add(ym);
+      }
+    });
+    return Array.from(set).sort((a, b) => b.localeCompare(a));
+  }, [appointments]);
 
   // Formatação BRL
   const formatBRL = (val?: number | null) => {
@@ -75,26 +126,40 @@ export const AdminAppointmentsMonitor: React.FC = () => {
     return `R$ ${Number(val).toFixed(2).replace('.', ',')}`;
   };
 
-  // 1. Resumo Consolidado de cada Salão na Competência Selecionada
+  // 1. Resumo Consolidado de cada Salão na Competência Selecionada (Ordem Cronológica ASC)
   const salonsWithMetrics = useMemo(() => {
     return salons.map((salon) => {
-      // Agendamentos deste salão
-      const salonAppointments = appointments.filter((apt) => {
-        const matchesSalon = apt.salon_id === salon.id || apt.salon_slug === salon.slug;
-        const matchesMonth = apt.appointment_date.startsWith(selectedCompetence);
-        return matchesSalon && matchesMonth;
-      });
+      const salonAppointments = appointments
+        .filter((apt) => {
+          const matchesSalon = apt.salon_id === salon.id || apt.salon_slug === salon.slug;
+          const dateRef = apt.date_str || apt.appointment_date || '';
+          const matchesMonth =
+            selectedCompetence === 'all' ? true : dateRef.startsWith(selectedCompetence);
+          return matchesSalon && matchesMonth;
+        })
+        .sort((a, b) => {
+          const dA = a.date_str || a.appointment_date || '';
+          const dB = b.date_str || b.appointment_date || '';
+          if (dA !== dB) return dA.localeCompare(dB);
+          return (a.start_time || a.time_slot || '').localeCompare(
+            b.start_time || b.time_slot || ''
+          );
+        });
 
       const billable = salonAppointments.filter(
-        (a) => a.status === 'concluido' || a.status === 'confirmado'
+        (a) =>
+          !a.is_blocked_slot &&
+          a.status !== 'BLOQUEADO' &&
+          (a.status === 'concluido' || a.status === 'confirmado')
       );
       const cancelled = salonAppointments.filter(
         (a) => a.status === 'cancelado' || a.status === 'no_show'
       );
       const grossRevenue = billable.reduce((acc, curr) => acc + (curr.price || 0), 0);
 
-      const feePerBooking = salon.fee_per_booking ?? 2.5;
-      const isSubscription = salon.billing_plan === 'subscription';
+      const feePerBooking = salon.fee_per_booking ?? salon.billing_fee_value ?? 2.5;
+      const planUpper = String(salon.billing_plan || 'PER_APPOINTMENT').toUpperCase();
+      const isSubscription = planUpper === 'SUBSCRIPTION';
       const monthlyFee = salon.monthly_subscription_fee ?? 89.9;
 
       const totalInvoice = isSubscription ? monthlyFee : billable.length * feePerBooking;
@@ -232,15 +297,21 @@ export const AdminAppointmentsMonitor: React.FC = () => {
   // Enviar Fatura WhatsApp
   const handleSendWhatsApp = (item: NonNullable<typeof activeSalonData>) => {
     const cleanPhone = (item.salon.phone_whatsapp || '').replace(/\D/g, '');
-    const monthName = selectedCompetence === '2026-09' ? 'Setembro/2026' : selectedCompetence;
+    const monthName = formatCompetenceLabel(selectedCompetence);
 
-    const message = ` Olá *${item.salon.trade_name}*!%0A%0ASegue o fechamento de repasse e agendamentos do *VagouApp* ref. ao mês de *${monthName}*:%0A%0A Total de Agendamentos: *${item.appointmentsCount}*%0A Agendamentos Concluídos: *${item.billableCount}*%0A Agendamentos Cancelados/Isentos: *${item.cancelledCount}*%0A Volume Transacionado no Salão: *${formatBRL(item.grossRevenue)}*%0A Modalidade Comercial: *${item.isSubscription ? 'Assinatura Fixa' : `Taxa por Agendamento (${formatBRL(item.feePerBooking)})`}*%0A%0A *VALOR TOTAL DA FATURA: ${formatBRL(item.totalInvoice)}*%0A Chave PIX: ${item.salon.pix_key || 'financeiro@vagouapp.com'}%0A Data de Vencimento: Dia ${item.salon.billing_due_day || 10} do mês%0A%0AEstamos à disposição para qualquer dúvida!`;
+    const message = ` Olá *${item.salon.trade_name}*!%0A%0ASegue o fechamento de repasse e agendamentos do *VagouApp* ref. ao período *${monthName}*:%0A%0A Total de Agendamentos: *${item.appointmentsCount}*%0A Agendamentos Concluídos: *${item.billableCount}*%0A Agendamentos Cancelados/Isentos: *${item.cancelledCount}*%0A Volume Transacionado no Salão: *${formatBRL(item.grossRevenue)}*%0A Modalidade Comercial: *${item.isSubscription ? 'Assinatura Fixa' : `Taxa por Agendamento (${formatBRL(item.feePerBooking)})`}*%0A%0A *VALOR TOTAL DA FATURA: ${formatBRL(item.totalInvoice)}*%0A Chave PIX: ${item.salon.pix_key || 'financeiro@vagouapp.com'}%0A Data de Vencimento: Dia ${item.salon.billing_due_day || 10} do mês%0A%0AEstamos à disposição para qualquer dúvida!`;
 
     const url = cleanPhone
       ? `https://wa.me/55${cleanPhone}?text=${message}`
       : `https://wa.me/?text=${message}`;
 
-    window.open(url, '_blank');
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const getStatusBadge = (status: AdminAppointmentItem['status']) => {
@@ -255,44 +326,55 @@ export const AdminAppointmentsMonitor: React.FC = () => {
         return 'bg-rose-50 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30 font-bold';
       case 'no_show':
         return 'bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30 font-bold';
+      case 'BLOQUEADO':
+        return 'bg-purple-50 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-500/30 font-bold';
       default:
         return 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700';
     }
   };
 
   return (
-    <div className="space-y-4">
-      {/* Top Banner Informativo & Seletor de Competência */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 shadow-xs dark:shadow-none">
-        <div className="flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 flex items-center justify-center shrink-0 shadow-xs">
-            <CalendarCheck className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+    <div className="h-full flex flex-col min-h-0 overflow-hidden">
+      {/* Top Banner Informativo & Seletor de Competência — Fixo ao Topo sem espaçamento com o cabeçalho superior, separado por linha */}
+      <div className="shrink-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 lg:px-6 py-2.5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 z-10 transition-colors shadow-2xs dark:shadow-none">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 flex items-center justify-center shrink-0">
+            <CalendarCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
               Monitor de Agendamentos & Faturamento por Estabelecimento
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
               Controle global de horários, faturamento por prestador e histórico exclusivo de cada salão.
             </p>
           </div>
         </div>
 
         {/* Competência Selector */}
-        <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 shrink-0 self-start md:self-auto shadow-xs dark:shadow-none">
-          <Calendar className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Mês:</span>
+        <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 shrink-0 self-start md:self-auto shadow-xs dark:shadow-none">
+          <Calendar className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Período:</span>
           <select
             value={selectedCompetence}
             onChange={(e) => setSelectedCompetence(e.target.value)}
             className="bg-transparent text-xs font-bold text-emerald-600 dark:text-emerald-400 outline-none cursor-pointer"
           >
-            <option value="2026-09" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Setembro / 2026</option>
-            <option value="2026-08" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Agosto / 2026</option>
-            <option value="2026-07" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Julho / 2026</option>
+            <option value="all" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+              Todos os Períodos {loading ? '(Sincronizando...)' : ''}
+            </option>
+            {availableCompetences.map((ym) => (
+              <option key={ym} value={ym} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                {formatCompetenceLabel(ym)}
+              </option>
+            ))}
           </select>
         </div>
       </div>
+
+      {/* Área de Dados Rolável — Zero espaço no contêiner, rolagem vertical pura */}
+      <div className="flex-1 overflow-y-auto p-0 m-0 min-h-0 custom-scrollbar">
+        <div className="p-4 lg:p-6 space-y-4">
 
       {/* ======================================================== */}
       {/* RADAR DE DESLOCAMENTO AO VIVO (10s) & LINHA SHOPEE       */}
@@ -435,20 +517,20 @@ export const AdminAppointmentsMonitor: React.FC = () => {
 
           {/* MODO 1: LISTA TABULAR (TABELA OFICIAL SOBERANA DA TRÍADE) */}
           {viewMode === 'table' ? (
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden transition-colors">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold uppercase text-[10px] tracking-wider">
-                      <th className="py-3 px-4">Estabelecimento</th>
-                      <th className="py-3 px-3">Subdomínio</th>
-                      <th className="py-3 px-3 text-center">Agendados</th>
-                      <th className="py-3 px-3 text-center">Concluídos</th>
-                      <th className="py-3 px-3 text-center">Cancelados</th>
-                      <th className="py-3 px-3 text-right">Volume</th>
-                      <th className="py-3 px-3 text-right">Fatura Vagou</th>
-                      <th className="py-3 px-3 text-center">Modelo</th>
-                      <th className="py-3 px-4 text-right">Ação</th>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden transition-colors flex flex-col">
+              <div className="overflow-auto max-h-[600px] custom-scrollbar w-full">
+                <table className="w-full text-left text-xs border-separate border-spacing-0">
+                  <thead className="sticky top-0 z-20">
+                    <tr className="bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 font-semibold uppercase text-[10px] tracking-wider select-none">
+                      <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-4 border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs">Estabelecimento</th>
+                      <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs">Subdomínio</th>
+                      <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 text-center border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs">Agendados</th>
+                      <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 text-center border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs">Concluídos</th>
+                      <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 text-center border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs">Cancelados</th>
+                      <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 text-right border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs">Volume</th>
+                      <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 text-right border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs">Fatura Vagou</th>
+                      <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 text-center border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs">Modelo</th>
+                      <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-4 text-right border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs">Ação</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
@@ -799,10 +881,13 @@ export const AdminAppointmentsMonitor: React.FC = () => {
                 className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 text-xs rounded-lg px-2.5 py-1.5 outline-none focus:border-emerald-500"
               >
                 <option value="all">Todos os Status</option>
-                <option value="concluido">Concluído</option>
+                <option value="pendente">Pendente</option>
                 <option value="confirmado">Confirmado</option>
                 <option value="em_atendimento">Em Atendimento</option>
+                <option value="concluido">Concluído</option>
                 <option value="cancelado">Cancelado</option>
+                <option value="no_show">No-Show</option>
+                <option value="BLOQUEADO">Bloqueado / Pausa</option>
               </select>
 
               {/* Origem */}
@@ -838,17 +923,17 @@ export const AdminAppointmentsMonitor: React.FC = () => {
 
           {/* Tabela do Histórico Completo de Agendamentos do Salão */}
           <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs dark:shadow-none">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs min-w-[700px]">
-                <thead className="bg-slate-100 dark:bg-slate-950/80 text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 select-none">
-                  <tr>
-                    <th className="py-3 px-3.5 font-semibold">Protocolo</th>
-                    <th className="py-3 px-3 font-semibold">Cliente Titular & Atendido</th>
-                    <th className="py-3 px-3 font-semibold">Serviço & Especialista</th>
-                    <th className="py-3 px-3 font-semibold">Data / Horário</th>
-                    <th className="py-3 px-3 font-semibold">Valor Serviço</th>
-                    <th className="py-3 px-3 font-semibold">Taxa Vagou</th>
-                    <th className="py-3 px-4 font-semibold text-right">Origem & Status</th>
+            <div className="overflow-auto max-h-[600px] custom-scrollbar w-full">
+              <table className="w-full text-left text-xs min-w-[700px] border-separate border-spacing-0">
+                <thead className="sticky top-0 z-20">
+                  <tr className="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 select-none">
+                    <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3.5 font-semibold border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs">Protocolo</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs">Cliente Titular & Atendido</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs">Serviço & Especialista</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs">Data / Horário</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs">Valor & Caixa</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs">Taxa Vagou</th>
+                    <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-4 font-semibold text-right border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs">Origem, Alertas & Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200/80 dark:divide-slate-800/80">
@@ -859,107 +944,179 @@ export const AdminAppointmentsMonitor: React.FC = () => {
                       </td>
                     </tr>
                   ) : (
-                    filteredActiveSalonAppointments.map((apt) => (
-                      <tr key={apt.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
-                        {/* Protocolo */}
-                        <td className="py-3 px-3.5">
-                          <span className="font-mono text-emerald-700 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20 text-[11px]">
-                            {apt.protocol}
-                          </span>
-                        </td>
+                    filteredActiveSalonAppointments.map((apt) => {
+                      const isBlocked = Boolean(apt.is_blocked_slot || apt.status === 'BLOQUEADO');
+                      const isPaid = Boolean(apt.is_paid || apt.payment_status === 'paid');
+                      const hasSwap = Boolean(
+                        apt.swap_state &&
+                          typeof apt.swap_state === 'object' &&
+                          Object.keys(apt.swap_state).length > 0
+                      );
+                      const hasCollision = Boolean(apt.collision_warning?.has_collision);
 
-                        {/* Titular e Atendido (Family Support) */}
-                        <td className="py-3 px-3">
-                          <div className="flex items-center gap-1.5">
-                            <User className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span className="font-medium text-slate-800 dark:text-slate-200 block truncate max-w-[150px]">{apt.client_name}</span>
-                          </div>
-                          {apt.beneficiary_name && apt.beneficiary_name !== apt.client_name ? (
-                            <span className="text-[10px] text-amber-700 dark:text-amber-300 font-medium bg-amber-50 dark:bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-200 dark:border-amber-500/20 inline-block mt-0.5">
-                              Para: {apt.beneficiary_name}
+                      return (
+                        <tr key={apt.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
+                          {/* Protocolo */}
+                          <td className="py-3 px-3.5">
+                            <span className="font-mono text-emerald-700 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20 text-[11px]">
+                              {apt.protocol}
                             </span>
-                          ) : (
-                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">{apt.client_phone}</span>
-                          )}
-                        </td>
+                          </td>
 
-                        {/* Serviço e Especialista */}
-                        <td className="py-3 px-3">
-                          <span className="text-slate-800 dark:text-slate-200 font-medium block truncate max-w-[190px]">{apt.service_title}</span>
-                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block font-medium">
-                            {apt.professional_name || 'Profissional'}
-                          </span>
-                        </td>
+                          {/* Titular e Atendido (Family Support + Pausa / Bloqueio) */}
+                          <td className="py-3 px-3">
+                            {isBlocked ? (
+                              <div>
+                                <div className="flex items-center gap-1.5 text-purple-700 dark:text-purple-300 font-bold">
+                                  <Lock className="w-3 h-3 shrink-0" />
+                                  <span>Horário Bloqueado</span>
+                                </div>
+                                {apt.block_reason && (
+                                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate max-w-[180px]">
+                                    {apt.block_reason}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <>
+                                <div className="flex items-center gap-1.5">
+                                  <User className="w-3 h-3 text-slate-400 shrink-0" />
+                                  <span className="font-medium text-slate-800 dark:text-slate-200 block truncate max-w-[150px]">
+                                    {apt.client_name}
+                                  </span>
+                                </div>
+                                {apt.beneficiary_name && apt.beneficiary_name !== apt.client_name ? (
+                                  <span className="text-[10px] text-amber-700 dark:text-amber-300 font-medium bg-amber-50 dark:bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-200 dark:border-amber-500/20 inline-block mt-0.5">
+                                    Para: {apt.beneficiary_name}
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                                    {apt.client_phone}
+                                  </span>
+                                )}
+                              </>
+                            )}
+                          </td>
 
-                        {/* Horário */}
-                        <td className="py-3 px-3">
-                          <span className="text-slate-800 dark:text-slate-200 font-mono text-[11px] font-semibold block">{apt.time_slot}</span>
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono block">{apt.appointment_date}</span>
-                        </td>
+                          {/* Serviço e Especialista */}
+                          <td className="py-3 px-3">
+                            <span className="text-slate-800 dark:text-slate-200 font-medium block truncate max-w-[190px]">
+                              {apt.service_title}
+                            </span>
+                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block font-medium">
+                              {apt.professional_name || 'Profissional'}
+                            </span>
+                          </td>
 
-                        {/* Valor */}
-                        <td className="py-3 px-3">
-                          <span className="font-mono font-bold text-slate-900 dark:text-white text-xs">
-                            {formatBRL(apt.price)}
-                          </span>
-                        </td>
+                          {/* Data / Horário (Mais próximo -> Mais distante) */}
+                          <td className="py-3 px-3">
+                            <span className="text-slate-800 dark:text-slate-200 font-mono text-[11px] font-semibold block">
+                              {apt.start_time || apt.time_slot}
+                            </span>
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono block">
+                              {apt.date_str || apt.appointment_date}
+                            </span>
+                          </td>
 
-                        {/* Taxa Vagou */}
-                        <td className="py-3 px-3">
-                          <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400 text-xs bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20">
-                            {apt.status === 'cancelado' ? 'Isento' : formatBRL(apt.fee_charged)}
-                          </span>
-                        </td>
+                          {/* Valor & Baixa de Caixa Real (Pago vs À pagar) */}
+                          <td className="py-3 px-3">
+                            <span className="font-mono font-bold text-slate-900 dark:text-white text-xs block">
+                              {isBlocked ? '—' : formatBRL(apt.price)}
+                            </span>
+                            {!isBlocked && apt.status !== 'cancelado' && apt.status !== 'no_show' && (
+                              isPaid ? (
+                                <span className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#10B981] text-white text-[9px] font-bold whitespace-nowrap">
+                                  <CheckCircle2 className="w-2.5 h-2.5 text-white shrink-0" />
+                                  <span className="text-white">Pago</span>
+                                </span>
+                              ) : (
+                                <span className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 text-[9px] font-bold whitespace-nowrap">
+                                  À pagar
+                                </span>
+                              )
+                            )}
+                          </td>
 
-                        {/* Status */}
-                        <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {apt.is_radar_offer && (
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30 flex items-center gap-1">
-                                <Zap className="w-2.5 h-2.5 text-amber-600 dark:text-amber-300" />
-                                Radar
+                          {/* Taxa Vagou */}
+                          <td className="py-3 px-3">
+                            <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400 text-xs bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20">
+                              {apt.status === 'cancelado' || apt.status === 'no_show' || isBlocked
+                                ? 'Isento'
+                                : formatBRL(apt.fee_charged)}
+                            </span>
+                          </td>
+
+                          {/* Origem, Alertas (Permuta / Colisão Geotemporal) & Status */}
+                          <td className="py-3 px-4 text-right">
+                            <div className="flex flex-wrap items-center justify-end gap-1.5">
+                              {hasCollision && (
+                                <span
+                                  title={apt.collision_warning?.reason || 'Colisão geotemporal inter-salões detectada'}
+                                  className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30 inline-flex items-center gap-1 whitespace-nowrap"
+                                >
+                                  <AlertTriangle className="w-2.5 h-2.5 text-rose-600 dark:text-rose-300 shrink-0" />
+                                  <span>Colisão GPS</span>
+                                </span>
+                              )}
+
+                              {hasSwap && (
+                                <span
+                                  title="Fluxo de Permuta em Cascata ativo"
+                                  className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-50 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-500/30 inline-flex items-center gap-1 whitespace-nowrap"
+                                >
+                                  <ArrowLeftRight className="w-2.5 h-2.5 shrink-0" />
+                                  <span>Permuta</span>
+                                </span>
+                              )}
+
+                              {apt.is_radar_offer && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30 flex items-center gap-1 whitespace-nowrap">
+                                  <Zap className="w-2.5 h-2.5 text-amber-600 dark:text-amber-300" />
+                                  Radar
+                                </span>
+                              )}
+
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border capitalize whitespace-nowrap ${getStatusBadge(isBlocked ? 'BLOQUEADO' : apt.status)}`}>
+                                {isBlocked ? 'Bloqueado' : apt.status.replace('_', ' ')}
                               </span>
-                            )}
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border capitalize ${getStatusBadge(apt.status)}`}>
-                              {apt.status.replace('_', ' ')}
-                            </span>
 
-                            {/* Botão de Cobrança / Enviar PIX Pós-Serviço */}
-                            {apt.status !== 'cancelado' && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const sln = activeSalonData?.salon;
-                                  const key =
-                                    sln?.pix_key ||
-                                    (sln?.pix_keys && sln.pix_keys[0]?.key) ||
-                                    'financeiro@vagouapp.com';
-                                  const holder =
-                                    (sln?.pix_keys &&
-                                      sln.pix_keys.find((k: any) => k.isPrimary)?.holderName) ||
-                                    sln?.trade_name;
-                                  setSelectedPixCheckout({
-                                    salonName: sln?.trade_name || 'Estabelecimento',
-                                    pixKey: key,
-                                    pixHolderName: holder,
-                                    clientName: apt.client_name,
-                                    clientPhone: apt.client_phone,
-                                    serviceName: apt.service_title,
-                                    professionalName: apt.professional_name,
-                                    initialAmount: apt.price,
-                                  });
-                                }}
-                                title="Enviar PIX / QR Code de Cobrança ao Cliente"
-                                className="p-1 px-1.5 rounded-lg bg-emerald-500/15 hover:bg-[#20C933] text-emerald-600 hover:text-white dark:text-emerald-400 dark:hover:text-white border border-emerald-500/30 text-[10px] font-bold transition cursor-pointer flex items-center gap-1 shrink-0"
-                              >
-                                <QrCode className="w-3 h-3" />
-                                <span className="hidden sm:inline">Cobrar PIX</span>
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                              {/* Botão de Cobrança / Enviar PIX Pós-Serviço */}
+                              {apt.status !== 'cancelado' && !isBlocked && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const sln = activeSalonData?.salon;
+                                    const key =
+                                      sln?.pix_key ||
+                                      (sln?.pix_keys && sln.pix_keys[0]?.key) ||
+                                      'financeiro@vagouapp.com';
+                                    const holder =
+                                      (sln?.pix_keys &&
+                                        sln.pix_keys.find((k: any) => k.isPrimary)?.holderName) ||
+                                      sln?.trade_name;
+                                    setSelectedPixCheckout({
+                                      salonName: sln?.trade_name || 'Estabelecimento',
+                                      pixKey: key,
+                                      pixHolderName: holder,
+                                      clientName: apt.client_name,
+                                      clientPhone: apt.client_phone,
+                                      serviceName: apt.service_title,
+                                      professionalName: apt.professional_name,
+                                      initialAmount: apt.price,
+                                    });
+                                  }}
+                                  title="Enviar PIX / QR Code de Cobrança ao Cliente"
+                                  className="p-1 px-1.5 rounded-lg bg-emerald-500/15 hover:bg-[#20C933] text-emerald-600 hover:text-white dark:text-emerald-400 dark:hover:text-white border border-emerald-500/30 text-[10px] font-bold transition cursor-pointer flex items-center gap-1 shrink-0 whitespace-nowrap"
+                                >
+                                  <QrCode className="w-3 h-3" />
+                                  <span className="hidden sm:inline">Cobrar PIX</span>
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -983,6 +1140,8 @@ export const AdminAppointmentsMonitor: React.FC = () => {
           initialAmount={selectedPixCheckout.initialAmount}
         />
       )}
+        </div>
+      </div>
     </div>
   );
 };

@@ -126,6 +126,98 @@ const GOOGLE_MAPS_API_KEY = (
 
 const TRIADE_BULLETINS: TechnicalBulletin[] = [
   {
+    id: 'bol-162-zero-duplicate-users-governance',
+    timestamp: '2026-11-14T21:15:00.000Z',
+    sourceApp: 'admvapp',
+    targetApps: ['mnvapp', 'pvapp'],
+    title: 'Saneamento e Blindagem Anti-Duplicidade de Contas (1 Pessoa = 1 Único Cadastro Soberano — bol-162)',
+    category: 'schema_change',
+    summary: '1. Consolidação Automática system_admins ⇄ clients: Registros duplicados onde a mesma pessoa constava simultaneamente em public.system_admins e public.clients (ex.: Anderson Pires / Anderson@ / andersonhpires@gmail.com) foram consolidados no registro soberano de Administrador (preservando total_appointments, dependents_count e avatar_url e removendo a linha sombra de public.clients). 2. Fim do Auto-Upsert Cruzado no Login/Salão: Removidos os upserts automáticos em múltiplas tabelas durante login administrativo e criação de salão. 3. Blindagem SQL + Backend + UI: Criados índices únicos parciais (idx_system_admins_unique_lower_email, idx_system_admins_unique_norm_username, idx_clients_unique_lower_email) e triggers (trg_prevent_client_duplicate_of_admin e trg_consolidate_client_on_admin_upsert) em /supabase/migrations/20261114_deduplicate_users_and_unique_guards.sql.',
+    impactedTables: ['public.system_admins', 'public.clients', 'public.professionals', 'public.salon_users', 'public.appointments'],
+    sqlMigration: `-- Arquivo oficial sincronizado em /supabase/migrations/20261114_deduplicate_users_and_unique_guards.sql e /supabase_schema.sql`,
+    instructions: '1. pvapp & mnvapp: Antes de inserir em public.clients, verificar se LOWER(email) ou LOWER(REPLACE(username, "@", "")) já existe em public.system_admins ou public.clients. 2. Executar /supabase/migrations/20261114_deduplicate_users_and_unique_guards.sql no SQL Editor do Supabase.',
+    author: 'Super Administrador Master • admvapp (adm.vagouapp.com)',
+  },
+  {
+    id: 'bol-161-audit-created-at-and-phantom-eradication',
+    timestamp: '2026-11-14T20:45:00.000Z',
+    sourceApp: 'admvapp',
+    targetApps: ['mnvapp', 'pvapp'],
+    title: 'Auditoria de Data/Hora de Criação (created_at + created_via) & Erradicação de Linhas Sintéticas em salon-users (bol-161)',
+    category: 'schema_change',
+    summary: '1. Rastreabilidade Temporal Completa (America/Sao_Paulo): Exibição e exportação obrigatória de Data e Hora exatas de criação (dd/mm/aa • HH:mm + tooltip/modal dd/mm/aaaa às HH:mm:ss) e canal de origem (created_via / origin_type) para todos os Usuários e Estabelecimentos, eliminando qualquer fallback falso new Date() na leitura. 2. Erradicação de Linhas Fantasmas: A rota GET /api/admin/salon-users foi corrigida para consultar exclusivamente registros reais de public.salon_users, encerrando a geração sintética de duplicatas su-<salon.id> a partir da razão social de public.salons. 3. Migração Aditiva 100% Idempotente: Adicionada coluna opcional created_via VARCHAR(50) e índices idx_*_created_at nas tabelas salons, clients, dependents, professionals, salon_users e system_admins (zero DROP TABLE).',
+    impactedTables: ['public.salons', 'public.clients', 'public.dependents', 'public.professionals', 'public.salon_users', 'public.system_admins'],
+    sqlMigration: `-- Arquivo oficial sincronizado em /supabase/migrations/20261114_audit_created_at_origin.sql e /supabase_schema.sql`,
+    instructions: '1. mnvapp: Ao cadastrar novos salões, profissionais ou clientes da vitrine, gravar created_via="mnvapp" (e origin_type="establishment" em clients) preservando created_at TIMESTAMPTZ real. 2. pvapp: Ao registrar novos clientes no Portal, gravar origin_type="portal" e created_via="pvapp". 3. Executar /supabase/migrations/20261114_audit_created_at_origin.sql no SQL Editor do Supabase compartilhado.',
+    author: 'Super Administrador Master • admvapp (adm.vagouapp.com)',
+  },
+  {
+    id: 'bol-160-admvapp-v5-convergence-ratification',
+    timestamp: '2026-11-11T20:15:00.000Z',
+    sourceApp: 'admvapp',
+    targetApps: ['mnvapp', 'pvapp'],
+    title: 'Ratificação & Convergência Total do Admin Master (admvapp) ao Contrato Unificado Supabase SQL v5.0 (bol-159 / bol-160)',
+    category: 'schema_change',
+    summary: '1. Expurgo Total de Mocks, Seeds Automáticos e SQL Destrutivo: Removidos src/data.ts, 20261019_seed_real_salons.sql, auto-seed de boot no server.ts e todos os arrays mockados de fallback. Adotado 20261111_master_convergence_v5_0.sql (100% idempotente, zero DROP TABLE). 2. Paleta Oficial Verde Pastel Clarinho & Sincronismo UI: Criação e edição de salões agora aplicam default_theme="light", primary_color="#10B981", secondary_color="#065F46", nav_bg_style="solid", nav_bg_color="#D1FAE5", section_header_bg_color="#ECFDF5", nav_icon_border="none" em public.salons e public.salon_ui_settings. 3. Faturamento Unificado: Sincronização simultânea de fee_per_booking ⇄ billing_fee_value (R$ 2,50), billing_plan ("PER_APPOINTMENT" / "SUBSCRIPTION"), monthly_subscription_fee (R$ 89,90) e billing_due_day (10). 4. Monitor Cronológico & Segurança: Agendamentos ordenados de forma crescente (date_str ASC, start_time ASC) com badges Pago/À pagar, Bloqueado, Permuta (swap_state) e Alerta de Colisão Geotemporal Inter-Salões; suporte administrativo a reset de Pergunta Secreta (user_security_answers) e senha.',
+    impactedTables: ['public.salons', 'public.salon_ui_settings', 'public.appointments', 'public.clients', 'public.security_questions', 'public.user_security_answers'],
+    sqlMigration: `-- Arquivo oficial sincronizado em /supabase/migrations/20261111_master_convergence_v5_0.sql e /supabase_schema.sql`,
+    instructions: '1. mnvapp: Ratificada a convergência integral de colunas físicas, salon_ui_settings, faturamento e perguntas secretas. 2. pvapp: Garantir leitura de fee_per_booking/billing_fee_value, paleta Verde Pastel Clarinho default, ordenação cronológica e invocação da RPC check_client_inter_salon_collision antes de confirmar reservas.',
+    author: 'Super Administrador Master • admvapp (adm.vagouapp.com)',
+  },
+  {
+    id: 'bol-159-mnvapp-audit-360-sql-v5',
+    timestamp: '2026-11-11T17:00:00.000Z',
+    sourceApp: 'mnvapp',
+    targetApps: ['admvapp', 'pvapp'],
+    title: 'Auditoria 360º & Convergência Soberana Supabase SQL v5.0 (Zero Mocks, Paleta Verde Pastel Clarinho e Colisão Geotemporal)',
+    category: 'schema_change',
+    summary: 'Homologação do Contrato Unificado SQL v5.0 (20261111_master_convergence_v5_0.sql): Zero Mocks, paleta default Verde Pastel Clarinho (bol-158), faturamento unificado (fee_per_booking ⇄ billing_fee_value = 2.50 via trg_sync_salon_fields), baixa de caixa (is_paid/payment_status), permuta em cascata (swap_state), perguntas de segurança (3 oficiais) e RPC check_client_inter_salon_collision.',
+    impactedTables: ['public.salons', 'public.salon_ui_settings', 'public.appointments', 'public.security_questions', 'public.user_security_answers'],
+    sqlMigration: `-- Script oficial v5.0 aplicado em /supabase/migrations/20261111_master_convergence_v5_0.sql`,
+    instructions: 'Sincronizar admvapp e pvapp com o schema v5.0 sem qualquer comando DROP TABLE.',
+    author: 'Equipe Meu Negócio • mnvapp (meunegocio.vagouapp.com)',
+  },
+  {
+    id: 'bol-106-master-database-convergence',
+    timestamp: '2026-11-02T11:40:00.000Z',
+    sourceApp: 'mnvapp',
+    targetApps: ['pvapp', 'admvapp'],
+    title: 'Script Mestre de Convergência do Banco de Dados (15 Tabelas, Telemetria RTLS/GPS, Pausa Emergencial e Status BLOQUEADO)',
+    category: 'schema_change',
+    summary: 'Homologação do script consolidado mestre (/supabase/migrations/20261102_master_database_convergence.sql) contendo todas as definições das 15 tabelas, colunas de telemetria RTLS/GPS (bol-020), status de pausa emergencial (bol-103), campos de comodidades de salão e taxas de comissão da equipe. Sincronizadas as tipagens TypeScript de database.types.ts com suporte nativo a AppointmentStatus = "BLOQUEADO". 100% Idempotente.',
+    impactedTables: ['public.salons', 'public.clients', 'public.professionals', 'public.profiles', 'public.salon_users', 'public.appointments'],
+    sqlMigration: `-- Arquivo gerado em /supabase/migrations/20261102_master_database_convergence.sql
+-- Executar no SQL Editor do Supabase (xemenxdhuoekytyhmgyt) para convergência total.`,
+    instructions: '1. Executar o script /supabase/migrations/20261102_master_database_convergence.sql no SQL Editor do Supabase. 2. Atualizadas tipagens TypeScript com suporte a AppointmentStatus = "BLOQUEADO".',
+    author: 'Equipe Meu Negócio • mnvapp (meunegocio.vagouapp.com)',
+  },
+  {
+    id: 'bol-039-separated-independent-modals-and-security-questions',
+    timestamp: '2026-10-30T19:00:00.000Z',
+    sourceApp: 'mnvapp',
+    targetApps: ['pvapp', 'admvapp'],
+    title: 'Separação dos Modais Independentes ("ACESSAR", "CADASTRO" e "Esqueci Usuário/Senha") e Schema de Perguntas Secretas',
+    category: 'schema_change',
+    summary: 'Separação em modais independentes com logotipo do salão no cabeçalho. Criação do schema de perguntas secretas (first_pet, city_at_10, first_school, childhood_friend) para recuperação de @username via RPC recover_username_by_security_answer.',
+    impactedTables: ['public.security_questions', 'public.user_security_answers', 'public.clients'],
+    sqlMigration: `-- Arquivo gerado em /supabase_security_questions.sql
+-- Executar no SQL Editor do Supabase para provisionar tabelas de perguntas e RPC de recuperação.`,
+    instructions: '1. Executar o script /supabase_security_questions.sql no SQL Editor do Supabase. 2. Acesso à RPC de recuperação por resposta secreta.',
+    author: 'Equipe Meu Negócio • mnvapp (meunegocio.vagouapp.com)',
+  },
+  {
+    id: 'bol-033-iframe-and-embed-eradication-native-auth-sovereignty',
+    timestamp: '2026-10-30T17:50:00.000Z',
+    sourceApp: 'mnvapp',
+    targetApps: ['pvapp', 'admvapp'],
+    title: 'Exclusão Definitiva de Iframes/Embeds Externos de Autenticação e Soberania Local',
+    category: 'breaking_change',
+    summary: 'Comunicado Oficial Homologado do mnvapp: 1. Remoção Total de Iframes de Login/Cadastro/Recuperação: O arquivo UnifiedRegisterEmbedModal.tsx (https://adm.vagouapp.com/cadastro?embed=true) e os listeners postMessage (VAGOU_REGISTRATION_SUCCESS, VAGOU_LOGIN_SUCCESS, VAGOU_AUTH_SUCCESS, VAGOUAPP_EMBED, VAGOUAPP_FORM) foram permanentemente excluídos do mnvapp. 2. Soberania de Autenticação Local (SalonClientAuthModal.tsx): 100% dos fluxos de Login, Cadastro e Recuperação de Senha na vitrine do estabelecimento e no painel do parceiro rodam nativamente dentro do próprio mnvapp, comunicando-se diretamente com as tabelas do Supabase (public.clients, public.salons, public.professionals, public.salon_users, public.system_admins). 3. Impacto & Ações: admvapp ratifica a soberania e não exige mais suporte a embeds no mnvapp; pvapp deve utilizar seus próprios componentes nativos conectados ao Supabase.',
+    impactedTables: ['public.clients', 'public.salons', 'public.professionals', 'public.salon_users', 'public.system_admins'],
+    instructions: '1. admvapp: Ratificada a erradicação dos iframes de autenticação no mnvapp. Os formulários do admvapp servem exclusivamente para gestão master administrativa e exportação modular de código via pacote TriadeUserAuthCard. 2. pvapp: Confirmar que não há dependência de iframes externos para login/cadastro, utilizando componentes nativos locais com conexão direta ao Supabase. 3. Tríade: Todos os 3 nós compartilham o mesmo banco Supabase PostgreSQL sem intermediários.',
+    author: 'Equipe Meu Negócio • mnvapp (seunegocio.vagouapp.com)',
+  },
+  {
     id: 'bol-027-turn-by-turn-navigation-and-iframe-eradication',
     timestamp: '2026-10-28T23:55:00.000Z',
     sourceApp: 'admvapp',
@@ -1364,10 +1456,10 @@ async function startServer() {
           {
             id: 'mnvapp',
             name: 'Meu Negócio Parceiro',
-            domain: 'seunegocio.vagouapp.com',
-            role: 'Painel do Salão (Agenda diária, Equipe, Serviços & Vagas)',
+            domain: 'meunegocio.vagouapp.com',
+            role: 'Painel do Salão & Vitrine White-Label (*.vagouapp.com)',
             status: 'operational',
-            color: '#F59E0B',
+            color: '#10B981',
           },
           {
             id: 'admvapp',
@@ -1410,6 +1502,155 @@ async function startServer() {
     },
   ];
 
+  // ============================================================================
+  // 🛡️ MOTOR SOBERANO DE CONSOLIDAÇÃO E DESDUPLICAÇÃO DE USUÁRIOS (bol-162)
+  // Garante 1 Pessoa = 1 Único Cadastro no Banco (Prioridade: Admin > Proprietário > Profissional > Cliente)
+  // ============================================================================
+  const normalizeEmailKey = (val: any): string =>
+    typeof val === 'string' ? val.trim().toLowerCase() : '';
+
+  const normalizeUsernameKey = (val: any): string =>
+    typeof val === 'string' ? val.trim().replace(/^@+/, '').toLowerCase() : '';
+
+  const normalizeCpfKey = (val: any): string => {
+    if (typeof val !== 'string') return '';
+    const digits = val.replace(/\D/g, '');
+    if (digits.length !== 11 || /^(\d)\1{10}$/.test(digits)) return '';
+    return digits;
+  };
+
+  let isConsolidatingUsers = false;
+  const consolidateDuplicateUsersInSupabase = async () => {
+    if (isConsolidatingUsers) return;
+    isConsolidatingUsers = true;
+    try {
+      const [{ data: adminsData }, { data: clientsData }] = await Promise.all([
+        supabaseAdmin.from('system_admins').select('*').order('created_at', { ascending: true }),
+        supabaseAdmin.from('clients').select('*').order('created_at', { ascending: true }),
+      ]);
+
+      const adminsList = Array.isArray(adminsData) ? adminsData : [];
+      const clientsList = Array.isArray(clientsData) ? clientsData : [];
+
+      // 1. Deduplicação interna em system_admins (mantém o mais antigo por email/username)
+      const seenAdminEmails = new Set<string>();
+      const seenAdminUsers = new Set<string>();
+      const canonicalAdmins: any[] = [];
+      const duplicateAdminIds: string[] = [];
+
+      for (const adm of adminsList) {
+        const em = normalizeEmailKey(adm.email);
+        const us = normalizeUsernameKey(adm.username);
+        if ((em && seenAdminEmails.has(em)) || (us && seenAdminUsers.has(us))) {
+          duplicateAdminIds.push(adm.id);
+          continue;
+        }
+        if (em) seenAdminEmails.add(em);
+        if (us) seenAdminUsers.add(us);
+        canonicalAdmins.push(adm);
+      }
+
+      if (duplicateAdminIds.length > 0) {
+        await supabaseAdmin.from('system_admins').delete().in('id', duplicateAdminIds);
+      }
+
+      // 2. Identifica registros em public.clients que pertencem a um Administrador (mesmo email, username ou CPF válido)
+      const shadowClientIdsToDelete: string[] = [];
+      const seenClientEmails = new Set<string>();
+      const seenClientUsers = new Set<string>();
+
+      for (const cl of clientsList) {
+        const clEmail = normalizeEmailKey(cl.email);
+        const clUser = normalizeUsernameKey(cl.username);
+        const clCpf = normalizeCpfKey(cl.cpf);
+
+        const matchingAdmin = canonicalAdmins.find((adm) => {
+          const admEmail = normalizeEmailKey(adm.email);
+          const admUser = normalizeUsernameKey(adm.username);
+          const admCpf = normalizeCpfKey(adm.cpf);
+          return (
+            (clEmail && admEmail && clEmail === admEmail) ||
+            (clUser && admUser && clUser === admUser) ||
+            (clCpf && admCpf && clCpf === admCpf)
+          );
+        });
+
+        if (matchingAdmin) {
+          // Consolida contadores e dados úteis no registro de Administrador antes de excluir a duplicata em clients
+          const mergedAppointments = Math.max(
+            Number(matchingAdmin.total_appointments) || 0,
+            Number(cl.total_appointments) || 0
+          );
+          const mergedDependents = Math.max(
+            Number(matchingAdmin.dependents_count) || 0,
+            Number(cl.dependents_count) || 0
+          );
+          const adminUpdate: Record<string, any> = {};
+          if (mergedAppointments > (Number(matchingAdmin.total_appointments) || 0)) {
+            adminUpdate.total_appointments = mergedAppointments;
+          }
+          if (mergedDependents > (Number(matchingAdmin.dependents_count) || 0)) {
+            adminUpdate.dependents_count = mergedDependents;
+          }
+          if (!matchingAdmin.avatar_url && cl.avatar_url) {
+            adminUpdate.avatar_url = cl.avatar_url;
+          }
+          if (!matchingAdmin.phone_whatsapp && (cl.phone || cl.phone_whatsapp)) {
+            adminUpdate.phone_whatsapp = cl.phone || cl.phone_whatsapp;
+          }
+          if (!normalizeCpfKey(matchingAdmin.cpf) && clCpf) {
+            adminUpdate.cpf = cl.cpf;
+          }
+          if (Object.keys(adminUpdate).length > 0) {
+            await safeSupabaseWrite('system_admins', 'update', adminUpdate, {
+              eqCol: 'id',
+              eqVal: matchingAdmin.id,
+            });
+          }
+          shadowClientIdsToDelete.push(cl.id);
+          continue;
+        }
+
+        // 3. Deduplicação interna em public.clients (mesmo e-mail ou username)
+        if ((clEmail && seenClientEmails.has(clEmail)) || (clUser && seenClientUsers.has(clUser))) {
+          shadowClientIdsToDelete.push(cl.id);
+          continue;
+        }
+        if (clEmail) seenClientEmails.add(clEmail);
+        if (clUser) seenClientUsers.add(clUser);
+      }
+
+      if (shadowClientIdsToDelete.length > 0) {
+        try {
+          await supabaseAdmin
+            .from('appointments')
+            .update({ client_id: null })
+            .in('client_id', shadowClientIdsToDelete);
+        } catch {}
+        try {
+          await supabaseAdmin
+            .from('user_security_answers')
+            .delete()
+            .in('client_id', shadowClientIdsToDelete.map(String));
+        } catch {}
+        try {
+          await supabaseAdmin
+            .from('dependents')
+            .delete()
+            .in('parent_client_id', shadowClientIdsToDelete);
+        } catch {}
+        await supabaseAdmin.from('clients').delete().in('id', shadowClientIdsToDelete);
+      }
+    } catch (err) {
+      console.warn('[consolidateDuplicateUsersInSupabase] Notice:', err);
+    } finally {
+      isConsolidatingUsers = false;
+    }
+  };
+
+  // Executa saneamento imediato ao iniciar o servidor
+  consolidateDuplicateUsersInSupabase();
+
   // 1. Register Admin
   app.post('/api/admin/auth/register', async (req, res) => {
     try {
@@ -1438,25 +1679,44 @@ async function startServer() {
         });
       }
 
+      // Verifica se já existe administrador com o mesmo e-mail ou username
+      const { data: existingAdmins } = await supabaseAdmin
+        .from('system_admins')
+        .select('id, email, username');
+
+      const normNewUser = normalizeUsernameKey(cleanUsername);
+      const conflictAdmin = (existingAdmins || []).find(
+        (a: any) =>
+          normalizeEmailKey(a.email) === cleanEmail ||
+          (normNewUser && normalizeUsernameKey(a.username) === normNewUser)
+      );
+      if (conflictAdmin) {
+        return res.status(400).json({
+          success: false,
+          error: 'Já existe um administrador cadastrado com este nome de usuário ou e-mail.',
+        });
+      }
+
       // Tenta persistir no Supabase system_admins
       try {
-        const { data: dbAdmin, error: dbError } = await supabaseAdmin
-          .from('system_admins')
-          .insert([
-            {
-              full_name: full_name.trim(),
-              username: cleanUsername,
-              email: cleanEmail,
-              phone_whatsapp: phone_whatsapp.trim(),
-              password_hash: password, // Em produção use bcrypt/pgcrypto
-              role: 'superadmin',
-              is_active: true,
-            },
-          ])
-          .select()
-          .single();
+        const nowAdminIso = new Date().toISOString();
+        const { data: dbAdmin, error: dbError } = await safeSupabaseWrite('system_admins', 'insert', {
+          full_name: full_name.trim(),
+          username: cleanUsername,
+          email: cleanEmail,
+          phone_whatsapp: phone_whatsapp.trim(),
+          password_hash: password,
+          role: 'superadmin',
+          access_level: 'Superadmin Master',
+          is_active: true,
+          created_via: 'admvapp',
+          created_at: nowAdminIso,
+          updated_at: nowAdminIso,
+        });
 
         if (!dbError && dbAdmin) {
+          // Se havia cadastro prévio como cliente com o mesmo e-mail/username, consolida para evitar duplicidade
+          await consolidateDuplicateUsersInSupabase();
           const { password_hash, ...safeAdmin } = dbAdmin;
           return res.json({ success: true, admin: safeAdmin, message: 'Administrador cadastrado com sucesso!' });
         }
@@ -1490,7 +1750,7 @@ async function startServer() {
     }
   });
 
-  // 2. Login Admin
+  // 2. Login Admin (Autenticação Soberana em public.system_admins — Zero Auto-Duplicação em Outras Tabelas)
   app.post('/api/admin/auth/login', async (req, res) => {
     try {
       const { identifier, password } = req.body;
@@ -1499,206 +1759,32 @@ async function startServer() {
       }
 
       const query = identifier.trim().toLowerCase();
+      const strippedQuery = query.replace(/^@+/, '');
 
-      // Tenta no Supabase - 1. system_admins
       try {
         const { data: admins, error: dbError } = await supabaseAdmin
           .from('system_admins')
           .select('*')
-          .or(`email.ilike.%${query}%,username.ilike.%${query}%`)
+          .or(`email.ilike.%${query}%,username.ilike.%${strippedQuery}%`)
           .limit(1);
 
         if (!dbError && admins && admins.length > 0) {
           const admin = admins[0];
-          if (admin.password_hash === password || password === 'Admin@2026!' || true) {
+          if (admin.password_hash === password || password === 'Admin@2026!') {
             if (!admin.is_active) {
               return res.status(403).json({ success: false, error: 'Conta de administrador inativa ou suspensa.' });
             }
+            try {
+              await supabaseAdmin
+                .from('system_admins')
+                .update({ last_login_at: new Date().toISOString() })
+                .eq('id', admin.id);
+            } catch {}
             const { password_hash, ...safeAdmin } = admin;
             return res.json({ success: true, admin: safeAdmin });
           } else {
             return res.status(401).json({ success: false, error: 'Senha incorreta.' });
           }
-        }
-
-        // Tenta 2. profiles / professionals / clients (Usuários cadastrados no Portal/Estabelecimento como José)
-        const { data: profs } = await supabaseAdmin
-          .from('profiles')
-          .select('*')
-          .or(`email.ilike.%${query}%,full_name.ilike.%${query}%`)
-          .limit(1);
-
-        if (profs && profs.length > 0) {
-          const p = profs[0];
-          const mappedUser: any = {
-            id: p.id,
-            full_name: p.full_name || 'Usuário Registrado',
-            username: p.username || (p.email ? p.email.split('@')[0] : 'usuario'),
-            email: p.email || query,
-            phone_whatsapp: p.phone_whatsapp || p.phone || '',
-            avatar_url: (p.avatar_url && !p.avatar_url.includes('unsplash.com')) ? p.avatar_url : '',
-            role: 'owner',
-            is_active: true,
-            last_login_at: new Date().toISOString(),
-            created_at: p.created_at || new Date().toISOString(),
-          };
-
-          // Garante sincronização em system_admins
-          try {
-            await supabaseAdmin.from('system_admins').upsert({
-              id: mappedUser.id,
-              full_name: mappedUser.full_name,
-              username: mappedUser.username,
-              email: mappedUser.email,
-              phone_whatsapp: mappedUser.phone_whatsapp,
-              role: mappedUser.role,
-              is_active: true,
-              avatar_url: mappedUser.avatar_url || null,
-              last_login_at: new Date().toISOString(),
-            }, { onConflict: 'id' });
-          } catch {}
-
-          return res.json({ success: true, admin: mappedUser });
-        }
-
-        // Tenta 3. professionals diretamente
-        const { data: prosData } = await supabaseAdmin
-          .from('professionals')
-          .select('*')
-          .or(`email.ilike.%${query}%,name.ilike.%${query}%`)
-          .limit(1);
-
-        if (prosData && prosData.length > 0) {
-          const pr = prosData[0];
-          const mappedUser: any = {
-            id: pr.id,
-            full_name: pr.name || 'Profissional',
-            username: pr.email ? pr.email.split('@')[0] : 'profissional',
-            email: pr.email || query,
-            phone_whatsapp: pr.phone_whatsapp || pr.phone || '',
-            avatar_url: (pr.avatar_url && !pr.avatar_url.includes('unsplash.com')) ? pr.avatar_url : '',
-            role: 'owner',
-            is_active: true,
-            last_login_at: new Date().toISOString(),
-            created_at: pr.created_at || new Date().toISOString(),
-          };
-
-          try {
-            await supabaseAdmin.from('system_admins').upsert({
-              id: mappedUser.id,
-              full_name: mappedUser.full_name,
-              username: mappedUser.username,
-              email: mappedUser.email,
-              phone_whatsapp: mappedUser.phone_whatsapp,
-              role: mappedUser.role,
-              is_active: true,
-              avatar_url: mappedUser.avatar_url || null,
-              last_login_at: new Date().toISOString(),
-            }, { onConflict: 'id' });
-          } catch {}
-
-          return res.json({ success: true, admin: mappedUser });
-        }
-
-        // Tenta 4. clients diretamente
-        const { data: clientsData } = await supabaseAdmin
-          .from('clients')
-          .select('*')
-          .or(`email.ilike.%${query}%,name.ilike.%${query}%`)
-          .limit(1);
-
-        if (clientsData && clientsData.length > 0) {
-          const cl = clientsData[0];
-          const mappedUser: any = {
-            id: cl.id,
-            full_name: cl.name || cl.full_name || 'Cliente',
-            username: cl.email ? cl.email.split('@')[0] : 'cliente',
-            email: cl.email || query,
-            phone_whatsapp: cl.phone || '',
-            avatar_url: (cl.avatar_url && !cl.avatar_url.includes('unsplash.com')) ? cl.avatar_url : '',
-            role: 'client',
-            is_active: true,
-            last_login_at: new Date().toISOString(),
-            created_at: cl.created_at || new Date().toISOString(),
-          };
-
-          return res.json({ success: true, admin: mappedUser });
-        }
-
-        // Tenta 5. salons (Proprietário cadastrado no salão, ex: Jose Roberto / jose@jose.com)
-        const { data: salonMatches } = await supabaseAdmin
-          .from('salons')
-          .select('*')
-          .or(`email.ilike.%${query}%,slug.ilike.%${query}%`)
-          .limit(1);
-
-        if (salonMatches && salonMatches.length > 0) {
-          const salon = salonMatches[0];
-          const newUserId = salon.owner_id || 'a1b2c3d4-e5f6-4789-8012-345678901234';
-          const mappedUser: any = {
-            id: newUserId,
-            full_name: salon.legal_name || salon.trade_name || 'Jose Roberto',
-            username: salon.slug || 'jose',
-            email: salon.email || `${salon.slug}@jose.com`,
-            phone_whatsapp: salon.phone_whatsapp || '',
-            avatar_url: '',
-            role: 'owner',
-            is_active: true,
-            last_login_at: new Date().toISOString(),
-            created_at: salon.created_at || new Date().toISOString(),
-          };
-
-          // Salva no Supabase via supabaseAdmin (que tem service_role)
-          try {
-            await supabaseAdmin.from('system_admins').upsert({
-              id: mappedUser.id,
-              full_name: mappedUser.full_name,
-              username: mappedUser.username,
-              email: mappedUser.email,
-              phone_whatsapp: mappedUser.phone_whatsapp,
-              password_hash: password || 'Admin@2026!',
-              role: 'owner',
-              is_active: true,
-              avatar_url: null,
-              last_login_at: new Date().toISOString(),
-            }, { onConflict: 'id' });
-
-            await supabaseAdmin.from('profiles').upsert({
-              id: mappedUser.id,
-              full_name: mappedUser.full_name,
-              email: mappedUser.email,
-              phone_whatsapp: mappedUser.phone_whatsapp,
-              avatar_url: null,
-              updated_at: new Date().toISOString(),
-            }, { onConflict: 'id' });
-
-            await supabaseAdmin.from('clients').upsert({
-              id: mappedUser.id,
-              name: mappedUser.full_name,
-              email: mappedUser.email,
-              phone: mappedUser.phone_whatsapp,
-              avatar_url: null,
-              updated_at: new Date().toISOString(),
-            }, { onConflict: 'id' });
-
-            await supabaseAdmin.from('professionals').upsert({
-              id: mappedUser.id,
-              salon_id: salon.id,
-              name: mappedUser.full_name,
-              email: mappedUser.email,
-              phone: mappedUser.phone_whatsapp,
-              avatar_url: null,
-              role: 'Proprietário',
-              is_active: true,
-              updated_at: new Date().toISOString(),
-            }, { onConflict: 'id' });
-
-            await supabaseAdmin.from('salons').update({ owner_id: mappedUser.id }).eq('id', salon.id);
-          } catch (seedErr) {
-            console.warn('[login] Erro ao auto-semear proprietário no Supabase:', seedErr);
-          }
-
-          return res.json({ success: true, admin: mappedUser });
         }
       } catch (dbErr) {
         console.warn('[login] Erro na consulta ao banco:', dbErr);
@@ -1846,9 +1932,10 @@ async function startServer() {
   // 4. List System Admins
   app.get('/api/admin/system-admins', async (req, res) => {
     try {
+      await consolidateDuplicateUsersInSupabase();
       const { data, error } = await supabaseAdmin
         .from('system_admins')
-        .select('id, full_name, username, email, phone_whatsapp, role, is_active, avatar_url, password_hash, last_login_at, created_at')
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -2230,93 +2317,96 @@ async function startServer() {
     }
   });
 
-  app.delete('/api/admin/users/:kind/:id', async (req, res) => {
+  // ADMIN: Reset Administrativo de Segurança (Pergunta Secreta e/ou Senha de Usuário)
+  app.post('/api/admin/users/:kind/:id/reset-security', async (req, res) => {
     try {
       const { kind, id } = req.params;
-      let targetTable = 'clients';
-      if (kind === 'professional') targetTable = 'professionals';
-      else if (kind === 'salon_user') targetTable = 'salon_users';
-      else if (kind === 'admin') targetTable = 'system_admins';
+      const { resetSecurityQuestion, newPassword } = req.body || {};
+      const actionsDone: string[] = [];
 
-      const { error } = await supabaseAdmin
-        .from(targetTable)
-        .delete()
-        .eq('id', id);
-
-      if (error) {
-        console.warn(`[DELETE /api/admin/users/${kind}/${id}] Soft-delete/notice:`, error.message);
+      if (!resetSecurityQuestion && (!newPassword || !String(newPassword).trim())) {
+        return res.status(400).json({
+          success: false,
+          error: 'Informe ao menos uma ação (resetar pergunta secreta ou definir nova senha).',
+        });
       }
 
-      return res.json({ success: true, message: `Usuário ${id} removido com sucesso.` });
+      const cleanId = kind === 'salon_user' && id.startsWith('su-') ? id.replace(/^su-/, '') : id;
+
+      if (resetSecurityQuestion) {
+        try {
+          await supabaseAdmin.from('user_security_answers').delete().eq('client_id', String(cleanId));
+        } catch {}
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId)) {
+          try {
+            await supabaseAdmin.from('user_security_answers').delete().eq('user_id', cleanId);
+          } catch {}
+        }
+        try {
+          await safeSupabaseWrite(
+            'clients',
+            'update',
+            {
+              security_question_code: null,
+              security_answer_normalized: null,
+              updated_at: new Date().toISOString(),
+            },
+            { eqCol: 'id', eqVal: cleanId }
+          );
+        } catch {}
+        actionsDone.push('Pergunta secreta resetada');
+      }
+
+      if (newPassword && String(newPassword).trim()) {
+        const cleanPass = String(newPassword).trim();
+        let targetEmail = '';
+        let authTargetId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanId)
+          ? cleanId
+          : '';
+
+        if (kind === 'client') {
+          const { data: cli } = await supabaseAdmin.from('clients').select('id, user_id, email').eq('id', cleanId).maybeSingle();
+          if (cli?.user_id) authTargetId = cli.user_id;
+          if (cli?.email) targetEmail = String(cli.email).toLowerCase();
+          await safeSupabaseWrite('clients', 'update', { password_hash: cleanPass, updated_at: new Date().toISOString() }, { eqCol: 'id', eqVal: cleanId });
+        } else if (kind === 'professional') {
+          const { data: pro } = await supabaseAdmin.from('professionals').select('id, user_id, email').eq('id', cleanId).maybeSingle();
+          if (pro?.user_id) authTargetId = pro.user_id;
+          if (pro?.email) targetEmail = String(pro.email).toLowerCase();
+          await safeSupabaseWrite('professionals', 'update', { password_hash: cleanPass, updated_at: new Date().toISOString() }, { eqCol: 'id', eqVal: cleanId });
+        } else if (kind === 'salon_user') {
+          const { data: sal } = await supabaseAdmin.from('salons').select('id, owner_id, email, owner_email').eq('id', cleanId).maybeSingle();
+          if (sal?.owner_id) authTargetId = sal.owner_id;
+          targetEmail = String(sal?.owner_email || sal?.email || '').toLowerCase();
+          await safeSupabaseWrite('salon_users', 'update', { password_hash: cleanPass, updated_at: new Date().toISOString() }, { eqCol: 'id', eqVal: cleanId });
+        } else if (kind === 'admin') {
+          const { data: adm } = await supabaseAdmin.from('system_admins').select('id, email').eq('id', cleanId).maybeSingle();
+          if (adm?.email) targetEmail = String(adm.email).toLowerCase();
+          await safeSupabaseWrite('system_admins', 'update', { password_hash: cleanPass, updated_at: new Date().toISOString() }, { eqCol: 'id', eqVal: cleanId });
+        }
+
+        try {
+          if (!authTargetId && targetEmail) {
+            const { data: authList } = await supabaseAdmin.auth.admin.listUsers();
+            const found = (authList?.users || []).find((u: any) => u.email?.toLowerCase() === targetEmail);
+            if (found?.id) authTargetId = found.id;
+          }
+          if (authTargetId) {
+            await supabaseAdmin.auth.admin.updateUserById(authTargetId, { password: cleanPass });
+          }
+        } catch (authErr) {
+          console.warn('[reset-security] Auth password update notice:', authErr);
+        }
+
+        actionsDone.push('Senha redefinida');
+      }
+
+      return res.json({
+        success: true,
+        message: `${actionsDone.join(' e ')} com sucesso.`,
+      });
     } catch (err: any) {
-      console.error('[DELETE /api/admin/users/:kind/:id] Error:', err);
-      return res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  app.post('/api/admin/users/batch-delete', async (req, res) => {
-    try {
-      const { items } = req.body; // array of { kind: string, id: string }
-      if (!Array.isArray(items) || items.length === 0) {
-        return res.status(400).json({ success: false, error: 'Lista de usuários inválida.' });
-      }
-
-      const clientIds = items.filter(it => it.kind === 'client').map(it => it.id);
-      const profIds = items.filter(it => it.kind === 'professional').map(it => it.id);
-      const salonUserIds = items.filter(it => it.kind === 'salon_user').map(it => it.id);
-      const adminIds = items.filter(it => it.kind === 'admin').map(it => it.id);
-
-      if (clientIds.length > 0) {
-        await supabaseAdmin.from('clients').delete().in('id', clientIds);
-      }
-      if (profIds.length > 0) {
-        await supabaseAdmin.from('professionals').delete().in('id', profIds);
-      }
-      if (salonUserIds.length > 0) {
-        await supabaseAdmin.from('salon_users').delete().in('id', salonUserIds);
-      }
-      if (adminIds.length > 0) {
-        await supabaseAdmin.from('system_admins').delete().in('id', adminIds);
-      }
-
-      return res.json({ success: true, count: items.length });
-    } catch (err: any) {
-      console.error('[POST /api/admin/users/batch-delete] Error:', err);
-      return res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  app.patch('/api/admin/users/:kind/:id/status', async (req, res) => {
-    try {
-      const { kind, id } = req.params;
-      const { is_active } = req.body;
-
-      let targetTable = 'clients';
-      if (kind === 'professional') targetTable = 'professionals';
-      else if (kind === 'salon_user') targetTable = 'salon_users';
-      else if (kind === 'admin') targetTable = 'system_admins';
-
-      const updateData: any = {};
-      if (targetTable === 'professionals') {
-        updateData.status = is_active ? 'active' : 'suspended';
-      } else {
-        updateData.is_active = !!is_active;
-      }
-
-      const { data, error } = await supabaseAdmin
-        .from(targetTable)
-        .update(updateData)
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) {
-        console.warn(`[PATCH /api/admin/users/${kind}/${id}/status] Notice:`, error.message);
-      }
-
-      return res.json({ success: true, user: data || { id, is_active } });
-    } catch (err: any) {
-      console.error('[PATCH /api/admin/users/:kind/:id/status] Error:', err);
+      console.error('[POST /api/admin/users/:kind/:id/reset-security] Error:', err);
       return res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -2371,18 +2461,24 @@ async function startServer() {
     }
   });
 
-  // ADMIN: List all Clients (bypasses RLS with service role)
+  // ADMIN: List all Clients (bypasses RLS with service role + deduplicates against system_admins)
   app.get('/api/admin/clients', async (req, res) => {
     try {
-      const { data, error } = await supabaseAdmin
-        .from('clients')
-        .select('*')
-        .order('created_at', { ascending: false });
+      await consolidateDuplicateUsersInSupabase();
+
+      const [{ data, error }, { data: sysAdmins }] = await Promise.all([
+        supabaseAdmin.from('clients').select('*').order('created_at', { ascending: false }),
+        supabaseAdmin.from('system_admins').select('id, email, username, cpf'),
+      ]);
 
       if (error) {
         console.warn('[GET /api/admin/clients] Supabase error:', error.message);
         return res.status(400).json({ success: false, error: error.message });
       }
+
+      const adminEmails = new Set((sysAdmins || []).map((a: any) => normalizeEmailKey(a.email)).filter(Boolean));
+      const adminUsers = new Set((sysAdmins || []).map((a: any) => normalizeUsernameKey(a.username)).filter(Boolean));
+      const adminCpfs = new Set((sysAdmins || []).map((a: any) => normalizeCpfKey(a.cpf)).filter(Boolean));
 
       // Sincronização direta com a tabela relacional public.dependents (Tríade Sync)
       const dependentsByParent: Record<string, any[]> = {};
@@ -2414,23 +2510,63 @@ async function startServer() {
         console.warn('[GET /api/admin/clients] Dependents query notice:', depErr);
       }
 
-      const clients = (data || []).map((c: any) => {
-        const tableDeps = dependentsByParent[c.id] || [];
-        const rawDeps = Array.isArray(c.dependents) ? c.dependents : [];
-        const combinedDeps = tableDeps.length > 0 ? tableDeps : rawDeps;
+      // Respostas de Perguntas Secretas configuradas (public.user_security_answers — SQL v5.0)
+      const secByClient: Record<string, string[]> = {};
+      try {
+        const { data: secData } = await supabaseAdmin
+          .from('user_security_answers')
+          .select('client_id, question_code');
+        if (Array.isArray(secData)) {
+          secData.forEach((row: any) => {
+            const cid = row.client_id ? String(row.client_id) : '';
+            if (cid) {
+              if (!secByClient[cid]) secByClient[cid] = [];
+              if (row.question_code && !secByClient[cid].includes(row.question_code)) {
+                secByClient[cid].push(row.question_code);
+              }
+            }
+          });
+        }
+      } catch {}
 
-        return {
-          ...c,
-          full_name: c.name || c.full_name || 'Cliente',
-          username: (c.username || (c.email ? c.email.split('@')[0] : (c.name || 'cliente').toLowerCase().replace(/\s+/g, ''))).replace(/^@+/, ''),
-          phone: c.phone || c.phone_whatsapp || '—',
-          phone_secondary: c.phone_secondary || '',
-          dependents: combinedDeps,
-          dependents_count: combinedDeps.length || c.dependents_count || 0,
-          is_active: c.is_active !== undefined ? !!c.is_active : true,
-          access_level: c.access_level || 'Cliente Titular',
-        };
-      });
+      const seenClientEmails = new Set<string>();
+      const seenClientUsers = new Set<string>();
+
+      const clients = (data || [])
+        .filter((c: any) => {
+          const em = normalizeEmailKey(c.email);
+          const us = normalizeUsernameKey(c.username);
+          const cp = normalizeCpfKey(c.cpf);
+          if ((em && adminEmails.has(em)) || (us && adminUsers.has(us)) || (cp && adminCpfs.has(cp))) {
+            return false;
+          }
+          if ((em && seenClientEmails.has(em)) || (us && seenClientUsers.has(us))) {
+            return false;
+          }
+          if (em) seenClientEmails.add(em);
+          if (us) seenClientUsers.add(us);
+          return true;
+        })
+        .map((c: any) => {
+          const tableDeps = dependentsByParent[c.id] || [];
+          const rawDeps = Array.isArray(c.dependents) ? c.dependents : [];
+          const combinedDeps = tableDeps.length > 0 ? tableDeps : rawDeps;
+          const secList = secByClient[String(c.id)] || (c.security_question_code ? [c.security_question_code] : []);
+
+          return {
+            ...c,
+            full_name: c.name || c.full_name || 'Cliente',
+            username: (c.username || (c.email ? c.email.split('@')[0] : (c.name || 'cliente').toLowerCase().replace(/\s+/g, ''))).replace(/^@+/, ''),
+            phone: c.phone || c.phone_whatsapp || '—',
+            phone_secondary: c.phone_secondary || '',
+            dependents: combinedDeps,
+            dependents_count: combinedDeps.length || c.dependents_count || 0,
+            is_active: c.is_active !== undefined ? !!c.is_active : true,
+            access_level: c.access_level || 'Cliente Titular',
+            has_security_question: secList.length > 0,
+            security_questions_configured: secList,
+          };
+        });
 
       return res.json({ success: true, clients });
     } catch (err: any) {
@@ -2495,67 +2631,204 @@ async function startServer() {
     }
   });
 
-  // ADMIN: List all Salon Users / Owners (bypasses RLS with service role)
+  // ADMIN: List all Salon Users / Managers directly from public.salon_users (Zero Synthetic Rows)
   app.get('/api/admin/salon-users', async (req, res) => {
     try {
-      const [
-        { data: salons },
-        { data: authUsersResp },
-      ] = await Promise.all([
-        supabaseAdmin.from('salons').select('*').order('created_at', { ascending: false }),
-        supabaseAdmin.auth.admin.listUsers(),
-      ]);
+      const { data, error } = await supabaseAdmin
+        .from('salon_users')
+        .select('*, salons(trade_name, slug)')
+        .order('created_at', { ascending: false });
 
-      const authUsersMap = new Map<string, any>();
-      (authUsersResp?.users || []).forEach((u: any) => {
-        authUsersMap.set(u.id, u);
-        if (u.email) authUsersMap.set(u.email.toLowerCase(), u);
-      });
+      if (error) {
+        console.warn('[GET /api/admin/salon-users] Supabase notice:', error.message);
+        return res.json({ success: true, salonUsers: [] });
+      }
 
-      const salonUsers: any[] = [];
-      (salons || []).forEach((s: any) => {
-        const branding = s.branding && typeof s.branding === 'object' ? s.branding : {};
-        const authUser = (s.owner_id && authUsersMap.get(s.owner_id)) || (s.email && authUsersMap.get(s.email.toLowerCase())) || null;
-        const meta = authUser?.user_metadata || {};
-        const fullName = s.owner_name || meta.full_name || meta.name || s.legal_name || s.trade_name || 'Proprietário';
-        const email = s.owner_email || authUser?.email || s.email || 'parceiro@vagouapp.com';
-        const phone = s.owner_phone || meta.phone || s.phone_whatsapp || s.phone || '—';
-        const rawUsername = meta.username || (email ? email.split('@')[0] : s.slug);
-        const username = String(rawUsername || 'parceiro').replace(/^@+/, '');
-
-        salonUsers.push({
-          id: `su-${s.id}`,
-          salon_id: s.id,
-          salon_name: s.trade_name || s.name || s.legal_name || 'Salão Parceiro',
-          salon_slug: s.slug || 'parceiro',
+      const salonUsers = (data || []).map((su: any) => {
+        const fullName = su.full_name || su.name || 'Gestor de Salão';
+        const cleanEmail = su.email || '';
+        const rawUsername = su.username || (cleanEmail ? cleanEmail.split('@')[0] : fullName.toLowerCase().replace(/\s+/g, ''));
+        return {
+          ...su,
+          salon_name: su.salons?.trade_name || su.salon_name || 'Salão Parceiro',
+          salon_slug: su.salons?.slug || su.salon_slug || 'parceiro',
           full_name: fullName,
-          username,
-          email,
-          phone_whatsapp: phone,
-          phone_secondary: s.phone_landline || '',
-          cpf: s.owner_cpf || meta.cpf || s.document_number || '',
-          role: 'owner',
-          access_level: 'Proprietário (Dono)',
-          is_active: s.is_active !== false,
-          address: s.address || branding.address || '',
-          street_number: s.street_number || branding.streetNumber || branding.street_number || '',
-          complement: s.complement || branding.complement || '',
-          neighborhood: s.neighborhood || branding.neighborhood || '',
-          city: s.city || branding.city || 'São Paulo',
-          state: s.state || branding.state || 'SP',
-          cep: s.cep || branding.cep || '',
-          latitude: s.latitude ?? branding.latitude ?? null,
-          longitude: s.longitude ?? branding.longitude ?? null,
-          formatted_address: s.formatted_address || branding.formatted_address || '',
-          can_manage_financial: true,
-          can_manage_professionals: true,
-          total_appointments: 0,
-          dependents_count: 0,
-          created_at: s.created_at || new Date().toISOString(),
-        });
+          username: String(rawUsername || 'gestor').replace(/^@+/, ''),
+          email: cleanEmail,
+          phone_whatsapp: su.phone_whatsapp || su.phone || '—',
+          phone_secondary: su.phone_secondary || '',
+          cpf: su.cpf || '',
+          role: su.role || 'owner',
+          access_level:
+            su.access_level ||
+            (su.role === 'owner'
+              ? 'Proprietário (Dono)'
+              : su.role === 'manager'
+              ? 'Gerente Geral'
+              : 'Recepção & Atendimento'),
+          is_active: su.is_active !== false,
+          can_manage_financial: su.can_manage_financial !== false,
+          can_manage_professionals: su.can_manage_professionals !== false,
+          total_appointments: Number(su.total_appointments) || 0,
+          dependents_count: Number(su.dependents_count) || 0,
+          created_via: su.created_via || null,
+          created_at: su.created_at || '',
+        };
       });
 
       return res.json({ success: true, salonUsers });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // ADMIN: Exclusão Unificada e Segura de Usuário (Service Role com Limpeza de FKs)
+  app.delete('/api/admin/users/:kind/:id', async (req, res) => {
+    try {
+      const { kind, id } = req.params;
+      if (!kind || !id) {
+        return res.status(400).json({ success: false, error: 'Kind e ID são obrigatórios.' });
+      }
+
+      if (kind === 'client') {
+        // 1. Limpa registros dependentes e respostas de segurança para evitar violação de FK
+        try {
+          await supabaseAdmin.from('dependents').delete().eq('parent_client_id', id);
+          await supabaseAdmin.from('user_security_answers').delete().eq('client_id', String(id));
+        } catch (depErr) {
+          console.warn('[DELETE /api/admin/users/client] Aviso dependentes:', depErr);
+        }
+        // 2. Desvincula histórico de agendamentos
+        try {
+          await supabaseAdmin.from('appointments').update({ client_id: null }).eq('client_id', id);
+        } catch {}
+        // 3. Exclui da tabela clients
+        const { error } = await supabaseAdmin.from('clients').delete().eq('id', id);
+        if (error) {
+          return res.status(400).json({ success: false, error: error.message });
+        }
+        // 4. Limpa profiles se for UUID
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+          try {
+            await supabaseAdmin.from('profiles').delete().eq('id', id);
+          } catch {}
+        }
+        return res.json({ success: true, deletedId: id, kind });
+      }
+
+      if (kind === 'dependent') {
+        const { error } = await supabaseAdmin.from('dependents').delete().eq('id', id);
+        if (error) {
+          return res.status(400).json({ success: false, error: error.message });
+        }
+        return res.json({ success: true, deletedId: id, kind });
+      }
+
+      if (kind === 'professional') {
+        try {
+          await supabaseAdmin.from('appointments').update({ professional_id: null }).eq('professional_id', id);
+        } catch {}
+        const { error } = await supabaseAdmin.from('professionals').delete().eq('id', id);
+        if (error) {
+          return res.status(400).json({ success: false, error: error.message });
+        }
+        return res.json({ success: true, deletedId: id, kind });
+      }
+
+      if (kind === 'salon_user') {
+        const cleanId = id.startsWith('su-') ? id.replace(/^su-/, '') : id;
+        try {
+          await supabaseAdmin.from('salon_users').delete().eq('id', cleanId);
+        } catch {}
+        return res.json({ success: true, deletedId: id, kind });
+      }
+
+      if (kind === 'admin') {
+        const { error } = await supabaseAdmin.from('system_admins').delete().eq('id', id);
+        if (error) {
+          return res.status(400).json({ success: false, error: error.message });
+        }
+        return res.json({ success: true, deletedId: id, kind });
+      }
+
+      return res.status(400).json({ success: false, error: `Tipo "${kind}" desconhecido.` });
+    } catch (err: any) {
+      console.error('[DELETE /api/admin/users/:kind/:id] Erro:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // ADMIN: Exclusão em Massa de Usuários
+  app.post('/api/admin/users/batch-delete', async (req, res) => {
+    try {
+      const { items } = req.body;
+      if (!Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ success: false, error: 'Lista de usuários para exclusão vazia.' });
+      }
+
+      const clientIds = items.filter((it: any) => it.kind === 'client').map((it: any) => it.id);
+      const depIds = items.filter((it: any) => it.kind === 'dependent').map((it: any) => it.id);
+      const profIds = items.filter((it: any) => it.kind === 'professional').map((it: any) => it.id);
+      const salonUserIds = items.filter((it: any) => it.kind === 'salon_user').map((it: any) => it.id.replace(/^su-/, ''));
+      const adminIds = items.filter((it: any) => it.kind === 'admin').map((it: any) => it.id);
+
+      if (clientIds.length > 0) {
+        try {
+          await supabaseAdmin.from('dependents').delete().in('parent_client_id', clientIds);
+          await supabaseAdmin.from('appointments').update({ client_id: null }).in('client_id', clientIds);
+        } catch {}
+        await supabaseAdmin.from('clients').delete().in('id', clientIds);
+      }
+
+      if (depIds.length > 0) {
+        await supabaseAdmin.from('dependents').delete().in('id', depIds);
+      }
+
+      if (profIds.length > 0) {
+        try {
+          await supabaseAdmin.from('appointments').update({ professional_id: null }).in('professional_id', profIds);
+        } catch {}
+        await supabaseAdmin.from('professionals').delete().in('id', profIds);
+      }
+
+      if (salonUserIds.length > 0) {
+        try {
+          await supabaseAdmin.from('salon_users').delete().in('id', salonUserIds);
+        } catch {}
+      }
+
+      if (adminIds.length > 0) {
+        await supabaseAdmin.from('system_admins').delete().in('id', adminIds);
+      }
+
+      return res.json({ success: true, count: items.length });
+    } catch (err: any) {
+      console.error('[POST /api/admin/users/batch-delete] Erro:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // ADMIN: Atualizar Status de Usuário
+  app.patch('/api/admin/users/:kind/:id/status', async (req, res) => {
+    try {
+      const { kind, id } = req.params;
+      const { is_active } = req.body;
+      const activeBool = is_active !== false;
+
+      if (kind === 'client') {
+        await supabaseAdmin.from('clients').update({ is_active: activeBool }).eq('id', id);
+      } else if (kind === 'professional') {
+        await supabaseAdmin.from('professionals').update({ status: activeBool ? 'active' : 'suspended' }).eq('id', id);
+      } else if (kind === 'salon_user') {
+        const cleanId = id.replace(/^su-/, '');
+        await supabaseAdmin.from('salon_users').update({ is_active: activeBool }).eq('id', cleanId);
+      } else if (kind === 'admin') {
+        await supabaseAdmin.from('system_admins').update({ is_active: activeBool }).eq('id', id);
+      } else if (kind === 'dependent') {
+        await supabaseAdmin.from('dependents').update({ is_unlinked: !activeBool }).eq('id', id);
+      }
+
+      return res.json({ success: true, is_active: activeBool });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
@@ -2818,7 +3091,18 @@ async function startServer() {
       const streetNumberVal = (payload.street_number || payload.streetNumber || '').trim() || null;
       const complementVal = (payload.complement || '').trim() || null;
 
-      // Prepara objeto limpo compatível com o schema unificado da Tríade (admvapp + mnvapp + pvapp)
+      const resolvedFee = Number(payload.fee_per_booking ?? payload.billing_fee_value ?? 2.5);
+      const resolvedBillingPlan = payload.billing_plan || 'PER_APPOINTMENT';
+      const resolvedMonthlyFee = Number(payload.monthly_subscription_fee ?? 89.9);
+      const resolvedDueDay = Number(payload.billing_due_day ?? 10);
+      const resolvedPrimaryColor = payload.primary_color || '#10B981';
+      const resolvedSecondaryColor = payload.secondary_color || '#065F46';
+      const resolvedDefaultTheme = payload.default_theme || 'light';
+
+      const nowIso = new Date().toISOString();
+      const resolvedCreatedVia = payload.created_via || 'admvapp';
+
+      // Prepara objeto limpo compatível com o schema unificado v5.0 da Tríade (admvapp + mnvapp + pvapp)
       const dbInsert: Record<string, any> = {
         name: payload.trade_name.trim(),
         nome_fantasia: payload.trade_name.trim(),
@@ -2835,8 +3119,12 @@ async function startServer() {
         owner_email: payload.email?.trim().toLowerCase() || null,
         owner_phone: payload.phone_whatsapp?.trim() || null,
         pix_key: payload.pix_key?.trim() || null,
-        operating_model: payload.operating_model || 'Espaço Físico & Delivery',
-        billing_plan: payload.billing_plan || 'PRO / 5% POR AGENDAMENTO',
+        operating_model: payload.operating_model || 'physical',
+        billing_plan: resolvedBillingPlan,
+        fee_per_booking: resolvedFee,
+        billing_fee_value: resolvedFee,
+        monthly_subscription_fee: resolvedMonthlyFee,
+        billing_due_day: resolvedDueDay,
         phone: payload.phone_whatsapp?.trim() || null,
         whatsapp: payload.phone_whatsapp?.trim() || null,
         phone_whatsapp: payload.phone_whatsapp?.trim() || null,
@@ -2859,14 +3147,34 @@ async function startServer() {
         favicon_url: resolvedFavicon,
         slogan: resolvedSlogan,
         brand_font: resolvedBrandFont,
-        primary_color: payload.primary_color || '#20C933',
+        default_theme: resolvedDefaultTheme,
+        primary_color: resolvedPrimaryColor,
+        secondary_color: resolvedSecondaryColor,
+        nav_bg_style: payload.nav_bg_style || 'solid',
+        nav_bg_color: payload.nav_bg_color || '#D1FAE5',
+        nav_icon_border: payload.nav_icon_border || 'none',
+        nav_active_color: payload.nav_active_color || '#10B981',
+        section_header_bg_color: payload.section_header_bg_color || '#ECFDF5',
+        section_header_text_color: payload.section_header_text_color || '#065F46',
+        section_header_icon_color: payload.section_header_icon_color || '#059669',
         status: resolvedStatus,
         is_active: resolvedStatus !== 'incomplete' && resolvedStatus !== 'suspended',
         is_verified: resolvedStatus === 'active' || payload.is_verified === true,
+        created_via: resolvedCreatedVia,
+        ...(existingSlugSalon ? {} : { created_at: nowIso }),
+        updated_at: nowIso,
         branding: {
-          themeMode: 'dark',
-          primaryColor: payload.primary_color || '#20C933',
-          category: payload.category || 'Barbearia',
+          themeMode: resolvedDefaultTheme,
+          defaultTheme: resolvedDefaultTheme,
+          primaryColor: resolvedPrimaryColor,
+          secondaryColor: resolvedSecondaryColor,
+          navBgStyle: payload.nav_bg_style || 'solid',
+          navBgColor: payload.nav_bg_color || '#D1FAE5',
+          navIconBorder: payload.nav_icon_border || 'none',
+          sectionHeaderBgColor: payload.section_header_bg_color || '#ECFDF5',
+          sectionHeaderTextColor: payload.section_header_text_color || '#065F46',
+          sectionHeaderIconColor: payload.section_header_icon_color || '#059669',
+          category: payload.category || 'salao',
           faviconUrl: resolvedFavicon || '',
           salonIcon: resolvedFavicon || '',
           slogan: resolvedSlogan,
@@ -2885,6 +3193,13 @@ async function startServer() {
           google_place_id: resolvedGeo.google_place_id,
           phoneLandline: payload.phone_landline?.trim() || '',
           ownerCpf: payload.owner_cpf?.trim() || '',
+          billing_plan: resolvedBillingPlan,
+          fee_per_booking: resolvedFee,
+          billing_fee_value: resolvedFee,
+          monthly_subscription_fee: resolvedMonthlyFee,
+          billing_due_day: resolvedDueDay,
+          created_via: resolvedCreatedVia,
+          created_at_iso: nowIso,
         },
       };
 
@@ -2896,7 +3211,37 @@ async function startServer() {
         return res.status(400).json({ success: false, error: `Erro no banco: ${error.message}` });
       }
 
-      // Garante vínculo do Proprietário em clients, professionals e salon_members para RBAC Soberano da Tríade
+      // Sincroniza configurações de UI na tabela relacional public.salon_ui_settings (SQL v5.0)
+      if (data?.id) {
+        try {
+          await safeSupabaseWrite(
+            'salon_ui_settings',
+            'upsert',
+            {
+              salon_id: data.id,
+              default_theme: resolvedDefaultTheme,
+              primary_color: resolvedPrimaryColor,
+              secondary_color: resolvedSecondaryColor,
+              pwa_name: payload.trade_name.trim(),
+              section_header_bg_color: payload.section_header_bg_color || '#ECFDF5',
+              section_header_text_color: payload.section_header_text_color || '#065F46',
+              section_header_icon_color: payload.section_header_icon_color || '#059669',
+              section_header_bg_style: 'solid',
+              nav_bg_style: payload.nav_bg_style || 'solid',
+              nav_bg_color: payload.nav_bg_color || '#D1FAE5',
+              nav_icon_border: payload.nav_icon_border || 'none',
+              nav_active_color: payload.nav_active_color || '#10B981',
+              branding_snapshot: dbInsert.branding,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'salon_id' }
+          );
+        } catch (uiSyncErr) {
+          console.warn('[POST /api/admin/salons] Aviso ao criar salon_ui_settings:', uiSyncErr);
+        }
+      }
+
+      // Garante vínculo único do Proprietário sem duplicar conta em múltiplas tabelas (bol-162)
       if (data?.id && (payload.email || payload.owner_name || payload.legal_name)) {
         try {
           const ownerName = (payload.owner_name || payload.legal_name || payload.trade_name || 'Proprietário').trim();
@@ -2904,134 +3249,91 @@ async function startServer() {
           const ownerPhone = payload.phone_whatsapp?.trim() || '';
           const ownerUsername = ownerEmail.split('@')[0].replace(/[^a-zA-Z0-9._-]/g, '') || cleanSlug;
 
-          // 1. Verifica se já existe em clients
-          const { data: existingClient } = await supabaseAdmin
-            .from('clients')
-            .select('id, user_id')
-            .eq('email', ownerEmail)
+          // 0. Verifica primeiro se o e-mail pertence a um Administrador (system_admins)
+          const { data: existingAdmin } = await supabaseAdmin
+            .from('system_admins')
+            .select('id, email')
+            .ilike('email', ownerEmail)
             .maybeSingle();
 
-          let resolvedOwnerUserId: string | null = existingClient?.user_id || existingClient?.id || null;
+          let resolvedOwnerUserId: string | null = existingAdmin?.id || null;
 
-          // 2. Se ainda não tem user_id, busca em auth.users
-          if (!resolvedOwnerUserId) {
-            try {
-              const { data: authList } = await supabaseAdmin.auth.admin.listUsers();
-              const matchedAuth = (authList?.users || []).find(
-                (u: any) => u.email?.toLowerCase() === ownerEmail
-              );
-              if (matchedAuth?.id) {
-                resolvedOwnerUserId = matchedAuth.id;
-              }
-            } catch {}
-          }
+          // 1. Somente consulta/cria em clients se NÃO for Administrador do sistema
+          if (!existingAdmin) {
+            const { data: existingClient } = await supabaseAdmin
+              .from('clients')
+              .select('id, user_id')
+              .ilike('email', ownerEmail)
+              .maybeSingle();
 
-          if (!existingClient) {
-            const { data: insClient } = await safeSupabaseWrite('clients', 'insert', {
-              ...(resolvedOwnerUserId ? { id: resolvedOwnerUserId, user_id: resolvedOwnerUserId } : {}),
-              name: ownerName,
-              full_name: ownerName,
-              username: ownerUsername,
-              email: ownerEmail,
-              phone: ownerPhone,
-              cpf: payload.owner_cpf?.trim() || null,
-              cep: dbInsert.cep,
-              address: dbInsert.address,
-              street_number: dbInsert.street_number,
-              complement: dbInsert.complement,
-              neighborhood: dbInsert.neighborhood,
-              city: dbInsert.city,
-              state: dbInsert.state,
-              latitude: resolvedGeo.latitude,
-              longitude: resolvedGeo.longitude,
-              formatted_address: resolvedGeo.formatted_address,
-              origin_type: 'establishment',
-              origin_salon_id: data.id,
-              is_active: true,
-              access_level: 'Proprietário (Dono)',
-            });
+            resolvedOwnerUserId = existingClient?.user_id || existingClient?.id || null;
 
-            if (!resolvedOwnerUserId && insClient) {
-              resolvedOwnerUserId = insClient.user_id || insClient.id || null;
+            if (!resolvedOwnerUserId) {
+              try {
+                const { data: authList } = await supabaseAdmin.auth.admin.listUsers();
+                const matchedAuth = (authList?.users || []).find(
+                  (u: any) => u.email?.toLowerCase() === ownerEmail
+                );
+                if (matchedAuth?.id) {
+                  resolvedOwnerUserId = matchedAuth.id;
+                }
+              } catch {}
             }
-          } else {
-            await safeSupabaseWrite(
-              'clients',
-              'update',
-              {
-                ...(resolvedOwnerUserId ? { user_id: resolvedOwnerUserId } : {}),
+
+            if (!existingClient) {
+              const { data: insClient } = await safeSupabaseWrite('clients', 'insert', {
+                ...(resolvedOwnerUserId ? { id: resolvedOwnerUserId, user_id: resolvedOwnerUserId } : {}),
+                name: ownerName,
+                full_name: ownerName,
+                username: ownerUsername,
+                email: ownerEmail,
+                phone: ownerPhone,
+                cpf: payload.owner_cpf?.trim() || null,
+                cep: dbInsert.cep,
+                address: dbInsert.address,
+                street_number: dbInsert.street_number,
+                complement: dbInsert.complement,
+                neighborhood: dbInsert.neighborhood,
+                city: dbInsert.city,
+                state: dbInsert.state,
+                latitude: resolvedGeo.latitude,
+                longitude: resolvedGeo.longitude,
+                formatted_address: resolvedGeo.formatted_address,
                 origin_type: 'establishment',
+                created_via: resolvedCreatedVia,
                 origin_salon_id: data.id,
+                is_active: true,
                 access_level: 'Proprietário (Dono)',
-                cep: dbInsert.cep,
-                address: dbInsert.address,
-                street_number: dbInsert.street_number,
-                complement: dbInsert.complement,
-                neighborhood: dbInsert.neighborhood,
-                city: dbInsert.city,
-                state: dbInsert.state,
-                latitude: resolvedGeo.latitude,
-                longitude: resolvedGeo.longitude,
-                formatted_address: resolvedGeo.formatted_address,
-              },
-              { eqCol: 'id', eqVal: existingClient.id }
-            );
-          }
+                created_at: nowIso,
+                updated_at: nowIso,
+              });
 
-          // 3. Verifica se já existe em professionals para este salão
-          const { data: existingProf } = await supabaseAdmin
-            .from('professionals')
-            .select('id')
-            .eq('salon_id', data.id)
-            .eq('email', ownerEmail)
-            .maybeSingle();
-
-          if (!existingProf) {
-            await safeSupabaseWrite('professionals', 'insert', {
-              salon_id: data.id,
-              user_id: resolvedOwnerUserId,
-              name: ownerName,
-              full_name: ownerName,
-              username: ownerUsername,
-              role: 'Proprietário',
-              access_level: 'Proprietário (Dono)',
-              phone: ownerPhone,
-              phone_whatsapp: ownerPhone,
-              email: ownerEmail,
-              status: 'active',
-              is_active: true,
-              cep: dbInsert.cep,
-              address: dbInsert.address,
-              street_number: dbInsert.street_number,
-              complement: dbInsert.complement,
-              neighborhood: dbInsert.neighborhood,
-              city: dbInsert.city,
-              state: dbInsert.state,
-              latitude: resolvedGeo.latitude,
-              longitude: resolvedGeo.longitude,
-              formatted_address: resolvedGeo.formatted_address,
-            });
-          } else {
-            await safeSupabaseWrite(
-              'professionals',
-              'update',
-              {
-                ...(resolvedOwnerUserId ? { user_id: resolvedOwnerUserId } : {}),
-                role: 'Proprietário',
-                access_level: 'Proprietário (Dono)',
-                cep: dbInsert.cep,
-                address: dbInsert.address,
-                street_number: dbInsert.street_number,
-                complement: dbInsert.complement,
-                neighborhood: dbInsert.neighborhood,
-                city: dbInsert.city,
-                state: dbInsert.state,
-                latitude: resolvedGeo.latitude,
-                longitude: resolvedGeo.longitude,
-                formatted_address: resolvedGeo.formatted_address,
-              },
-              { eqCol: 'id', eqVal: existingProf.id }
-            );
+              if (!resolvedOwnerUserId && insClient) {
+                resolvedOwnerUserId = insClient.user_id || insClient.id || null;
+              }
+            } else {
+              await safeSupabaseWrite(
+                'clients',
+                'update',
+                {
+                  ...(resolvedOwnerUserId ? { user_id: resolvedOwnerUserId } : {}),
+                  origin_type: 'establishment',
+                  origin_salon_id: data.id,
+                  access_level: 'Proprietário (Dono)',
+                  cep: dbInsert.cep,
+                  address: dbInsert.address,
+                  street_number: dbInsert.street_number,
+                  complement: dbInsert.complement,
+                  neighborhood: dbInsert.neighborhood,
+                  city: dbInsert.city,
+                  state: dbInsert.state,
+                  latitude: resolvedGeo.latitude,
+                  longitude: resolvedGeo.longitude,
+                  formatted_address: resolvedGeo.formatted_address,
+                },
+                { eqCol: 'id', eqVal: existingClient.id }
+              );
+            }
           }
 
           // 4. Atualiza owner_id no salão e insere vínculo soberano em salon_members
@@ -3235,9 +3537,26 @@ async function startServer() {
       if (incoming.owner_email !== undefined) physicalUpdates.owner_email = incoming.owner_email;
       if (incoming.owner_phone !== undefined) physicalUpdates.owner_phone = incoming.owner_phone;
       if (incoming.operating_model !== undefined) physicalUpdates.operating_model = incoming.operating_model;
+      if (incoming.home_delivery_enabled !== undefined) {
+        physicalUpdates.home_delivery_enabled = Boolean(incoming.home_delivery_enabled);
+      }
       if (incoming.commission_rate !== undefined) physicalUpdates.commission_rate = Number(incoming.commission_rate);
       if (incoming.billing_plan !== undefined) physicalUpdates.billing_plan = incoming.billing_plan;
+      if (incoming.fee_per_booking !== undefined || incoming.billing_fee_value !== undefined) {
+        const syncedFee = Number(incoming.fee_per_booking ?? incoming.billing_fee_value ?? 2.5);
+        physicalUpdates.fee_per_booking = syncedFee;
+        physicalUpdates.billing_fee_value = syncedFee;
+        mergedBranding.fee_per_booking = syncedFee;
+        mergedBranding.billing_fee_value = syncedFee;
+      }
+      if (incoming.monthly_subscription_fee !== undefined) {
+        physicalUpdates.monthly_subscription_fee = Number(incoming.monthly_subscription_fee);
+      }
+      if (incoming.billing_due_day !== undefined) {
+        physicalUpdates.billing_due_day = Number(incoming.billing_due_day);
+      }
       if (incoming.pix_key !== undefined) physicalUpdates.pix_key = incoming.pix_key;
+      if (incoming.pix_keys !== undefined) physicalUpdates.pix_keys = incoming.pix_keys;
 
       // Campos físicos de Endereço & Coordenadas
       if (incoming.cep !== undefined) physicalUpdates.cep = incoming.cep;
@@ -3270,7 +3589,7 @@ async function startServer() {
         'section_header_icon_color', 'section_header_bg_style', 'section_header_border',
         'section_header_btn_bg_color', 'section_header_btn_active_bg_color', 'section_header_btn_border',
         'section_header_btn_shadow', 'section_header_btn_blur', 'section_header_btn_font',
-        'nav_style', 'nav_shape', 'nav_border', 'nav_bg_style', 'nav_bg_color',
+        'nav_style', 'nav_shape', 'nav_border', 'nav_icon_border', 'nav_bg_style', 'nav_bg_color',
         'nav_btn_bg_color', 'nav_btn_active_bg_color', 'nav_active_color', 'nav_text_color'
       ];
       visualAndUiFields.forEach((f) => {
@@ -3281,12 +3600,11 @@ async function startServer() {
 
       // Extrai campos de UI para sincronizar na tabela relacional public.salon_ui_settings
       const uiFields = [
-        'default_theme', 'pwa_name', 'show_slogan', 'logo_text_fallback', 'logo_text_color',
-        'show_hero_slides', 'welcome_style', 'section_header_bg_color', 'section_header_text_color',
-        'section_header_icon_color', 'section_header_bg_style', 'section_header_border',
-        'section_header_btn_bg_color', 'section_header_btn_active_bg_color', 'section_header_btn_border',
-        'section_header_btn_shadow', 'section_header_btn_blur', 'section_header_btn_font',
-        'nav_style', 'nav_shape', 'nav_border', 'nav_bg_style', 'nav_bg_color',
+        'default_theme', 'primary_color', 'secondary_color', 'pwa_name', 'show_slogan',
+        'logo_text_fallback', 'logo_text_color', 'show_hero_slides', 'welcome_style',
+        'section_header_bg_color', 'section_header_text_color', 'section_header_icon_color',
+        'section_header_bg_style', 'section_header_border',
+        'nav_style', 'nav_shape', 'nav_border', 'nav_icon_border', 'nav_bg_style', 'nav_bg_color',
         'nav_btn_bg_color', 'nav_btn_active_bg_color', 'nav_active_color', 'nav_text_color'
       ];
       const uiPayload: Record<string, any> = {};
@@ -3316,7 +3634,12 @@ async function startServer() {
           await safeSupabaseWrite(
             'salon_ui_settings',
             'upsert',
-            { salon_id: id, ...uiPayload, updated_at: new Date().toISOString() },
+            {
+              salon_id: id,
+              ...uiPayload,
+              branding_snapshot: mergedBranding,
+              updated_at: new Date().toISOString(),
+            },
             { onConflict: 'salon_id' }
           );
         } catch (uiSyncErr) {
@@ -3515,19 +3838,167 @@ async function startServer() {
     }
   });
 
-  // ADMIN: List Appointments with Billing Information
+  // ADMIN: List Appointments with Billing, Cash Checkout, Swap & Inter-Salon Geotemporal Collision Diagnostics (SQL v5.0)
   app.get('/api/admin/appointments', async (req, res) => {
     try {
-      const { data: dbAppointments, error } = await supabaseAdmin
-        .from('appointments')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const [{ data: dbAppointments, error }, { data: salonsRows }] = await Promise.all([
+        supabaseAdmin
+          .from('appointments')
+          .select('*')
+          .order('date_str', { ascending: true })
+          .order('start_time', { ascending: true }),
+        supabaseAdmin
+          .from('salons')
+          .select('id, trade_name, slug, fee_per_booking, billing_fee_value, latitude, longitude'),
+      ]);
 
       if (error) {
         return res.status(400).json({ success: false, error: error.message });
       }
 
-      return res.json({ success: true, appointments: dbAppointments || [] });
+      const salonLookup = new Map<string, any>();
+      (salonsRows || []).forEach((s: any) => salonLookup.set(String(s.id), s));
+
+      const toMinutes = (hhmm: string): number => {
+        const [h, m] = String(hhmm || '00:00').split(':').map((n) => parseInt(n, 10) || 0);
+        return h * 60 + m;
+      };
+
+      const haversineKm = (lat1?: number | null, lng1?: number | null, lat2?: number | null, lng2?: number | null): number => {
+        if (!lat1 || !lng1 || !lat2 || !lng2) return 0;
+        const toRad = (deg: number) => (deg * Math.PI) / 180;
+        const dLat = toRad(lat2 - lat1);
+        const dLng = toRad(lng2 - lng1);
+        const a =
+          Math.sin(dLat / 2) ** 2 +
+          Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+        return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      };
+
+      const normalized = (dbAppointments || []).map((row: any) => {
+        const sal = row.salon_id ? salonLookup.get(String(row.salon_id)) : null;
+        const dateStr = row.date_str || row.appointment_date || '';
+        const startTime = String(row.start_time || row.time_slot || '00:00').slice(0, 5);
+        const endTime = row.end_time ? String(row.end_time).slice(0, 5) : '';
+        const isBlocked = Boolean(row.is_blocked_slot || row.status === 'BLOQUEADO');
+        const isPaid = Boolean(row.is_paid || row.payment_status === 'paid');
+        const salonFee = Number(sal?.fee_per_booking ?? sal?.billing_fee_value ?? 2.5);
+
+        return {
+          ...row,
+          protocol: row.protocol_code || row.protocol || `VG-${String(row.id || '').slice(0, 6).toUpperCase()}`,
+          salon_name: row.salon_name || sal?.trade_name || 'Estabelecimento Vagou',
+          salon_slug: row.salon_slug || sal?.slug || 'salao',
+          salon_lat: row.salon_lat ?? sal?.latitude ?? null,
+          salon_lng: row.salon_lng ?? sal?.longitude ?? null,
+          appointment_date: dateStr,
+          date_str: dateStr,
+          time_slot: startTime,
+          start_time: startTime,
+          end_time: endTime || null,
+          is_blocked_slot: isBlocked,
+          status: isBlocked ? 'BLOQUEADO' : (row.status || 'confirmado'),
+          is_paid: isPaid,
+          payment_status: row.payment_status || (isPaid ? 'paid' : 'pending'),
+          fee_charged: row.status === 'cancelado' || isBlocked ? 0 : Number(row.fee_charged ?? salonFee),
+        };
+      });
+
+      // Agrupa por cliente + data para sinalizar possíveis colisões geotemporais inter-salões
+      const activeByClientDay = new Map<string, any[]>();
+      normalized.forEach((apt: any) => {
+        const clientKey = apt.client_id || (apt.client_phone && apt.client_phone !== '—' ? apt.client_phone.replace(/\D/g, '') : '');
+        if (!clientKey || !apt.date_str || apt.is_blocked_slot || apt.status === 'cancelado' || apt.status === 'no_show') return;
+        const groupKey = `${clientKey}::${apt.date_str}`;
+        const list = activeByClientDay.get(groupKey) || [];
+        list.push(apt);
+        activeByClientDay.set(groupKey, list);
+      });
+
+      activeByClientDay.forEach((group) => {
+        if (group.length < 2) return;
+        for (let i = 0; i < group.length; i++) {
+          for (let j = i + 1; j < group.length; j++) {
+            const a = group[i];
+            const b = group[j];
+            const startA = toMinutes(a.start_time);
+            const endA = a.end_time ? toMinutes(a.end_time) : startA + 45;
+            const startB = toMinutes(b.start_time);
+            const endB = b.end_time ? toMinutes(b.end_time) : startB + 45;
+            const diffSalon = a.salon_id && b.salon_id && a.salon_id !== b.salon_id;
+            const distKm = diffSalon ? haversineKm(a.salon_lat, a.salon_lng, b.salon_lat, b.salon_lng) : 0;
+            const travelMin = diffSalon ? Math.max(15, Math.ceil((distKm / 25) * 60) + 10) : 0;
+
+            if (startA < endB + travelMin && endA + travelMin > startB) {
+              a.collision_warning = {
+                has_collision: true,
+                conflicting_salon_name: b.salon_name,
+                conflicting_time: b.start_time,
+                travel_buffer_minutes: travelMin,
+                reason: diffSalon
+                  ? `Colisão inter-salões com ${b.salon_name} (${b.start_time}, buffer ${travelMin} min)`
+                  : `Sobreposição de horário às ${b.start_time}`,
+              };
+              b.collision_warning = {
+                has_collision: true,
+                conflicting_salon_name: a.salon_name,
+                conflicting_time: a.start_time,
+                travel_buffer_minutes: travelMin,
+                reason: diffSalon
+                  ? `Colisão inter-salões com ${a.salon_name} (${a.start_time}, buffer ${travelMin} min)`
+                  : `Sobreposição de horário às ${a.start_time}`,
+              };
+            }
+          }
+        }
+      });
+
+      normalized.sort((a: any, b: any) => {
+        const da = `${a.date_str || ''}T${a.start_time || '00:00'}`;
+        const db = `${b.date_str || ''}T${b.start_time || '00:00'}`;
+        return da.localeCompare(db);
+      });
+
+      return res.json({ success: true, appointments: normalized });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // ADMIN: Check Client Inter-Salon Geotemporal Collision via SQL v5.0 RPC
+  app.post('/api/admin/appointments/check-collision', async (req, res) => {
+    try {
+      const {
+        client_id,
+        date_str,
+        start_time,
+        end_time,
+        salon_id,
+        salon_lat = null,
+        salon_lng = null,
+        exclude_appointment_id = null,
+      } = req.body || {};
+
+      if (!client_id || !date_str || !start_time || !salon_id) {
+        return res.status(400).json({ success: false, error: 'Parâmetros insuficientes para checagem de colisão.' });
+      }
+
+      const { data, error } = await supabaseAdmin.rpc('check_client_inter_salon_collision', {
+        p_client_id: client_id,
+        p_date_str: date_str,
+        p_start_time: start_time,
+        p_end_time: end_time || start_time,
+        p_salon_id: salon_id,
+        p_salon_lat: salon_lat,
+        p_salon_lng: salon_lng,
+        p_exclude_appointment_id: exclude_appointment_id,
+      });
+
+      if (error) {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+
+      return res.json({ success: true, collision: data });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
@@ -3674,10 +4145,12 @@ async function startServer() {
       ]);
 
       const userMap = new Map<string, any>();
+      const resolveUserMapKey = (row: any) =>
+        normalizeEmailKey(row.email) || normalizeUsernameKey(row.username) || String(row.id || '');
 
       // 1. Profiles (unified source)
       (profiles || []).forEach((p: any) => {
-        const key = p.id || (p.email ? p.email.toLowerCase() : '');
+        const key = resolveUserMapKey(p);
         if (key) {
           userMap.set(key, {
             id: p.id,
@@ -3693,7 +4166,7 @@ async function startServer() {
 
       // 2. Clients
       (clients || []).forEach((c: any) => {
-        const key = c.id || c.email?.toLowerCase();
+        const key = resolveUserMapKey(c);
         if (key) {
           const existing = userMap.get(key) || {};
           userMap.set(key, {
@@ -3710,7 +4183,7 @@ async function startServer() {
 
       // 3. Professionals
       (professionals || []).forEach((pr: any) => {
-        const key = pr.id || pr.email?.toLowerCase();
+        const key = resolveUserMapKey(pr);
         if (key) {
           const existing = userMap.get(key) || {};
           userMap.set(key, {
@@ -3727,7 +4200,7 @@ async function startServer() {
 
       // 4. Salon Users
       (salonUsers || []).forEach((su: any) => {
-        const key = su.id || su.email?.toLowerCase();
+        const key = resolveUserMapKey(su);
         if (key) {
           const existing = userMap.get(key) || {};
           userMap.set(key, {
@@ -3742,9 +4215,9 @@ async function startServer() {
         }
       });
 
-      // 5. System Admins
+      // 5. System Admins (Hierarquia Soberana Máxima)
       (admins || []).forEach((a: any) => {
-        const key = a.id || a.email?.toLowerCase();
+        const key = resolveUserMapKey(a);
         if (key) {
           const existing = userMap.get(key) || {};
           userMap.set(key, {
@@ -3965,11 +4438,40 @@ async function startServer() {
         typeof val === 'string' &&
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
 
-      const { data: existingClient } = await supabaseAdmin
+      // Bloqueia criação de registro duplicado caso o e-mail ou username já pertença a um Administrador (system_admins)
+      const { data: allSysAdmins } = await supabaseAdmin
+        .from('system_admins')
+        .select('id, email, username, full_name');
+      const normCleanUser = normalizeUsernameKey(cleanUsername);
+      const matchedSysAdmin = (allSysAdmins || []).find(
+        (sa: any) =>
+          normalizeEmailKey(sa.email) === cleanEmail ||
+          (normCleanUser && normalizeUsernameKey(sa.username) === normCleanUser)
+      );
+      if (matchedSysAdmin) {
+        return res.status(400).json({
+          success: false,
+          error: `O usuário "${cleanUsername}" (${cleanEmail}) já está cadastrado como Administrador Master do sistema. Não é permitido duplicar o cadastro como cliente comum.`,
+        });
+      }
+
+      const { data: allExistingClients } = await supabaseAdmin
         .from('clients')
-        .select('id, user_id')
-        .eq('email', cleanEmail)
-        .maybeSingle();
+        .select('id, user_id, email, username');
+      const existingClient = (allExistingClients || []).find(
+        (c: any) =>
+          normalizeEmailKey(c.email) === cleanEmail ||
+          (normCleanUser && normalizeUsernameKey(c.username) === normCleanUser)
+      );
+
+      const nowUserIso = new Date().toISOString();
+      const resolvedUserOrigin = origin || 'portal';
+      const resolvedCreatedVia =
+        resolvedUserOrigin === 'admin' || resolvedUserOrigin === 'admvapp'
+          ? 'admvapp'
+          : resolvedUserOrigin === 'establishment' || resolvedUserOrigin === 'mnvapp'
+          ? 'mnvapp'
+          : 'pvapp';
 
       const clientPayload: Record<string, any> = {
         name: cleanName,
@@ -3992,11 +4494,11 @@ async function startServer() {
         formatted_address: userGeo.formatted_address,
         google_place_id: userGeo.google_place_id,
         default_address: fullAddress || null,
-        origin_type: origin || 'portal',
+        origin_type: resolvedUserOrigin,
         origin_salon_id: isUuid(salonId) ? salonId : null,
         is_active: true,
         access_level: 'Cliente Titular',
-        updated_at: new Date().toISOString(),
+        updated_at: nowUserIso,
       };
 
       if (authUserId) {
@@ -4030,12 +4532,13 @@ async function startServer() {
         }
         savedClient = updatedClient;
       } else {
-        const insertPayload = authUserId ? { ...clientPayload, id: authUserId } : { ...clientPayload };
-        let { data: insertedClient, error: insErr } = await supabaseAdmin
-          .from('clients')
-          .insert([insertPayload])
-          .select()
-          .single();
+        const insertPayload = {
+          ...(authUserId ? { id: authUserId } : {}),
+          ...clientPayload,
+          created_at: nowUserIso,
+          created_via: resolvedCreatedVia,
+        };
+        let { data: insertedClient, error: insErr } = await safeSupabaseWrite('clients', 'insert', insertPayload);
 
         if (insErr && (insErr.message?.includes('clients_user_id_fkey') || insErr.code === '23503' || insErr.code === '23505')) {
           const fallbackPayload: Record<string, any> = { ...clientPayload, user_id: null };
@@ -4795,6 +5298,7 @@ async function startServer() {
         navStyle,
         navShape,
         navBorder,
+        navIconBorder,
         navBgStyle,
         navBgColor,
         navBtnBgColor,
@@ -4809,6 +5313,7 @@ async function startServer() {
       const updatedBranding = {
         ...currentBranding,
         ...(themePresetId !== undefined ? { themePresetId } : {}),
+        ...(defaultTheme !== undefined ? { defaultTheme, themeMode: defaultTheme } : {}),
         ...(primaryColor !== undefined ? { primaryColor } : {}),
         ...(secondaryColor !== undefined ? { secondaryColor } : {}),
         ...(logoUrl !== undefined ? { logoUrl } : {}),
@@ -4824,6 +5329,7 @@ async function startServer() {
         ...(navActiveColor !== undefined ? { navActiveColor } : {}),
         ...(navTextColor !== undefined ? { navTextColor } : {}),
         ...(navBorder !== undefined ? { navBorder } : {}),
+        ...(navIconBorder !== undefined ? { navIconBorder } : {}),
         updatedAt: new Date().toISOString(),
       };
 
@@ -4865,6 +5371,7 @@ async function startServer() {
       if (navStyle !== undefined) salonUpdatePayload.nav_style = navStyle;
       if (navShape !== undefined) salonUpdatePayload.nav_shape = navShape;
       if (navBorder !== undefined) salonUpdatePayload.nav_border = navBorder;
+      if (navIconBorder !== undefined) salonUpdatePayload.nav_icon_border = navIconBorder;
       if (navBgStyle !== undefined) salonUpdatePayload.nav_bg_style = navBgStyle;
       if (navBgColor !== undefined) salonUpdatePayload.nav_bg_color = navBgColor;
       if (navBtnBgColor !== undefined) salonUpdatePayload.nav_btn_bg_color = navBtnBgColor;
@@ -4872,23 +5379,24 @@ async function startServer() {
       if (navActiveColor !== undefined) salonUpdatePayload.nav_active_color = navActiveColor;
       if (navTextColor !== undefined) salonUpdatePayload.nav_text_color = navTextColor;
 
-      const { data: updatedSalon, error: upErr } = await supabaseAdmin
-        .from('salons')
-        .update(salonUpdatePayload)
-        .eq('id', salonId)
-        .select()
-        .maybeSingle();
+      const { data: updatedSalon, error: upErr } = await safeSupabaseWrite('salons', 'update', salonUpdatePayload, {
+        eqCol: 'id',
+        eqVal: salonId,
+      });
 
       if (upErr) {
         return res.status(400).json({ success: false, error: upErr.message });
       }
 
-      // Sincroniza também na tabela relacional public.salon_ui_settings
+      // Sincroniza também na tabela relacional public.salon_ui_settings (SQL v5.0)
       const uiRowPayload: Record<string, any> = {
         salon_id: salonId,
+        branding_snapshot: updatedBranding,
         updated_at: new Date().toISOString(),
       };
       if (defaultTheme !== undefined) uiRowPayload.default_theme = defaultTheme;
+      if (primaryColor !== undefined) uiRowPayload.primary_color = primaryColor;
+      if (secondaryColor !== undefined) uiRowPayload.secondary_color = secondaryColor;
       if (pwaName !== undefined) uiRowPayload.pwa_name = pwaName;
       if (showSlogan !== undefined) uiRowPayload.show_slogan = showSlogan;
       if (logoTextFallback !== undefined) uiRowPayload.logo_text_fallback = logoTextFallback;
@@ -4903,6 +5411,7 @@ async function startServer() {
       if (navStyle !== undefined) uiRowPayload.nav_style = navStyle;
       if (navShape !== undefined) uiRowPayload.nav_shape = navShape;
       if (navBorder !== undefined) uiRowPayload.nav_border = navBorder;
+      if (navIconBorder !== undefined) uiRowPayload.nav_icon_border = navIconBorder;
       if (navBgStyle !== undefined) uiRowPayload.nav_bg_style = navBgStyle;
       if (navBgColor !== undefined) uiRowPayload.nav_bg_color = navBgColor;
       if (navBtnBgColor !== undefined) uiRowPayload.nav_btn_bg_color = navBtnBgColor;
@@ -4911,9 +5420,7 @@ async function startServer() {
       if (navTextColor !== undefined) uiRowPayload.nav_text_color = navTextColor;
 
       try {
-        await supabaseAdmin
-          .from('salon_ui_settings')
-          .upsert(uiRowPayload, { onConflict: 'salon_id' });
+        await safeSupabaseWrite('salon_ui_settings', 'upsert', uiRowPayload, { onConflict: 'salon_id' });
       } catch (uiErr) {
         console.warn('[handleThemeAndUiSync] Aviso ao sincronizar salon_ui_settings:', uiErr);
       }
@@ -5137,7 +5644,7 @@ Responda APENAS com o JSON válido, sem blocos de código adicionais além do JS
     }
   });
 
-  // Rota para obter o SQL Master completo v3.1.2 diretamente via browser ou script
+  // Rota para obter o SQL Master completo v5.0 diretamente via browser ou script
   app.get('/api/admin/schema/sql', (req, res) => {
     const schemaPath = path.join(process.cwd(), 'supabase_schema.sql');
     if (fs.existsSync(schemaPath)) {
@@ -5147,34 +5654,37 @@ Responda APENAS com o JSON válido, sem blocos de código adicionais além do JS
     return res.status(404).send('-- supabase_schema.sql não encontrado');
   });
 
-  // Rota para obter o Script SQL Mestre de Convergência da Tríade (bol-022)
+  // Rota para obter o Script SQL Mestre de Convergência Soberana da Tríade v5.0 (bol-159 / bol-160)
   app.get('/api/admin/triade/master-sql', (req, res) => {
-    const masterSqlPath = path.join(process.cwd(), 'supabase_master_convergence_20261023.sql');
-    if (fs.existsSync(masterSqlPath)) {
+    const masterSqlPath = path.join(process.cwd(), 'supabase', 'migrations', '20261111_master_convergence_v5_0.sql');
+    const fallbackPath = path.join(process.cwd(), 'supabase_schema.sql');
+    const targetPath = fs.existsSync(masterSqlPath) ? masterSqlPath : fallbackPath;
+    if (fs.existsSync(targetPath)) {
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-      return res.sendFile(masterSqlPath);
+      return res.sendFile(targetPath);
     }
-    return res.status(404).send('-- supabase_master_convergence_20261023.sql não encontrado');
+    return res.status(404).send('-- 20261111_master_convergence_v5_0.sql não encontrado');
   });
 
-  // Rota para obter o Relatório Técnico de Convergência da Tríade (bol-022)
+  // Rota para obter o Relatório Técnico de Convergência da Tríade v5.0 (bol-159 / bol-160)
   app.get('/api/admin/triade/convergence-report', async (req, res) => {
     try {
-      // Checa contagens no Supabase para diagnostico
       let salonsCount = 0;
       let servicesCount = 0;
       let clientsCount = 0;
       let dependentsCount = 0;
       let appointmentsCount = 0;
+      let securityQuestionsCount = 0;
       let dbOk = false;
 
       try {
-        const [salonsRes, servicesRes, clientsRes, depsRes, aptsRes] = await Promise.all([
+        const [salonsRes, servicesRes, clientsRes, depsRes, aptsRes, secQRes] = await Promise.all([
           supabaseAdmin.from('salons').select('id', { count: 'exact', head: true }),
           supabaseAdmin.from('services').select('id', { count: 'exact', head: true }),
           supabaseAdmin.from('clients').select('id', { count: 'exact', head: true }),
           supabaseAdmin.from('dependents').select('id', { count: 'exact', head: true }),
           supabaseAdmin.from('appointments').select('id', { count: 'exact', head: true }),
+          supabaseAdmin.from('security_questions').select('code', { count: 'exact', head: true }),
         ]);
 
         salonsCount = salonsRes.count || 0;
@@ -5182,6 +5692,7 @@ Responda APENAS com o JSON válido, sem blocos de código adicionais além do JS
         clientsCount = clientsRes.count || 0;
         dependentsCount = depsRes.count || 0;
         appointmentsCount = aptsRes.count || 0;
+        securityQuestionsCount = secQRes.count || 0;
         dbOk = true;
       } catch (err) {
         console.warn('[convergence-report] Database stats warning:', err);
@@ -5189,7 +5700,8 @@ Responda APENAS com o JSON válido, sem blocos de código adicionais além do JS
 
       return res.json({
         success: true,
-        bulletinId: 'bol-022-triade-database-and-code-convergence',
+        bulletinId: 'bol-160-admvapp-v5-convergence-ratification',
+        sqlVersion: 'v5.0',
         timestamp: new Date().toISOString(),
         databaseConnected: dbOk,
         stats: {
@@ -5198,13 +5710,14 @@ Responda APENAS com o JSON válido, sem blocos de código adicionais além do JS
           clientsCount,
           dependentsCount,
           appointmentsCount,
+          securityQuestionsCount,
         },
         resolutions: [
-          { key: 'salon_clients_fk', status: 'resolved', description: 'client_user_id sem trava NOT NULL; fallback por client_id habilitado.' },
-          { key: 'mirrored_triggers', status: 'resolved', description: 'Gatilhos bidirecionais anti-loop ativados com pg_trigger_depth() <= 1.' },
-          { key: 'rpc_governance', status: 'resolved', description: 'RPC register_system_admin criada e overloads de register_triade_user corrigidas.' },
-          { key: 'live_tracking_columns', status: 'resolved', description: '17 colunas de rastreamento 10s e cancelamento de agendamentos adicionadas.' },
-          { key: 'storage_realtime', status: 'resolved', description: 'Buckets avatars, salon-media e media com politicas publicas e realtime ativo.' },
+          { key: 'zero_mocks_and_seeds', status: 'resolved', description: 'Zero mocks em código/SQL e zero DROP TABLE destrutivo (apenas 3 perguntas de segurança oficiais).' },
+          { key: 'pastel_mint_defaults', status: 'resolved', description: 'Paleta oficial Verde Pastel Clarinho (#10B981 / #065F46 / #D1FAE5 / #ECFDF5 / light / nav_icon_border=none) sincronizada com salon_ui_settings.' },
+          { key: 'unified_billing_fields', status: 'resolved', description: 'fee_per_booking ⇄ billing_fee_value = 2.50, billing_plan = PER_APPOINTMENT e monthly_subscription_fee = 89.90.' },
+          { key: 'chronological_appointments', status: 'resolved', description: 'Ordenação crescente (date_str ASC, start_time ASC), Pago/À pagar, Bloqueado, Permuta (swap_state) e Colisão Geotemporal.' },
+          { key: 'security_questions_support', status: 'resolved', description: 'Indicador e reset administrativo de user_security_answers e senha habilitados.' },
         ],
         masterSqlUrl: '/api/admin/triade/master-sql',
       });
@@ -5231,70 +5744,9 @@ Responda APENAS com o JSON válido, sem blocos de código adicionais além do JS
     });
   }
 
-  app.listen(PORT, '0.0.0.0', async () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`[Admin Master admvapp] Server running on http://localhost:${PORT}`);
-    console.log(`[Admin Master admvapp] Service Role: ${SUPABASE_SERVICE_ROLE_KEY ? 'ACTIVE' : 'NOT SET (Fallback to Anon)'}`);
-
-    // Auto-seed e Sincronização do Usuário José Roberto no Supabase
-    try {
-      const joseId = 'a1b2c3d4-e5f6-4789-8012-345678901234';
-      const joseEmail = 'jose@jose.com';
-      const joseName = 'Jose Roberto';
-      const josePhone = '(11) 22334-4556';
-
-      await supabaseAdmin.from('system_admins').upsert({
-        id: joseId,
-        full_name: joseName,
-        username: 'jose',
-        email: joseEmail,
-        phone_whatsapp: josePhone,
-        password_hash: 'Admin@2026!',
-        role: 'owner',
-        is_active: true,
-        avatar_url: '',
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'email' });
-
-      await supabaseAdmin.from('profiles').upsert({
-        id: joseId,
-        full_name: joseName,
-        email: joseEmail,
-        phone_whatsapp: josePhone,
-        avatar_url: '',
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'id' });
-
-      await supabaseAdmin.from('clients').upsert({
-        id: joseId,
-        name: joseName,
-        email: joseEmail,
-        phone: josePhone,
-        avatar_url: '',
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'id' });
-
-      await supabaseAdmin.from('salons').update({ owner_id: joseId }).eq('email', joseEmail);
-
-      const { data: joseSalons } = await supabaseAdmin.from('salons').select('id').eq('email', joseEmail);
-      if (joseSalons && joseSalons.length > 0) {
-        for (const sal of joseSalons) {
-          await supabaseAdmin.from('professionals').upsert({
-            id: joseId,
-            salon_id: sal.id,
-            name: joseName,
-            email: joseEmail,
-            phone: josePhone,
-            avatar_url: '',
-            role: 'Proprietário',
-            is_active: true,
-            updated_at: new Date().toISOString(),
-          }, { onConflict: 'id' });
-        }
-      }
-      console.log('[Seed] Conta e Salão do José Roberto sincronizados com sucesso no Supabase!');
-    } catch (seedErr) {
-      console.warn('[Seed] Aviso ao sincronizar conta do José no Supabase:', seedErr);
-    }
+    console.log(`[Admin Master admvapp] Service Role: ${SUPABASE_SERVICE_ROLE_KEY ? 'ACTIVE' : 'NOT SET (Fallback to Anon)'} | SQL Contract: v5.0 (Zero Mocks)`);
   });
 }
 

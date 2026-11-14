@@ -47,6 +47,12 @@ export {
 } from '../components/admin/triade-forms/TriadeUserLoginForm';
 
 export {
+  TriadeUserAuthCard,
+  type TriadeUserAuthCardProps,
+  type UserAuthMode,
+} from '../components/admin/triade-forms/TriadeUserAuthCard';
+
+export {
   TriadeMnvClientLoginForm,
   type TriadeMnvClientLoginFormProps,
 } from '../components/admin/triade-forms/TriadeMnvClientLoginForm';

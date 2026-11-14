@@ -97,27 +97,8 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
   // Operating hours state
   const [operatingHours, setOperatingHours] = useState<DayOperatingHour[]>(DEFAULT_OPERATING_HOURS);
 
-  // Team state
-  const [teamMembers, setTeamMembers] = useState<SalonTeamMember[]>([
-    {
-      id: 'tm-1',
-      fullName: 'Anderson Silva',
-      email: 'anderson@vagouapp.com',
-      phoneWhatsapp: '(11) 99999-8888',
-      role: 'owner',
-      specialty: 'Master Barber & Proprietário',
-      isActive: true,
-    },
-    {
-      id: 'tm-2',
-      fullName: 'Carlos Eduardo',
-      email: 'carlos@vagouapp.com',
-      phoneWhatsapp: '(11) 98888-7777',
-      role: 'collaborator',
-      specialty: 'Corte Degradê & Barba',
-      isActive: true,
-    },
-  ]);
+  // Team state (Zero Mocks — carregado do Supabase /api/admin/salons/:id/full-sync)
+  const [teamMembers, setTeamMembers] = useState<SalonTeamMember[]>([]);
 
   // Form para adicionar novo membro na equipe
   const [showAddMember, setShowAddMember] = useState(false);
@@ -171,12 +152,45 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
         google_place_id: salon.google_place_id || '',
         logo_url: salon.logo_url || '',
         primary_color: salon.primary_color || '#10B981',
-        billing_plan: salon.billing_plan || 'per_booking',
-        fee_per_booking: salon.fee_per_booking ?? 2.5,
+        secondary_color: salon.secondary_color || '#065F46',
+        default_theme: salon.default_theme || 'light',
+        billing_plan:
+          String(salon.billing_plan || '').toUpperCase() === 'SUBSCRIPTION'
+            ? 'SUBSCRIPTION'
+            : 'PER_APPOINTMENT',
+        fee_per_booking: salon.fee_per_booking ?? salon.billing_fee_value ?? 2.5,
+        billing_fee_value: salon.billing_fee_value ?? salon.fee_per_booking ?? 2.5,
         monthly_subscription_fee: salon.monthly_subscription_fee ?? 89.9,
         billing_due_day: salon.billing_due_day ?? 10,
         pix_key: salon.pix_key || '',
       });
+
+      // Carrega profissionais reais vinculados ao salão
+      fetch(`/api/admin/salons/${salon.id}/full-sync`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((json) => {
+          if (json?.success && Array.isArray(json.professionals)) {
+            setTeamMembers(
+              json.professionals.map((p: any) => ({
+                id: p.id,
+                fullName: p.name || p.full_name || 'Profissional',
+                email: p.email || '',
+                phoneWhatsapp: p.phone || p.phone_whatsapp || '',
+                role:
+                  p.access_level === 'admin'
+                    ? 'owner'
+                    : p.access_level === 'reception' || p.access_level === 'receptionist'
+                    ? 'reception'
+                    : 'collaborator',
+                specialty: p.role || '',
+                isActive: p.is_active !== false,
+              }))
+            );
+          } else {
+            setTeamMembers([]);
+          }
+        })
+        .catch(() => setTeamMembers([]));
 
       if (salon.pix_keys && salon.pix_keys.length > 0) {
         setPixKeys(salon.pix_keys);
@@ -241,7 +255,7 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
     setOperatingHours(updated);
   };
 
-  const handleAddTeamMember = () => {
+  const handleAddTeamMember = async () => {
     if (!newMemberName.trim()) return;
     const newMember: SalonTeamMember = {
       id: `tm-${Date.now()}`,
@@ -252,16 +266,52 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
       specialty: newMemberSpecialty.trim(),
       isActive: true,
     };
-    setTeamMembers([...teamMembers, newMember]);
+    setTeamMembers((prev) => [...prev, newMember]);
     setNewMemberName('');
     setNewMemberEmail('');
     setNewMemberPhone('');
     setNewMemberSpecialty('');
     setShowAddMember(false);
+
+    try {
+      await fetch(`/api/admin/salons/${salon.id}/professionals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'upsert',
+          professional: {
+            name: newMember.fullName,
+            role: newMember.specialty || 'Profissional',
+            access_level:
+              newMember.role === 'owner' || newMember.role === 'manager'
+                ? 'admin'
+                : newMember.role === 'reception'
+                ? 'receptionist'
+                : 'professional',
+            phone: newMember.phoneWhatsapp,
+            email: newMember.email,
+            commission_rate: 50,
+            product_commission_rate: 10,
+            is_active: true,
+          },
+        }),
+      });
+    } catch {
+      // Mantém estado otimista em caso de indisponibilidade temporária
+    }
   };
 
-  const handleRemoveTeamMember = (id: string) => {
-    setTeamMembers(teamMembers.filter((m) => m.id !== id));
+  const handleRemoveTeamMember = async (id: string) => {
+    setTeamMembers((prev) => prev.filter((m) => m.id !== id));
+    try {
+      await fetch(`/api/admin/salons/${salon.id}/professionals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', professionalId: id }),
+      });
+    } catch {
+      // Mantém remoção otimista
+    }
   };
 
   const handlePixKeyChange = (id: string, rawVal: string, explicitType?: PixKeyType) => {
@@ -355,8 +405,19 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
       const validPix = pixKeys.filter((k) => k.key.trim().length > 0);
       const primaryPix = validPix.find((k) => k.isPrimary) || validPix[0];
 
+      const syncedFee = Number(formData.fee_per_booking ?? formData.billing_fee_value ?? 2.5);
+      const normalizedPlan =
+        String(formData.billing_plan || '').toUpperCase() === 'SUBSCRIPTION'
+          ? 'SUBSCRIPTION'
+          : 'PER_APPOINTMENT';
+
       const updates: Partial<AdminSalonItem> = {
         ...formData,
+        billing_plan: normalizedPlan,
+        fee_per_booking: syncedFee,
+        billing_fee_value: syncedFee,
+        monthly_subscription_fee: Number(formData.monthly_subscription_fee ?? 89.9),
+        billing_due_day: Number(formData.billing_due_day ?? 10),
         legal_name: hasCnpj ? formData.legal_name : '',
         document_number: hasCnpj ? formData.document_number : '',
         pix_key: primaryPix?.key || '',
@@ -969,11 +1030,109 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
           {/* ABA 1C: FATURAMENTO & CHAVES PIX + QR CODE AUTOMÁTICO */}
           {activeTab === 'pix_billing' && (
             <div className="space-y-4 animate-fadeIn">
+              {/* Plano & Taxas Individuais VagouApp (SQL v5.0 — trg_sync_salon_fields) */}
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                  <Receipt className="w-3.5 h-3.5" />
+                  Plano & Taxas Individuais VagouApp
+                </span>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFormData({ ...formData, billing_plan: 'PER_APPOINTMENT' })
+                    }
+                    className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition cursor-pointer whitespace-nowrap ${
+                      String(formData.billing_plan || '').toUpperCase() !== 'SUBSCRIPTION'
+                        ? 'bg-[#10B981] border-emerald-400 text-white shadow-xs'
+                        : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    Por Agendamento
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFormData({ ...formData, billing_plan: 'SUBSCRIPTION' })
+                    }
+                    className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition cursor-pointer whitespace-nowrap ${
+                      String(formData.billing_plan || '').toUpperCase() === 'SUBSCRIPTION'
+                        ? 'bg-[#10B981] border-emerald-400 text-white shadow-xs'
+                        : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    Mensalidade Fixa
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-[10px] font-semibold text-slate-500 block mb-1">
+                      Taxa / Agend. (R$)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.10"
+                      min="0"
+                      value={formData.fee_per_booking ?? 2.5}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        setFormData({
+                          ...formData,
+                          fee_per_booking: val,
+                          billing_fee_value: val,
+                        });
+                      }}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2 py-1.5 text-xs font-mono text-slate-900 dark:text-white outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-semibold text-slate-500 block mb-1">
+                      Mensalidade (R$)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.50"
+                      min="0"
+                      value={formData.monthly_subscription_fee ?? 89.9}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          monthly_subscription_fee: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2 py-1.5 text-xs font-mono text-slate-900 dark:text-white outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-semibold text-slate-500 block mb-1">
+                      Vencimento (Dia)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="28"
+                      value={formData.billing_due_day ?? 10}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          billing_due_day: Math.min(28, Math.max(1, parseInt(e.target.value) || 10)),
+                        })
+                      }
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2 py-1.5 text-xs font-mono text-slate-900 dark:text-white outline-none text-center"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
                     <Wallet className="w-3.5 h-3.5" />
-                    Faturamento & Chaves PIX ({pixKeys.length})
+                    Chaves PIX do Salão ({pixKeys.length})
                   </span>
                   <button
                     type="button"

@@ -19,8 +19,10 @@ import {
   Filter,
   X,
   QrCode,
+  Clock,
 } from 'lucide-react';
 import { AdminSalonItem, SalonFilterStatus } from '../../types/admin';
+import { formatCreatedAtParts, resolveRecordOriginInfo } from '../../utils/dateTimeFormat';
 import { SalonLogo } from '../common/SalonLogo';
 import { AdminCategoryModal } from './AdminCategoryModal';
 import { AdminSalonDetailView } from './AdminSalonDetailView';
@@ -135,6 +137,10 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
       }
 
       return true;
+    }).sort((a, b) => {
+      const ta = formatCreatedAtParts(a.created_at).timestampMs;
+      const tb = formatCreatedAtParts(b.created_at).timestampMs;
+      return tb - ta;
     });
   }, [salons, activeSearch, statusFilter, segmentFilter, categories]);
 
@@ -165,21 +171,29 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
       'E-mail',
       'Cidade',
       'Estado',
+      'Criado em',
+      'Origem',
     ];
 
-    const rows = filteredSalons.map((s) => [
-      s.id,
-      `"${s.trade_name}"`,
-      `"${s.legal_name || ''}"`,
-      `"${s.slug}.vagouapp.com"`,
-      `"${s.category}"`,
-      `"${s.status}"`,
-      s.is_verified ? 'SIM' : 'NAO',
-      `"${s.phone_whatsapp || ''}"`,
-      `"${s.email || ''}"`,
-      `"${s.city || ''}"`,
-      `"${s.state || ''}"`,
-    ]);
+    const rows = filteredSalons.map((s) => {
+      const createdParts = formatCreatedAtParts(s.created_at);
+      const originInfo = resolveRecordOriginInfo(s.created_via, s.created_at);
+      return [
+        s.id,
+        `"${s.trade_name}"`,
+        `"${s.legal_name || ''}"`,
+        `"${s.slug}.vagouapp.com"`,
+        `"${s.category}"`,
+        `"${s.status}"`,
+        s.is_verified ? 'SIM' : 'NAO',
+        `"${s.phone_whatsapp || ''}"`,
+        `"${s.email || ''}"`,
+        `"${s.city || ''}"`,
+        `"${s.state || ''}"`,
+        `"${createdParts.csvLabel}"`,
+        `"${originInfo.label}"`,
+      ];
+    });
 
     const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
@@ -289,9 +303,9 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
   }
 
   return (
-    <div className="space-y-4">
-      {/* Unified Header & Control Bar */}
-      <div className="p-3 sm:p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 shadow-xs dark:shadow-none">
+    <div className="h-full flex flex-col min-h-0 overflow-hidden">
+      {/* Unified Header & Control Bar — Fixo ao Topo sem espaçamento com cabeçalho superior, separado por linha */}
+      <div className="shrink-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 lg:px-6 py-2.5 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5 z-10 transition-colors shadow-2xs dark:shadow-none">
         {/* Left Side: Title & Compact Filters */}
         <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0">
           <div className="flex items-center gap-2 mr-1">
@@ -427,269 +441,312 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
         </div>
       </div>
 
-          {/* Bulk Actions Banner when items are selected */}
-          {selectedIds.length > 0 && (
-            <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/90 border border-emerald-300 dark:border-emerald-500/50 flex flex-wrap items-center justify-between gap-2.5 animate-fadeIn shadow-xs">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span className="text-xs font-bold text-slate-900 dark:text-white">
-                  {selectedIds.length} {selectedIds.length === 1 ? 'estabelecimento selecionado' : 'estabelecimentos selecionados'}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleBulkApprove}
-                  className="px-3 py-1 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition cursor-pointer shadow-xs active:scale-95"
-                >
-                  Aprovar Todos
-                </button>
-
-                <button
-                  onClick={handleBulkSuspend}
-                  className="px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950/80 text-amber-700 dark:text-amber-300 hover:text-amber-800 dark:hover:text-amber-200 font-semibold text-xs transition cursor-pointer border border-amber-200 dark:border-amber-900/50"
-                >
-                  Suspender
-                </button>
-
-                <button
-                  onClick={() => setIsBulkDeleting(true)}
-                  className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition cursor-pointer shadow-xs flex items-center gap-1 active:scale-95"
-                >
-                  <Trash2 className="w-3.5 h-3.5 text-white" />
-                  <span>Excluir Selecionados</span>
-                </button>
-
-                <button
-                  onClick={() => setSelectedIds([])}
-                  className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white px-2 py-1"
-                >
-                  Desmarcar
-                </button>
-              </div>
+      {/* Área de Dados — Container Mestre com Zero Espaço */}
+      <div className="flex-1 flex flex-col min-h-0 p-0 m-0 overflow-hidden">
+        {/* Bulk Actions Banner when items are selected */}
+        {selectedIds.length > 0 && (
+          <div className="shrink-0 p-3 bg-emerald-50 dark:bg-emerald-950/90 border-b border-emerald-300 dark:border-emerald-500/50 flex flex-wrap items-center justify-between gap-2.5 animate-fadeIn">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-xs font-bold text-slate-900 dark:text-white">
+                {selectedIds.length} {selectedIds.length === 1 ? 'estabelecimento selecionado' : 'estabelecimentos selecionados'}
+              </span>
             </div>
-          )}
 
-          {/* VIEW 1: DATA TABLE */}
-          {viewMode === 'table' && (
-            <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs dark:shadow-sm">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-100 dark:bg-slate-900/90 text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 select-none">
-                    <tr>
-                      <th className="py-3 px-3 w-8">
-                        <button
-                          onClick={toggleSelectAll}
-                          className="text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
-                          title="Selecionar todos"
-                        >
-                          {selectedIds.length === filteredSalons.length && filteredSalons.length > 0 ? (
-                            <CheckSquare className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                          ) : (
-                            <Square className="w-4 h-4" />
-                          )}
-                        </button>
-                      </th>
-                      <th className="py-3 px-3 font-semibold">Salão / Marca</th>
-                      <th className="py-3 px-3 font-semibold">Subdomínio</th>
-                      <th className="py-3 px-3 font-semibold">Categoria</th>
-                      <th className="py-3 px-3 font-semibold">Localização</th>
-                      <th className="py-3 px-3 font-semibold">Contato</th>
-                      <th className="py-3 px-3 font-semibold">Status</th>
-                      <th className="py-3 px-4 font-semibold text-right">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200/80 dark:divide-slate-800/80">
-                    {filteredSalons.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="py-12 text-center text-slate-500 dark:text-slate-400 text-xs">
-                          Nenhum estabelecimento encontrado com os filtros aplicados.
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredSalons.map((salon) => {
-                        const statusBadge = getStatusBadge(salon.status);
-                        const isSelected = selectedIds.includes(salon.id);
-                        return (
-                          <tr
-                            key={salon.id}
-                            onClick={() => handleSelectSalonDetail(salon)}
-                            className={`transition group cursor-pointer ${
-                              isSelected ? 'bg-emerald-50 dark:bg-emerald-950/20' : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40 text-slate-800 dark:text-slate-200'
-                            }`}
-                            title={`Clique para abrir a página completa de ${salon.trade_name}`}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleBulkApprove}
+                className="px-3 py-1 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition cursor-pointer shadow-xs active:scale-95"
+              >
+                Aprovar Todos
+              </button>
+
+              <button
+                onClick={handleBulkSuspend}
+                className="px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950/80 text-amber-700 dark:text-amber-300 hover:text-amber-800 dark:hover:text-amber-200 font-semibold text-xs transition cursor-pointer border border-amber-200 dark:border-amber-900/50"
+              >
+                Suspender
+              </button>
+
+              <button
+                onClick={() => setIsBulkDeleting(true)}
+                className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition cursor-pointer shadow-xs flex items-center gap-1 active:scale-95"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-white" />
+                <span>Excluir Selecionados</span>
+              </button>
+
+              <button
+                onClick={() => setSelectedIds([])}
+                className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white px-2 py-1"
+              >
+                Desmarcar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* VIEW 1: DATA TABLE — Cabeçalho das colunas 100% fixo ao topo (sticky top-0), rolando SOMENTE os dados */}
+        {viewMode === 'table' && (
+          <div className="flex-1 overflow-auto min-h-0 custom-scrollbar w-full bg-white dark:bg-slate-900">
+            <table className="w-full text-left text-xs border-separate border-spacing-0">
+              <thead className="sticky top-0 z-20">
+                <tr>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 w-8 border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs select-none">
+                    <button
+                      onClick={toggleSelectAll}
+                      className="text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
+                      title="Selecionar todos"
+                    >
+                      {selectedIds.length === filteredSalons.length && filteredSalons.length > 0 ? (
+                        <CheckSquare className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      ) : (
+                        <Square className="w-4 h-4" />
+                      )}
+                    </button>
+                  </th>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">
+                    Salão / Marca
+                  </th>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">
+                    Subdomínio
+                  </th>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">
+                    Categoria
+                  </th>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">
+                    Localização
+                  </th>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">
+                    Contato
+                  </th>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">
+                    Criado em
+                  </th>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">
+                    Status
+                  </th>
+                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-4 font-semibold text-right text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">
+                    Ações
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredSalons.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="py-12 text-center text-slate-500 dark:text-slate-400 text-xs border-b border-slate-200/80 dark:border-slate-800/80">
+                      Nenhum estabelecimento encontrado com os filtros aplicados.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredSalons.map((salon) => {
+                    const statusBadge = getStatusBadge(salon.status);
+                    const isSelected = selectedIds.includes(salon.id);
+                    const createdParts = formatCreatedAtParts(salon.created_at);
+                    const originInfo = resolveRecordOriginInfo(salon.created_via, salon.created_at);
+                    return (
+                      <tr
+                        key={salon.id}
+                        onClick={() => handleSelectSalonDetail(salon)}
+                        className={`transition group cursor-pointer ${
+                          isSelected ? 'bg-emerald-50 dark:bg-emerald-950/20' : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40 text-slate-800 dark:text-slate-200'
+                        }`}
+                        title={`Clique para abrir a página completa de ${salon.trade_name}`}
+                      >
+                        {/* Checkbox */}
+                        <td className="py-3 px-3 border-b border-slate-200/80 dark:border-slate-800/80">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleSelectOne(salon.id);
+                            }}
+                            className="text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
                           >
-                            {/* Checkbox */}
-                            <td className="py-3 px-3">
+                            {isSelected ? (
+                              <CheckSquare className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                            ) : (
+                              <Square className="w-4 h-4" />
+                            )}
+                          </button>
+                        </td>
+
+                        {/* Name & Logo */}
+                        <td className="py-3 px-3 border-b border-slate-200/80 dark:border-slate-800/80">
+                          <div className="flex items-center gap-3">
+                            <SalonLogo
+                              logoUrl={salon.logo_url}
+                              name={salon.trade_name}
+                              size="md"
+                              primaryColor={salon.primary_color}
+                            />
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-slate-900 dark:text-white block truncate">{salon.trade_name}</span>
+                                {salon.is_verified && (
+                                  <span title="Verificado Oficial">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate">
+                                {salon.legal_name || 'Sem razão social'}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Subdomain */}
+                        <td className="py-3 px-3 border-b border-slate-200/80 dark:border-slate-800/80">
+                          <span className="font-mono text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20 font-medium">
+                            {salon.slug}.vagouapp.com
+                          </span>
+                        </td>
+
+                        {/* Category */}
+                        <td className="py-3 px-3 border-b border-slate-200/80 dark:border-slate-800/80">
+                          <span className="text-slate-700 dark:text-slate-300 font-medium">{getCategoryLabel(salon.category)}</span>
+                        </td>
+
+                        {/* Location */}
+                        <td className="py-3 px-3 text-slate-700 dark:text-slate-300 border-b border-slate-200/80 dark:border-slate-800/80">
+                          <span className="block truncate max-w-[130px] font-medium">{salon.neighborhood || salon.city}</span>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block">{salon.state || 'SP'}</span>
+                        </td>
+
+                        {/* Contact */}
+                        <td className="py-3 px-3 border-b border-slate-200/80 dark:border-slate-800/80">
+                          <span className="font-mono text-[11px] text-slate-700 dark:text-slate-300 block">{salon.phone_whatsapp || '—'}</span>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate max-w-[120px]">{salon.email || ''}</span>
+                        </td>
+
+                        {/* Criado em (Data + Hora + Origem) */}
+                        <td
+                          className="py-3 px-3 border-b border-slate-200/80 dark:border-slate-800/80 whitespace-nowrap"
+                          title={`Criado em: ${createdParts.fullLabel} • Origem: ${originInfo.label}`}
+                        >
+                          {createdParts.valid ? (
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-1 font-mono text-[11px] font-semibold text-slate-800 dark:text-slate-200">
+                                <span>{createdParts.dateShort}</span>
+                                <Clock className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                <span className="text-emerald-700 dark:text-emerald-400">{createdParts.timeShort}</span>
+                              </div>
+                              <span className="text-[9px] font-medium text-slate-500 dark:text-slate-400 block">
+                                {originInfo.label}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="font-mono text-[11px] text-slate-400">—</span>
+                          )}
+                        </td>
+
+                        {/* Status Badge */}
+                        <td className="py-3 px-3 border-b border-slate-200/80 dark:border-slate-800/80">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusBadge.className}`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${statusBadge.dot}`} />
+                            {statusBadge.label}
+                          </span>
+                        </td>
+
+                        {/* Actions */}
+                        <td className="py-3 px-4 text-right border-b border-slate-200/80 dark:border-slate-800/80">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {salon.status === 'pending' && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  toggleSelectOne(salon.id);
+                                  onUpdateStatus(salon.id, 'active');
                                 }}
-                                className="text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
+                                className="px-2 py-1 rounded bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-[10px] transition cursor-pointer shadow-xs active:scale-95"
+                                title="Aprovar Cadastro"
                               >
-                                {isSelected ? (
-                                  <CheckSquare className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                                ) : (
-                                  <Square className="w-4 h-4" />
-                                )}
+                                Aprovar
                               </button>
-                            </td>
+                            )}
 
-                            {/* Name & Logo */}
-                            <td className="py-3 px-3">
-                              <div className="flex items-center gap-3">
-                                <SalonLogo
-                                  logoUrl={salon.logo_url}
-                                  name={salon.trade_name}
-                                  size="md"
-                                  primaryColor={salon.primary_color}
-                                />
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="font-bold text-slate-900 dark:text-white block truncate">{salon.trade_name}</span>
-                                    {salon.is_verified && (
-                                      <span title="Verificado Oficial">
-                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                                      </span>
-                                    )}
-                                  </div>
-                                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate">
-                                    {salon.legal_name || 'Sem razão social'}
-                                  </span>
-                                </div>
-                              </div>
-                            </td>
-
-                            {/* Subdomain */}
-                            <td className="py-3 px-3">
-                              <span className="font-mono text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20 font-medium">
-                                {salon.slug}.vagouapp.com
-                              </span>
-                            </td>
-
-                            {/* Category */}
-                            <td className="py-3 px-3">
-                              <span className="text-slate-700 dark:text-slate-300 font-medium">{getCategoryLabel(salon.category)}</span>
-                            </td>
-
-                            {/* Location */}
-                            <td className="py-3 px-3 text-slate-700 dark:text-slate-300">
-                              <span className="block truncate max-w-[130px] font-medium">{salon.neighborhood || salon.city}</span>
-                              <span className="text-[10px] text-slate-500 dark:text-slate-400 block">{salon.state || 'SP'}</span>
-                            </td>
-
-                            {/* Contact */}
-                            <td className="py-3 px-3">
-                              <span className="font-mono text-[11px] text-slate-700 dark:text-slate-300 block">{salon.phone_whatsapp || '—'}</span>
-                              <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate max-w-[120px]">{salon.email || ''}</span>
-                            </td>
-
-                            {/* Status Badge */}
-                            <td className="py-3 px-3">
-                              <span
-                                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusBadge.className}`}
+                            {salon.status === 'active' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onUpdateStatus(salon.id, 'suspended');
+                                }}
+                                className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/60 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition cursor-pointer border border-slate-200 dark:border-slate-700/60 shadow-xs dark:shadow-none"
+                                title="Suspender Salão"
                               >
-                                <span className={`w-1.5 h-1.5 rounded-full ${statusBadge.dot}`} />
-                                {statusBadge.label}
-                              </span>
-                            </td>
+                                <Ban className="w-3.5 h-3.5" />
+                              </button>
+                            )}
 
-                             {/* Actions */}
-                            <td className="py-3 px-4 text-right">
-                              <div className="flex items-center justify-end gap-1.5">
-                                {salon.status === 'pending' && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      onUpdateStatus(salon.id, 'active');
-                                    }}
-                                    className="px-2 py-1 rounded bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-[10px] transition cursor-pointer shadow-xs active:scale-95"
-                                    title="Aprovar Cadastro"
-                                  >
-                                    Aprovar
-                                  </button>
-                                )}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onEditSalon(salon);
+                              }}
+                              className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition cursor-pointer border border-slate-200 dark:border-slate-700/60 shadow-xs dark:shadow-none"
+                              title="Editar Informações Críticas"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
 
-                                {salon.status === 'active' && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      onUpdateStatus(salon.id, 'suspended');
-                                    }}
-                                    className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/60 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition cursor-pointer border border-slate-200 dark:border-slate-700/60 shadow-xs dark:shadow-none"
-                                    title="Suspender Salão"
-                                  >
-                                    <Ban className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSalonToDelete(salon);
+                              }}
+                              className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/80 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition cursor-pointer border border-slate-200 dark:border-slate-700/60 shadow-xs dark:shadow-none"
+                              title="Excluir Estabelecimento"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
 
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onEditSalon(salon);
-                                  }}
-                                  className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition cursor-pointer border border-slate-200 dark:border-slate-700/60 shadow-xs dark:shadow-none"
-                                  title="Editar Informações Críticas"
-                                >
-                                  <Edit className="w-3.5 h-3.5" />
-                                </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSalonForQrModal(salon);
+                              }}
+                              className="p-1.5 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white transition cursor-pointer shadow-xs active:scale-95"
+                              title="Link do App & QR Code de Balcão"
+                            >
+                              <QrCode className="w-3.5 h-3.5 text-white" />
+                            </button>
 
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSalonToDelete(salon);
-                                  }}
-                                  className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/80 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition cursor-pointer border border-slate-200 dark:border-slate-700/60 shadow-xs dark:shadow-none"
-                                  title="Excluir Estabelecimento"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSalonForQrModal(salon);
-                                  }}
-                                  className="p-1.5 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white transition cursor-pointer shadow-xs active:scale-95"
-                                  title="Link do App & QR Code de Balcão"
-                                >
-                                  <QrCode className="w-3.5 h-3.5 text-white" />
-                                </button>
-
-                                <a
-                                  href={`https://${salon.slug}.vagouapp.com`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition cursor-pointer border border-slate-200 dark:border-slate-700/60 shadow-xs dark:shadow-none"
-                                  title="Abrir Subdomínio Oficial"
-                                >
-                                  <ExternalLink className="w-3.5 h-3.5" />
-                                </a>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+                            <a
+                              href={`https://${salon.slug}.vagouapp.com`}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition cursor-pointer border border-slate-200 dark:border-slate-700/60 shadow-xs dark:shadow-none"
+                              title="Abrir Subdomínio Oficial"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
 
           {/* VIEW 2: CARDS GRID */}
           {viewMode === 'cards' && (
-            filteredSalons.length === 0 ? (
-              <div className="py-12 text-center text-slate-500 dark:text-slate-400 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-2">
-                <p className="font-semibold text-slate-700 dark:text-slate-300">Nenhum estabelecimento encontrado no banco de dados.</p>
-                <p className="text-[11px] text-slate-400">Cadastre um novo salão ou execute os registros iniciais no Supabase.</p>
-              </div>
-            ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
+            <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar p-4 lg:p-6 space-y-4">
+              {filteredSalons.length === 0 ? (
+                <div className="py-12 text-center text-slate-500 dark:text-slate-400 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 space-y-2">
+                  <p className="font-semibold text-slate-700 dark:text-slate-300">Nenhum estabelecimento encontrado no banco de dados.</p>
+                  <p className="text-[11px] text-slate-400">Cadastre um novo salão ou execute os registros iniciais no Supabase.</p>
+                </div>
+              ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
               {filteredSalons.map((salon) => {
                 const statusBadge = getStatusBadge(salon.status);
+                const createdParts = formatCreatedAtParts(salon.created_at);
+                const originInfo = resolveRecordOriginInfo(salon.created_via, salon.created_at);
                 return (
                   <div
                     key={salon.id}
@@ -760,6 +817,12 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                           <span>Profissionais:</span>
                           <span className="text-slate-800 dark:text-slate-300 font-semibold">{salon.professionals_count || 1} membros</span>
                         </div>
+                        <div className="flex items-center justify-between" title={`${createdParts.fullLabel} • ${originInfo.label}`}>
+                          <span>Criado em:</span>
+                          <span className="font-mono text-slate-800 dark:text-slate-300 font-semibold">
+                            {createdParts.compactLabel}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
@@ -802,8 +865,9 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                   </div>
                 );
               })}
+              </div>
+              )}
             </div>
-            )
           )}
 
           {/* MODAL: Confirmação de Exclusão Individual */}
@@ -939,6 +1003,7 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                 : null
             }
           />
+      </div>
     </div>
   );
 };

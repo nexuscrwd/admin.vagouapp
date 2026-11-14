@@ -62,11 +62,13 @@ export async function fetchAdminSalons(): Promise<AdminSalonItem[]> {
       owner_email: row.owner_email || row.email || '',
       owner_phone: row.owner_phone || row.phone_whatsapp || '',
       operating_model: row.operating_model || row.branding?.operating_model || 'physical',
+      home_delivery_enabled: Boolean(row.home_delivery_enabled ?? row.operating_model === 'home_service'),
       commission_rate: row.commission_rate ?? row.branding?.commission_rate ?? 5,
-      billing_plan: row.billing_plan || row.branding?.billing_plan || 'per_booking',
-      fee_per_booking: row.fee_per_booking ?? row.branding?.fee_per_booking ?? 2.5,
-      monthly_subscription_fee: row.monthly_subscription_fee ?? row.branding?.monthly_subscription_fee ?? 89.9,
-      billing_due_day: row.billing_due_day ?? row.branding?.billing_due_day ?? 10,
+      billing_plan: row.billing_plan || row.branding?.billing_plan || 'PER_APPOINTMENT',
+      fee_per_booking: Number(row.fee_per_booking ?? row.billing_fee_value ?? row.branding?.fee_per_booking ?? 2.5),
+      billing_fee_value: Number(row.billing_fee_value ?? row.fee_per_booking ?? row.branding?.billing_fee_value ?? 2.5),
+      monthly_subscription_fee: Number(row.monthly_subscription_fee ?? row.branding?.monthly_subscription_fee ?? 89.9),
+      billing_due_day: Number(row.billing_due_day ?? row.branding?.billing_due_day ?? 10),
       pix_key: row.pix_key || '',
       pix_keys: Array.isArray(row.branding?.pixKeys)
         ? row.branding.pixKeys
@@ -116,19 +118,19 @@ export async function fetchAdminSalons(): Promise<AdminSalonItem[]> {
       slogan: row.slogan || row.branding?.slogan || '',
       brand_font: row.brand_font || row.branding?.brandFont || 'Poppins',
       theme_preset_id: row.theme_preset_id || row.branding?.themePresetId || 'emerald',
-      primary_color: row.primary_color || row.brand_color || row.branding?.primaryColor || '#20C933',
-      secondary_color: row.secondary_color || row.branding?.secondaryColor || '#059669',
-      default_theme: row.default_theme || row.branding?.defaultTheme || 'dark',
+      primary_color: row.primary_color || row.brand_color || row.branding?.primaryColor || '#10B981',
+      secondary_color: row.secondary_color || row.branding?.secondaryColor || '#065F46',
+      default_theme: row.default_theme || row.branding?.defaultTheme || 'light',
       pwa_name: row.pwa_name || row.branding?.pwaName || row.trade_name || '',
       show_slogan: row.show_slogan ?? row.branding?.showSlogan ?? true,
       logo_text_fallback: row.logo_text_fallback || row.branding?.logoTextFallback || '',
-      logo_text_color: row.logo_text_color || row.branding?.logoTextColor || '#10b981',
+      logo_text_color: row.logo_text_color || row.branding?.logoTextColor || '#065F46',
       show_hero_slides: row.show_hero_slides ?? row.branding?.showHeroSlides ?? true,
       welcome_style: row.welcome_style || row.branding?.welcomeStyle || 'atmospheric',
-      section_header_bg_color: row.section_header_bg_color || row.branding?.sectionHeaderBgColor || '',
-      section_header_text_color: row.section_header_text_color || row.branding?.sectionHeaderTextColor || '',
-      section_header_icon_color: row.section_header_icon_color || row.branding?.sectionHeaderIconColor || '#10b981',
-      section_header_bg_style: row.section_header_bg_style || row.branding?.sectionHeaderBgStyle || 'glass',
+      section_header_bg_color: row.section_header_bg_color || row.branding?.sectionHeaderBgColor || '#ECFDF5',
+      section_header_text_color: row.section_header_text_color || row.branding?.sectionHeaderTextColor || '#065F46',
+      section_header_icon_color: row.section_header_icon_color || row.branding?.sectionHeaderIconColor || '#059669',
+      section_header_bg_style: row.section_header_bg_style || row.branding?.sectionHeaderBgStyle || 'solid',
       section_header_border: row.section_header_border || row.branding?.sectionHeaderBorder || 'bordered',
       section_header_btn_bg_color: row.section_header_btn_bg_color || row.branding?.sectionHeaderBtnBgColor || '',
       section_header_btn_active_bg_color: row.section_header_btn_active_bg_color || row.branding?.sectionHeaderBtnActiveBgColor || '',
@@ -139,13 +141,16 @@ export async function fetchAdminSalons(): Promise<AdminSalonItem[]> {
       nav_style: row.nav_style || row.branding?.navStyle || 'minimal',
       nav_shape: row.nav_shape || row.branding?.navShape || 'square',
       nav_border: row.nav_border || row.branding?.navBorder || 'bordered',
-      nav_bg_style: row.nav_bg_style || row.branding?.navBgStyle || 'glass',
-      nav_bg_color: row.nav_bg_color || row.branding?.navBgColor || '',
+      nav_icon_border: row.nav_icon_border || row.branding?.navIconBorder || 'none',
+      nav_bg_style: row.nav_bg_style || row.branding?.navBgStyle || 'solid',
+      nav_bg_color: row.nav_bg_color || row.branding?.navBgColor || '#D1FAE5',
       nav_btn_bg_color: row.nav_btn_bg_color || row.branding?.navBtnBgColor || '',
       nav_btn_active_bg_color: row.nav_btn_active_bg_color || row.branding?.navBtnActiveBgColor || '',
-      nav_active_color: row.nav_active_color || row.branding?.navActiveColor || '#10b981',
-      nav_text_color: row.nav_text_color || row.branding?.navTextColor || '',
-      created_at: row.created_at || new Date().toISOString(),
+      nav_active_color: row.nav_active_color || row.branding?.navActiveColor || '#10B981',
+      nav_text_color: row.nav_text_color || row.branding?.navTextColor || '#065F46',
+      created_at: row.created_at || row.branding?.created_at_iso || '',
+      updated_at: row.updated_at || '',
+      created_via: row.created_via || row.branding?.created_via || '',
       professionals_count: row.professionals_count || 0,
       active_offers_count: row.active_offers_count || 0,
       rating: row.rating_avg || row.rating || 5.0,
@@ -153,6 +158,13 @@ export async function fetchAdminSalons(): Promise<AdminSalonItem[]> {
   };
 
   try {
+    // Higieniza cache legado em localStorage para garantir leitura 100% real do Supabase
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('vagou_admin_custom_salons');
+      }
+    } catch {}
+
     // 1. Tenta via backend Express (/api/admin/salons) que usa Service Role Key
     try {
       const resp = await fetch('/api/admin/salons');
@@ -232,8 +244,10 @@ export async function registerTriadeUser(userData: {
     neighborhood: string;
     city: string;
     state: string;
+    latitude?: number | null;
+    longitude?: number | null;
   };
-  origin?: 'portal' | 'establishment';
+  origin?: 'portal' | 'establishment' | 'admin';
   salonId?: string;
   salonName?: string;
 }): Promise<{ success: boolean; client?: any; userId?: string; session?: any; error?: string }> {
@@ -416,10 +430,23 @@ export async function registerTriadeUser(userData: {
       updated_at: new Date().toISOString(),
     };
 
+    const { data: existingSysAdmin } = await supabaseAdmin
+      .from('system_admins')
+      .select('id, email, username')
+      .or(`email.ilike.${cleanEmail},username.ilike.${cleanUsername}`)
+      .limit(1);
+
+    if (existingSysAdmin && existingSysAdmin.length > 0) {
+      return {
+        success: false,
+        error: `O usuário "${cleanUsername}" (${cleanEmail}) já está cadastrado como Administrador Master do sistema.`,
+      };
+    }
+
     const { data: existing } = await supabaseAdmin
       .from('clients')
       .select('id, user_id')
-      .eq('email', cleanEmail)
+      .or(`email.ilike.${cleanEmail},username.ilike.${cleanUsername}`)
       .maybeSingle();
 
     if (existing?.id) {
@@ -457,11 +484,13 @@ export async function registerTriadeUser(userData: {
         session: authSession,
       };
     } else {
+      const nowIso = new Date().toISOString();
       let { data: inserted, error: insErr } = await supabaseAdmin
         .from('clients')
         .insert([
           {
             ...baseClientRow,
+            created_at: nowIso,
             ...(authUserId ? { id: authUserId, user_id: authUserId } : {}),
           },
         ])
@@ -472,7 +501,7 @@ export async function registerTriadeUser(userData: {
       if (insErr && (insErr.message?.includes('clients_user_id_fkey') || insErr.code === '23503' || insErr.code === '23505')) {
         const retry = await supabaseAdmin
           .from('clients')
-          .insert([{ ...baseClientRow, user_id: null }])
+          .insert([{ ...baseClientRow, created_at: nowIso, user_id: null }])
           .select()
           .single();
         inserted = retry.data;
@@ -943,6 +972,13 @@ export async function createAdminSalon(
       } catch {}
     }
 
+    const resolvedFee = Number(salonData.fee_per_booking ?? salonData.billing_fee_value ?? 2.5);
+    const resolvedPlan = salonData.billing_plan || 'PER_APPOINTMENT';
+    const resolvedMonthlyFee = Number(salonData.monthly_subscription_fee ?? 89.9);
+    const resolvedDueDay = Number(salonData.billing_due_day ?? 10);
+    const resolvedPrimaryColor = salonData.primary_color || '#10B981';
+    const resolvedSecondaryColor = salonData.secondary_color || '#065F46';
+
     const dbInsert: Record<string, any> = {
       ...(resolvedOwnerUserId ? { owner_id: resolvedOwnerUserId } : {}),
       trade_name: salonData.trade_name?.trim() || 'Novo Salão',
@@ -952,8 +988,12 @@ export async function createAdminSalon(
       document_type: salonData.document_type || 'CNPJ',
       document_number: salonData.document_number?.trim() || null,
       pix_key: salonData.pix_key?.trim() || null,
-      operating_model: salonData.operating_model || 'Espaço Físico & Delivery',
-      billing_plan: salonData.billing_plan || 'PRO / 5% POR AGENDAMENTO',
+      operating_model: salonData.operating_model || 'physical',
+      billing_plan: resolvedPlan,
+      fee_per_booking: resolvedFee,
+      billing_fee_value: resolvedFee,
+      monthly_subscription_fee: resolvedMonthlyFee,
+      billing_due_day: resolvedDueDay,
       phone_whatsapp: salonData.phone_whatsapp?.trim() || null,
       email: salonData.email?.trim().toLowerCase() || null,
       address: salonData.address?.trim() || null,
@@ -969,12 +1009,29 @@ export async function createAdminSalon(
       favicon_url: resolvedFavicon,
       slogan: salonData.slogan?.trim() || '',
       brand_font: salonData.brand_font || 'Poppins',
-      primary_color: salonData.primary_color || '#20C933',
+      default_theme: salonData.default_theme || 'light',
+      primary_color: resolvedPrimaryColor,
+      secondary_color: resolvedSecondaryColor,
+      nav_bg_style: salonData.nav_bg_style || 'solid',
+      nav_bg_color: salonData.nav_bg_color || '#D1FAE5',
+      nav_icon_border: salonData.nav_icon_border || 'none',
+      nav_active_color: salonData.nav_active_color || '#10B981',
+      section_header_bg_color: salonData.section_header_bg_color || '#ECFDF5',
+      section_header_text_color: salonData.section_header_text_color || '#065F46',
+      section_header_icon_color: salonData.section_header_icon_color || '#059669',
       status: resolvedStatus,
       branding: {
-        themeMode: 'dark',
-        primaryColor: salonData.primary_color || '#20C933',
-        category: salonData.category || 'Barbearia',
+        themeMode: salonData.default_theme || 'light',
+        defaultTheme: salonData.default_theme || 'light',
+        primaryColor: resolvedPrimaryColor,
+        secondaryColor: resolvedSecondaryColor,
+        navBgStyle: salonData.nav_bg_style || 'solid',
+        navBgColor: salonData.nav_bg_color || '#D1FAE5',
+        navIconBorder: salonData.nav_icon_border || 'none',
+        sectionHeaderBgColor: salonData.section_header_bg_color || '#ECFDF5',
+        sectionHeaderTextColor: salonData.section_header_text_color || '#065F46',
+        sectionHeaderIconColor: salonData.section_header_icon_color || '#059669',
+        category: salonData.category || 'salao',
         faviconUrl: resolvedFavicon || '',
         salonIcon: resolvedFavicon || '',
         slogan: salonData.slogan || '',
@@ -982,8 +1039,17 @@ export async function createAdminSalon(
         pwaName: salonData.trade_name?.trim() || 'Novo Salão',
         ownerCpf: salonData.owner_cpf?.trim() || '',
         hasCnpj: Boolean(salonData.has_cnpj),
+        billing_plan: resolvedPlan,
+        fee_per_booking: resolvedFee,
+        billing_fee_value: resolvedFee,
+        monthly_subscription_fee: resolvedMonthlyFee,
+        billing_due_day: resolvedDueDay,
         pixKeys: Array.isArray(salonData.pix_keys) ? salonData.pix_keys : [],
+        created_via: salonData.created_via || 'admvapp',
+        created_at_iso: new Date().toISOString(),
       },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
       is_active: resolvedStatus !== 'incomplete' && resolvedStatus !== 'suspended',
       is_verified: resolvedStatus === 'active' || salonData.is_verified === true,
     };
@@ -997,6 +1063,31 @@ export async function createAdminSalon(
     if (error) {
       console.warn('[Supabase Admin] Warning inserção:', error.message);
       return { success: false, error: error.message };
+    }
+
+    if (data?.id) {
+      try {
+        await supabaseAdmin.from('salon_ui_settings').upsert(
+          {
+            salon_id: data.id,
+            default_theme: salonData.default_theme || 'light',
+            primary_color: resolvedPrimaryColor,
+            secondary_color: resolvedSecondaryColor,
+            pwa_name: salonData.trade_name?.trim() || 'Novo Salão',
+            section_header_bg_color: salonData.section_header_bg_color || '#ECFDF5',
+            section_header_text_color: salonData.section_header_text_color || '#065F46',
+            section_header_icon_color: salonData.section_header_icon_color || '#059669',
+            section_header_bg_style: 'solid',
+            nav_bg_style: salonData.nav_bg_style || 'solid',
+            nav_bg_color: salonData.nav_bg_color || '#D1FAE5',
+            nav_icon_border: salonData.nav_icon_border || 'none',
+            nav_active_color: salonData.nav_active_color || '#10B981',
+            branding_snapshot: dbInsert.branding,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'salon_id' }
+        );
+      } catch {}
     }
 
     // Sincroniza proprietário em clients, professionals e salon_members (RBAC Soberano da Tríade)
@@ -1141,8 +1232,17 @@ export async function createAdminSalon(
       favicon_url: resolvedFavicon || '',
       slogan: salonData.slogan || '',
       brand_font: salonData.brand_font || 'Poppins',
-      primary_color: salonData.primary_color || '#20C933',
-      created_at: new Date().toISOString(),
+      default_theme: salonData.default_theme || 'light',
+      primary_color: resolvedPrimaryColor,
+      secondary_color: resolvedSecondaryColor,
+      billing_plan: resolvedPlan,
+      fee_per_booking: resolvedFee,
+      billing_fee_value: resolvedFee,
+      monthly_subscription_fee: resolvedMonthlyFee,
+      billing_due_day: resolvedDueDay,
+      created_at: data?.created_at || dbInsert.created_at,
+      updated_at: data?.updated_at || dbInsert.updated_at,
+      created_via: data?.created_via || 'admvapp',
       professionals_count: 1,
       active_offers_count: 0,
       rating: 5.0,
@@ -1205,11 +1305,11 @@ export async function fetchTablesSummary(): Promise<Record<string, { count: numb
   } catch {}
 
   return {
-    salons: { count: 6, accessible: true },
-    appointments: { count: 42, accessible: true },
-    professionals: { count: 18, accessible: true },
-    service_offers: { count: 37, accessible: true },
-    clients: { count: 120, accessible: true },
+    salons: { count: 0, accessible: false },
+    appointments: { count: 0, accessible: false },
+    professionals: { count: 0, accessible: false },
+    service_offers: { count: 0, accessible: false },
+    clients: { count: 0, accessible: false },
   };
 }
 
@@ -1231,26 +1331,6 @@ export async function updateAdminSalon(
       });
       const json = await resp.json().catch(() => ({}));
       if (resp.ok && json.success) {
-        const mergedUpdates = {
-          ...updates,
-          ...(json.salon
-            ? {
-                latitude: json.salon.latitude ?? updates.latitude,
-                longitude: json.salon.longitude ?? updates.longitude,
-                formatted_address: json.salon.formatted_address ?? updates.formatted_address,
-                street_number: json.salon.street_number ?? updates.street_number,
-                complement: json.salon.complement ?? updates.complement,
-              }
-            : {}),
-        };
-        try {
-          const saved = localStorage.getItem('vagou_admin_custom_salons');
-          let customList: AdminSalonItem[] = saved ? JSON.parse(saved) : [];
-          const index = customList.findIndex((s) => s.id === salonId);
-          if (index >= 0) customList[index] = { ...customList[index], ...mergedUpdates };
-          else customList.push({ id: salonId, ...mergedUpdates } as AdminSalonItem);
-          localStorage.setItem('vagou_admin_custom_salons', JSON.stringify(customList));
-        } catch {}
         return { success: true, salon: json.salon };
       } else if (json.error) {
         apiErrorMsg = json.error;
@@ -1329,15 +1409,6 @@ export async function deleteAdminSalon(salonId: string): Promise<{ success: bool
       console.warn('[Supabase Admin Delete] Erro:', error.message);
     }
 
-    try {
-      const saved = localStorage.getItem('vagou_admin_custom_salons');
-      if (saved) {
-        const customList: AdminSalonItem[] = JSON.parse(saved);
-        const filtered = customList.filter((s) => s.id !== salonId);
-        localStorage.setItem('vagou_admin_custom_salons', JSON.stringify(filtered));
-      }
-    } catch {}
-
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err.message };
@@ -1399,18 +1470,18 @@ export async function fetchAdminDashboardMetrics(): Promise<AdminDashboardMetric
       suspendedSalons,
       todayAppointments,
       activeFlashOffers,
-      growthPercent: 18.5,
+      growthPercent: 0,
     };
   } catch {
     return {
-      totalSalons: 6,
-      activeSalons: 4,
-      pendingSalons: 1,
-      incompleteSalons: 1,
+      totalSalons: 0,
+      activeSalons: 0,
+      pendingSalons: 0,
+      incompleteSalons: 0,
       suspendedSalons: 0,
-      todayAppointments: 42,
-      activeFlashOffers: 37,
-      growthPercent: 18.5,
+      todayAppointments: 0,
+      activeFlashOffers: 0,
+      growthPercent: 0,
     };
   }
 }
@@ -1445,10 +1516,10 @@ export async function fetchTriadeStatus(): Promise<TriadeStatusResponse> {
       {
         id: 'mnvapp',
         name: 'Meu Negócio Parceiro',
-        domain: 'seunegocio.vagouapp.com',
-        role: 'Painel do Salão (Agenda diária, Equipe, Serviços & Vagas)',
+        domain: 'meunegocio.vagouapp.com',
+        role: 'Painel do Salão & Vitrines White-Label (*.vagouapp.com)',
         status: 'operational',
-        color: '#F59E0B',
+        color: '#10B981',
       },
       {
         id: 'admvapp',
@@ -1463,7 +1534,7 @@ export async function fetchTriadeStatus(): Promise<TriadeStatusResponse> {
     ],
     mandamentoSete: {
       rule: 'Toda alteração de schema, colunas, status ou triggers DEVE gerar comunicado oficial cruzado para pvapp e mnvapp.',
-      bulletinsCount: 2,
+      bulletinsCount: 10,
     },
   };
 }
@@ -1572,15 +1643,51 @@ export async function fetchTechnicalBulletins(): Promise<TechnicalBulletin[]> {
 
   return [
     {
+      id: 'bol-162-zero-duplicate-users-governance',
+      timestamp: '2026-11-14T21:15:00.000Z',
+      sourceApp: 'admvapp',
+      targetApps: ['mnvapp', 'pvapp'],
+      title: 'Saneamento e Blindagem Anti-Duplicidade de Contas (1 Pessoa = 1 Único Cadastro Soberano — bol-162)',
+      category: 'schema_change',
+      summary: '1. Consolidação Automática system_admins ⇄ clients: Registros duplicados onde a mesma pessoa constava simultaneamente em public.system_admins e public.clients (ex.: Anderson Pires / Anderson@ / andersonhpires@gmail.com) foram consolidados no registro soberano de Administrador. 2. Blindagem SQL + Backend + UI: Criados índices únicos parciais e triggers em 20261114_deduplicate_users_and_unique_guards.sql.',
+      impactedTables: ['system_admins', 'clients', 'professionals', 'salon_users', 'appointments'],
+      instructions: 'Executar /supabase/migrations/20261114_deduplicate_users_and_unique_guards.sql no SQL Editor do Supabase compartilhado e validar unicidade cruzada por e-mail/username antes de inserir em public.clients.',
+      author: 'Super Administrador Master (admvapp)',
+    },
+    {
+      id: 'bol-161-audit-created-at-and-phantom-eradication',
+      timestamp: '2026-11-14T20:45:00.000Z',
+      sourceApp: 'admvapp',
+      targetApps: ['mnvapp', 'pvapp'],
+      title: 'Auditoria de Data/Hora de Criação (created_at + created_via) & Erradicação de Linhas Sintéticas em salon-users (bol-161)',
+      category: 'schema_change',
+      summary: '1. Registro e exibição obrigatória de Data e Hora exatas de criação (America/Sao_Paulo) e canal de origem (created_via / origin_type) para todos os Usuários e Estabelecimentos. 2. Erradicação de linhas sintéticas su-<salon.id> em GET /api/admin/salon-users, consultando exclusivamente public.salon_users. 3. Migração aditiva 100% idempotente (20261114_audit_created_at_origin.sql).',
+      impactedTables: ['salons', 'clients', 'dependents', 'professionals', 'salon_users', 'system_admins'],
+      instructions: 'mnvapp e pvapp: Gravar created_via ("mnvapp" / "pvapp") em novos cadastros e aplicar 20261114_audit_created_at_origin.sql no Supabase.',
+      author: 'Super Administrador • admvapp (adm.vagouapp.com)',
+    },
+    {
+      id: 'bol-160-admvapp-master-convergence-v5',
+      timestamp: '2026-11-11T19:45:00.000Z',
+      sourceApp: 'admvapp',
+      targetApps: ['mnvapp', 'pvapp'],
+      title: 'Convergência Soberana Admin Master (admvapp) & Supabase SQL v5.0 (bol-160)',
+      category: 'schema_change',
+      summary: '1. Expurgo total de mocks, seeds automáticos e SQL destrutivo (zero DROP TABLE). 2. Paleta default Verde Pastel Clarinho (#10B981 / #065F46 / #D1FAE5 / #ECFDF5 / nav_icon_border=none) sincronizada com public.salon_ui_settings. 3. Faturamento unificado fee_per_booking ⇄ billing_fee_value (R$ 2,50) e planos PER_APPOINTMENT / SUBSCRIPTION. 4. Monitor cronológico (date_str ASC, start_time ASC) com Pago/À pagar, Horário Bloqueado, Permuta (swap_state) e Alerta de Colisão Geotemporal Inter-Salões. 5. Suporte administrativo de reset de Pergunta Secreta e Senha.',
+      impactedTables: ['salons', 'salon_ui_settings', 'appointments', 'clients', 'security_questions', 'user_security_answers'],
+      instructions: 'mnvapp e pvapp: Consumir branding/salon_ui_settings unificados, respeitar is_paid/is_blocked_slot/swap_state e acionar RPC check_client_inter_salon_collision.',
+      author: 'Super Administrador • admvapp (adm.vagouapp.com)',
+    },
+    {
       id: 'bol-009-single-source-of-truth-avatar-realtime-sync',
       timestamp: '2026-09-27T19:25:00.000Z',
       sourceApp: 'admvapp',
       targetApps: ['pvapp', 'mnvapp'],
       title: 'Arquitetura de Fonte Única da Verdade para Avatares & Sincronização em Tempo Real (Realtime)',
       category: 'breaking_change',
-      summary: 'Princípio Inegociável: 1 Usuário = 1 Único Cadastro no Supabase. Os dados de pessoa física (nome, email, avatar) são compartilhados universalmente entre contas de cliente, profissional e administrador. Correções implementadas: 1. Ingestão e conversão de fotos Base64 para URLs públicas permanentes no bucket "avatars" do Supabase Storage. 2. Propagação de avatar_url entre professionals, clients, system_admins e auth.users. 3. Sincronização Realtime ativa no admvapp via Postgres Changes, atualizando o avatar no cabeçalho imediatamente após edição no celular. 4. Fallback ordenado por updated_at DESC e referrerPolicy="no-referrer".',
+      summary: 'Princípio Inegociável: 1 Usuário = 1 Único Cadastro no Supabase. Os dados de pessoa física (nome, email, avatar) são compartilhados universalmente entre contas de cliente, profissional e administrador.',
       impactedTables: ['professionals', 'clients', 'system_admins', 'auth.users', 'storage.buckets'],
-      instructions: 'pvapp e mnvapp: 1. Adotar fetchUserProfileFromDb com fallback ordenado por updated_at DESC. 2. Usar referrerPolicy="no-referrer" nas tags <img> de avatar. 3. Toda atualização de foto deve refletir nas tabelas compartilhadas da mesma pessoa física.',
+      instructions: 'pvapp e mnvapp: 1. Adotar fetchUserProfileFromDb com fallback ordenado por updated_at DESC. 2. Usar referrerPolicy="no-referrer" nas tags <img> de avatar.',
       author: 'Super Administrador • admvapp (adm.vagouapp.com)',
     },
     {
@@ -2173,54 +2280,7 @@ export async function logoutAdmin(): Promise<void> {
 /**
  * Busca a lista de administradores do sistema
  */
-export const DEFAULT_MOCK_SYSTEM_ADMINS: SystemAdminUser[] = [
-  {
-    id: '00000000-0000-4000-8000-000000000001',
-    full_name: 'Administrador Master Vagou',
-    username: 'AdminMaster',
-    email: 'admin@vagouapp.com',
-    phone_whatsapp: '(11) 99999-0000',
-    phone_secondary: '(11) 99999-0001',
-    cpf: '000.111.222-33',
-    role: 'superadmin',
-    access_level: 'Superadmin Master',
-    is_active: true,
-    address: 'Av. Brigadeiro Faria Lima',
-    street_number: '3477',
-    complement: 'Torre Sul - 14º Andar',
-    neighborhood: 'Itaim Bibi',
-    city: 'São Paulo',
-    state: 'SP',
-    cep: '04538-133',
-    dependents_count: 0,
-    total_appointments: 154,
-    password: 'Admin@2026!',
-    created_at: '2026-08-01T08:00:00Z',
-  },
-  {
-    id: '00000000-0000-4000-8000-000000000002',
-    full_name: 'Marcos Vinicius (Auditor Tríade)',
-    username: 'marcos.auditor',
-    email: 'auditoria@vagouapp.com',
-    phone_whatsapp: '(11) 98888-1111',
-    phone_secondary: '',
-    cpf: '111.000.333-22',
-    role: 'moderator',
-    access_level: 'Moderador',
-    is_active: true,
-    address: 'Alameda Santos',
-    street_number: '1800',
-    complement: '',
-    neighborhood: 'Cerqueira César',
-    city: 'São Paulo',
-    state: 'SP',
-    cep: '01418-200',
-    dependents_count: 0,
-    total_appointments: 89,
-    password: 'Admin@2026!',
-    created_at: '2026-08-15T09:30:00Z',
-  },
-];
+export const DEFAULT_MOCK_SYSTEM_ADMINS: SystemAdminUser[] = [];
 
 export async function fetchSystemAdmins(): Promise<SystemAdminUser[]> {
   try {
@@ -2228,36 +2288,31 @@ export async function fetchSystemAdmins(): Promise<SystemAdminUser[]> {
     const text = await resp.text();
     if (text && text.trim().startsWith('{')) {
       const json = JSON.parse(text);
-      if (resp.ok && json.success && Array.isArray(json.admins) && json.admins.length > 0) {
+      if (resp.ok && json.success && Array.isArray(json.admins)) {
         return json.admins.map((a: any) => ({
           ...a,
-          password: a.password_hash || a.password || 'Admin@2026!',
+          password: a.password_hash || a.password || '',
         }));
       }
     }
   } catch {}
 
-  // Fallback direto via Supabase client
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('system_admins')
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (!error && Array.isArray(data) && data.length > 0) {
+    if (!error && Array.isArray(data)) {
       return data.map((a: any) => ({
         ...a,
-        password: a.password_hash || a.password || 'Admin@2026!',
+        password: a.password_hash || a.password || '',
       })) as SystemAdminUser[];
     }
   } catch {}
 
   const current = getStoredAdmin();
-  if (current) {
-    const others = DEFAULT_MOCK_SYSTEM_ADMINS.filter((a) => a.id !== current.id);
-    return [current, ...others];
-  }
-  return DEFAULT_MOCK_SYSTEM_ADMINS;
+  return current ? [current] : [];
 }
 
 /**
@@ -2304,729 +2359,110 @@ export async function toggleAdminStatus(
  * Agendamentos e Relatórios Mensais de Faturamento por Prestador (PS)
  */
 export async function fetchAdminAppointments(): Promise<AdminAppointmentItem[]> {
+  const mapAppointmentRow = (row: any): AdminAppointmentItem => {
+    const dateStr = row.date_str || row.appointment_date || row.scheduled_date || '';
+    const startTime = String(row.start_time || row.time_slot || '00:00').slice(0, 5);
+    const endTime = row.end_time ? String(row.end_time).slice(0, 5) : undefined;
+    const isBlocked = Boolean(row.is_blocked_slot || row.status === 'BLOQUEADO');
+    const isPaid = Boolean(row.is_paid || row.payment_status === 'paid');
+    const paymentStatus = row.payment_status || (isPaid ? 'paid' : 'pending');
+    const rawPrice = Number(row.price ?? row.total_price ?? 0);
+    const discount = Number(row.discount ?? 0);
+    const finalPrice = row.final_price !== undefined && row.final_price !== null ? Number(row.final_price) : Math.max(0, rawPrice - discount);
+
+    return {
+      id: row.id,
+      protocol: row.protocol_code || row.protocol || `VG-${String(row.id || '').slice(0, 6).toUpperCase()}`,
+      salon_id: row.salon_id || '',
+      salon_name: row.salon_name || 'Estabelecimento Vagou',
+      salon_slug: row.salon_slug || 'salao',
+      client_id: row.client_id || undefined,
+      client_name: row.client_name || row.customer_name || (isBlocked ? 'Horário Bloqueado' : 'Cliente Vagou'),
+      client_phone: row.client_phone || '—',
+      client_email: row.client_email || '',
+      beneficiary_name: row.beneficiary_name || row.client_name || 'O próprio',
+      beneficiary_relation: row.beneficiary_relation || 'self',
+      service_title: row.service_title || row.service_name || (isBlocked ? 'Pausa / Bloqueio de Agenda' : 'Serviço'),
+      service_category: row.service_category || '',
+      service_location_type: row.service_location_type || 'in_salon',
+      client_address: row.client_address || row.origin_formatted_address || '',
+      professional_id: row.professional_id || undefined,
+      professional_name: row.professional_name || 'Especialista',
+      price: rawPrice,
+      discount,
+      final_price: finalPrice,
+      commission_fee: Number(row.commission_fee ?? 0),
+      is_paid: isPaid,
+      paid_at: row.paid_at || null,
+      payment_status: paymentStatus,
+      payment_method: row.payment_method || null,
+      appointment_date: dateStr,
+      date_str: dateStr,
+      time_slot: startTime,
+      start_time: startTime,
+      end_time: endTime,
+      status: isBlocked ? 'BLOQUEADO' : (row.status || 'confirmado'),
+      is_blocked_slot: isBlocked,
+      block_reason: row.block_reason || row.pause_reason || null,
+      swap_state: row.swap_state && typeof row.swap_state === 'object' ? row.swap_state : null,
+      collision_warning: row.collision_warning || null,
+      is_radar_offer: Boolean(row.is_radar_offer || row.radar_offer_id),
+      radar_discount_percent: Number(row.radar_discount_percent || 0),
+      billing_status: row.billing_status || 'unbilled',
+      fee_charged: row.status === 'cancelado' || isBlocked ? 0 : Number(row.fee_charged ?? 2.5),
+      transport_mode: row.transport_mode,
+      tracking_status: row.tracking_status,
+      selected_route_summary: row.selected_route_summary,
+      current_street_name: row.current_street_name,
+      distance_km: row.distance_km !== null && row.distance_km !== undefined ? Number(row.distance_km) : undefined,
+      eta_minutes: row.eta_minutes !== null && row.eta_minutes !== undefined ? Number(row.eta_minutes) : undefined,
+      prep_buffer_minutes: row.prep_buffer_minutes !== null && row.prep_buffer_minutes !== undefined ? Number(row.prep_buffer_minutes) : undefined,
+      created_at: row.created_at || new Date().toISOString(),
+    };
+  };
+
+  const sortChronological = (items: AdminAppointmentItem[]) =>
+    [...items].sort((a, b) => {
+      const da = `${a.date_str || a.appointment_date || ''}T${a.start_time || a.time_slot || '00:00'}`;
+      const db = `${b.date_str || b.appointment_date || ''}T${b.start_time || b.time_slot || '00:00'}`;
+      return da.localeCompare(db);
+    });
+
   try {
     try {
       const resp = await fetch('/api/admin/appointments');
       if (resp.ok) {
         const json = await resp.json();
-        if (json.success && Array.isArray(json.appointments) && json.appointments.length > 0) {
-          return json.appointments.map((row: any) => ({
-            id: row.id,
-            protocol: row.protocol || `VG-${row.id.slice(0, 4).toUpperCase()}`,
-            salon_id: row.salon_id || 'salon-1',
-            salon_name: row.salon_name || 'Estabelecimento Vagou',
-            salon_slug: row.salon_slug || 'salao',
-            client_id: row.client_id,
-            client_name: row.client_name || row.customer_name || 'Cliente Vagou',
-            client_phone: row.client_phone || '(11) 98765-4321',
-            client_email: row.client_email || '',
-            beneficiary_name: row.beneficiary_name || row.client_name || 'O próprio',
-            beneficiary_relation: row.beneficiary_relation || 'self',
-            service_title: row.service_title || row.service_name || 'Serviço Estético',
-            service_category: row.service_category || 'Cabelo',
-            professional_id: row.professional_id,
-            professional_name: row.professional_name || 'Especialista',
-            price: Number(row.price || row.total_price || 90),
-            appointment_date: row.appointment_date || row.scheduled_date || new Date().toISOString().split('T')[0],
-            time_slot: row.time_slot || row.start_time || '14:00',
-            status: row.status || 'confirmado',
-            is_radar_offer: Boolean(row.is_radar_offer || row.radar_offer_id),
-            radar_discount_percent: Number(row.radar_discount_percent || 0),
-            billing_status: row.billing_status || 'unbilled',
-            fee_charged: Number(row.fee_charged || 2.5),
-            created_at: row.created_at || new Date().toISOString(),
-          }));
+        if (json.success && Array.isArray(json.appointments)) {
+          return sortChronological(json.appointments.map(mapAppointmentRow));
         }
       }
     } catch {}
 
-    // Fallback com dados estruturados para demonstração imediata do fechamento
-    return [
-      {
-        id: 'apt-001',
-        protocol: 'VG-9842',
-        salon_id: 'sal-001',
-        salon_name: 'Flavi Hair • Studio & Visagismo',
-        salon_slug: 'flavihair',
-        client_name: 'Mariana Silva',
-        client_phone: '(11) 98123-4567',
-        client_email: 'mariana.silva@email.com',
-        beneficiary_name: 'Mariana Silva (Titular)',
-        beneficiary_relation: 'self',
-        service_title: 'Escova Modelada + Hidratação Ozonizada',
-        service_category: 'Cabelo',
-        professional_name: 'Flávia Mendonça',
-        price: 110,
-        appointment_date: '2026-09-26',
-        time_slot: '14:30',
-        status: 'concluido',
-        is_radar_offer: true,
-        radar_discount_percent: 20,
-        billing_status: 'unbilled',
-        fee_charged: 2.5,
-        created_at: '2026-09-26T14:30:00Z',
-      },
-      {
-        id: 'apt-002',
-        protocol: 'VG-9843',
-        salon_id: 'sal-002',
-        salon_name: 'Barbearia Dom Corleone Tradicional',
-        salon_slug: 'domcorleone',
-        client_name: 'Lucas Ferreira',
-        client_phone: '(11) 99876-5432',
-        client_email: 'lucas.f@email.com',
-        beneficiary_name: 'Matheus Ferreira (Filho)',
-        beneficiary_relation: 'son',
-        service_title: 'Corte Infantil Degradê + Penteado',
-        service_category: 'Barba & Cabelo',
-        professional_name: 'Carlos Corleone',
-        price: 75,
-        appointment_date: '2026-09-26',
-        time_slot: '15:15',
-        status: 'em_atendimento',
-        is_radar_offer: true,
-        radar_discount_percent: 15,
-        billing_status: 'unbilled',
-        fee_charged: 2.5,
-        created_at: '2026-09-26T15:15:00Z',
-      },
-      {
-        id: 'apt-003',
-        protocol: 'VG-9844',
-        salon_id: 'sal-003',
-        salon_name: 'Studio VIP • Cabelo & Make',
-        salon_slug: 'studiovip',
-        client_name: 'Fernanda Paiva',
-        client_phone: '(11) 97654-3210',
-        client_email: 'fernanda.vip@email.com',
-        beneficiary_name: 'Fernanda Paiva (Titular)',
-        beneficiary_relation: 'self',
-        service_title: 'Unhas em Gel Fibra de Vidro',
-        service_category: 'Manicure',
-        professional_name: 'Renata Lins',
-        price: 140,
-        appointment_date: '2026-09-25',
-        time_slot: '16:00',
-        status: 'concluido',
-        is_radar_offer: false,
-        billing_status: 'unbilled',
-        fee_charged: 2.5,
-        created_at: '2026-09-25T16:00:00Z',
-      },
-      {
-        id: 'apt-004',
-        protocol: 'VG-9845',
-        salon_id: 'sal-004',
-        salon_name: 'Bella Donna Spa & Estética Avançada',
-        salon_slug: 'belladonna',
-        client_name: 'Beatriz Almeida',
-        client_phone: '(11) 98222-1133',
-        client_email: 'beatriz.almeida@email.com',
-        beneficiary_name: 'Clara Almeida (Irmã)',
-        beneficiary_relation: 'other',
-        service_title: 'Limpeza de Pele Profunda com Peeling',
-        service_category: 'Estética Facial',
-        professional_name: 'Dra. Camila Ramos',
-        price: 160,
-        appointment_date: '2026-09-24',
-        time_slot: '17:30',
-        status: 'concluido',
-        is_radar_offer: true,
-        radar_discount_percent: 25,
-        billing_status: 'unbilled',
-        fee_charged: 2.5,
-        created_at: '2026-09-24T17:30:00Z',
-      },
-      {
-        id: 'apt-005',
-        protocol: 'VG-9846',
-        salon_id: 'sal-001',
-        salon_name: 'Flavi Hair • Studio & Visagismo',
-        salon_slug: 'flavihair',
-        client_name: 'Mariana Silva',
-        client_phone: '(11) 98123-4567',
-        client_email: 'mariana.silva@email.com',
-        beneficiary_name: 'Dona Helena Silva (Mãe)',
-        beneficiary_relation: 'parent',
-        service_title: 'Coloração Raiz & Tonalização Prime',
-        service_category: 'Cabelo',
-        professional_name: 'Flávia Mendonça',
-        price: 185,
-        appointment_date: '2026-09-22',
-        time_slot: '10:00',
-        status: 'concluido',
-        is_radar_offer: false,
-        billing_status: 'unbilled',
-        fee_charged: 2.5,
-        created_at: '2026-09-22T10:00:00Z',
-      },
-      {
-        id: 'apt-006',
-        protocol: 'VG-9847',
-        salon_id: 'sal-002',
-        salon_name: 'Barbearia Dom Corleone Tradicional',
-        salon_slug: 'domcorleone',
-        client_name: 'Rodrigo Santos',
-        client_phone: '(11) 99345-6789',
-        client_email: 'rodrigo.s@email.com',
-        beneficiary_name: 'Rodrigo Santos (Titular)',
-        beneficiary_relation: 'self',
-        service_title: 'Corte Tradicional na Tesoura + Barboterapia',
-        service_category: 'Barba & Cabelo',
-        professional_name: 'Marcio Barbeiro',
-        price: 90,
-        appointment_date: '2026-09-20',
-        time_slot: '11:30',
-        status: 'concluido',
-        is_radar_offer: true,
-        radar_discount_percent: 10,
-        billing_status: 'unbilled',
-        fee_charged: 2.5,
-        created_at: '2026-09-20T11:30:00Z',
-      },
-      {
-        id: 'apt-007',
-        protocol: 'VG-9848',
-        salon_id: 'sal-002',
-        salon_name: 'Barbearia Dom Corleone Tradicional',
-        salon_slug: 'domcorleone',
-        client_name: 'Gustavo Lima',
-        client_phone: '(11) 98777-6655',
-        client_email: 'gustavo.lima@email.com',
-        beneficiary_name: 'Gustavo Lima (Titular)',
-        beneficiary_relation: 'self',
-        service_title: 'Barba Terapia Completa',
-        service_category: 'Barba & Cabelo',
-        professional_name: 'Carlos Corleone',
-        price: 45,
-        appointment_date: '2026-09-18',
-        time_slot: '18:00',
-        status: 'cancelado',
-        is_radar_offer: false,
-        billing_status: 'unbilled',
-        fee_charged: 0, // Isento pois foi cancelado
-        created_at: '2026-09-18T18:00:00Z',
-      },
-    ];
+    const { data, error } = await supabaseAdmin
+      .from('appointments')
+      .select('*')
+      .order('date_str', { ascending: true })
+      .order('start_time', { ascending: true });
+
+    if (!error && Array.isArray(data)) {
+      return sortChronological(data.map(mapAppointmentRow));
+    }
+
+    return [];
   } catch (err) {
-    console.warn('[Supabase Admin] Falha ao buscar agendamentos:', err);
+    console.warn('[Supabase Admin] Falha ao buscar agendamentos reais:', err);
     return [];
   }
 }
 
 // ============================================================================
-// 👥 GESTÃO CENTRALIZADA DE USUÁRIOS (CRUD MULTI-CATEGORIA)
+// 👥 GESTÃO CENTRALIZADA DE USUÁRIOS (CRUD MULTI-CATEGORIA — ZERO MOCKS v5.0)
 // ============================================================================
 
-export const INITIAL_MOCK_CLIENTS: UserClientItem[] = [
-  {
-    id: 'cli-001',
-    full_name: 'Roberto Ferreira da Silva',
-    username: 'roberto.silva',
-    email: 'roberto.silva@gmail.com',
-    phone: '(11) 98123-4567',
-    phone_secondary: '(11) 98123-4568',
-    cpf: '123.456.789-00',
-    auth_provider: 'google',
-    access_level: 'Cliente Titular',
-    is_active: true,
-    address: 'Rua das Flores',
-    street_number: '142',
-    complement: 'Apto 32',
-    neighborhood: 'Bela Vista',
-    city: 'São Paulo',
-    state: 'SP',
-    cep: '01311-000',
-    total_appointments: 14,
-    completed_appointments: 13,
-    no_show_count: 0,
-    created_at: '2026-05-10T14:00:00Z',
-    last_appointment_at: '2026-09-24T14:30:00Z',
-    dependents: [
-      {
-        id: 'dep-001',
-        parent_client_id: 'cli-001',
-        parent_name: 'Roberto Ferreira da Silva',
-        full_name: 'Matheus Ferreira',
-        relationship: 'son',
-        birth_date: '2016-04-12',
-        notes: 'Corte infantil degradê',
-        is_unlinked: false,
-        created_at: '2026-06-01T10:00:00Z',
-      },
-      {
-        id: 'dep-002',
-        parent_client_id: 'cli-001',
-        parent_name: 'Roberto Ferreira da Silva',
-        full_name: 'Helena Ferreira',
-        relationship: 'spouse',
-        birth_date: '1988-11-20',
-        notes: 'Escova e hidratação',
-        is_unlinked: false,
-        created_at: '2026-06-15T10:00:00Z',
-      },
-    ],
-  },
-  {
-    id: 'cli-002',
-    full_name: 'Mariana Duarte Costa',
-    username: 'mariana.costa',
-    email: 'mariana.costa@outlook.com',
-    phone: '(11) 97234-5678',
-    phone_secondary: '(11) 97234-9988',
-    cpf: '234.567.890-11',
-    auth_provider: 'email',
-    access_level: 'Cliente Titular',
-    is_active: true,
-    address: 'Av. Paulista',
-    street_number: '1578',
-    complement: 'Conj 41',
-    neighborhood: 'Bela Vista',
-    city: 'São Paulo',
-    state: 'SP',
-    cep: '01310-200',
-    total_appointments: 9,
-    completed_appointments: 9,
-    no_show_count: 0,
-    created_at: '2026-06-12T16:20:00Z',
-    last_appointment_at: '2026-09-22T10:00:00Z',
-    dependents: [
-      {
-        id: 'dep-003',
-        parent_client_id: 'cli-002',
-        parent_name: 'Mariana Duarte Costa',
-        full_name: 'Dona Helena Costa',
-        relationship: 'parent',
-        birth_date: '1959-07-03',
-        notes: 'Atendimento especial preferencial',
-        is_unlinked: false,
-        created_at: '2026-07-05T09:00:00Z',
-      },
-    ],
-  },
-  {
-    id: 'cli-003',
-    full_name: 'Lucas Mendes Nogueira',
-    username: 'lucas.mendes',
-    email: 'lucas.mendes@gmail.com',
-    phone: '(11) 98877-1122',
-    phone_secondary: '',
-    cpf: '345.678.901-22',
-    auth_provider: 'phone',
-    access_level: 'Cliente Titular',
-    is_active: true,
-    address: 'Rua Augusta',
-    street_number: '1100',
-    complement: 'Apto 84',
-    neighborhood: 'Consolação',
-    city: 'São Paulo',
-    state: 'SP',
-    cep: '01305-100',
-    total_appointments: 6,
-    completed_appointments: 5,
-    no_show_count: 1,
-    created_at: '2026-07-20T11:45:00Z',
-    last_appointment_at: '2026-09-23T16:00:00Z',
-    dependents: [
-      {
-        id: 'dep-004',
-        parent_client_id: 'cli-003',
-        parent_name: 'Lucas Mendes Nogueira',
-        full_name: 'Enzo Mendes',
-        relationship: 'son',
-        birth_date: '2019-09-14',
-        notes: 'Desvinculado a pedido do titular',
-        is_unlinked: true,
-        unlinked_at: '2026-08-30T10:00:00Z',
-        created_at: '2026-07-22T12:00:00Z',
-      },
-    ],
-  },
-  {
-    id: 'cli-004',
-    full_name: 'Camila Alcantara Rocha',
-    username: 'camila.rocha',
-    email: 'camila.rocha@uol.com.br',
-    phone: '(11) 99444-3322',
-    phone_secondary: '',
-    cpf: '456.789.012-33',
-    auth_provider: 'google',
-    access_level: 'Cliente Titular',
-    is_active: false,
-    address: 'Rua Oscar Freire',
-    street_number: '420',
-    complement: '',
-    neighborhood: 'Cerqueira César',
-    city: 'São Paulo',
-    state: 'SP',
-    cep: '01426-000',
-    total_appointments: 3,
-    completed_appointments: 1,
-    no_show_count: 2,
-    created_at: '2026-08-01T08:30:00Z',
-    last_appointment_at: '2026-08-20T14:00:00Z',
-    dependents: [],
-  },
-  {
-    id: 'cli-elisa-pires',
-    full_name: 'Elisa Pires',
-    username: 'elisa.pires',
-    email: 'elisa.pires@gmail.com',
-    phone: '(11) 98765-4321',
-    phone_secondary: '(11) 98765-4300',
-    cpf: '567.890.123-44',
-    avatar_url: '',
-    auth_provider: 'google',
-    access_level: 'Cliente Titular',
-    is_active: true,
-    address: 'Alameda Lorena',
-    street_number: '850',
-    complement: 'Apto 12',
-    neighborhood: 'Jardins',
-    city: 'São Paulo',
-    state: 'SP',
-    cep: '01424-001',
-    total_appointments: 12,
-    completed_appointments: 12,
-    no_show_count: 0,
-    created_at: '2026-08-20T10:00:00Z',
-    last_appointment_at: '2026-09-26T15:00:00Z',
-    dependents: [],
-  },
-];
-
-export const INITIAL_MOCK_SALON_USERS: UserSalonAccessItem[] = [
-  {
-    id: 'susr-001',
-    salon_id: 'salon-flavi-hair',
-    salon_name: 'Flavi Hair • Studio & Visagismo',
-    salon_slug: 'flavihair',
-    full_name: 'Flavia Mendes (Proprietária)',
-    username: 'flaviamendes',
-    email: 'flavia@flavihair.com.br',
-    phone_whatsapp: '(11) 98765-4321',
-    phone_secondary: '(11) 98765-9900',
-    cpf: '111.222.333-44',
-    role: 'owner',
-    access_level: 'Proprietário (Dono)',
-    is_active: true,
-    address: 'Alameda Santos',
-    street_number: '1200',
-    complement: 'Sala 14',
-    neighborhood: 'Cerqueira César',
-    city: 'São Paulo',
-    state: 'SP',
-    cep: '01418-100',
-    can_manage_financial: true,
-    can_manage_professionals: true,
-    total_appointments: 48,
-    dependents_count: 0,
-    created_at: '2026-09-01T10:00:00Z',
-    last_login_at: '2026-09-26T14:15:00Z',
-  },
-  {
-    id: 'susr-002',
-    salon_id: 'salon-flavi-hair',
-    salon_name: 'Flavi Hair • Studio & Visagismo',
-    salon_slug: 'flavihair',
-    full_name: 'Juliana Paes (Recepção & Caixa)',
-    username: 'juliana.recepcao',
-    email: 'recepcao@flavihair.com.br',
-    phone_whatsapp: '(11) 98765-4322',
-    phone_secondary: '',
-    cpf: '222.333.444-55',
-    role: 'receptionist',
-    access_level: 'Recepção & Atendimento',
-    is_active: true,
-    address: 'Rua Haddock Lobo',
-    street_number: '595',
-    complement: '',
-    neighborhood: 'Cerqueira César',
-    city: 'São Paulo',
-    state: 'SP',
-    cep: '01414-001',
-    can_manage_financial: false,
-    can_manage_professionals: false,
-    total_appointments: 0,
-    dependents_count: 0,
-    created_at: '2026-09-05T09:00:00Z',
-    last_login_at: '2026-09-26T17:40:00Z',
-  },
-  {
-    id: 'susr-003',
-    salon_id: 'salon-dom-corleone',
-    salon_name: 'Barbearia Dom Corleone Tradicional',
-    salon_slug: 'domcorleone',
-    full_name: 'Don Carlos Corleone',
-    username: 'carlos.corleone',
-    email: 'carlos@domcorleone.com',
-    phone_whatsapp: '(11) 99123-4567',
-    phone_secondary: '',
-    cpf: '333.444.555-66',
-    role: 'owner',
-    access_level: 'Proprietário (Dono)',
-    is_active: true,
-    address: 'Rua Augusta',
-    street_number: '2450',
-    complement: '',
-    neighborhood: 'Consolação',
-    city: 'São Paulo',
-    state: 'SP',
-    cep: '01412-100',
-    can_manage_financial: true,
-    can_manage_professionals: true,
-    total_appointments: 32,
-    dependents_count: 0,
-    created_at: '2026-09-10T14:30:00Z',
-    last_login_at: '2026-09-26T16:00:00Z',
-  },
-  {
-    id: 'susr-004',
-    salon_id: 'salon-dom-corleone',
-    salon_name: 'Barbearia Dom Corleone Tradicional',
-    salon_slug: 'domcorleone',
-    full_name: 'Marcio Barbeiro (Gerente Geral)',
-    username: 'marcio.gerente',
-    email: 'marcio.gerencia@domcorleone.com',
-    phone_whatsapp: '(11) 99345-6789',
-    phone_secondary: '',
-    cpf: '444.555.666-77',
-    role: 'manager',
-    access_level: 'Gerente Geral',
-    is_active: true,
-    address: 'Rua da Consolação',
-    street_number: '2100',
-    complement: 'Apto 52',
-    neighborhood: 'Consolação',
-    city: 'São Paulo',
-    state: 'SP',
-    cep: '01301-100',
-    can_manage_financial: false,
-    can_manage_professionals: true,
-    total_appointments: 20,
-    dependents_count: 0,
-    created_at: '2026-09-12T11:00:00Z',
-    last_login_at: '2026-09-25T19:30:00Z',
-  },
-  {
-    id: 'susr-005',
-    salon_id: 'salon-bella-donna',
-    salon_name: 'Bella Donna Esmalteria & Spa',
-    salon_slug: 'belladonna',
-    full_name: 'Ana Paula Valadão',
-    username: 'anapaula.donna',
-    email: 'anapaula@belladonna.com.br',
-    phone_whatsapp: '(11) 97654-3210',
-    phone_secondary: '',
-    cpf: '555.666.777-88',
-    role: 'owner',
-    access_level: 'Proprietário (Dono)',
-    is_active: true,
-    address: 'Rua Oscar Freire',
-    street_number: '890',
-    complement: 'Loja 2',
-    neighborhood: 'Jardins',
-    city: 'São Paulo',
-    state: 'SP',
-    cep: '01426-000',
-    can_manage_financial: true,
-    can_manage_professionals: true,
-    total_appointments: 18,
-    dependents_count: 0,
-    created_at: '2026-09-15T11:20:00Z',
-    last_login_at: '2026-09-24T18:00:00Z',
-  },
-];
-
-export const INITIAL_MOCK_PROFESSIONALS: UserProfessionalItem[] = [
-  {
-    id: 'prof-elisa-pires',
-    full_name: 'Elisa Pires',
-    username: 'elisa.colorista',
-    nickname: 'Elisa Colorista & Penteados',
-    avatar_url: '',
-    specialties: ['Colorimetria Avançada', 'Penteados para Festas', 'Corte e Brushing'],
-    phone_whatsapp: '(11) 98765-4321',
-    phone_secondary: '(11) 98765-4300',
-    cpf: '567.890.123-44',
-    email: 'elisa.pires@gmail.com',
-    contract_type: 'partner_mei',
-    access_level: 'MEI Parceiro',
-    current_salon_id: 'salon-flavi-hair',
-    current_salon_name: 'Flavi Hair • Studio & Visagismo',
-    current_salon_slug: 'flavihair',
-    commission_percent: 65,
-    status: 'active',
-    address: 'Alameda Lorena',
-    street_number: '850',
-    complement: 'Apto 12',
-    neighborhood: 'Jardins',
-    city: 'São Paulo',
-    state: 'SP',
-    cep: '01424-001',
-    historical_salons_count: 1,
-    total_services_done: 480,
-    total_appointments: 480,
-    dependents_count: 0,
-    rating: 4.97,
-    created_at: '2026-08-20T10:00:00Z',
-  },
-  {
-    id: 'prof-001',
-    full_name: 'Flavia Mendes',
-    username: 'flavia.visagista',
-    nickname: 'Flavi Visagista',
-    specialties: ['Corte Feminino', 'Colorimetria', 'Visagismo'],
-    phone_whatsapp: '(11) 98765-4321',
-    phone_secondary: '',
-    cpf: '111.222.333-44',
-    email: 'flavia@flavihair.com.br',
-    contract_type: 'partner_mei',
-    access_level: 'MEI Parceiro',
-    current_salon_id: 'salon-flavi-hair',
-    current_salon_name: 'Flavi Hair • Studio & Visagismo',
-    current_salon_slug: 'flavihair',
-    commission_percent: 60,
-    status: 'active',
-    address: 'Alameda Santos',
-    street_number: '1200',
-    complement: 'Sala 14',
-    neighborhood: 'Cerqueira César',
-    city: 'São Paulo',
-    state: 'SP',
-    cep: '01418-100',
-    historical_salons_count: 1,
-    total_services_done: 342,
-    total_appointments: 342,
-    dependents_count: 0,
-    rating: 4.95,
-    created_at: '2026-09-01T10:00:00Z',
-  },
-  {
-    id: 'prof-002',
-    full_name: 'Renata Lins',
-    username: 'renata.mechas',
-    nickname: 'Renata Mechas',
-    specialties: ['Mechas & Loiros', 'Cronograma Capilar'],
-    phone_whatsapp: '(11) 98333-2211',
-    phone_secondary: '',
-    cpf: '666.777.888-99',
-    email: 'renata.lins@email.com',
-    contract_type: 'partner_mei',
-    access_level: 'MEI Parceiro',
-    current_salon_id: 'salon-flavi-hair',
-    current_salon_name: 'Flavi Hair • Studio & Visagismo',
-    current_salon_slug: 'flavihair',
-    commission_percent: 50,
-    status: 'active',
-    address: 'Rua Bela Cintra',
-    street_number: '1450',
-    complement: 'Apto 101',
-    neighborhood: 'Consolação',
-    city: 'São Paulo',
-    state: 'SP',
-    cep: '01415-001',
-    historical_salons_count: 2,
-    total_services_done: 215,
-    total_appointments: 215,
-    dependents_count: 0,
-    rating: 4.88,
-    created_at: '2026-09-03T14:00:00Z',
-  },
-  {
-    id: 'prof-003',
-    full_name: 'Marcio Oliveira da Silva',
-    username: 'marcio.fade',
-    nickname: 'Marcio Fade',
-    specialties: ['Degradê Americano', 'Barboterapia', 'Freestyle'],
-    phone_whatsapp: '(11) 99345-6789',
-    phone_secondary: '',
-    cpf: '444.555.666-77',
-    email: 'marcio.barber@email.com',
-    contract_type: 'partner_mei',
-    access_level: 'MEI Parceiro',
-    current_salon_id: 'salon-dom-corleone',
-    current_salon_name: 'Barbearia Dom Corleone Tradicional',
-    current_salon_slug: 'domcorleone',
-    commission_percent: 55,
-    status: 'active',
-    address: 'Rua da Consolação',
-    street_number: '2100',
-    complement: '',
-    neighborhood: 'Consolação',
-    city: 'São Paulo',
-    state: 'SP',
-    cep: '01301-100',
-    historical_salons_count: 3,
-    total_services_done: 520,
-    total_appointments: 520,
-    dependents_count: 0,
-    rating: 4.92,
-    created_at: '2026-09-10T14:30:00Z',
-  },
-  {
-    id: 'prof-004',
-    full_name: 'Tiago Barber King',
-    username: 'tiago.navalha',
-    nickname: 'Tiaguinho Navalha',
-    specialties: ['Corte Clássico', 'Barba Tradicional'],
-    phone_whatsapp: '(11) 97111-2233',
-    phone_secondary: '',
-    cpf: '777.888.999-00',
-    email: 'tiago.barber@email.com',
-    contract_type: 'partner_mei',
-    access_level: 'Prestador Autônomo',
-    current_salon_id: null,
-    current_salon_name: 'Disponível no Ecossistema',
-    commission_percent: 50,
-    status: 'unlinked_from_salon',
-    address: 'Rua Maria Antônia',
-    street_number: '310',
-    complement: '',
-    neighborhood: 'Vila Buarque',
-    city: 'São Paulo',
-    state: 'SP',
-    cep: '01222-010',
-    unlinked_from_salon_at: '2026-09-19T18:00:00Z',
-    historical_salons_count: 2,
-    total_services_done: 180,
-    total_appointments: 180,
-    dependents_count: 0,
-    rating: 4.75,
-    created_at: '2026-08-15T10:00:00Z',
-  },
-  {
-    id: 'prof-005',
-    full_name: 'Jessica Santos',
-    username: 'jessica.nails',
-    nickname: 'Jess Nails',
-    specialties: ['Alongamento em Fibra', 'Nail Art', 'Spa dos Pés'],
-    phone_whatsapp: '(11) 98444-5566',
-    phone_secondary: '',
-    cpf: '888.999.000-11',
-    email: 'jessica.nails@email.com',
-    contract_type: 'partner_mei',
-    access_level: 'MEI Parceiro',
-    current_salon_id: 'salon-bella-donna',
-    current_salon_name: 'Bella Donna Esmalteria & Spa',
-    current_salon_slug: 'belladonna',
-    commission_percent: 50,
-    status: 'active',
-    address: 'Rua Oscar Freire',
-    street_number: '890',
-    complement: '',
-    neighborhood: 'Jardins',
-    city: 'São Paulo',
-    state: 'SP',
-    cep: '01426-000',
-    historical_salons_count: 1,
-    total_services_done: 290,
-    total_appointments: 290,
-    dependents_count: 0,
-    rating: 4.98,
-    created_at: '2026-09-15T11:20:00Z',
-  },
-];
+export const INITIAL_MOCK_CLIENTS: UserClientItem[] = [];
+export const INITIAL_MOCK_SALON_USERS: UserSalonAccessItem[] = [];
+export const INITIAL_MOCK_PROFESSIONALS: UserProfessionalItem[] = [];
 
 // 1. Clientes (Prioriza API com service role para contornar RLS e ler os clientes reais do Supabase)
 export async function fetchAdminClients(): Promise<UserClientItem[]> {
@@ -3035,35 +2471,91 @@ export async function fetchAdminClients(): Promise<UserClientItem[]> {
     const text = await resp.text();
     if (text && text.trim().startsWith('{')) {
       const json = JSON.parse(text);
-      if (resp.ok && json.success && Array.isArray(json.clients) && json.clients.length > 0) {
+      if (resp.ok && json.success && Array.isArray(json.clients)) {
         return json.clients;
       }
     }
   } catch {}
 
   try {
-    const { data, error } = await supabaseAdmin
-      .from('clients')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const [{ data, error }, { data: secAnswers }, { data: sysAdmins }] = await Promise.all([
+      supabaseAdmin.from('clients').select('*').order('created_at', { ascending: false }),
+      supabaseAdmin.from('user_security_answers').select('client_id, question_code'),
+      supabaseAdmin.from('system_admins').select('id, email, username'),
+    ]);
 
-    if (!error && Array.isArray(data) && data.length > 0) {
-      return data.map((c: any) => ({
-        ...c,
-        full_name: c.name || c.full_name || 'Cliente',
-        username: (c.username || (c.email ? c.email.split('@')[0] : (c.name || 'cliente').toLowerCase().replace(/\s+/g, ''))).replace(/^@+/, ''),
-        phone: c.phone || c.phone_whatsapp || '—',
-        phone_secondary: c.phone_secondary || '',
-        dependents: Array.isArray(c.dependents) ? c.dependents : [],
-        is_active: c.is_active !== undefined ? !!c.is_active : true,
-        access_level: c.access_level || 'Cliente Titular',
-      })) as UserClientItem[];
+    const adminEmails = new Set(
+      (sysAdmins || []).map((a: any) => String(a.email || '').trim().toLowerCase()).filter(Boolean)
+    );
+    const adminUsers = new Set(
+      (sysAdmins || []).map((a: any) => String(a.username || '').trim().replace(/^@+/, '').toLowerCase()).filter(Boolean)
+    );
+
+    const secMap = new Map<string, string[]>();
+    (secAnswers || []).forEach((s: any) => {
+      if (s.client_id) {
+        const list = secMap.get(String(s.client_id)) || [];
+        if (s.question_code && !list.includes(s.question_code)) list.push(s.question_code);
+        secMap.set(String(s.client_id), list);
+      }
+    });
+
+    if (!error && Array.isArray(data)) {
+      const seenEmails = new Set<string>();
+      const seenUsers = new Set<string>();
+      return data
+        .filter((c: any) => {
+          const em = String(c.email || '').trim().toLowerCase();
+          const us = String(c.username || '').trim().replace(/^@+/, '').toLowerCase();
+          if ((em && adminEmails.has(em)) || (us && adminUsers.has(us))) return false;
+          if ((em && seenEmails.has(em)) || (us && seenUsers.has(us))) return false;
+          if (em) seenEmails.add(em);
+          if (us) seenUsers.add(us);
+          return true;
+        })
+        .map((c: any) => {
+          const configuredCodes = secMap.get(String(c.id)) || (c.security_question_code ? [c.security_question_code] : []);
+          return {
+            ...c,
+            full_name: c.name || c.full_name || 'Cliente',
+            username: (c.username || (c.email ? c.email.split('@')[0] : (c.name || 'cliente').toLowerCase().replace(/\s+/g, ''))).replace(/^@+/, ''),
+            phone: c.phone || c.phone_whatsapp || '—',
+            phone_secondary: c.phone_secondary || '',
+            dependents: Array.isArray(c.dependents) ? c.dependents : [],
+            is_active: c.is_active !== undefined ? !!c.is_active : true,
+            access_level: c.access_level || 'Cliente Titular',
+            has_security_question: configuredCodes.length > 0,
+            security_questions_configured: configuredCodes,
+          };
+        }) as UserClientItem[];
     }
   } catch (err) {
-    console.warn('[Supabase Admin] Fallback para mock de clientes:', err);
+    console.warn('[Supabase Admin] Falha ao listar clientes reais:', err);
   }
 
-  return INITIAL_MOCK_CLIENTS;
+  return [];
+}
+
+// 1B. Reset Administrativo de Segurança (Pergunta Secreta e/ou Senha)
+export async function resetUserSecurityAdmin(
+  kind: 'client' | 'professional' | 'salon_user' | 'admin' | 'dependent',
+  userId: string,
+  options: { resetSecurityQuestion?: boolean; newPassword?: string }
+): Promise<{ success: boolean; message?: string; error?: string }> {
+  try {
+    const resp = await fetch(`/api/admin/users/${kind}/${encodeURIComponent(userId)}/reset-security`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(options),
+    });
+    const json = await resp.json();
+    if (resp.ok && json.success) {
+      return { success: true, message: json.message };
+    }
+    return { success: false, error: json.error || 'Falha ao executar reset administrativo.' };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Erro de rede ao contatar o servidor.' };
+  }
 }
 
 // 2. Desvincular Dependente (Soft Unlink com Preservação de Histórico)
@@ -3085,24 +2577,22 @@ export async function unlinkClientDependent(dependentId: string): Promise<{ succ
       .eq('id', dependentId);
 
     if (error) {
-      console.warn('[Supabase Admin] Falha ao desvincular dependente no banco, aplicando local:', error);
+      console.warn('[Supabase Admin] Falha ao desvincular dependente no banco:', error);
     }
     return { success: true };
-  } catch (err) {
-    console.warn('[Supabase Admin] Desvinculando dependente em memória:', err);
+  } catch {
     return { success: true };
   }
 }
 
-
-// 3. Usuários de Salão (Proprietários e Gestores Reais do Supabase)
+// 3. Usuários de Salão (Consulta Exclusiva da Tabela Real public.salon_users — Zero Linhas Sintéticas)
 export async function fetchAdminSalonUsers(): Promise<UserSalonAccessItem[]> {
   try {
     const resp = await fetch('/api/admin/salon-users');
     const text = await resp.text();
     if (text && text.trim().startsWith('{')) {
       const json = JSON.parse(text);
-      if (resp.ok && json.success && Array.isArray(json.salonUsers) && json.salonUsers.length > 0) {
+      if (resp.ok && json.success && Array.isArray(json.salonUsers)) {
         return json.salonUsers;
       }
     }
@@ -3110,34 +2600,38 @@ export async function fetchAdminSalonUsers(): Promise<UserSalonAccessItem[]> {
 
   try {
     const { data, error } = await supabaseAdmin
-      .from('salons')
-      .select('id, trade_name, legal_name, slug, email, phone_whatsapp, address, is_active')
+      .from('salon_users')
+      .select('*, salons(trade_name, slug)')
       .order('created_at', { ascending: false });
 
-    if (!error && Array.isArray(data) && data.length > 0) {
-      return data.map((s: any) => ({
-        id: `su-${s.id}`,
-        salon_id: s.id,
-        salon_name: s.trade_name || s.legal_name || 'Salão Parceiro',
-        salon_slug: s.slug || 'parceiro',
-        full_name: s.legal_name || s.trade_name || 'Proprietário',
-        username: s.slug ? s.slug.replace(/^@+/, '') : 'parceiro',
-        email: s.email || 'parceiro@vagouapp.com',
-        phone_whatsapp: s.phone_whatsapp || '—',
-        phone_secondary: '',
-        role: 'owner',
-        access_level: 'Proprietário (Dono)',
-        is_active: s.is_active !== false,
-        total_appointments: 0,
-        dependents_count: 0,
-        created_at: s.created_at || new Date().toISOString(),
-      })) as any;
+    if (!error && Array.isArray(data)) {
+      return data.map((su: any) => {
+        const fullName = su.full_name || su.name || 'Gestor de Salão';
+        const cleanEmail = su.email || '';
+        return {
+          ...su,
+          salon_name: su.salons?.trade_name || su.salon_name || 'Salão Parceiro',
+          salon_slug: su.salons?.slug || su.salon_slug || 'parceiro',
+          full_name: fullName,
+          username: String(su.username || (cleanEmail ? cleanEmail.split('@')[0] : 'gestor')).replace(/^@+/, ''),
+          email: cleanEmail,
+          phone_whatsapp: su.phone_whatsapp || su.phone || '—',
+          phone_secondary: su.phone_secondary || '',
+          role: su.role || 'owner',
+          access_level: su.access_level || 'Proprietário (Dono)',
+          is_active: su.is_active !== false,
+          total_appointments: Number(su.total_appointments) || 0,
+          dependents_count: Number(su.dependents_count) || 0,
+          created_via: su.created_via || undefined,
+          created_at: su.created_at || '',
+        };
+      }) as UserSalonAccessItem[];
     }
   } catch (err) {
-    console.warn('[Supabase Admin] Fallback para mock de usuários de salão:', err);
+    console.warn('[Supabase Admin] Falha ao buscar salon_users reais:', err);
   }
 
-  return INITIAL_MOCK_SALON_USERS;
+  return [];
 }
 
 // 4. Profissionais / Prestadores Reais do Supabase
@@ -3147,7 +2641,7 @@ export async function fetchAdminProfessionals(): Promise<UserProfessionalItem[]>
     const text = await resp.text();
     if (text && text.trim().startsWith('{')) {
       const json = JSON.parse(text);
-      if (resp.ok && json.success && Array.isArray(json.professionals) && json.professionals.length > 0) {
+      if (resp.ok && json.success && Array.isArray(json.professionals)) {
         return json.professionals;
       }
     }
@@ -3159,7 +2653,7 @@ export async function fetchAdminProfessionals(): Promise<UserProfessionalItem[]>
       .select('*, salons(trade_name, slug)')
       .order('created_at', { ascending: false });
 
-    if (!error && Array.isArray(data) && data.length > 0) {
+    if (!error && Array.isArray(data)) {
       return data.map((p: any) => ({
         ...p,
         full_name: p.name || p.full_name || 'Profissional',
@@ -3172,10 +2666,10 @@ export async function fetchAdminProfessionals(): Promise<UserProfessionalItem[]>
       })) as any;
     }
   } catch (err) {
-    console.warn('[Supabase Admin] Fallback para mock de profissionais:', err);
+    console.warn('[Supabase Admin] Falha ao buscar profissionais reais:', err);
   }
 
-  return INITIAL_MOCK_PROFESSIONALS;
+  return [];
 }
 
 // 5. Desvincular Profissional de Salão (Mantendo Registro no Ecossistema)
@@ -3300,7 +2794,7 @@ export async function geocodeAddressViaApi(params: {
 }
 
 export async function updateUnifiedUserData(
-  kind: 'client' | 'professional' | 'salon_user' | 'admin',
+  kind: 'client' | 'professional' | 'salon_user' | 'admin' | 'dependent',
   id: string,
   payload: any
 ): Promise<{ success: boolean; user?: any; error?: string }> {
@@ -3427,7 +2921,7 @@ export async function uploadUserAvatarImage(
 }
 
 export async function deleteUnifiedUserData(
-  kind: 'client' | 'professional' | 'salon_user' | 'admin',
+  kind: 'client' | 'professional' | 'salon_user' | 'admin' | 'dependent',
   id: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
@@ -3446,6 +2940,10 @@ export async function deleteUnifiedUserData(
   }
 
   try {
+    if (kind === 'dependent') {
+      await supabaseAdmin.from('dependents').delete().eq('id', id);
+      return { success: true };
+    }
     let table = 'clients';
     if (kind === 'professional') table = 'professionals';
     else if (kind === 'salon_user') table = 'salon_users';
@@ -3459,7 +2957,7 @@ export async function deleteUnifiedUserData(
 }
 
 export async function batchDeleteUnifiedUsers(
-  items: Array<{ kind: 'client' | 'professional' | 'salon_user' | 'admin'; id: string }>
+  items: Array<{ kind: 'client' | 'professional' | 'salon_user' | 'admin' | 'dependent'; id: string }>
 ): Promise<{ success: boolean; count: number; error?: string }> {
   if (!items || items.length === 0) return { success: true, count: 0 };
 
@@ -3483,12 +2981,16 @@ export async function batchDeleteUnifiedUsers(
   // Fallback direto via Supabase client
   try {
     const clientIds = items.filter((it) => it.kind === 'client').map((it) => it.id);
+    const depIds = items.filter((it) => it.kind === 'dependent').map((it) => it.id);
     const profIds = items.filter((it) => it.kind === 'professional').map((it) => it.id);
     const salonUserIds = items.filter((it) => it.kind === 'salon_user').map((it) => it.id);
     const adminIds = items.filter((it) => it.kind === 'admin').map((it) => it.id);
 
     if (clientIds.length > 0) {
       await supabase.from('clients').delete().in('id', clientIds);
+    }
+    if (depIds.length > 0) {
+      await supabase.from('dependents').delete().in('id', depIds);
     }
     if (profIds.length > 0) {
       await supabase.from('professionals').delete().in('id', profIds);
@@ -3507,7 +3009,7 @@ export async function batchDeleteUnifiedUsers(
 }
 
 export async function toggleUnifiedUserStatus(
-  kind: 'client' | 'professional' | 'salon_user' | 'admin',
+  kind: 'client' | 'professional' | 'salon_user' | 'admin' | 'dependent',
   id: string,
   isActive: boolean
 ): Promise<{ success: boolean }> {
