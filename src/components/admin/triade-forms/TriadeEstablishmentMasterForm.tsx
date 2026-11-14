@@ -1155,12 +1155,12 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
             </h2>
           </div>
 
-          <div className="flex flex-col gap-3 pt-1">
+          <div className="flex flex-col items-center gap-3 pt-1">
             {/* Opção SIM -> Chama Form Canônico de Login de Usuário e retorna aos Dados do Salão */}
             <button
               type="button"
               onClick={() => setUserAuthSubFlow('login')}
-              className="w-full p-3.5 sm:p-4 min-h-[48px] rounded-xl border border-emerald-500/40 bg-emerald-950/30 hover:bg-emerald-900/40 transition cursor-pointer group active:scale-98 shadow-md flex items-center justify-between whitespace-nowrap"
+              className="w-1/2 p-3.5 sm:p-4 min-h-[48px] rounded-xl border border-emerald-500/40 bg-emerald-950/30 hover:bg-emerald-900/40 transition cursor-pointer group active:scale-98 shadow-md flex items-center justify-between whitespace-nowrap"
             >
               <span className="text-sm font-black text-emerald-400 group-hover:text-emerald-300">SIM</span>
               <Check className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -1170,7 +1170,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
             <button
               type="button"
               onClick={() => setUserAuthSubFlow('register')}
-              className="w-full p-3.5 sm:p-4 min-h-[48px] rounded-xl border border-slate-700 bg-slate-800/60 hover:bg-slate-800 transition cursor-pointer group active:scale-98 shadow-md flex items-center justify-between whitespace-nowrap"
+              className="w-1/2 p-3.5 sm:p-4 min-h-[48px] rounded-xl border border-slate-700 bg-slate-800/60 hover:bg-slate-800 transition cursor-pointer group active:scale-98 shadow-md flex items-center justify-between whitespace-nowrap"
             >
               <span className="text-sm font-black text-slate-200 group-hover:text-white">NÃO</span>
               <UserPlus className="w-4 h-4 text-slate-400 group-hover:text-white shrink-0" />
