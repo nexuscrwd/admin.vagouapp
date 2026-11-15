@@ -15,6 +15,7 @@ import {
   KeyRound,
   UserPlus,
   Sparkles,
+  Palette,
 } from 'lucide-react';
 import { AdminScreenId, SystemAdminUser, AdminAuthTab } from '../../types/admin';
 import { VagouOfficialLogo } from '../common/VagouOfficialLogo';
@@ -101,10 +102,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
 
   const isEmbedsActive = currentScreen === 'forms' && activeFormsTab === 'embeds';
   const isWelcomeActive = currentScreen === 'forms' && activeFormsTab === 'welcome_modal';
+  const isPreferencesActive = currentScreen === 'preferences';
 
   return (
     <aside
-      className={`bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col justify-between h-full select-none shrink-0 z-30 transition-all duration-300 ease-in-out shadow-xs dark:shadow-none ${
+      className={`admvapp-sidebar bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col justify-between h-full select-none shrink-0 z-30 transition-all duration-300 ease-in-out shadow-xs dark:shadow-none ${
         isCollapsed ? 'w-20' : 'w-[215px]'
       }`}
     >
@@ -163,7 +165,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isSettingsItem = item.id === 'settings';
-            const isActive = currentScreen === item.id || (isSettingsItem && currentScreen === 'forms');
+            const isActive =
+              currentScreen === item.id ||
+              (isSettingsItem && (currentScreen === 'forms' || currentScreen === 'preferences'));
 
             return (
               <div key={item.id} className="space-y-1">
@@ -210,9 +214,30 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                   )}
                 </button>
 
-                {/* Árvore Hierárquica de Configurações -> Estabelecimento & Usuário */}
+                {/* Árvore Hierárquica de Configurações -> Preferências, Estabelecimento & Usuário */}
                 {isSettingsItem && !isCollapsed && isSettingsMenuOpen && (
                   <div className="pl-2.5 pr-1 py-1 space-y-1.5 animate-fadeIn border-l-2 border-emerald-500/30 ml-3 my-1">
+                    {/* ITEM PRINCIPAL: PREFERÊNCIAS (CORES, TEMAS, LOGOTIPOS & FAVICON) */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectScreen('preferences');
+                        onCloseMobile?.();
+                      }}
+                      className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer text-left ${
+                        isPreferencesActive
+                          ? 'bg-[#20C933] text-white shadow-xs'
+                          : 'text-slate-500 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                      }`}
+                    >
+                      <Palette
+                        className={`w-3.5 h-3.5 shrink-0 ${
+                          isPreferencesActive ? 'text-white' : 'text-emerald-400'
+                        }`}
+                      />
+                      <span className="truncate">Preferências</span>
+                    </button>
                     {/* GRUPO 1: ESTABELECIMENTO */}
                     <div className="space-y-0.5">
                       <button

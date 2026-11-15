@@ -1,5 +1,77 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
+export interface AdminThemeColorTokens {
+  headerBg: string;
+  headerText: string;
+  subHeaderBg: string;
+  subHeaderText: string;
+  tableHeaderBg: string;
+  tableHeaderText: string;
+  appBg: string;
+  sectionBg: string;
+  sectionText: string;
+}
+
+export interface AdminSystemPreferences {
+  logoDarkUrl: string;
+  logoLightUrl: string;
+  mobileAppIconUrl: string;
+  faviconUrl: string;
+  dark: AdminThemeColorTokens;
+  light: AdminThemeColorTokens;
+  updatedAt?: string;
+}
+
+export const DEFAULT_ADMIN_PREFERENCES: AdminSystemPreferences = {
+  logoDarkUrl: '',
+  logoLightUrl: '',
+  mobileAppIconUrl: '',
+  faviconUrl: '',
+  dark: {
+    headerBg: '#0f172a',
+    headerText: '#f8fafc',
+    subHeaderBg: '#0f172a',
+    subHeaderText: '#f8fafc',
+    tableHeaderBg: '#0f172a',
+    tableHeaderText: '#94a3b8',
+    appBg: '#020617',
+    sectionBg: '#0f172a',
+    sectionText: '#e2e8f0',
+  },
+  light: {
+    headerBg: '#ffffff',
+    headerText: '#0f172a',
+    subHeaderBg: '#ffffff',
+    subHeaderText: '#0f172a',
+    tableHeaderBg: '#f1f5f9',
+    tableHeaderText: '#475569',
+    appBg: '#f1f5f9',
+    sectionBg: '#ffffff',
+    sectionText: '#1e293b',
+  },
+};
+
+export const ADMIN_PREFERENCES_STORAGE_KEY = 'vagou_admin_system_preferences_v1';
+
+export function loadStoredAdminPreferences(): AdminSystemPreferences {
+  try {
+    const raw = localStorage.getItem(ADMIN_PREFERENCES_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        logoDarkUrl: typeof parsed.logoDarkUrl === 'string' ? parsed.logoDarkUrl : '',
+        logoLightUrl: typeof parsed.logoLightUrl === 'string' ? parsed.logoLightUrl : '',
+        mobileAppIconUrl: typeof parsed.mobileAppIconUrl === 'string' ? parsed.mobileAppIconUrl : '',
+        faviconUrl: typeof parsed.faviconUrl === 'string' ? parsed.faviconUrl : '',
+        dark: { ...DEFAULT_ADMIN_PREFERENCES.dark, ...(parsed.dark || {}) },
+        light: { ...DEFAULT_ADMIN_PREFERENCES.light, ...(parsed.light || {}) },
+        updatedAt: parsed.updatedAt,
+      };
+    }
+  } catch {}
+  return DEFAULT_ADMIN_PREFERENCES;
+}
+
 export interface ThemeContextType {
   theme: 'dark' | 'light';
   isDark: boolean;
@@ -7,6 +79,10 @@ export interface ThemeContextType {
   setTheme: (theme: 'dark' | 'light') => void;
   accentColor: string;
   setAccentColor: (color: string) => void;
+  preferences: AdminSystemPreferences;
+  updatePreferences: (next: AdminSystemPreferences) => void;
+  savePreferencesToServer: (next?: AdminSystemPreferences) => Promise<{ success: boolean; error?: string }>;
+  resetPreferences: () => Promise<void>;
 }
 
 export const ThemeContext = createContext<ThemeContextType>({
@@ -16,6 +92,10 @@ export const ThemeContext = createContext<ThemeContextType>({
   setTheme: () => {},
   accentColor: '#20C933',
   setAccentColor: () => {},
+  preferences: DEFAULT_ADMIN_PREFERENCES,
+  updatePreferences: () => {},
+  savePreferencesToServer: async () => ({ success: true }),
+  resetPreferences: async () => {},
 });
 
 export const applyAccentColorToDom = (color: string) => {
@@ -48,6 +128,166 @@ export const applyAccentColorToDom = (color: string) => {
   }
 };
 
+export const applySystemPreferencesToDom = (
+  prefs: AdminSystemPreferences,
+  activeTheme: 'dark' | 'light'
+) => {
+  if (typeof document === 'undefined') return;
+  try {
+    const tokens = activeTheme === 'dark' ? prefs.dark : prefs.light;
+    const defaultTokens = activeTheme === 'dark' ? DEFAULT_ADMIN_PREFERENCES.dark : DEFAULT_ADMIN_PREFERENCES.light;
+    const isCustomized =
+      tokens.headerBg !== defaultTokens.headerBg ||
+      tokens.headerText !== defaultTokens.headerText ||
+      tokens.subHeaderBg !== defaultTokens.subHeaderBg ||
+      tokens.subHeaderText !== defaultTokens.subHeaderText ||
+      tokens.tableHeaderBg !== defaultTokens.tableHeaderBg ||
+      tokens.tableHeaderText !== defaultTokens.tableHeaderText ||
+      tokens.appBg !== defaultTokens.appBg ||
+      tokens.sectionBg !== defaultTokens.sectionBg ||
+      tokens.sectionText !== defaultTokens.sectionText;
+
+    const root = document.documentElement;
+    root.style.setProperty('--admin-header-bg', tokens.headerBg);
+    root.style.setProperty('--admin-header-text', tokens.headerText);
+    root.style.setProperty('--admin-subheader-bg', tokens.subHeaderBg);
+    root.style.setProperty('--admin-subheader-text', tokens.subHeaderText);
+    root.style.setProperty('--admin-table-header-bg', tokens.tableHeaderBg);
+    root.style.setProperty('--admin-table-header-text', tokens.tableHeaderText);
+    root.style.setProperty('--admin-app-bg', tokens.appBg);
+    root.style.setProperty('--admin-section-bg', tokens.sectionBg);
+    root.style.setProperty('--admin-section-text', tokens.sectionText);
+
+    // Atualiza Favicon do navegador e Ícone Mobile (apple-touch-icon)
+    const effectiveFavicon = prefs.faviconUrl || prefs.mobileAppIconUrl || '/icon.svg';
+    const effectiveMobileIcon = prefs.mobileAppIconUrl || prefs.faviconUrl || '/icon.svg';
+
+    const iconLinks = document.querySelectorAll("link[rel*='icon']");
+    if (iconLinks.length > 0) {
+      iconLinks.forEach((link) => {
+        (link as HTMLLinkElement).href = effectiveFavicon;
+      });
+    } else {
+      const newFavicon = document.createElement('link');
+      newFavicon.rel = 'icon';
+      newFavicon.href = effectiveFavicon;
+      document.head.appendChild(newFavicon);
+    }
+
+    let appleTouch = document.querySelector("link[rel='apple-touch-icon']") as HTMLLinkElement | null;
+    if (!appleTouch) {
+      appleTouch = document.createElement('link');
+      appleTouch.rel = 'apple-touch-icon';
+      document.head.appendChild(appleTouch);
+    }
+    appleTouch.href = effectiveMobileIcon;
+
+    let styleEl = document.getElementById('vagou-admin-preferences-style');
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = 'vagou-admin-preferences-style';
+      document.head.appendChild(styleEl);
+    }
+
+    if (!isCustomized) {
+      styleEl.textContent = `
+        :root {
+          --admin-header-bg: ${tokens.headerBg};
+          --admin-header-text: ${tokens.headerText};
+          --admin-subheader-bg: ${tokens.subHeaderBg};
+          --admin-subheader-text: ${tokens.subHeaderText};
+          --admin-table-header-bg: ${tokens.tableHeaderBg};
+          --admin-table-header-text: ${tokens.tableHeaderText};
+          --admin-app-bg: ${tokens.appBg};
+          --admin-section-bg: ${tokens.sectionBg};
+          --admin-section-text: ${tokens.sectionText};
+        }
+      `;
+      return;
+    }
+
+    styleEl.textContent = `
+      :root {
+        --admin-header-bg: ${tokens.headerBg};
+        --admin-header-text: ${tokens.headerText};
+        --admin-subheader-bg: ${tokens.subHeaderBg};
+        --admin-subheader-text: ${tokens.subHeaderText};
+        --admin-table-header-bg: ${tokens.tableHeaderBg};
+        --admin-table-header-text: ${tokens.tableHeaderText};
+        --admin-app-bg: ${tokens.appBg};
+        --admin-section-bg: ${tokens.sectionBg};
+        --admin-section-text: ${tokens.sectionText};
+      }
+
+      /* 1. Fundo do App */
+      .admvapp-shell,
+      .admvapp-shell .admvapp-main {
+        background-color: var(--admin-app-bg) !important;
+      }
+
+      /* 2. Cabeçalho Superior & Barra Lateral */
+      .admvapp-shell .admvapp-header,
+      .admvapp-shell .admvapp-sidebar {
+        background-color: var(--admin-header-bg) !important;
+        color: var(--admin-header-text) !important;
+      }
+      .admvapp-shell .admvapp-header h1,
+      .admvapp-shell .admvapp-header h2,
+      .admvapp-shell .admvapp-header span:not(.text-white),
+      .admvapp-shell .admvapp-sidebar nav button:not(.bg-\\[\\#20C933\\]) span {
+        color: var(--admin-header-text);
+      }
+
+      /* 3. Subcabeçalho Fixo das Telas */
+      .admvapp-shell .admvapp-subheader,
+      .admvapp-shell .admvapp-main > div > div.shrink-0:first-child {
+        background-color: var(--admin-subheader-bg) !important;
+        color: var(--admin-subheader-text) !important;
+      }
+      .admvapp-shell .admvapp-subheader h1,
+      .admvapp-shell .admvapp-subheader h2,
+      .admvapp-shell .admvapp-main > div > div.shrink-0:first-child h1,
+      .admvapp-shell .admvapp-main > div > div.shrink-0:first-child h2 {
+        color: var(--admin-subheader-text) !important;
+      }
+
+      /* 4. Cabeçalho de Tabela */
+      .admvapp-shell table thead th {
+        background-color: var(--admin-table-header-bg) !important;
+        color: var(--admin-table-header-text) !important;
+      }
+
+      /* 5. Fundo de Seção & Cor da Fonte de Conteúdo de Seção */
+      .admvapp-shell .admvapp-section,
+      .admvapp-shell .admvapp-main table tbody,
+      .admvapp-shell .admvapp-main .rounded-xl.bg-white,
+      .admvapp-shell .admvapp-main .rounded-2xl.bg-white,
+      .dark .admvapp-shell .admvapp-main .dark\\:bg-slate-900 {
+        background-color: var(--admin-section-bg) !important;
+        color: var(--admin-section-text) !important;
+      }
+      .admvapp-shell .admvapp-main table tbody td,
+      .admvapp-shell .admvapp-section p,
+      .admvapp-shell .admvapp-section h3,
+      .admvapp-shell .admvapp-section h4 {
+        color: var(--admin-section-text);
+      }
+
+      /* Trava Inegociável do 7º Mandamento: Botão Verde = Texto/Ícone Branco */
+      .bg-\\[\\#20C933\\],
+      .bg-emerald-500,
+      .bg-emerald-600,
+      .bg-\\[\\#20C933\\] *,
+      .bg-emerald-500 *,
+      .bg-emerald-600 * {
+        color: #ffffff !important;
+      }
+    `;
+  } catch (err) {
+    console.error('Erro ao aplicar preferências visuais do Admin:', err);
+  }
+};
+
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<'dark' | 'light'>(() => {
     try {
@@ -71,6 +311,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   });
 
+  const [preferences, setPreferencesState] = useState<AdminSystemPreferences>(() =>
+    loadStoredAdminPreferences()
+  );
+
   const isDark = theme === 'dark';
 
   useEffect(() => {
@@ -83,11 +327,94 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         document.documentElement.classList.add('light');
       }
     } catch {}
-  }, [theme]);
+    applySystemPreferencesToDom(preferences, theme);
+  }, [theme, preferences]);
 
   useEffect(() => {
     applyAccentColorToDom(accentColor);
   }, [accentColor]);
+
+  // Carrega preferências salvas no servidor ao iniciar
+  useEffect(() => {
+    let active = true;
+    fetch('/api/admin/preferences')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (!active || !json?.success || !json?.preferences) return;
+        const remote = json.preferences as Partial<AdminSystemPreferences>;
+        const merged: AdminSystemPreferences = {
+          logoDarkUrl: typeof remote.logoDarkUrl === 'string' ? remote.logoDarkUrl : preferences.logoDarkUrl,
+          logoLightUrl: typeof remote.logoLightUrl === 'string' ? remote.logoLightUrl : preferences.logoLightUrl,
+          mobileAppIconUrl:
+            typeof remote.mobileAppIconUrl === 'string' ? remote.mobileAppIconUrl : preferences.mobileAppIconUrl,
+          faviconUrl: typeof remote.faviconUrl === 'string' ? remote.faviconUrl : preferences.faviconUrl,
+          dark: { ...DEFAULT_ADMIN_PREFERENCES.dark, ...(remote.dark || {}) },
+          light: { ...DEFAULT_ADMIN_PREFERENCES.light, ...(remote.light || {}) },
+          updatedAt: remote.updatedAt,
+        };
+        setPreferencesState(merged);
+        try {
+          localStorage.setItem(ADMIN_PREFERENCES_STORAGE_KEY, JSON.stringify(merged));
+        } catch {}
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const updatePreferences = (next: AdminSystemPreferences) => {
+    setPreferencesState(next);
+    try {
+      localStorage.setItem(ADMIN_PREFERENCES_STORAGE_KEY, JSON.stringify(next));
+    } catch {}
+    applySystemPreferencesToDom(next, theme);
+  };
+
+  const savePreferencesToServer = async (
+    customNext?: AdminSystemPreferences
+  ): Promise<{ success: boolean; error?: string }> => {
+    const target = customNext || preferences;
+    try {
+      localStorage.setItem(ADMIN_PREFERENCES_STORAGE_KEY, JSON.stringify(target));
+    } catch {}
+    applySystemPreferencesToDom(target, theme);
+
+    try {
+      const resp = await fetch('/api/admin/preferences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(target),
+      });
+      const json = await resp.json();
+      if (resp.ok && json?.success && json?.preferences) {
+        setPreferencesState(json.preferences);
+        try {
+          localStorage.setItem(ADMIN_PREFERENCES_STORAGE_KEY, JSON.stringify(json.preferences));
+        } catch {}
+        applySystemPreferencesToDom(json.preferences, theme);
+        return { success: true };
+      }
+      return { success: false, error: json?.error || 'Erro ao salvar preferências no servidor.' };
+    } catch (err: any) {
+      return { success: true };
+    }
+  };
+
+  const resetPreferences = async () => {
+    setPreferencesState(DEFAULT_ADMIN_PREFERENCES);
+    try {
+      localStorage.setItem(ADMIN_PREFERENCES_STORAGE_KEY, JSON.stringify(DEFAULT_ADMIN_PREFERENCES));
+    } catch {}
+    applySystemPreferencesToDom(DEFAULT_ADMIN_PREFERENCES, theme);
+    try {
+      await fetch('/api/admin/preferences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(DEFAULT_ADMIN_PREFERENCES),
+      });
+    } catch {}
+  };
 
   const toggleTheme = () => {
     setThemeState((prev) => {
@@ -114,7 +441,20 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, isDark, toggleTheme, setTheme, accentColor, setAccentColor }}>
+    <ThemeContext.Provider
+      value={{
+        theme,
+        isDark,
+        toggleTheme,
+        setTheme,
+        accentColor,
+        setAccentColor,
+        preferences,
+        updatePreferences,
+        savePreferencesToServer,
+        resetPreferences,
+      }}
+    >
       {children}
     </ThemeContext.Provider>
   );

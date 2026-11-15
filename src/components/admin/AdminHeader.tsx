@@ -62,6 +62,8 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
         return 'Governança da Tríade & 7º Mandamento';
       case 'forms':
         return 'Central de Formulários da Tríade';
+      case 'preferences':
+        return 'Preferências de Cores, Temas & Logotipos';
       case 'settings':
         return 'Configurações do Sistema & DNS';
       default:
@@ -70,7 +72,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
   };
 
   return (
-    <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 lg:px-6 flex items-center justify-between gap-4 sticky top-0 z-20 shadow-xs dark:shadow-none transition-colors">
+    <header className="admvapp-header h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 lg:px-6 flex items-center justify-between gap-4 sticky top-0 z-20 shadow-xs dark:shadow-none transition-colors">
       {/* Left: Mobile trigger */}
       <div className="flex items-center gap-3">
         {onOpenMobileSidebar && (

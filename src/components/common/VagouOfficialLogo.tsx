@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useTheme } from '../../context/ThemeContext';
 
 export interface VagouOfficialLogoProps {
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
@@ -6,6 +7,7 @@ export interface VagouOfficialLogoProps {
   className?: string;
   onClick?: () => void;
   title?: string;
+  forceTheme?: 'dark' | 'light';
 }
 
 const sizeClasses = {
@@ -38,7 +40,7 @@ const LOGO_OFFICIAL_SOURCES = [
 
 /**
  * Logotipo Oficial do VagouApp (Ícone Squircle, Full Logo Horizontal ou Símbolo Vetorial).
- * Carrega a imagem do logo oficial direto do Supabase Storage ou Assets com encadeamento automático.
+ * Respeita em tempo real os logotipos (Dark/Light) e ícones customizados na ferramenta "Preferências" do Admin Master.
  */
 export const VagouOfficialLogo: React.FC<VagouOfficialLogoProps> = ({
   size = 'md',
@@ -46,23 +48,56 @@ export const VagouOfficialLogo: React.FC<VagouOfficialLogoProps> = ({
   className = '',
   onClick,
   title = 'VagouApp Oficial',
+  forceTheme,
 }) => {
+  const { isDark, preferences } = useTheme();
   const [sourceIndex, setSourceIndex] = useState(0);
+  const [customFailed, setCustomFailed] = useState(false);
+
+  const effectiveIsDark = forceTheme ? forceTheme === 'dark' : isDark;
+
+  const customFullSource = effectiveIsDark
+    ? preferences?.logoDarkUrl || preferences?.logoLightUrl || ''
+    : preferences?.logoLightUrl || preferences?.logoDarkUrl || '';
+
+  const customIconSource =
+    preferences?.mobileAppIconUrl ||
+    preferences?.faviconUrl ||
+    customFullSource ||
+    '';
+
+  useEffect(() => {
+    setCustomFailed(false);
+  }, [
+    preferences?.logoDarkUrl,
+    preferences?.logoLightUrl,
+    preferences?.mobileAppIconUrl,
+    preferences?.faviconUrl,
+    effectiveIsDark,
+  ]);
+
   const containerSize = sizeClasses[size] || sizeClasses.md;
   const fullSize = fullSizeClasses[size] || fullSizeClasses.md;
 
   const handleImageError = () => {
+    if (!customFailed && ((variant === 'full' && customFullSource) || (variant !== 'full' && customIconSource))) {
+      setCustomFailed(true);
+      return;
+    }
     if (sourceIndex < LOGO_OFFICIAL_SOURCES.length - 1) {
       setSourceIndex((prev) => prev + 1);
     }
   };
 
-  const currentSource = LOGO_OFFICIAL_SOURCES[sourceIndex];
+  const currentFullSource =
+    !customFailed && customFullSource ? customFullSource : LOGO_OFFICIAL_SOURCES[sourceIndex];
+  const currentIconSource =
+    !customFailed && customIconSource ? customIconSource : LOGO_OFFICIAL_SOURCES[sourceIndex];
 
   if (variant === 'full') {
     return (
       <img
-        src={currentSource}
+        src={currentFullSource}
         alt="VagouApp Oficial"
         title={title}
         className={`${fullSize} object-contain select-none shrink-0 ${
@@ -74,40 +109,9 @@ export const VagouOfficialLogo: React.FC<VagouOfficialLogoProps> = ({
     );
   }
 
-  if (variant === 'symbol') {
-    return (
-      <div
-        onClick={onClick}
-        title={title}
-        className={`${containerSize} flex items-center justify-center shrink-0 select-none ${
-          onClick ? 'cursor-pointer hover:scale-105 active:scale-95 transition' : ''
-        } ${className}`}
-      >
-        <svg
-          viewBox="0 0 160 160"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          className="w-full h-full shrink-0"
-        >
-          <defs>
-            <linearGradient id="vagouVSymbolGrad" x1="0%" y1="100%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#087A2A" />
-              <stop offset="50%" stopColor="#20C933" />
-              <stop offset="100%" stopColor="#38E54B" />
-            </linearGradient>
-          </defs>
-          <path
-            d="M 25 72 C 15 60, 30 42, 46 52 L 72 82 C 80 90, 92 88, 100 78 L 142 22 C 152 8, 168 22, 158 36 L 98 126 C 86 142, 64 142, 52 126 Z"
-            fill="url(#vagouVSymbolGrad)"
-          />
-        </svg>
-      </div>
-    );
-  }
-
   return (
     <img
-      src={currentSource}
+      src={currentIconSource}
       alt="VagouApp Oficial"
       title={title}
       className={`${containerSize} object-contain rounded-xl select-none shrink-0 ${
@@ -120,3 +124,4 @@ export const VagouOfficialLogo: React.FC<VagouOfficialLogoProps> = ({
 };
 
 export default VagouOfficialLogo;
+

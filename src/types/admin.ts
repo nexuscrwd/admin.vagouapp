@@ -7,6 +7,7 @@ export type AdminScreenId =
   | 'appointments'
   | 'triade'
   | 'forms'
+  | 'preferences'
   | 'settings';
 
 export type SalonFilterStatus = 'all' | 'active' | 'pending' | 'incomplete' | 'suspended';

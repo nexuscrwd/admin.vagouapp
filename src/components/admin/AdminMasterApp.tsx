@@ -27,6 +27,7 @@ import { TriadeEstablishmentModal } from './triade-forms/TriadeEstablishmentModa
 import { AdminAppointmentsMonitor } from './AdminAppointmentsMonitor';
 import { AdminUsersManager } from './AdminUsersManager';
 import { AdminSettingsPanel } from './AdminSettingsPanel';
+import { AdminPreferencesPanel } from './AdminPreferencesPanel';
 import { AdminTriadeFormsCatalog } from './AdminTriadeFormsCatalog';
 import { AdminAuthModal } from './AdminAuthModal';
 import { AdminCreateAdminModal } from './AdminCreateAdminModal';
@@ -247,7 +248,7 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
   }
 
   return (
-    <div className="flex h-screen w-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
+    <div className="admvapp-shell flex h-screen w-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
       {/* 1. Permanent Fixed Sidebar */}
       <div className="shrink-0 h-full">
         <AdminSidebar
@@ -281,7 +282,7 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
         />
 
         {/* Main Content Viewport: Cabeçalhos e subcabeçalhos fixos ao topo sem padding entre si, separados por linhas, com rolagem vertical exclusiva na área de dados */}
-        <main className="flex-1 flex flex-col min-h-0 overflow-hidden p-0 m-0 bg-slate-100/70 dark:bg-slate-950 transition-colors">
+        <main className="admvapp-main flex-1 flex flex-col min-h-0 overflow-hidden p-0 m-0 bg-slate-100/70 dark:bg-slate-950 transition-colors">
           {/* SCREEN: HOME / INÍCIO (PÁGINA INICIAL COM MÓDULOS EM CARDS) */}
           {currentScreen === 'dashboard' && (
             <div className="flex-1 overflow-y-auto p-0 m-0 min-h-0 custom-scrollbar">
@@ -342,8 +343,14 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
 
           {/* SCREEN: SETTINGS (Includes Tríade Governance inside) */}
           {currentScreen === 'settings' && (
-            <AdminSettingsPanel onNavigateToForms={() => setCurrentScreen('forms')} />
+            <AdminSettingsPanel
+              onNavigateToForms={() => setCurrentScreen('forms')}
+              onNavigateToPreferences={() => setCurrentScreen('preferences')}
+            />
           )}
+
+          {/* SCREEN: PREFERENCES (Cores, Temas, Logotipos & Favicon) */}
+          {currentScreen === 'preferences' && <AdminPreferencesPanel />}
 
           {/* SCREEN: FORMS (Central de Formulários da Tríade) */}
           {currentScreen === 'forms' && (

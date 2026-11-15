@@ -17,6 +17,7 @@ import {
   Save,
   RotateCcw,
   Sliders,
+  Palette,
 } from 'lucide-react';
 import { fetchSystemAdmins, toggleAdminStatus } from '../../services/supabaseApi';
 import { SystemAdminUser } from '../../types/admin';
@@ -33,9 +34,13 @@ import {
 
 export interface AdminSettingsPanelProps {
   onNavigateToForms?: () => void;
+  onNavigateToPreferences?: () => void;
 }
 
-export const AdminSettingsPanel: React.FC<AdminSettingsPanelProps> = ({ onNavigateToForms }) => {
+export const AdminSettingsPanel: React.FC<AdminSettingsPanelProps> = ({
+  onNavigateToForms,
+  onNavigateToPreferences,
+}) => {
   // System Admins Management
   const [admins, setAdmins] = useState<SystemAdminUser[]>([]);
   const [isLoadingAdmins, setIsLoadingAdmins] = useState(false);
@@ -113,7 +118,7 @@ export const AdminSettingsPanel: React.FC<AdminSettingsPanelProps> = ({ onNaviga
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden animate-fadeIn">
       {/* Subcabeçalho Fixo de Configurações & Governança */}
-      <div className="shrink-0 w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 lg:px-6 py-2.5 z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="admvapp-subheader shrink-0 w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 lg:px-6 py-2.5 z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 shrink-0">
             <Shield className="w-4 h-4 text-emerald-500" />
@@ -123,22 +128,35 @@ export const AdminSettingsPanel: React.FC<AdminSettingsPanelProps> = ({ onNaviga
               Configurações & Governança da Tríade
             </h1>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">
-              Administradores do sistema, Kit de Lançamento e sincronização dos projetos
+              Administradores do sistema, Preferências Visuais, Kit de Lançamento e sincronização dos projetos
             </p>
           </div>
         </div>
 
-        {onNavigateToForms && (
-          <button
-            type="button"
-            onClick={onNavigateToForms}
-            className="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span>Central de Formulários</span>
-            <ArrowRight className="w-3 h-3" />
-          </button>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {onNavigateToPreferences && (
+            <button
+              type="button"
+              onClick={onNavigateToPreferences}
+              className="px-3.5 py-1.5 rounded-lg bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-xs"
+            >
+              <Palette className="w-3.5 h-3.5 text-white" />
+              <span className="text-white">Preferências (Cores & Logo)</span>
+            </button>
+          )}
+
+          {onNavigateToForms && (
+            <button
+              type="button"
+              onClick={onNavigateToForms}
+              className="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Central de Formulários</span>
+              <ArrowRight className="w-3 h-3" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Área de Dados com Rolagem Vertical Exclusiva — Zero espaço no contêiner */}

@@ -15,6 +15,28 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-11-15] — 🎨 Nova Ferramenta "Preferências" no Menu Configurações: Logotipos (Dark/Light), Ícone Mobile, Favicon e Paleta Completa de Cores & Fontes (`bol-165`)
+- **Tipo:** `[Feat / Branding & Theme Studio / Tríade Sync]`
+- **Motivo / Solicitação:**
+  - Criação da ferramenta **"Preferências"** como subitem do menu **Configurações** no sistema `admin.vapp` (`admvapp`), permitindo editar em tempo real e persistir:
+    1. **Logotipo (Tema Dark e Tema Light):** Upload de imagem ou URL para o logotipo no tema escuro e no tema claro.
+    2. **Ícone de Dispositivo Mobile e Favicon de Navegador:** Upload/URL dedicados para o ícone de aplicativo mobile (`apple-touch-icon` e ícone recolhido da barra lateral) e para o favicon da aba do navegador (`<link rel="icon">`).
+    3. **Cores de Superfície (Dark & Light):** Cor de cabeçalho (`headerBg`), subcabeçalho (`subHeaderBg`), cabeçalho de tabela (`tableHeaderBg`), fundo do app (`appBg`) e fundo de seção (`sectionBg`).
+    4. **Cores da Fonte / Tipografia (Dark & Light):** Cor da fonte de cabeçalho (`headerText`), subcabeçalho (`subHeaderText`), cabeçalho de tabela (`tableHeaderText`) e conteúdo de seção (`sectionText`).
+- **Arquivos Impactados:**
+  - `/src/types/admin.ts`
+  - `/src/context/ThemeContext.tsx`
+  - `/src/components/common/VagouOfficialLogo.tsx`
+  - `/src/components/admin/AdminPreferencesPanel.tsx` *(Novo)*
+  - `/src/components/admin/AdminSidebar.tsx`
+  - `/src/components/admin/AdminHeader.tsx`
+  - `/src/components/admin/AdminMasterApp.tsx`
+  - `/src/components/admin/AdminSettingsPanel.tsx`
+  - `/server.ts`
+  - `/CHANGELOG.md`
+
+---
+
 ### [2026-11-14] — 🚀 Correção Crítica na Criação de Estabelecimentos (`safeSupabaseWrite`) e Abertura Automática do App Criado (`bol-164`)
 - **Tipo:** `[Fix / Critical Backend & Redirect / Tríade Sync]`
 - **Motivo / Solicitação:**

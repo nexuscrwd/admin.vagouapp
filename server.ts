@@ -1505,6 +1505,84 @@ async function startServer() {
     }
   });
 
+  // ============================================================================
+  // 🎨 PREFERÊNCIAS VISUAIS, CORES, LOGOTIPOS & FAVICON DO SISTEMA (admin.vapp)
+  // ============================================================================
+  const ADMIN_PREFS_FILE = path.join(__dirname, '.admin-preferences.json');
+
+  const readAdminPreferencesFromDisk = (): any | null => {
+    try {
+      if (fs.existsSync(ADMIN_PREFS_FILE)) {
+        const raw = fs.readFileSync(ADMIN_PREFS_FILE, 'utf-8');
+        return JSON.parse(raw);
+      }
+    } catch {}
+    return null;
+  };
+
+  const writeAdminPreferencesToDisk = (prefs: any) => {
+    try {
+      fs.writeFileSync(ADMIN_PREFS_FILE, JSON.stringify(prefs, null, 2), 'utf-8');
+    } catch (err) {
+      console.warn('[preferences] Falha ao salvar arquivo local de preferências:', err);
+    }
+  };
+
+  app.get('/api/admin/preferences', async (_req, res) => {
+    try {
+      const stored = readAdminPreferencesFromDisk();
+      return res.json({
+        success: true,
+        preferences: stored || null,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/admin/preferences', async (req, res) => {
+    try {
+      const body = req.body || {};
+      let logoDarkUrl = typeof body.logoDarkUrl === 'string' ? body.logoDarkUrl.trim() : '';
+      let logoLightUrl = typeof body.logoLightUrl === 'string' ? body.logoLightUrl.trim() : '';
+      let mobileAppIconUrl = typeof body.mobileAppIconUrl === 'string' ? body.mobileAppIconUrl.trim() : '';
+      let faviconUrl = typeof body.faviconUrl === 'string' ? body.faviconUrl.trim() : '';
+
+      // Se o administrador enviou imagens em Base64, faz upload automático para o Supabase Storage (bucket media)
+      if (logoDarkUrl.startsWith('data:image/')) {
+        logoDarkUrl = await uploadBase64MediaIfNeeded(logoDarkUrl, 'admin-logo-dark', 'media');
+      }
+      if (logoLightUrl.startsWith('data:image/')) {
+        logoLightUrl = await uploadBase64MediaIfNeeded(logoLightUrl, 'admin-logo-light', 'media');
+      }
+      if (mobileAppIconUrl.startsWith('data:image/')) {
+        mobileAppIconUrl = await uploadBase64MediaIfNeeded(mobileAppIconUrl, 'admin-mobile-icon', 'media');
+      }
+      if (faviconUrl.startsWith('data:image/')) {
+        faviconUrl = await uploadBase64MediaIfNeeded(faviconUrl, 'admin-favicon', 'media');
+      }
+
+      const savedPrefs = {
+        logoDarkUrl,
+        logoLightUrl,
+        mobileAppIconUrl,
+        faviconUrl,
+        dark: body.dark || {},
+        light: body.light || {},
+        updatedAt: new Date().toISOString(),
+      };
+
+      writeAdminPreferencesToDisk(savedPrefs);
+
+      return res.json({
+        success: true,
+        preferences: savedPrefs,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // ==========================================
   // 🔐 ADMIN AUTHENTICATION & ACCESS ROUTES
   // ==========================================
