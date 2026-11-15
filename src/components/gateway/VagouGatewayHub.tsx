@@ -259,7 +259,17 @@ export const VagouGatewayHub: React.FC<VagouGatewayHubProps> = ({ onOpenAdmin })
         <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fadeIn overflow-y-auto">
           <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[92vh] overflow-y-auto">
             <TriadeEstablishmentMasterForm
-              onSuccess={() => setIsRegisterModalOpen(false)}
+              onSuccess={(payload, salon) => {
+                setIsRegisterModalOpen(false);
+                const cleanSlug = String(salon?.slug || payload?.slug || '')
+                  .toLowerCase()
+                  .normalize('NFD')
+                  .replace(/[\u0300-\u036f]/g, '')
+                  .replace(/[^a-z0-9]/g, '');
+                if (cleanSlug && typeof window !== 'undefined') {
+                  window.location.assign(`https://${cleanSlug}.vagouapp.com`);
+                }
+              }}
               onClose={() => setIsRegisterModalOpen(false)}
             />
           </div>

@@ -750,6 +750,9 @@ async function startServer() {
   // 🌍 MOTOR DE GEOLOCALIZAÇÃO, GEOCODING EXATO & ROTAS VIÁRIAS EM 3 CAMADAS
   // ============================================================================
 
+  // Cache em memória de colunas ainda não existentes fisicamente no PostgREST para escrita em 1 único round-trip
+  const KNOWN_MISSING_COLUMNS: Record<string, Set<string>> = {};
+
   // Helper: Escrita resiliente no Supabase que remove automaticamente colunas ainda não migradas no cache PostgREST (PGRST204)
   async function safeSupabaseWrite(
     table: string,
@@ -760,7 +763,25 @@ async function startServer() {
     const workingPayload: Record<string, any> = { ...rawPayload };
     const strippedColumns: string[] = [];
 
-    for (let attempt = 0; attempt < 12; attempt++) {
+    if (!KNOWN_MISSING_COLUMNS[table]) {
+      KNOWN_MISSING_COLUMNS[table] = new Set<string>();
+    }
+
+    // Pré-remove colunas já identificadas como ausentes no schema físico desta tabela
+    for (const knownMissing of KNOWN_MISSING_COLUMNS[table]) {
+      if (workingPayload[knownMissing] !== undefined) {
+        strippedColumns.push(knownMissing);
+        if (table === 'salons') {
+          workingPayload.branding = {
+            ...(workingPayload.branding && typeof workingPayload.branding === 'object' ? workingPayload.branding : {}),
+            [knownMissing]: workingPayload[knownMissing],
+          };
+        }
+        delete workingPayload[knownMissing];
+      }
+    }
+
+    for (let attempt = 0; attempt < 50; attempt++) {
       let query: any;
       if (mode === 'insert') {
         query = supabaseAdmin.from(table).insert([workingPayload]).select().maybeSingle();
@@ -792,6 +813,7 @@ async function startServer() {
 
       if (colMatch && colMatch[1] && workingPayload[colMatch[1]] !== undefined) {
         const missingCol = colMatch[1];
+        KNOWN_MISSING_COLUMNS[table].add(missingCol);
         strippedColumns.push(missingCol);
         // Se a tabela for salons e existir branding, preserva o valor lá dentro antes de remover a coluna física
         if (table === 'salons') {
@@ -3153,14 +3175,25 @@ async function startServer() {
     }
   });
 
+  app.options('/api/admin/salons', (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return res.sendStatus(204);
+  });
+
   // ADMIN: Create new Salon (Service Role) — Blindado com Geocoding Automático + Persistência Resiliente
   app.post('/api/admin/salons', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     try {
       const payload = { ...req.body };
+      const resolvedTradeName = String(payload.trade_name || payload.name || '').trim();
       const referer = String(req.headers.referer || process.env.APP_URL || 'https://adm.vagouapp.com/');
-      if (!payload.trade_name || !payload.slug) {
+      if (!resolvedTradeName || !payload.slug) {
         return res.status(400).json({ success: false, error: 'Nome Fantasia e Subdomínio são obrigatórios.' });
       }
+      payload.trade_name = resolvedTradeName;
 
       const cleanSlug = payload.slug
         .trim()
@@ -3200,25 +3233,28 @@ async function startServer() {
       const resolvedFavicon = (await uploadBase64MediaIfNeeded(payload.favicon_url, `${cleanSlug}-favicon`)) || resolvedLogo || null;
       const resolvedSlogan = payload.slogan?.trim() || '';
       const resolvedBrandFont = payload.brand_font?.trim() || 'Poppins';
-      const resolvedStatus = payload.status || 'active';
+      const resolvedStatus = String(payload.status || 'active').toLowerCase();
 
       // Geocodifica o endereço do estabelecimento automaticamente (ou usa as coordenadas cravadas no pino)
       const resolvedGeo = await resolveAddressCoordinatesServerSide(
         {
           cep: payload.cep,
-          address: payload.address,
-          street_number: payload.street_number || payload.streetNumber,
+          address: payload.address || payload.street,
+          street_number: payload.street_number || payload.streetNumber || payload.number,
           neighborhood: payload.neighborhood,
           city: payload.city,
           state: payload.state,
-          latitude: payload.latitude,
-          longitude: payload.longitude,
+          latitude: payload.latitude ?? payload.lat,
+          longitude: payload.longitude ?? payload.lng,
         },
         referer
       );
 
-      const streetNumberVal = (payload.street_number || payload.streetNumber || '').trim() || null;
-      const complementVal = (payload.complement || '').trim() || null;
+      const streetNumberVal = String(payload.street_number || payload.streetNumber || payload.number || '').trim() || null;
+      const complementVal = String(payload.complement || '').trim() || null;
+      const resolvedPhone = String(payload.phone_whatsapp || payload.phone || '').trim() || null;
+      const resolvedOwnerName = String(payload.owner_name || payload.responsibleName || payload.legal_name || resolvedTradeName).trim();
+      const resolvedOwnerCpf = String(payload.owner_cpf || payload.responsibleCpf || '').trim() || null;
 
       const resolvedFee = Number(payload.fee_per_booking ?? payload.billing_fee_value ?? 2.5);
       const resolvedBillingPlan = payload.billing_plan || 'PER_APPOINTMENT';
@@ -3231,35 +3267,27 @@ async function startServer() {
       const nowIso = new Date().toISOString();
       const resolvedCreatedVia = payload.created_via || 'admvapp';
 
-      // Prepara objeto limpo compatível com o schema unificado v5.0 da Tríade (admvapp + mnvapp + pvapp)
+      // Prepara objeto limpo com colunas físicas reais de public.salons + metadados ricos em branding JSONB
       const dbInsert: Record<string, any> = {
-        name: payload.trade_name.trim(),
-        nome_fantasia: payload.trade_name.trim(),
-        trade_name: payload.trade_name.trim(),
-        legal_name: payload.legal_name?.trim() || payload.trade_name.trim(),
+        name: resolvedTradeName,
+        trade_name: resolvedTradeName,
+        legal_name: payload.legal_name?.trim() || resolvedTradeName,
         slug: cleanSlug,
         subdomain: cleanSlug,
+        category: payload.category || 'Barbearia',
         document_type: payload.document_type || 'CNPJ',
         document_number: payload.document_number?.trim() || null,
-        cnpj: payload.document_type === 'CNPJ' ? payload.document_number?.trim() || null : null,
-        cpf_cnpj: payload.document_number?.trim() || null,
-        owner_name: (payload.owner_name || payload.legal_name || payload.trade_name || '').trim() || null,
-        owner_cpf: payload.owner_cpf?.trim() || null,
-        owner_email: payload.email?.trim().toLowerCase() || null,
-        owner_phone: payload.phone_whatsapp?.trim() || null,
+        owner_cpf: resolvedOwnerCpf,
         pix_key: payload.pix_key?.trim() || null,
+        pix_keys: Array.isArray(payload.pix_keys) ? payload.pix_keys : [],
         operating_model: payload.operating_model || 'physical',
         billing_plan: resolvedBillingPlan,
-        fee_per_booking: resolvedFee,
         billing_fee_value: resolvedFee,
-        monthly_subscription_fee: resolvedMonthlyFee,
-        billing_due_day: resolvedDueDay,
-        phone: payload.phone_whatsapp?.trim() || null,
-        whatsapp: payload.phone_whatsapp?.trim() || null,
-        phone_whatsapp: payload.phone_whatsapp?.trim() || null,
+        phone: resolvedPhone,
+        phone_whatsapp: resolvedPhone,
         phone_landline: payload.phone_landline?.trim() || null,
         email: payload.email?.trim().toLowerCase() || null,
-        address: payload.address?.trim() || null,
+        address: (payload.address || payload.street || '').trim() || null,
         street_number: streetNumberVal,
         complement: complementVal,
         neighborhood: payload.neighborhood?.trim() || null,
@@ -3274,6 +3302,7 @@ async function startServer() {
         logo_light_url: resolvedLogo,
         logo_dark_url: resolvedLogo,
         favicon_url: resolvedFavicon,
+        pwa_name: resolvedTradeName,
         slogan: resolvedSlogan,
         brand_font: resolvedBrandFont,
         default_theme: resolvedDefaultTheme,
@@ -3281,15 +3310,14 @@ async function startServer() {
         secondary_color: resolvedSecondaryColor,
         nav_bg_style: payload.nav_bg_style || 'solid',
         nav_bg_color: payload.nav_bg_color || '#D1FAE5',
-        nav_icon_border: payload.nav_icon_border || 'none',
         nav_active_color: payload.nav_active_color || '#10B981',
+        section_header_bg_style: payload.section_header_bg_style || 'solid',
         section_header_bg_color: payload.section_header_bg_color || '#ECFDF5',
         section_header_text_color: payload.section_header_text_color || '#065F46',
         section_header_icon_color: payload.section_header_icon_color || '#059669',
         status: resolvedStatus,
         is_active: resolvedStatus !== 'incomplete' && resolvedStatus !== 'suspended',
         is_verified: resolvedStatus === 'active' || payload.is_verified === true,
-        created_via: resolvedCreatedVia,
         ...(existingSlugSalon ? {} : { created_at: nowIso }),
         updated_at: nowIso,
         branding: {
@@ -3303,13 +3331,13 @@ async function startServer() {
           sectionHeaderBgColor: payload.section_header_bg_color || '#ECFDF5',
           sectionHeaderTextColor: payload.section_header_text_color || '#065F46',
           sectionHeaderIconColor: payload.section_header_icon_color || '#059669',
-          category: payload.category || 'salao',
+          category: payload.category || 'Barbearia',
           faviconUrl: resolvedFavicon || '',
           salonIcon: resolvedFavicon || '',
           slogan: resolvedSlogan,
           brandFont: resolvedBrandFont,
-          pwaName: payload.trade_name.trim(),
-          address: payload.address?.trim() || '',
+          pwaName: resolvedTradeName,
+          address: (payload.address || payload.street || '').trim(),
           streetNumber: streetNumberVal || '',
           complement: complementVal || '',
           neighborhood: payload.neighborhood?.trim() || '',
@@ -3321,12 +3349,16 @@ async function startServer() {
           formatted_address: resolvedGeo.formatted_address,
           google_place_id: resolvedGeo.google_place_id,
           phoneLandline: payload.phone_landline?.trim() || '',
-          ownerCpf: payload.owner_cpf?.trim() || '',
+          owner_name: resolvedOwnerName,
+          owner_email: payload.email?.trim().toLowerCase() || '',
+          owner_phone: resolvedPhone || '',
+          ownerCpf: resolvedOwnerCpf || '',
           billing_plan: resolvedBillingPlan,
           fee_per_booking: resolvedFee,
           billing_fee_value: resolvedFee,
           monthly_subscription_fee: resolvedMonthlyFee,
           billing_due_day: resolvedDueDay,
+          pixKeys: Array.isArray(payload.pix_keys) ? payload.pix_keys : [],
           created_via: resolvedCreatedVia,
           created_at_iso: nowIso,
         },

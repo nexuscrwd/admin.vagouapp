@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Building2,
   MapPin,
@@ -929,6 +930,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
     setFeedback(null);
 
     if (!tradeName.trim()) {
+      setIsReviewModalOpen(false);
       updatePhase('commercial');
       setFeedback({ type: 'error', message: 'Preencha o Nome Fantasia do estabelecimento.' });
       return;
@@ -936,6 +938,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
 
     const cleanOwnerCpf = ownerCpf.replace(/\D/g, '');
     if (cleanOwnerCpf.length > 0 && cleanOwnerCpf.length !== 11) {
+      setIsReviewModalOpen(false);
       updatePhase('commercial');
       setFeedback({
         type: 'error',
@@ -944,8 +947,9 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
       return;
     }
 
-    const cleanSlugForSubmit = sanitizeSalonSlug(slug);
+    const cleanSlugForSubmit = sanitizeSalonSlug(slug || tradeName);
     if (cleanSlugForSubmit.length < 3) {
+      setIsReviewModalOpen(false);
       updatePhase('commercial');
       setFeedback({
         type: 'error',
@@ -955,6 +959,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
     }
 
     if (slugCheckStatus === 'taken' || slugCheckStatus === 'reserved') {
+      setIsReviewModalOpen(false);
       updatePhase('commercial');
       setFeedback({
         type: 'error',
@@ -964,6 +969,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
     }
 
     if (hasCnpj && cnpjNumber.replace(/\D/g, '').length !== 14) {
+      setIsReviewModalOpen(false);
       updatePhase('fiscal');
       setFeedback({
         type: 'error',
@@ -972,9 +978,18 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
       return;
     }
 
-    if (!cep.trim() || !street.trim() || !number.trim() || !city.trim() || !state.trim()) {
+    const resolvedStreet = (street.trim() || ownerAddressData.street.trim());
+    const resolvedNumber = (number.trim() || ownerAddressData.number.trim() || 'S/N');
+    const resolvedNeighborhood = (neighborhood.trim() || ownerAddressData.neighborhood.trim() || 'Centro');
+    const resolvedCity = (city.trim() || ownerAddressData.city.trim() || 'São Paulo');
+    const resolvedState = (state.trim() || ownerAddressData.state.trim() || 'SP').toUpperCase();
+    const resolvedCep = (cep.trim() || ownerAddressData.cep.trim());
+
+    if (!resolvedStreet || !resolvedCity || !resolvedState) {
+      setIsReviewModalOpen(false);
       updatePhase('address');
-      setFeedback({ type: 'error', message: 'Preencha o endereço completo do estabelecimento.' });
+      setAddressSubPhase('address_form');
+      setFeedback({ type: 'error', message: 'Preencha a rua, cidade e UF do estabelecimento.' });
       return;
     }
 
@@ -1006,15 +1021,15 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
       operationalModel,
       platformPlan,
       category,
-      slug,
+      slug: cleanSlugForSubmit,
       address: {
-        cep,
-        street,
-        number,
+        cep: resolvedCep,
+        street: resolvedStreet,
+        number: resolvedNumber,
         complement,
-        neighborhood,
-        city,
-        state,
+        neighborhood: resolvedNeighborhood,
+        city: resolvedCity,
+        state: resolvedState,
         latitude,
         longitude,
       },
@@ -1029,7 +1044,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
       const res = await createAdminSalon({
         trade_name: tradeName.trim(),
         legal_name: resolvedLegalName,
-        slug: slug.trim(),
+        slug: cleanSlugForSubmit,
         phone_whatsapp: ownerWhatsapp.trim(),
         email: ownerEmail.trim().toLowerCase(),
         document_type: resolvedDocType,
@@ -1051,13 +1066,13 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         category: category as any,
         status: 'active',
         is_verified: true,
-        address: street.trim(),
-        street_number: number.trim(),
+        address: resolvedStreet,
+        street_number: resolvedNumber,
         complement: complement.trim(),
-        neighborhood: neighborhood.trim(),
-        city: city.trim(),
-        state: state.trim().toUpperCase(),
-        cep: cep.trim(),
+        neighborhood: resolvedNeighborhood,
+        city: resolvedCity,
+        state: resolvedState,
+        cep: resolvedCep,
         latitude,
         longitude,
         logo_url: logoUrl,
@@ -2653,7 +2668,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                     className="flex-1 sm:flex-initial py-2.5 px-5 min-h-[44px] rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 whitespace-nowrap"
                   >
                     <FileText className="w-3.5 h-3.5 text-white shrink-0" />
-                    <span className="text-white">Revisar Ficha</span>
+                    <span className="text-white">Revisar e Criar</span>
                     <ArrowRight className="w-3.5 h-3.5 text-white shrink-0" />
                   </button>
                 )}
@@ -2664,35 +2679,53 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
           {/* ========================================================================= */}
           {/* 📋 MODAL FINAL DE CONFIRMAÇÃO: FICHA COMPLETA DO ESTABELECIMENTO         */}
           {/* ========================================================================= */}
-          {isReviewModalOpen && (
-            <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fadeIn">
-              <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[88vh] overflow-hidden">
-                {/* Cabeçalho do Modal de Revisão */}
-                <div className="p-3.5 sm:p-4 border-b border-slate-800 flex items-center justify-between shrink-0 bg-slate-900">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
-                      <FileText className="w-4 h-4 text-emerald-400" />
+          {isReviewModalOpen &&
+            (() => {
+              const reviewDialog = (
+                <div className="fixed inset-0 z-[9999] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fadeIn font-['Poppins']">
+                  <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+                    {/* Cabeçalho do Modal de Revisão */}
+                    <div className="p-3.5 sm:p-4 border-b border-slate-800 flex items-center justify-between shrink-0 bg-slate-900">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
+                          <FileText className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div>
+                          <h3 className="text-xs sm:text-sm font-bold text-white">
+                            Ficha Completa — Confirmação
+                          </h3>
+                          <p className="text-[11px] text-slate-400">
+                            Confira os dados antes de criar o estabelecimento
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => updatePhase(activeSection || 'visual')}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
                     </div>
-                    <div>
-                      <h3 className="text-xs sm:text-sm font-bold text-white">
-                        Ficha Completa — Confirmação
-                      </h3>
-                      <p className="text-[11px] text-slate-400">
-                        Confira os dados antes de criar o estabelecimento
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => updatePhase(activeSection || 'visual')}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
 
-                {/* Corpo Rolável da Ficha Completa */}
-                <div className="p-4 overflow-y-auto space-y-4 divide-y divide-slate-800/80 text-xs">
+                    {/* Corpo Rolável da Ficha Completa */}
+                    <div className="p-4 overflow-y-auto space-y-4 divide-y divide-slate-800/80 text-xs">
+                      {feedback && (
+                        <div
+                          className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+                            feedback.type === 'success'
+                              ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300'
+                              : 'bg-rose-500/15 border border-rose-500/30 text-rose-300'
+                          }`}
+                        >
+                          {feedback.type === 'success' ? (
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                          )}
+                          <span className="font-medium">{feedback.message}</span>
+                        </div>
+                      )}
                   {/* Resumo 1: Titular Vinculado (Dados Pessoais + CPF) */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -2935,7 +2968,11 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                 </div>
               </div>
             </div>
-          )}
+              );
+              return typeof document !== 'undefined' && forcedStep !== 'review'
+                ? createPortal(reviewDialog, document.body)
+                : reviewDialog;
+            })()}
         </div>
       )}
 
@@ -2947,26 +2984,40 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         onClose={() => {
           setIsWelcomeModalOpen(false);
           if (createdSalonResult) {
+            const finalSlug = sanitizeSalonSlug(
+              createdSalonResult.salon?.slug || createdSalonResult.payload.slug || slug || tradeName
+            );
+            const targetSalonUrl = `https://${finalSlug}.vagouapp.com`;
+            const enrichedPayload = {
+              ...createdSalonResult.payload,
+              slug: finalSlug,
+              redirectUrl: targetSalonUrl,
+              salonUrl: targetSalonUrl,
+              salon: createdSalonResult.salon,
+            };
             if (typeof window !== 'undefined') {
               window.parent?.postMessage(
                 {
                   source: 'VAGOUAPP_FORM',
                   action: 'SALON_MASTER_SUCCESS',
-                  payload: createdSalonResult.payload,
+                  payload: enrichedPayload,
                   salon: createdSalonResult.salon,
+                  slug: finalSlug,
+                  redirectUrl: targetSalonUrl,
+                  salonUrl: targetSalonUrl,
                   timestamp: new Date().toISOString(),
                 },
                 '*'
               );
             }
-            onSuccess?.(createdSalonResult.payload, createdSalonResult.salon);
+            onSuccess?.(enrichedPayload as any, createdSalonResult.salon);
           }
           onStepChange?.('visual');
           onClose?.();
         }}
         data={{
-          tradeName: tradeName || 'Meu Espaço',
-          slug: slug || 'meu-espaco',
+          tradeName: createdSalonResult?.salon?.trade_name || tradeName || 'Meu Espaço',
+          slug: createdSalonResult?.salon?.slug || sanitizeSalonSlug(slug || tradeName) || 'meuespaco',
           slogan,
           ownerName,
         }}

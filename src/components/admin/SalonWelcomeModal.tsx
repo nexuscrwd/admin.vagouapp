@@ -490,13 +490,49 @@ export const SalonWelcomeModal: React.FC<SalonWelcomeModalProps> = ({
               <a
                 href={clientUrl}
                 target="_top"
-                onClick={() => {
-                  onClose();
+                onClick={(e) => {
+                  try {
+                    if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+                      window.parent.postMessage(
+                        {
+                          type: 'VAGOU_REDIRECT',
+                          source: 'VAGOUAPP_EMBED',
+                          event: 'REDIRECT',
+                          action: 'SALON_MASTER_SUCCESS',
+                          slug: cleanSlug,
+                          url: clientUrl,
+                          redirectUrl: clientUrl,
+                          salonUrl: clientUrl,
+                        },
+                        '*'
+                      );
+                    }
+                  } catch {}
+
+                  let topNavigated = false;
                   try {
                     if (window.top && window.top !== window) {
                       window.top.location.href = clientUrl;
+                      topNavigated = true;
                     }
-                  } catch {}
+                  } catch {
+                    topNavigated = false;
+                  }
+
+                  if (!topNavigated && typeof window !== 'undefined' && window.parent && window.parent !== window) {
+                    try {
+                      window.open(clientUrl, '_top');
+                    } catch {
+                      window.open(clientUrl, '_blank', 'noopener,noreferrer');
+                    }
+                  } else if (!topNavigated && typeof window !== 'undefined') {
+                    e.preventDefault();
+                    window.location.assign(clientUrl);
+                  }
+
+                  setTimeout(() => {
+                    onClose();
+                  }, 450);
                 }}
                 className="p-3 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-emerald-500/20 whitespace-nowrap"
               >

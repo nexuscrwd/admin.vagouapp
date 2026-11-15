@@ -153,6 +153,13 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
   }, [formType]);
 
   const dispatchPostMessage = (event: string, payload: any) => {
+    const cleanSalonSlug = String(payload?.slug || payload?.salon?.slug || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]/g, '');
+    const resolvedSalonUrl = cleanSalonSlug ? `https://${cleanSalonSlug}.vagouapp.com` : undefined;
+
     if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
       const messageData = {
         source: 'VAGOUAPP_EMBED',
@@ -160,6 +167,14 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
         action: event,
         formType,
         payload,
+        ...(cleanSalonSlug
+          ? {
+              slug: cleanSalonSlug,
+              salon: payload?.salon,
+              redirectUrl: resolvedSalonUrl,
+              salonUrl: resolvedSalonUrl,
+            }
+          : {}),
         timestamp: new Date().toISOString(),
       };
       window.parent.postMessage(messageData, '*');
@@ -177,7 +192,7 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
       ) {
         const userName = payload?.fullName || payload?.name || payload?.ownerName || payload?.identifier || 'Usuário';
         const userEmail = payload?.email || payload?.ownerEmail || payload?.identifier || '';
-        const userPhone = payload?.phone || payload?.ownerPhone || '';
+        const userPhone = payload?.phone || payload?.ownerWhatsapp || payload?.ownerPhone || '';
         const accountType =
           payload?.accountType ||
           (formType === 'estabelecimento' || payload?.origin === 'estabelecimento' || payload?.origin === 'profissional'
@@ -191,6 +206,15 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
             role: payload?.role || accountType,
             email: userEmail,
             name: userName,
+            ...(cleanSalonSlug
+              ? {
+                  slug: cleanSalonSlug,
+                  tradeName: payload?.tradeName || payload?.salon?.trade_name,
+                  salon: payload?.salon,
+                  redirectUrl: resolvedSalonUrl,
+                  salonUrl: resolvedSalonUrl,
+                }
+              : {}),
             session: payload?.session,
             access_token: payload?.session?.access_token || payload?.access_token,
             refresh_token: payload?.session?.refresh_token || payload?.refresh_token,
@@ -203,12 +227,33 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
               user_metadata: {
                 full_name: userName,
                 phone: userPhone,
+                ...(cleanSalonSlug ? { salon_slug: cleanSalonSlug } : {}),
               },
             },
           },
           '*'
         );
+
+        if (event === 'SALON_MASTER_SUCCESS' && resolvedSalonUrl) {
+          window.parent.postMessage(
+            {
+              type: 'VAGOU_REDIRECT',
+              slug: cleanSalonSlug,
+              url: resolvedSalonUrl,
+              redirectUrl: resolvedSalonUrl,
+              salonUrl: resolvedSalonUrl,
+            },
+            '*'
+          );
+          try {
+            if (window.top) {
+              window.top.location.href = resolvedSalonUrl;
+            }
+          } catch {}
+        }
       }
+    } else if (typeof window !== 'undefined' && event === 'SALON_MASTER_SUCCESS' && resolvedSalonUrl) {
+      window.location.assign(resolvedSalonUrl);
     }
   };
 

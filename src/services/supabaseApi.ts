@@ -1113,9 +1113,11 @@ export async function createAdminSalon(
         if (resp.ok && json.success && json.salon) {
           return { success: true, salon: json.salon };
         }
-        if (json.error) {
-          console.warn('[Supabase Admin] Erro da API ao criar salão:', json.error);
+        if (resp.status === 409 && json.error) {
           return { success: false, error: json.error };
+        }
+        if (json.error) {
+          console.warn('[Supabase Admin] Aviso da API ao criar salão, tentando fallback direto:', json.error);
         }
       }
     } catch (e: any) {
@@ -1138,7 +1140,9 @@ export async function createAdminSalon(
     const resolvedLogo = await uploadClientBase64Media(salonData.logo_url, `${cleanSlug}-logo`);
     const resolvedFavicon =
       (await uploadClientBase64Media(salonData.favicon_url, `${cleanSlug}-favicon`)) || resolvedLogo || null;
-    const resolvedStatus = salonData.status || 'active';
+    const resolvedStatus: 'active' | 'pending' | 'incomplete' | 'suspended' =
+      (String(salonData.status || 'active').toLowerCase() as 'active' | 'pending' | 'incomplete' | 'suspended') ||
+      'active';
 
     // Resolve o user_id do proprietário a partir da sessão Auth ou da tabela clients
     let resolvedOwnerUserId: string | null = null;
@@ -1168,22 +1172,25 @@ export async function createAdminSalon(
     const resolvedDueDay = Number(salonData.billing_due_day ?? 10);
     const resolvedPrimaryColor = salonData.primary_color || '#10B981';
     const resolvedSecondaryColor = salonData.secondary_color || '#065F46';
+    const resolvedTradeName = salonData.trade_name?.trim() || 'Novo Salão';
 
     const dbInsert: Record<string, any> = {
       ...(resolvedOwnerUserId ? { owner_id: resolvedOwnerUserId } : {}),
-      trade_name: salonData.trade_name?.trim() || 'Novo Salão',
-      legal_name: salonData.legal_name?.trim() || salonData.trade_name?.trim() || 'Novo Salão',
+      name: resolvedTradeName,
+      trade_name: resolvedTradeName,
+      legal_name: salonData.legal_name?.trim() || resolvedTradeName,
       slug: cleanSlug,
       subdomain: cleanSlug,
+      category: salonData.category || 'Barbearia',
       document_type: salonData.document_type || 'CNPJ',
       document_number: salonData.document_number?.trim() || null,
+      owner_cpf: salonData.owner_cpf?.trim() || null,
       pix_key: salonData.pix_key?.trim() || null,
+      pix_keys: Array.isArray(salonData.pix_keys) ? salonData.pix_keys : [],
       operating_model: salonData.operating_model || 'physical',
       billing_plan: resolvedPlan,
-      fee_per_booking: resolvedFee,
       billing_fee_value: resolvedFee,
-      monthly_subscription_fee: resolvedMonthlyFee,
-      billing_due_day: resolvedDueDay,
+      phone: salonData.phone_whatsapp?.trim() || null,
       phone_whatsapp: salonData.phone_whatsapp?.trim() || null,
       email: salonData.email?.trim().toLowerCase() || null,
       address: salonData.address?.trim() || null,
@@ -1193,10 +1200,13 @@ export async function createAdminSalon(
       city: salonData.city?.trim() || 'São Paulo',
       state: salonData.state?.trim().toUpperCase() || 'SP',
       cep: salonData.cep?.trim() || null,
+      ...(salonData.latitude !== undefined && salonData.latitude !== null ? { latitude: salonData.latitude } : {}),
+      ...(salonData.longitude !== undefined && salonData.longitude !== null ? { longitude: salonData.longitude } : {}),
       logo_url: resolvedLogo,
       logo_light_url: resolvedLogo,
       logo_dark_url: resolvedLogo,
       favicon_url: resolvedFavicon,
+      pwa_name: resolvedTradeName,
       slogan: salonData.slogan?.trim() || '',
       brand_font: salonData.brand_font || 'Poppins',
       default_theme: salonData.default_theme || 'light',
@@ -1204,8 +1214,8 @@ export async function createAdminSalon(
       secondary_color: resolvedSecondaryColor,
       nav_bg_style: salonData.nav_bg_style || 'solid',
       nav_bg_color: salonData.nav_bg_color || '#D1FAE5',
-      nav_icon_border: salonData.nav_icon_border || 'none',
       nav_active_color: salonData.nav_active_color || '#10B981',
+      section_header_bg_style: salonData.section_header_bg_style || 'solid',
       section_header_bg_color: salonData.section_header_bg_color || '#ECFDF5',
       section_header_text_color: salonData.section_header_text_color || '#065F46',
       section_header_icon_color: salonData.section_header_icon_color || '#059669',
@@ -1221,12 +1231,15 @@ export async function createAdminSalon(
         sectionHeaderBgColor: salonData.section_header_bg_color || '#ECFDF5',
         sectionHeaderTextColor: salonData.section_header_text_color || '#065F46',
         sectionHeaderIconColor: salonData.section_header_icon_color || '#059669',
-        category: salonData.category || 'salao',
+        category: salonData.category || 'Barbearia',
         faviconUrl: resolvedFavicon || '',
         salonIcon: resolvedFavicon || '',
         slogan: salonData.slogan || '',
         brandFont: salonData.brand_font || 'Poppins',
-        pwaName: salonData.trade_name?.trim() || 'Novo Salão',
+        pwaName: resolvedTradeName,
+        owner_name: (salonData.owner_name || salonData.legal_name || resolvedTradeName).trim(),
+        owner_email: ownerEmail,
+        owner_phone: salonData.phone_whatsapp?.trim() || '',
         ownerCpf: salonData.owner_cpf?.trim() || '',
         hasCnpj: Boolean(salonData.has_cnpj),
         billing_plan: resolvedPlan,
@@ -1244,15 +1257,45 @@ export async function createAdminSalon(
       is_verified: resolvedStatus === 'active' || salonData.is_verified === true,
     };
 
-    const { data, error } = await supabaseAdmin
-      .from('salons')
-      .upsert([dbInsert], { onConflict: 'slug' })
-      .select()
-      .single();
+    const workingInsert: Record<string, any> = { ...dbInsert };
+    let data: any = null;
+    let lastError: any = null;
 
-    if (error) {
-      console.warn('[Supabase Admin] Warning inserção:', error.message);
-      return { success: false, error: error.message };
+    for (let attempt = 0; attempt < 35; attempt++) {
+      const res = await supabaseAdmin
+        .from('salons')
+        .upsert([workingInsert], { onConflict: 'slug' })
+        .select()
+        .maybeSingle();
+
+      if (!res.error) {
+        data = res.data;
+        lastError = null;
+        break;
+      }
+
+      lastError = res.error;
+      const msg = String(res.error.message || '');
+      const colMatch =
+        msg.match(/Could not find the '([^']+)' column/i) ||
+        msg.match(/column "([^"]+)" of relation .* does not exist/i) ||
+        msg.match(/column ([a-zA-Z0-9_]+) does not exist/i);
+
+      if (colMatch && colMatch[1] && workingInsert[colMatch[1]] !== undefined) {
+        const missingCol = colMatch[1];
+        workingInsert.branding = {
+          ...(workingInsert.branding && typeof workingInsert.branding === 'object' ? workingInsert.branding : {}),
+          [missingCol]: workingInsert[missingCol],
+        };
+        delete workingInsert[missingCol];
+        continue;
+      }
+      break;
+    }
+
+    if (lastError) {
+      console.warn('[Supabase Admin] Warning inserção:', lastError.message);
+      return { success: false, error: lastError.message };
     }
 
     if (data?.id) {

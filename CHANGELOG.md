@@ -15,6 +15,28 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-11-14] — 🚀 Correção Crítica na Criação de Estabelecimentos (`safeSupabaseWrite`) e Abertura Automática do App Criado (`bol-164`)
+- **Tipo:** `[Fix / Critical Backend & Redirect / Tríade Sync]`
+- **Motivo / Solicitação:**
+  - Ao finalizar o cadastro do estabelecimento comercial ("Revisar e Criar" / "Confirmar e Criar Estabelecimento"), o registro não era persistido em `public.salons` e o aplicativo criado (`https://{slug}.vagouapp.com`) não era aberto após a conclusão (deixando o host `vagouapp.com` apenas com a tela de fundo).
+- **Causa Raiz Identificada & Corrigida:**
+  1. **Exaustão de Tentativas em `safeSupabaseWrite` (`POST /api/admin/salons`):** O objeto `dbInsert` continha mais de 12 aliases não-físicos (`nome_fantasia`, `cnpj`, `cpf_cnpj`, `owner_name`, `owner_email`, `owner_phone`, `fee_per_booking`, `monthly_subscription_fee`, `billing_due_day`, `whatsapp`, `nav_icon_border`, `created_via`), fazendo o loop de 12 tentativas de `safeSupabaseWrite` esgotar (`"Erro no banco: Excesso de tentativas em safeSupabaseWrite"`) antes de gravar o salão.
+     - **Solução:** Limpo o `dbInsert` em `server.ts` e `src/services/supabaseApi.ts` para enviar apenas colunas físicas reais no topo (preservando os metadados estendidos dentro do JSONB `branding`), adicionado cache em memória `KNOWN_MISSING_COLUMNS` por tabela e ampliado o limite de segurança para 50 tentativas (gravando agora na 1ª query).
+  2. **Validação de Endereço Sem CEP & Portal do Modal de Revisão (`TriadeEstablishmentMasterForm.tsx`):**
+     - Permitida a criação quando o usuário utiliza a opção *"Não sei o CEP"* (validando `street`, `city` e `state` e assumindo `S/N` caso o número esteja em branco) e renderizado o modal de revisão via `createPortal(..., document.body)` com `z-[9999]` e banner de erro visível dentro do próprio modal.
+  3. **Abertura e Redirecionamento ao App Criado (`SalonWelcomeModal.tsx`, `UniversalFormEmbedView.tsx`, `VagouGatewayHub.tsx`):**
+     - Corrigida a ordem de execução no botão **"Concluir e Começar"** para disparar `VAGOU_REDIRECT` / `SALON_MASTER_SUCCESS` (com `slug`, `redirectUrl` e `salonUrl: https://{slug}.vagouapp.com`) e navegar imediatamente para o app do estabelecimento (`window.top.location.href` / `window.location.assign`) antes de desmontar o modal (`setTimeout(..., 450)`).
+- **Arquivos Impactados:**
+  - `/server.ts`
+  - `/src/services/supabaseApi.ts`
+  - `/src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`
+  - `/src/components/admin/SalonWelcomeModal.tsx`
+  - `/src/components/embed/UniversalFormEmbedView.tsx`
+  - `/src/components/gateway/VagouGatewayHub.tsx`
+  - `/CHANGELOG.md`
+
+---
+
 ### [2026-11-14] — ✨ Refinamento de Modais e Formulários da Tríade, Trava em Tempo Real de Usuário Existente & Botões SIM/NÃO Proporcionais (`bol-163`)
 - **Tipo:** `[Fix / UI/UX Refinement / Validation / Tríade Sync]`
 - **Motivo / Solicitação:**
