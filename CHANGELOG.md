@@ -15,6 +15,33 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-11-14] — ✨ Refinamento de Modais e Formulários da Tríade, Trava em Tempo Real de Usuário Existente & Botões SIM/NÃO Proporcionais (`bol-163`)
+- **Tipo:** `[Fix / UI/UX Refinement / Validation / Tríade Sync]`
+- **Motivo / Solicitação:**
+  1. Refinamento visual e de espaçamento em todos os modais e formulários de autenticação e cadastro (`Acesso Admin`, `Recuperar Acesso`, `Cadastrar Novo Administrador`, `Acessar Espaço`, `Cadastro de Usuário` e `Cadastro de Estabelecimento`), eliminando o aspecto colado nas bordas (`px-0` / `padding-left: 0 !important`) em viewports mobile e desktop.
+  2. Bloqueio em tempo real e na transição de etapas (`Step 1: Identificação` e `Step 2: Contatos`) no cadastro de usuário quando o `Nome de Usuário`, `WhatsApp` ou `E-mail` já pertence a uma conta existente.
+  3. Ajuste dos botões `SIM` e `NÃO` na etapa inicial de cadastro de estabelecimento empilhados verticalmente com metade da largura (`w-1/2`).
+- **Resumo Técnico & Implementação:**
+  1. **Correção Global de Espaçamento Mobile (`/src/index.css`):** Removidas as declarações `padding-left: 0 !important; padding-right: 0 !important; margin-left: 0 !important; margin-right: 0 !important;` da media query `@media (max-width: 639px)` sobre `form, .triade-form-root` que anulavam o respiro interno dos modais no mobile.
+  2. **Refinamento Profissional dos Modais e Formulários (`TriadeAdminLoginForm`, `TriadeAdminRecoveryForm`, `TriadeAdminRegisterForm`, `TriadeUserLoginForm`, `TriadeUserRegisterForm`, `TriadeEstablishmentMasterForm`, `AdminAuthModal`, `UniversalFormEmbedView`, `AdminUsersManager`):**
+     - Padronizados cabeçalhos (`px-6 pt-6 pb-4 sm:px-7 sm:pt-7 sm:pb-5`), corpos de formulário (`px-6 pt-5 pb-6 sm:px-7 sm:pt-6 sm:pb-7 space-y-5`), bordas arredondadas (`border border-slate-800 rounded-2xl shadow-2xl`), altura confortável dos inputs (`min-h-[46px]` / `py-3 px-3.5`), margens de rótulos (`mb-2`) e botões de ação primários (`min-h-[48px] py-3.5 px-5` com fundo `#20C933` e texto/ícone `text-white`).
+  3. **Validação Anti-Duplicidade em Tempo Real (`POST /api/public/check-user-availability` & `checkTriadeUserConflict`):**
+     - Verificação assíncrona com debounce (250ms) e bloqueio imediato do botão **Avançar** na Etapa 1 (`identification`) e Etapa 2 (`contacts`) de `TriadeUserRegisterForm.tsx` caso o `username`, `phone` ou `email` já exista em `system_admins`, `clients`, `salon_users`, `professionals` ou `salons`.
+- **Arquivos Impactados:**
+  - `/src/index.css`
+  - `/src/components/admin/AdminAuthModal.tsx`
+  - `/src/components/admin/AdminUsersManager.tsx`
+  - `/src/components/admin/triade-forms/TriadeAdminLoginForm.tsx`
+  - `/src/components/admin/triade-forms/TriadeAdminRecoveryForm.tsx`
+  - `/src/components/admin/triade-forms/TriadeAdminRegisterForm.tsx`
+  - `/src/components/admin/triade-forms/TriadeUserLoginForm.tsx`
+  - `/src/components/admin/triade-forms/TriadeUserRegisterForm.tsx`
+  - `/src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`
+  - `/src/components/embed/UniversalFormEmbedView.tsx`
+  - `/server.ts`, `/src/services/supabaseApi.ts`, `/CHANGELOG.md`
+
+---
+
 ### [2026-11-14] — 🛡️ Saneamento e Blindagem Anti-Duplicidade de Contas — 1 Pessoa = 1 Único Cadastro Soberano (`bol-162`)
 - **Tipo:** `[Fix / Data Integrity / Database Governance / Tríade Sync]`
 - **Motivo / Solicitação:** Identificação via print de tela de dois cadastros para a mesma pessoa (**Anderson Pires** — `Anderson@` / `andersonhpires@gmail.com` / `(11) 91353-1030`), sendo um como `Administrador` (`15/10/26 19:07 • Admin Master` em `public.system_admins`) e outro como `Cliente` (`27/10/26 17:34 • Portal VAPP` em `public.clients` com 3 agendamentos). Solicitação de consolidação imediata, blindagem para que jamais ocorram cadastros duplicados e entrega do script SQL correspondente.

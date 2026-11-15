@@ -257,12 +257,12 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
   return (
     <div
       data-device={device}
-      className={`min-h-screen w-full flex flex-col items-center justify-center p-0 sm:p-4 font-['Poppins'] ${
+      className={`min-h-screen w-full flex flex-col items-center justify-center p-3 sm:p-6 font-['Poppins'] ${
         isTransparent ? 'bg-transparent is-embed-transparent' : 'bg-slate-950'
       }`}
     >
-      {/* 🔹 Container Oficial do Design System Corporativo — Vidro Jateado (Fullwidth Mobile / Proporcional Tablet & Desktop) */}
-      <div className="w-full max-w-none sm:max-w-2xl lg:max-w-4xl mx-auto p-0 sm:p-6 lg:p-8 rounded-none sm:rounded-3xl bg-slate-950/45 backdrop-blur-xl border-0 sm:border sm:border-white/20 shadow-none sm:shadow-[0_16px_56px_rgba(0,0,0,0.75)] text-slate-100 font-['Poppins'] relative animate-fadeIn">
+      {/* 🔹 Container Oficial do Design System Corporativo — Vidro Jateado (Proporcional Mobile, Tablet & Desktop) */}
+      <div className="w-full max-w-lg sm:max-w-xl lg:max-w-2xl mx-auto p-2 sm:p-4 lg:p-6 rounded-2xl sm:rounded-3xl bg-slate-950/60 backdrop-blur-xl border border-slate-800/80 sm:border-white/20 shadow-[0_16px_56px_rgba(0,0,0,0.75)] text-slate-100 font-['Poppins'] relative animate-fadeIn">
         {/* 🔹 Botão de Fechar Padronizado Oficial da Tríade */}
         <button
           type="button"
@@ -271,7 +271,7 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
             window.parent.postMessage({ source: 'VAGOUAPP_EMBED', event: 'CLOSE' }, '*');
             handleClose();
           }}
-          className="absolute top-3.5 right-3.5 p-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer z-30"
+          className="absolute top-4 right-4 p-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer z-30"
           title="Fechar"
         >
           <X className="w-5 h-5" />

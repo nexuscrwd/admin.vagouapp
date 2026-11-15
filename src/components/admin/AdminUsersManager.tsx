@@ -1614,10 +1614,11 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
       {/* Modal Dedicado para Cadastro Unificado de Usuários (Oficial da Tríade) */}
       {isRegistrationModalOpen &&
         createPortal(
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
-            <div className="w-full max-w-md bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl relative my-auto max-h-[90vh] overflow-y-auto">
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-slate-950/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
+            <div className="w-full max-w-md relative my-auto max-h-[92vh] overflow-y-auto">
               <TriadeUserRegisterForm
                 origin="admin"
+                variant="card"
                 onClose={() => setIsRegistrationModalOpen(false)}
                 onSuccess={() => {
                   setIsRegistrationModalOpen(false);

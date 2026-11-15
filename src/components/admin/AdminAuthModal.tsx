@@ -39,7 +39,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto ${
+      className={`fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 overflow-y-auto ${
         isGate ? 'bg-slate-950' : 'bg-slate-950/85 backdrop-blur-md animate-fadeIn'
       }`}
     >
@@ -49,7 +49,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
           <button
             type="button"
             onClick={safeClose}
-            className="absolute top-3 right-3 z-30 p-1.5 rounded-xl bg-slate-950/80 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 transition cursor-pointer shadow-lg"
+            className="absolute top-4 right-4 z-30 p-2 rounded-xl bg-slate-950/80 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 transition cursor-pointer shadow-lg"
             title="Fechar"
             aria-label="Fechar"
           >

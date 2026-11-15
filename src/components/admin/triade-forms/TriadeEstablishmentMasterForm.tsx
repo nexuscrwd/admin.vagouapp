@@ -1145,7 +1145,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
       {/* ETAPA 1: IDENTIFICAÇÃO (SIM/NÃO) + SUB-ROTINA TRANSITÓRIA DE USUÁRIO      */}
       {/* ========================================================================= */}
       {flowStep === 'user_check' && userAuthSubFlow === 'none' && (
-        <div className="w-full px-0 py-4 sm:p-6 space-y-5 text-center animate-fadeIn">
+        <div className="w-full px-5 py-6 sm:p-7 space-y-5 text-center animate-fadeIn">
           {/* Logo Oficial do VagouApp na Etapa 1 */}
           <VagouOfficialLogo size="xl" variant="full" className="h-9 sm:h-10 w-auto object-contain mx-auto" />
 
@@ -1184,7 +1184,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         </div>
       )}
       {flowStep === 'user_check' && userAuthSubFlow === 'login' && (
-        <div className="w-full px-0 py-3 sm:p-5 space-y-3.5 animate-fadeIn">
+        <div className="w-full px-5 py-5 sm:p-6 space-y-4 animate-fadeIn">
           <div className="pt-1 text-center">
             <VagouOfficialLogo size="xl" variant="full" className="h-9 sm:h-10 w-auto object-contain mx-auto" />
           </div>
@@ -1198,7 +1198,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
             onSuccess={handleUserLoginSuccess}
           />
 
-          <div className="pt-2.5 border-t border-slate-800 flex items-center justify-between gap-2 text-[11px] text-slate-400 flex-wrap">
+          <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-2 text-[11px] text-slate-400 flex-wrap">
             <button
               type="button"
               onClick={() => setUserAuthSubFlow('none')}
@@ -1216,7 +1216,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
 
       {/* SUB-ROTINA TRANSITÓRIA (OPÇÃO NÃO): CADASTRO DE USUÁRIO E RETORNO AO SALÃO */}
       {flowStep === 'user_check' && userAuthSubFlow === 'register' && (
-        <div className="w-full px-0 py-3 sm:p-5 space-y-3.5 animate-fadeIn">
+        <div className="w-full px-5 py-5 sm:p-6 space-y-4 animate-fadeIn">
           <div className="pt-1 text-center">
             <VagouOfficialLogo size="xl" variant="full" className="h-9 sm:h-10 w-auto object-contain mx-auto" />
           </div>
@@ -1321,7 +1321,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
             }}
           />
 
-          <div className="pt-2.5 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+          <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
             <button
               type="button"
               onClick={() => setUserAuthSubFlow('none')}
@@ -1342,7 +1342,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
       {/* ========================================================================= */}
       {flowStep === 'establishment_details' && (
         <div className="w-full animate-fadeIn">
-          <form onSubmit={handleSubmit} className="w-full px-0 py-3 sm:p-5 space-y-4">
+          <form onSubmit={handleSubmit} className="w-full px-5 py-5 sm:p-6 space-y-4">
             {/* Logo Oficial do VagouApp integrado dentro do <form> */}
             <div className="pb-1 text-center">
               <VagouOfficialLogo size="xl" variant="full" className="h-9 sm:h-10 w-auto object-contain mx-auto" />

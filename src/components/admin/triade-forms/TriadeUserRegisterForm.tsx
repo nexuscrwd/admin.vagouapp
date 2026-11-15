@@ -754,15 +754,15 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     <div
       className={`triade-form-root w-full font-['Poppins'] ${
         isCard
-          ? 'max-w-none sm:max-w-md mx-auto bg-slate-900 border-0 sm:border sm:border-slate-800 rounded-none sm:rounded-2xl shadow-none sm:shadow-2xl overflow-hidden'
+          ? 'max-w-md mx-auto bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden'
           : 'w-full bg-transparent'
       } animate-fadeIn`}
     >
       {/* Cabeçalho Soberano Centralizado (Logo no topo, Título abaixo, Sem Badges Redundantes) */}
       {showHeader && (
         <div
-          className={`px-0 py-3 sm:p-4 ${
-            isCard ? 'bg-slate-900 border-b border-slate-800' : 'bg-transparent border-b border-white/10'
+          className={`px-6 pt-6 pb-4 sm:px-7 sm:pt-6 sm:pb-5 ${
+            isCard ? 'bg-slate-900 border-b border-slate-800/80' : 'bg-transparent border-b border-white/10'
           } relative flex flex-col items-center justify-center text-center shrink-0`}
         >
           {isEstablishmentMode ? (
@@ -785,7 +785,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
             <VagouOfficialLogo size="xl" variant="full" className="h-9 sm:h-10 w-auto object-contain mx-auto" />
           )}
 
-          <h2 className="font-bold text-white text-sm sm:text-base tracking-tight mt-1.5 text-center">
+          <h2 className="font-bold text-white text-sm sm:text-base tracking-tight mt-2 text-center">
             {effectiveTitle}
           </h2>
 
@@ -798,7 +798,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                 }
                 onClose();
               }}
-              className="absolute top-3.5 right-3.5 p-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+              className="absolute top-4 right-4 p-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
               title="Fechar"
             >
               <X className="w-5 h-5" />
@@ -807,8 +807,13 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
         </div>
       )}
 
-      {/* Formulário Plano (Flat & Clean — Fullwidth e Zero Padding Lateral no Mobile) */}
-      <form onSubmit={handleSubmit} className="w-full px-0 py-3 sm:p-5 space-y-3.5">
+      {/* Formulário Plano (Flat & Clean — Espaçamento Equilibrado e Profissional) */}
+      <form
+        onSubmit={handleSubmit}
+        className={`w-full ${
+          isCard || showHeader ? 'px-6 pt-5 pb-6 sm:px-7 sm:pt-6 sm:pb-7' : 'px-4 py-4 sm:p-6'
+        } space-y-4`}
+      >
         {/* Alerta de Feedback */}
         {feedback && (
           <div
@@ -874,13 +879,13 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-300 mb-2">
                   Nome Completo <span className="text-emerald-400">*</span>
                 </label>
-                <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 focus-within:border-emerald-500 transition">
-                  <User className="w-4 h-4 text-slate-500 mr-2 shrink-0" />
+                <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 min-h-[46px] focus-within:border-emerald-500 transition">
+                  <User className="w-4 h-4 text-slate-500 mr-2.5 shrink-0" />
                   <input
                     type="text"
                     value={fullName}
@@ -893,7 +898,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
               </div>
 
               <div>
-                <div className="flex items-center justify-between gap-2 mb-1">
+                <div className="flex items-center justify-between gap-2 mb-2">
                   <label className="block text-xs font-semibold text-slate-300">
                     Nome de Usuário <span className="text-emerald-400">*</span>
                   </label>
@@ -917,7 +922,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                   )}
                 </div>
                 <div
-                  className={`flex items-center bg-slate-950 border rounded-xl px-3 py-2.5 transition ${
+                  className={`flex items-center bg-slate-950 border rounded-xl px-3.5 py-3 min-h-[46px] transition ${
                     usernameCheckStatus === 'taken'
                       ? 'border-rose-500 focus-within:border-rose-500'
                       : usernameCheckStatus === 'available'
@@ -926,7 +931,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                   }`}
                 >
                   <UserCheck
-                    className={`w-4 h-4 mr-2 shrink-0 ${
+                    className={`w-4 h-4 mr-2.5 shrink-0 ${
                       usernameCheckStatus === 'taken'
                         ? 'text-rose-400'
                         : usernameCheckStatus === 'available'
@@ -962,7 +967,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                   disabled={isCheckingIdentification || usernameCheckStatus === 'taken'}
                   onClick={handleNextFromIdentification}
                   style={primaryBgStyle}
-                  className="w-full py-3.5 px-4 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full py-3.5 px-5 min-h-[48px] rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isCheckingIdentification ? (
                     <Loader2 className="w-4 h-4 text-white animate-spin" />

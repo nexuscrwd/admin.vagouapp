@@ -366,19 +366,19 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
     <div
       className={`triade-form-root w-full font-['Poppins'] ${
         isCard
-          ? 'max-w-none sm:max-w-md mx-auto bg-slate-900 border-0 sm:border sm:border-slate-800 rounded-none sm:rounded-2xl shadow-none sm:shadow-2xl overflow-hidden'
+          ? 'max-w-md mx-auto bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden'
           : 'bg-transparent'
       } animate-fadeIn`}
     >
       {/* Cabeçalho Soberano Centralizado (Logo no topo, Título abaixo, Sem Badges Redundantes) */}
       {showHeader && (
         <div
-          className={`px-0 py-3 sm:p-5 ${
-            isCard ? 'bg-slate-900 border-b border-slate-800' : 'bg-transparent border-b border-white/10'
+          className={`px-6 pt-6 pb-4 sm:px-7 sm:pt-7 sm:pb-5 ${
+            isCard ? 'bg-slate-900 border-b border-slate-800/80' : 'bg-transparent border-b border-white/10'
           } relative flex flex-col items-center justify-center text-center shrink-0`}
         >
           <VagouOfficialLogo size="xl" variant="full" className="h-10 sm:h-12 w-auto object-contain mx-auto" />
-          <h2 className="font-bold text-white text-base sm:text-lg tracking-tight mt-2 text-center">
+          <h2 className="font-bold text-white text-base sm:text-lg tracking-tight mt-2.5 text-center">
             {currentPhase === 'recovery' ? 'Recuperação de Acesso' : title}
           </h2>
 
@@ -391,7 +391,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
                 }
                 onClose();
               }}
-              className="absolute top-3.5 right-3.5 p-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+              className="absolute top-4 right-4 p-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
               title="Fechar"
             >
               <X className="w-5 h-5" />
@@ -402,10 +402,15 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
 
       {/* FASE 1: ACESSO COM SENHA */}
       {currentPhase === 'credentials' && (
-        <form onSubmit={handleSubmit} className="w-full px-0 py-3 sm:p-6 space-y-4 animate-fadeIn">
+        <form
+          onSubmit={handleSubmit}
+          className={`w-full ${
+            isCard || showHeader ? 'px-6 pt-5 pb-6 sm:px-7 sm:pt-6 sm:pb-7' : 'px-4 py-4 sm:p-6'
+          } space-y-5 animate-fadeIn`}
+        >
           {feedback && (
             <div
-              className={`p-3 rounded-xl text-xs flex items-center gap-2 animate-fadeIn ${
+              className={`p-3.5 rounded-xl text-xs flex items-center gap-2.5 animate-fadeIn ${
                 feedback.type === 'success'
                   ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300'
                   : 'bg-rose-500/15 border border-rose-500/30 text-rose-300'
@@ -422,11 +427,11 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
 
           {/* Campo Identificador: Usuário, E-mail ou Telefone */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+            <label className="block text-xs font-semibold text-slate-300 mb-2">
               Usuário, E-mail ou Telefone <span className="text-emerald-400">*</span>
             </label>
-            <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 focus-within:border-emerald-500 transition">
-              <User className="w-4 h-4 text-slate-500 mr-2.5 shrink-0" />
+            <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 min-h-[46px] focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500 transition">
+              <User className="w-4 h-4 text-slate-500 mr-3 shrink-0" />
               <input
                 type="text"
                 value={identifier}
@@ -440,7 +445,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
 
           {/* Campo Senha com "Esqueceu a senha?" */}
           <div>
-            <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center justify-between mb-2">
               <label className="block text-xs font-semibold text-slate-300">
                 Senha de Acesso <span className="text-emerald-400">*</span>
               </label>
@@ -450,13 +455,13 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
                   setPhase('recovery');
                   onSwitchToRecovery?.();
                 }}
-                className="text-xs text-emerald-400 hover:text-emerald-300 hover:underline font-medium cursor-pointer transition"
+                className="text-xs text-emerald-400 hover:text-emerald-300 hover:underline font-semibold cursor-pointer transition"
               >
                 Esqueceu a senha?
               </button>
             </div>
-            <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 focus-within:border-emerald-500 transition">
-              <Lock className="w-4 h-4 text-slate-500 mr-2.5 shrink-0" />
+            <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 min-h-[46px] focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500 transition">
+              <Lock className="w-4 h-4 text-slate-500 mr-3 shrink-0" />
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
@@ -468,7 +473,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="text-slate-500 hover:text-slate-300 p-0.5 ml-1.5 cursor-pointer"
+                className="text-slate-500 hover:text-slate-300 p-1 ml-2 cursor-pointer"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -476,11 +481,11 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
           </div>
 
           {/* Botão de Ação Final (Fundo Verde = Texto Estritamente Branco) */}
-          <div className="pt-2">
+          <div className="pt-1">
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3.5 px-4 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 disabled:opacity-50"
+              className="w-full py-3.5 px-5 min-h-[48px] rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 disabled:opacity-50"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 text-white animate-spin" />
@@ -513,10 +518,15 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
 
       {/* FASE 2: RECUPERAÇÃO DE ACESSO */}
       {currentPhase === 'recovery' && (
-        <form onSubmit={handleRecoverySubmit} className="w-full px-0 py-3 sm:p-6 space-y-4 animate-fadeIn">
+        <form
+          onSubmit={handleRecoverySubmit}
+          className={`w-full ${
+            isCard || showHeader ? 'px-6 pt-5 pb-6 sm:px-7 sm:pt-6 sm:pb-7' : 'px-4 py-4 sm:p-6'
+          } space-y-5 animate-fadeIn`}
+        >
           {feedback && (
             <div
-              className={`p-3 rounded-xl text-xs flex items-center gap-2 animate-fadeIn ${
+              className={`p-3.5 rounded-xl text-xs flex items-center gap-2.5 animate-fadeIn ${
                 feedback.type === 'success'
                   ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300'
                   : 'bg-rose-500/15 border border-rose-500/30 text-rose-300'
@@ -532,11 +542,11 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+            <label className="block text-xs font-semibold text-slate-300 mb-2">
               Usuário, E-mail ou Telefone <span className="text-emerald-400">*</span>
             </label>
-            <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 focus-within:border-emerald-500 transition">
-              <User className="w-4 h-4 text-slate-500 mr-2.5 shrink-0" />
+            <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 min-h-[46px] focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500 transition">
+              <User className="w-4 h-4 text-slate-500 mr-3 shrink-0" />
               <input
                 type="text"
                 value={identifier}
@@ -548,11 +558,11 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
             </div>
           </div>
 
-          <div className="pt-2">
+          <div className="pt-1">
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3.5 px-4 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 disabled:opacity-50"
+              className="w-full py-3.5 px-5 min-h-[48px] rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 disabled:opacity-50"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 text-white animate-spin" />
