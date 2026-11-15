@@ -1510,13 +1510,142 @@ async function startServer() {
     typeof val === 'string' ? val.trim().toLowerCase() : '';
 
   const normalizeUsernameKey = (val: any): string =>
-    typeof val === 'string' ? val.trim().replace(/^@+/, '').toLowerCase() : '';
+    typeof val === 'string' ? val.trim().replace(/^@+|@+$/g, '').trim().toLowerCase() : '';
 
   const normalizeCpfKey = (val: any): string => {
     if (typeof val !== 'string') return '';
     const digits = val.replace(/\D/g, '');
     if (digits.length !== 11 || /^(\d)\1{10}$/.test(digits)) return '';
     return digits;
+  };
+
+  const normalizePhoneKey = (val: any): string => {
+    if (typeof val !== 'string') return '';
+    const digits = val.replace(/\D/g, '');
+    if (digits.length < 10) return '';
+    return digits.slice(-9);
+  };
+
+  const checkUserConflictInSupabase = async (params: {
+    username?: string;
+    email?: string;
+    phone?: string;
+    cpf?: string;
+  }): Promise<{
+    hasConflict: boolean;
+    conflictField?: 'username' | 'email' | 'phone' | 'cpf';
+    conflictRole?: string;
+    existingName?: string;
+    existingUsername?: string;
+    message?: string;
+  }> => {
+    const reqUser = normalizeUsernameKey(params.username);
+    const reqEmail = normalizeEmailKey(params.email);
+    const reqPhone = normalizePhoneKey(params.phone);
+    const reqCpf = normalizeCpfKey(params.cpf);
+
+    if (!reqUser && !reqEmail && !reqPhone && !reqCpf) {
+      return { hasConflict: false };
+    }
+
+    const [
+      { data: sysAdmins },
+      { data: salonUsers },
+      { data: professionals },
+      { data: clients },
+    ] = await Promise.all([
+      supabaseAdmin.from('system_admins').select('id, full_name, name, username, email, phone_whatsapp, cpf'),
+      supabaseAdmin.from('salon_users').select('id, full_name, username, email, phone_whatsapp, document_cpf'),
+      supabaseAdmin.from('professionals').select('id, name, username, email, phone, cpf, role'),
+      supabaseAdmin.from('clients').select('id, full_name, name, username, email, phone, phone_whatsapp, cpf'),
+    ]);
+
+    const allRecords: Array<{
+      roleLabel: string;
+      name: string;
+      username: string;
+      email: string;
+      phone: string;
+      cpf: string;
+    }> = [
+      ...(sysAdmins || []).map((r: any) => ({
+        roleLabel: 'Administrador',
+        name: r.full_name || r.name || r.username || 'Administrador',
+        username: r.username || '',
+        email: r.email || '',
+        phone: r.phone_whatsapp || '',
+        cpf: r.cpf || '',
+      })),
+      ...(salonUsers || []).map((r: any) => ({
+        roleLabel: 'Proprietário',
+        name: r.full_name || r.username || 'Proprietário',
+        username: r.username || '',
+        email: r.email || '',
+        phone: r.phone_whatsapp || '',
+        cpf: r.document_cpf || '',
+      })),
+      ...(professionals || []).map((r: any) => ({
+        roleLabel: String(r.role || '').toLowerCase().includes('propriet') ? 'Proprietário' : 'Profissional',
+        name: r.name || r.username || 'Profissional',
+        username: r.username || '',
+        email: r.email || '',
+        phone: r.phone || '',
+        cpf: r.cpf || '',
+      })),
+      ...(clients || []).map((r: any) => ({
+        roleLabel: 'Cliente',
+        name: r.full_name || r.name || r.username || 'Cliente',
+        username: r.username || '',
+        email: r.email || '',
+        phone: r.phone || r.phone_whatsapp || '',
+        cpf: r.cpf || '',
+      })),
+    ];
+
+    for (const rec of allRecords) {
+      if (reqUser && normalizeUsernameKey(rec.username) === reqUser) {
+        return {
+          hasConflict: true,
+          conflictField: 'username',
+          conflictRole: rec.roleLabel,
+          existingName: rec.name,
+          existingUsername: rec.username,
+          message: `O nome de usuário "${params.username}" já está cadastrado no sistema (${rec.roleLabel}). Escolha outro nome de usuário ou acesse sua conta existente.`,
+        };
+      }
+      if (reqCpf && normalizeCpfKey(rec.cpf) === reqCpf) {
+        return {
+          hasConflict: true,
+          conflictField: 'cpf',
+          conflictRole: rec.roleLabel,
+          existingName: rec.name,
+          existingUsername: rec.username,
+          message: `O CPF informado já pertence a um usuário cadastrado no sistema (${rec.roleLabel}).`,
+        };
+      }
+      if (reqEmail && normalizeEmailKey(rec.email) === reqEmail) {
+        return {
+          hasConflict: true,
+          conflictField: 'email',
+          conflictRole: rec.roleLabel,
+          existingName: rec.name,
+          existingUsername: rec.username,
+          message: `O e-mail "${params.email}" já está cadastrado no sistema (${rec.roleLabel}). Faça login na sua conta existente.`,
+        };
+      }
+      if (reqPhone && normalizePhoneKey(rec.phone) === reqPhone) {
+        return {
+          hasConflict: true,
+          conflictField: 'phone',
+          conflictRole: rec.roleLabel,
+          existingName: rec.name,
+          existingUsername: rec.username,
+          message: `O WhatsApp "${params.phone}" já está vinculado a um usuário cadastrado (${rec.roleLabel}).`,
+        };
+      }
+    }
+
+    return { hasConflict: false };
   };
 
   let isConsolidatingUsers = false;
@@ -4264,6 +4393,22 @@ async function startServer() {
     }
   });
 
+  // REAL-TIME USER AVAILABILITY CHECK (Blocks duplicate username, email, phone, CPF at each step)
+  app.post('/api/public/check-user-availability', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    try {
+      const { username, email, phone, cpf } = req.body || {};
+      const conflict = await checkUserConflictInSupabase({ username, email, phone, cpf });
+      return res.json({
+        success: true,
+        available: !conflict.hasConflict,
+        ...conflict,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, available: true, error: err?.message });
+    }
+  });
+
   // UNIFIED PUBLIC REGISTRATION ENGINE (Sovereign Service Role)
   app.post('/api/public/register-user', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -4324,6 +4469,24 @@ async function startServer() {
         .replace(/[\u0300-\u036f]/g, '')
         .replace(/[^a-z0-9-]/g, '')
         .slice(0, 30);
+
+      // 0. Trava Soberana Anti-Duplicidade (1 Pessoa = 1 Único Cadastro):
+      // Rejeita imediatamente se username, e-mail, WhatsApp ou CPF já pertencerem a qualquer usuário existente
+      const preConflict = await checkUserConflictInSupabase({
+        username: cleanUsername,
+        email: cleanEmail,
+        phone,
+        cpf: documentCpf || body.cpf,
+      });
+      if (preConflict.hasConflict) {
+        return res.status(400).json({
+          success: false,
+          conflictField: preConflict.conflictField,
+          error:
+            preConflict.message ||
+            'Já existe um usuário cadastrado com estes dados (Nome de Usuário, E-mail, WhatsApp ou CPF).',
+        });
+      }
 
       const RESERVED_SUBDOMAINS = [
         'adm', 'admin', 'admvapp', 'portal', 'pvapp', 'meunegocio', 'mnvapp',
@@ -4438,32 +4601,6 @@ async function startServer() {
         typeof val === 'string' &&
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
 
-      // Bloqueia criação de registro duplicado caso o e-mail ou username já pertença a um Administrador (system_admins)
-      const { data: allSysAdmins } = await supabaseAdmin
-        .from('system_admins')
-        .select('id, email, username, full_name');
-      const normCleanUser = normalizeUsernameKey(cleanUsername);
-      const matchedSysAdmin = (allSysAdmins || []).find(
-        (sa: any) =>
-          normalizeEmailKey(sa.email) === cleanEmail ||
-          (normCleanUser && normalizeUsernameKey(sa.username) === normCleanUser)
-      );
-      if (matchedSysAdmin) {
-        return res.status(400).json({
-          success: false,
-          error: `O usuário "${cleanUsername}" (${cleanEmail}) já está cadastrado como Administrador Master do sistema. Não é permitido duplicar o cadastro como cliente comum.`,
-        });
-      }
-
-      const { data: allExistingClients } = await supabaseAdmin
-        .from('clients')
-        .select('id, user_id, email, username');
-      const existingClient = (allExistingClients || []).find(
-        (c: any) =>
-          normalizeEmailKey(c.email) === cleanEmail ||
-          (normCleanUser && normalizeUsernameKey(c.username) === normCleanUser)
-      );
-
       const nowUserIso = new Date().toISOString();
       const resolvedUserOrigin = origin || 'portal';
       const resolvedCreatedVia =
@@ -4506,32 +4643,7 @@ async function startServer() {
       }
 
       let savedClient: any = null;
-      if (existingClient?.id) {
-        let { data: updatedClient, error: upErr } = await supabaseAdmin
-          .from('clients')
-          .update(clientPayload)
-          .eq('id', existingClient.id)
-          .select()
-          .single();
-
-        if (upErr && (upErr.message?.includes('clients_user_id_fkey') || upErr.code === '23503')) {
-          const fallbackPayload = { ...clientPayload, user_id: null };
-          const retry = await supabaseAdmin
-            .from('clients')
-            .update(fallbackPayload)
-            .eq('id', existingClient.id)
-            .select()
-            .single();
-          updatedClient = retry.data;
-          upErr = retry.error;
-        }
-
-        if (upErr) {
-          console.error('[register-user] Erro ao atualizar client:', upErr);
-          return res.status(400).json({ success: false, error: upErr.message });
-        }
-        savedClient = updatedClient;
-      } else {
+      {
         const insertPayload = {
           ...(authUserId ? { id: authUserId } : {}),
           ...clientPayload,

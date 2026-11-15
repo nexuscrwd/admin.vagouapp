@@ -225,6 +225,178 @@ async function uploadClientBase64Media(rawUrl: string | undefined | null, prefix
   return trimmed;
 }
 
+export interface TriadeUserConflictResult {
+  hasConflict: boolean;
+  conflictField?: 'username' | 'email' | 'phone' | 'cpf';
+  conflictRole?: string;
+  existingName?: string;
+  existingUsername?: string;
+  message?: string;
+}
+
+/**
+ * Verifica em tempo real (e antes de cada avanço de etapa) se Nome de Usuário, E-mail, WhatsApp ou CPF
+ * já pertence a algum usuário existente no ecossistema (system_admins, salon_users, professionals, clients).
+ */
+export async function checkTriadeUserConflict(params: {
+  username?: string;
+  email?: string;
+  phone?: string;
+  cpf?: string;
+}): Promise<TriadeUserConflictResult> {
+  const normUser = (val?: string) =>
+    typeof val === 'string' ? val.trim().replace(/^@+|@+$/g, '').trim().toLowerCase() : '';
+  const normEmail = (val?: string) =>
+    typeof val === 'string' ? val.trim().toLowerCase() : '';
+  const normPhone = (val?: string) => {
+    if (typeof val !== 'string') return '';
+    const digits = val.replace(/\D/g, '');
+    return digits.length >= 10 ? digits.slice(-9) : '';
+  };
+  const normCpf = (val?: string) => {
+    if (typeof val !== 'string') return '';
+    const digits = val.replace(/\D/g, '');
+    if (digits.length !== 11 || /^(\d)\1{10}$/.test(digits)) return '';
+    return digits;
+  };
+
+  const reqUser = normUser(params.username);
+  const reqEmail = normEmail(params.email);
+  const reqPhone = normPhone(params.phone);
+  const reqCpf = normCpf(params.cpf);
+
+  if (!reqUser && !reqEmail && !reqPhone && !reqCpf) {
+    return { hasConflict: false };
+  }
+
+  // 1. Tenta via endpoint do Backend Express (/api/public/check-user-availability)
+  try {
+    const resp = await fetch('/api/public/check-user-availability', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    if (resp.ok) {
+      const json = await resp.json();
+      if (json && typeof json.hasConflict === 'boolean') {
+        if (json.hasConflict) {
+          return {
+            hasConflict: true,
+            conflictField: json.conflictField,
+            conflictRole: json.conflictRole,
+            existingName: json.existingName,
+            existingUsername: json.existingUsername,
+            message: json.message,
+          };
+        }
+        return { hasConflict: false };
+      }
+    }
+  } catch {}
+
+  // 2. Fallback direto via supabaseAdmin (caso em iframe/preview isolado)
+  try {
+    const [
+      { data: sysAdmins },
+      { data: salonUsers },
+      { data: professionals },
+      { data: clients },
+    ] = await Promise.all([
+      supabaseAdmin.from('system_admins').select('id, full_name, name, username, email, phone_whatsapp, cpf'),
+      supabaseAdmin.from('salon_users').select('id, full_name, username, email, phone_whatsapp, document_cpf'),
+      supabaseAdmin.from('professionals').select('id, name, username, email, phone, cpf, role'),
+      supabaseAdmin.from('clients').select('id, full_name, name, username, email, phone, phone_whatsapp, cpf'),
+    ]);
+
+    const allRecords: Array<{
+      roleLabel: string;
+      name: string;
+      username: string;
+      email: string;
+      phone: string;
+      cpf: string;
+    }> = [
+      ...(sysAdmins || []).map((r: any) => ({
+        roleLabel: 'Administrador',
+        name: r.full_name || r.name || r.username || 'Administrador',
+        username: r.username || '',
+        email: r.email || '',
+        phone: r.phone_whatsapp || '',
+        cpf: r.cpf || '',
+      })),
+      ...(salonUsers || []).map((r: any) => ({
+        roleLabel: 'Proprietário',
+        name: r.full_name || r.username || 'Proprietário',
+        username: r.username || '',
+        email: r.email || '',
+        phone: r.phone_whatsapp || '',
+        cpf: r.document_cpf || '',
+      })),
+      ...(professionals || []).map((r: any) => ({
+        roleLabel: String(r.role || '').toLowerCase().includes('propriet') ? 'Proprietário' : 'Profissional',
+        name: r.name || r.username || 'Profissional',
+        username: r.username || '',
+        email: r.email || '',
+        phone: r.phone || '',
+        cpf: r.cpf || '',
+      })),
+      ...(clients || []).map((r: any) => ({
+        roleLabel: 'Cliente',
+        name: r.full_name || r.name || r.username || 'Cliente',
+        username: r.username || '',
+        email: r.email || '',
+        phone: r.phone || r.phone_whatsapp || '',
+        cpf: r.cpf || '',
+      })),
+    ];
+
+    for (const rec of allRecords) {
+      if (reqUser && normUser(rec.username) === reqUser) {
+        return {
+          hasConflict: true,
+          conflictField: 'username',
+          conflictRole: rec.roleLabel,
+          existingName: rec.name,
+          existingUsername: rec.username,
+          message: `O nome de usuário "${params.username}" já está cadastrado no sistema (${rec.roleLabel}). Escolha outro nome de usuário ou acesse sua conta existente.`,
+        };
+      }
+      if (reqCpf && normCpf(rec.cpf) === reqCpf) {
+        return {
+          hasConflict: true,
+          conflictField: 'cpf',
+          conflictRole: rec.roleLabel,
+          existingName: rec.name,
+          existingUsername: rec.username,
+          message: `O CPF informado já pertence a um usuário cadastrado no sistema (${rec.roleLabel}).`,
+        };
+      }
+      if (reqEmail && normEmail(rec.email) === reqEmail) {
+        return {
+          hasConflict: true,
+          conflictField: 'email',
+          conflictRole: rec.roleLabel,
+          existingName: rec.name,
+          existingUsername: rec.username,
+          message: `O e-mail "${params.email}" já está cadastrado no sistema (${rec.roleLabel}). Faça login na sua conta existente.`,
+        };
+      }
+      if (reqPhone && normPhone(rec.phone) === reqPhone) {
+        return {
+          hasConflict: true,
+          conflictField: 'phone',
+          conflictRole: rec.roleLabel,
+          existingName: rec.name,
+          existingUsername: rec.username,
+          message: `O WhatsApp "${params.phone}" já está vinculado a um usuário cadastrado (${rec.roleLabel}).`,
+        };
+      }
+    }
+  } catch {}
+
+  return { hasConflict: false };
+}
+
 /**
  * Cadastra e persiste um novo usuário/cliente no Supabase (via Backend Express ou RPC/Admin direto)
  */
@@ -262,8 +434,23 @@ export async function registerTriadeUser(userData: {
     typeof val === 'string' &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
 
-  // 0. Garante conta autenticada em auth.users e sessão ativa no cliente Supabase
-  // (Ignora UUIDs ofuscados com identities vazias que o GoTrue retorna quando o e-mail já existe)
+  // 0. Trava Soberana Pré-Cadastro: impede criar usuário com username, e-mail, WhatsApp ou CPF já existentes
+  const preCheck = await checkTriadeUserConflict({
+    username: cleanUsername,
+    email: cleanEmail,
+    phone: cleanPhone,
+    cpf: cleanCpf,
+  });
+  if (preCheck.hasConflict) {
+    return {
+      success: false,
+      error:
+        preCheck.message ||
+        'Já existe um usuário cadastrado com estes dados (Nome de Usuário, E-mail, WhatsApp ou CPF).',
+    };
+  }
+
+  // 1. Garante conta autenticada em auth.users e sessão ativa no cliente Supabase
   let authUserId: string | undefined;
   let authSession: any = undefined;
   try {
@@ -299,7 +486,7 @@ export async function registerTriadeUser(userData: {
     }
   } catch {}
 
-  // 1. Tenta via Backend Express (/api/public/register-user) com Service Role
+  // 2. Tenta via Backend Express (/api/public/register-user) com Service Role
   try {
     const resp = await fetch('/api/public/register-user', {
       method: 'POST',
@@ -338,7 +525,10 @@ export async function registerTriadeUser(userData: {
         };
       }
       if (json.error) {
-        console.warn('[registerTriadeUser] Aviso API:', json.error);
+        return {
+          success: false,
+          error: json.error,
+        };
       }
     }
   } catch (apiErr) {

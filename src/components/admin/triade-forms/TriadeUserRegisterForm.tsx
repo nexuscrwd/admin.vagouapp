@@ -24,7 +24,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { VagouOfficialLogo } from '../../common/VagouOfficialLogo';
-import { registerTriadeUser, formatPixKeyByType } from '../../../services/supabaseApi';
+import { registerTriadeUser, checkTriadeUserConflict, formatPixKeyByType } from '../../../services/supabaseApi';
 import { GoogleAddressPinPicker } from '../GoogleAddressPinPicker';
 
 export interface TriadeUserData {
@@ -155,9 +155,87 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
   const [isLoadingCep, setIsLoadingCep] = useState(false);
   const [isSearchingCepByAddress, setIsSearchingCepByAddress] = useState(false);
 
-  // Estados Gerais
+  // Estados Gerais & Verificação de Unicidade em Tempo Real (Anti-Duplicidade)
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCheckingIdentification, setIsCheckingIdentification] = useState(false);
+  const [usernameCheckStatus, setUsernameCheckStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [usernameConflictMessage, setUsernameConflictMessage] = useState<string | null>(null);
+  const [phoneConflictMessage, setPhoneConflictMessage] = useState<string | null>(null);
+  const [emailConflictMessage, setEmailConflictMessage] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Verificação em tempo real (debounce 250ms) do Nome de Usuário na Fase 1
+  useEffect(() => {
+    const cleanUser = username.trim().replace(/^@+/, '');
+    const baseUser = cleanUser.replace(/@+$/g, '').trim();
+    if (baseUser.length < 2) {
+      setUsernameCheckStatus('idle');
+      setUsernameConflictMessage(null);
+      return;
+    }
+
+    let cancelled = false;
+    setUsernameCheckStatus('checking');
+    const timer = setTimeout(async () => {
+      try {
+        const res = await checkTriadeUserConflict({ username: cleanUser });
+        if (cancelled) return;
+        if (res.hasConflict && res.conflictField === 'username') {
+          setUsernameCheckStatus('taken');
+          setUsernameConflictMessage(
+            res.message || `O nome de usuário "${cleanUser}" já está cadastrado no sistema.`
+          );
+        } else {
+          setUsernameCheckStatus('available');
+          setUsernameConflictMessage(null);
+        }
+      } catch {
+        if (!cancelled) {
+          setUsernameCheckStatus('idle');
+        }
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [username]);
+
+  // Verificação em tempo real (debounce 280ms) de WhatsApp e E-mail na Fase 2
+  useEffect(() => {
+    const cleanPhone = phone.replace(/\D/g, '');
+    const cleanMail = email.trim().toLowerCase();
+    if (cleanPhone.length < 10 && (!cleanMail.includes('@') || cleanMail.length < 5)) {
+      setPhoneConflictMessage(null);
+      setEmailConflictMessage(null);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const [phoneRes, emailRes] = await Promise.all([
+          cleanPhone.length >= 10 ? checkTriadeUserConflict({ phone }) : Promise.resolve({ hasConflict: false }),
+          cleanMail.includes('@') && cleanMail.length >= 5
+            ? checkTriadeUserConflict({ email: cleanMail })
+            : Promise.resolve({ hasConflict: false }),
+        ]);
+        if (cancelled) return;
+        setPhoneConflictMessage(
+          phoneRes.hasConflict ? (phoneRes as any).message || 'Este WhatsApp já está cadastrado.' : null
+        );
+        setEmailConflictMessage(
+          emailRes.hasConflict ? (emailRes as any).message || 'Este e-mail já está cadastrado.' : null
+        );
+      } catch {}
+    }, 280);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [phone, email]);
 
   // Contador de reenvio de OTP
   useEffect(() => {
@@ -348,24 +426,63 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     }
   };
 
-  // Ação 1: Avançar da Fase 1 para a Fase 2 (Identificação)
-  const handleNextFromIdentification = () => {
+  // Ação 1: Avançar da Fase 1 para a Fase 2 (Identificação — Com Trava Anti-Duplicidade no Banco)
+  const handleNextFromIdentification = async () => {
     setFeedback(null);
     if (!fullName.trim()) {
       setFeedback({ type: 'error', message: 'Informe seu nome completo.' });
       return;
     }
     const cleanUser = username.trim().replace(/^@+/, '');
-    if (!cleanUser) {
-      setFeedback({ type: 'error', message: 'Informe seu nome de usuário.' });
+    if (!cleanUser || cleanUser.replace(/@+$/g, '').trim().length < 2) {
+      setFeedback({ type: 'error', message: 'Informe um nome de usuário válido.' });
       return;
     }
-    setUsername(cleanUser);
-    setPhase('contacts');
+
+    if (usernameCheckStatus === 'taken') {
+      setFeedback({
+        type: 'error',
+        message:
+          usernameConflictMessage ||
+          `O nome de usuário "${cleanUser}" já está cadastrado no sistema. Escolha outro ou acesse sua conta existente.`,
+      });
+      return;
+    }
+
+    setIsCheckingIdentification(true);
+    try {
+      const conflict = await checkTriadeUserConflict({
+        username: cleanUser,
+        cpf: cpf.trim() || undefined,
+      });
+      setIsCheckingIdentification(false);
+
+      if (conflict.hasConflict) {
+        if (conflict.conflictField === 'username') {
+          setUsernameCheckStatus('taken');
+          setUsernameConflictMessage(conflict.message || null);
+        }
+        setFeedback({
+          type: 'error',
+          message:
+            conflict.message ||
+            `Os dados informados ("${cleanUser}") já pertencem a um usuário cadastrado no sistema.`,
+        });
+        return;
+      }
+
+      setUsernameCheckStatus('available');
+      setUsername(cleanUser);
+      setPhase('contacts');
+    } catch {
+      setIsCheckingIdentification(false);
+      setUsername(cleanUser);
+      setPhase('contacts');
+    }
   };
 
-  // Ação 2: Enviar Código e Avançar para a Fase 3 (Contatos)
-  const handleSendOtp = () => {
+  // Ação 2: Enviar Código e Avançar para a Fase 3 (Contatos — Com Trava Anti-Duplicidade de WhatsApp e E-mail)
+  const handleSendOtp = async () => {
     setFeedback(null);
     const cleanPhone = phone.replace(/\D/g, '');
     if (!cleanPhone || cleanPhone.length < 10) {
@@ -382,6 +499,31 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     }
 
     setIsSendingOtp(true);
+    try {
+      const conflict = await checkTriadeUserConflict({
+        username: username.trim().replace(/^@+/, ''),
+        phone: phone.trim(),
+        email: email.trim().toLowerCase(),
+        cpf: cpf.trim() || undefined,
+      });
+
+      if (conflict.hasConflict) {
+        setIsSendingOtp(false);
+        if (conflict.conflictField === 'phone') {
+          setPhoneConflictMessage(conflict.message || 'Este WhatsApp já está cadastrado.');
+        } else if (conflict.conflictField === 'email') {
+          setEmailConflictMessage(conflict.message || 'Este e-mail já está cadastrado.');
+        }
+        setFeedback({
+          type: 'error',
+          message:
+            conflict.message ||
+            'Este WhatsApp ou E-mail já pertence a um usuário cadastrado no sistema.',
+        });
+        return;
+      }
+    } catch {}
+
     // Gera código simulado de 6 dígitos
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     setSentOtp(code);
@@ -396,7 +538,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
         message: `Código de verificação enviado via ${canalNome}! (Código de teste: ${code.slice(0, 3)} - ${code.slice(3)})`,
       });
       setPhase('verification');
-    }, 700);
+    }, 500);
   };
 
   // Ação 3: Verificar Código OTP e Avançar para Fase 4 (Senha)
@@ -751,20 +893,65 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Nome de Usuário <span className="text-emerald-400">*</span>
-                </label>
-                <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 focus-within:border-emerald-500 transition">
-                  <UserCheck className="w-4 h-4 text-slate-500 mr-2 shrink-0" />
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <label className="block text-xs font-semibold text-slate-300">
+                    Nome de Usuário <span className="text-emerald-400">*</span>
+                  </label>
+                  {usernameCheckStatus === 'checking' && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400">
+                      <Loader2 className="w-3 h-3 animate-spin text-emerald-400" />
+                      <span>Verificando...</span>
+                    </span>
+                  )}
+                  {usernameCheckStatus === 'available' && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                      <span>Disponível</span>
+                    </span>
+                  )}
+                  {usernameCheckStatus === 'taken' && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-400">
+                      <AlertCircle className="w-3 h-3 text-rose-400" />
+                      <span>Já cadastrado</span>
+                    </span>
+                  )}
+                </div>
+                <div
+                  className={`flex items-center bg-slate-950 border rounded-xl px-3 py-2.5 transition ${
+                    usernameCheckStatus === 'taken'
+                      ? 'border-rose-500 focus-within:border-rose-500'
+                      : usernameCheckStatus === 'available'
+                        ? 'border-emerald-500/60 focus-within:border-emerald-500'
+                        : 'border-slate-800 focus-within:border-emerald-500'
+                  }`}
+                >
+                  <UserCheck
+                    className={`w-4 h-4 mr-2 shrink-0 ${
+                      usernameCheckStatus === 'taken'
+                        ? 'text-rose-400'
+                        : usernameCheckStatus === 'available'
+                          ? 'text-emerald-400'
+                          : 'text-slate-500'
+                    }`}
+                  />
                   <input
                     type="text"
                     value={username.replace(/^@+/, '')}
-                    onChange={(e) => setUsername(e.target.value.replace(/^@+/, ''))}
+                    onChange={(e) => {
+                      setFeedback(null);
+                      setUsername(e.target.value.replace(/^@+/, ''));
+                    }}
                     placeholder="Seu nome de usuário"
                     className="w-full bg-transparent text-xs sm:text-sm text-white placeholder-slate-600 outline-none"
                     required
                   />
                 </div>
+                {usernameCheckStatus === 'taken' && usernameConflictMessage && (
+                  <p className="text-[11px] text-rose-400 font-medium mt-1.5 flex items-start gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0 mt-0.5" />
+                    <span>{usernameConflictMessage}</span>
+                  </p>
+                )}
               </div>
             </div>
 
@@ -772,12 +959,19 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
               <div className="pt-2">
                 <button
                   type="button"
+                  disabled={isCheckingIdentification || usernameCheckStatus === 'taken'}
                   onClick={handleNextFromIdentification}
                   style={primaryBgStyle}
-                  className="w-full py-3.5 px-4 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95"
+                  className="w-full py-3.5 px-4 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <span className="text-white font-bold">Avançar</span>
-                  <ArrowRight className="w-4 h-4 text-white" />
+                  {isCheckingIdentification ? (
+                    <Loader2 className="w-4 h-4 text-white animate-spin" />
+                  ) : (
+                    <>
+                      <span className="text-white font-bold">Avançar</span>
+                      <ArrowRight className="w-4 h-4 text-white" />
+                    </>
+                  )}
                 </button>
               </div>
             )}
@@ -798,15 +992,29 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
               <div className="sm:col-span-5">
-                <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                  WhatsApp <span className="text-emerald-400">*</span>
-                </label>
-                <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 focus-within:border-emerald-500 transition">
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-300">
+                    WhatsApp <span className="text-emerald-400">*</span>
+                  </label>
+                  {phoneConflictMessage && (
+                    <span className="text-[10px] font-bold text-rose-400">Já cadastrado</span>
+                  )}
+                </div>
+                <div
+                  className={`flex items-center bg-slate-950 border rounded-xl px-2.5 py-2 transition ${
+                    phoneConflictMessage
+                      ? 'border-rose-500 focus-within:border-rose-500'
+                      : 'border-slate-800 focus-within:border-emerald-500'
+                  }`}
+                >
                   <Phone className="w-3.5 h-3.5 text-slate-500 mr-1.5 shrink-0" />
                   <input
                     type="text"
                     value={phone}
-                    onChange={(e) => handlePhoneChange(e.target.value)}
+                    onChange={(e) => {
+                      setFeedback(null);
+                      handlePhoneChange(e.target.value);
+                    }}
                     placeholder="(11) 98765-4321"
                     className="w-full bg-transparent text-xs text-white placeholder-slate-600 outline-none font-mono"
                     required
@@ -815,15 +1023,29 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
               </div>
 
               <div className="sm:col-span-7">
-                <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                  E-mail Principal <span className="text-emerald-400">*</span>
-                </label>
-                <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 focus-within:border-emerald-500 transition">
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-300">
+                    E-mail Principal <span className="text-emerald-400">*</span>
+                  </label>
+                  {emailConflictMessage && (
+                    <span className="text-[10px] font-bold text-rose-400">Já cadastrado</span>
+                  )}
+                </div>
+                <div
+                  className={`flex items-center bg-slate-950 border rounded-xl px-2.5 py-2 transition ${
+                    emailConflictMessage
+                      ? 'border-rose-500 focus-within:border-rose-500'
+                      : 'border-slate-800 focus-within:border-emerald-500'
+                  }`}
+                >
                   <Mail className="w-3.5 h-3.5 text-slate-500 mr-1.5 shrink-0" />
                   <input
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setFeedback(null);
+                      setEmail(e.target.value);
+                    }}
                     placeholder="seu@email.com"
                     className="w-full bg-transparent text-xs text-white placeholder-slate-600 outline-none"
                     required
@@ -846,6 +1068,12 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                     required
                   />
                 </div>
+                {(phoneConflictMessage || emailConflictMessage) && (
+                  <p className="text-[11px] text-rose-400 font-medium mt-1.5 flex items-start gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0 mt-0.5" />
+                    <span>{phoneConflictMessage || emailConflictMessage}</span>
+                  </p>
+                )}
               </div>
             </div>
 
