@@ -3770,16 +3770,19 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 </button>
               </div>
 
-              {/* Contêiner com o Formulário Real como ele é */}
-              <div className="p-4 sm:p-5 bg-slate-950 flex flex-col justify-center min-h-[520px]">
-                <div className="w-full max-w-md mx-auto">
-                  <TriadeMnvClientLoginForm
-                    salonName={salon.trade_name}
-                    onSuccess={() => {
-                      alert(`✅ Login validado com sucesso para o estabelecimento ${salon.trade_name}!`);
-                    }}
-                  />
-                </div>
+              {/* Contêiner com o Palco Real em Vidro Jateado + Slideshow */}
+              <div className="bg-slate-950 flex flex-col justify-center min-h-[560px]">
+                <TriadeMnvClientLoginForm
+                  salonId={salon.id}
+                  salonSlug={salon.slug}
+                  salonName={salon.trade_name}
+                  salonLogoUrl={salon.logo_url}
+                  salonSlogan={salon.slogan}
+                  stageMode="slideshow"
+                  onSuccess={() => {
+                    handleCopy(salonLoginUrl, 'url-login');
+                  }}
+                />
               </div>
 
               {/* Rodapé com URL do Form de Login */}
@@ -3933,9 +3936,13 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             <div className="flex-1 overflow-y-auto p-2 sm:p-4 bg-slate-950">
               {simulatorMode === 'login' ? (
                 <TriadeMnvClientLoginForm
+                  salonId={salon.id}
+                  salonSlug={salon.slug}
                   salonName={salon.trade_name}
+                  salonLogoUrl={salon.logo_url}
+                  salonSlogan={salon.slogan}
+                  stageMode="slideshow"
                   onSuccess={() => {
-                    alert(`✅ Sucesso! O cliente foi autenticado no estabelecimento ${salon.trade_name}!`);
                     setIsSimulatorOpen(false);
                   }}
                 />

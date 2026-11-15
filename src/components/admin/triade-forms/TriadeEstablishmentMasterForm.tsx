@@ -135,6 +135,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
   initialData,
   onSuccess,
   onClose,
+  isStandalonePreview = false,
   initialStep = 'user_check',
   forcedStep,
   onStepChange,
@@ -1094,7 +1095,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
       setIsLoading(false);
 
       if (!res.success) {
-        setIsReviewModalOpen(false);
         setFeedback({
           type: 'error',
           message: res.error || 'Não foi possível salvar o estabelecimento no Supabase.',
@@ -1102,17 +1102,103 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         return;
       }
 
+      const finalSlug = sanitizeSalonSlug(
+        res.salon?.slug || cleanSlugForSubmit || slug || tradeName
+      );
+      const targetSalonUrl = `https://${finalSlug}.vagouapp.com`;
+      const enrichedPayload = {
+        ...payload,
+        slug: finalSlug,
+        redirectUrl: targetSalonUrl,
+        salonUrl: targetSalonUrl,
+        salon: res.salon,
+      };
+
       setCreatedSalonResult({ payload, salon: res.salon });
       setIsReviewModalOpen(false);
-      setIsWelcomeModalOpen(true);
-      onStepChange?.('welcome');
-      setFeedback({
-        type: 'success',
-        message: `O estabelecimento "${tradeName}" foi criado e salvo no Supabase com sucesso!`,
-      });
+
+      // Se estiver apenas no Estúdio de Formulários do Admin (forcedStep controlado), exibe preview
+      if (forcedStep !== undefined) {
+        setIsWelcomeModalOpen(true);
+        onStepChange?.('welcome');
+        onSuccess?.(enrichedPayload as any, res.salon);
+        setFeedback({
+          type: 'success',
+          message: `O estabelecimento "${tradeName}" foi criado e salvo no Supabase com sucesso!`,
+        });
+        return;
+      }
+
+      // Fluxo Real (Embed, Gateway vagouapp.com ou Modal): Fecha o modal imediatamente e já abre o app do estabelecimento criado para o profissional
+      onSuccess?.(enrichedPayload as any, res.salon);
+      onClose?.();
+
+      if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+        try {
+          window.parent.postMessage(
+            {
+              source: 'VAGOUAPP_FORM',
+              action: 'SALON_MASTER_SUCCESS',
+              event: 'SALON_MASTER_SUCCESS',
+              payload: enrichedPayload,
+              salon: res.salon,
+              slug: finalSlug,
+              url: targetSalonUrl,
+              redirectUrl: targetSalonUrl,
+              salonUrl: targetSalonUrl,
+              timestamp: new Date().toISOString(),
+            },
+            '*'
+          );
+          window.parent.postMessage(
+            {
+              type: 'VAGOU_REDIRECT',
+              source: 'VAGOUAPP_EMBED',
+              event: 'REDIRECT',
+              action: 'SALON_MASTER_SUCCESS',
+              slug: finalSlug,
+              url: targetSalonUrl,
+              redirectUrl: targetSalonUrl,
+              salonUrl: targetSalonUrl,
+            },
+            '*'
+          );
+        } catch {}
+      }
+
+      if (isStandalonePreview || !onClose) {
+        try {
+          if (typeof window !== 'undefined') {
+            if (window.top && window.top !== window) {
+              try {
+                window.top.location.href = targetSalonUrl;
+              } catch {
+                const topLink = document.createElement('a');
+                topLink.href = targetSalonUrl;
+                topLink.target = '_top';
+                topLink.rel = 'noopener noreferrer';
+                document.body.appendChild(topLink);
+                topLink.click();
+                document.body.removeChild(topLink);
+              }
+              setTimeout(() => {
+                try {
+                  window.parent.postMessage({ type: 'VAGOU_MODAL_CLOSE' }, '*');
+                  window.parent.postMessage({ source: 'VAGOUAPP_EMBED', event: 'CLOSE' }, '*');
+                } catch {}
+              }, 350);
+            } else {
+              window.location.assign(targetSalonUrl);
+            }
+          }
+        } catch {
+          if (typeof window !== 'undefined') {
+            window.location.assign(targetSalonUrl);
+          }
+        }
+      }
     } catch (err: any) {
       setIsLoading(false);
-      setIsReviewModalOpen(false);
       setFeedback({
         type: 'error',
         message: err?.message || 'Erro de comunicação ao salvar estabelecimento.',

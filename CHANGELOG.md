@@ -15,6 +15,59 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-11-15] — ✨ Entrada Cinematográfica em Vidro Jateado + Slideshow Inteligente para Estabelecimentos (`bol-167`)
+- **Tipo:** `[Feat / UI/UX Glassmorphism & Slideshow / Tríade Sync — Opção 2 Nativa mnvapp + Espelho admvapp]`
+- **Motivo / Solicitação:**
+  - Substituição da antiga tela de login branca/azul chapada dos estabelecimentos (`*.vagouapp.com`, ex.: `bone.vagouapp.com`) pelo padrão visual cinematográfico em **Vidro Jateado (`Glassmorphism Dark`) + Slideshow de Fundo**, sincronizado nativamente entre `mnvapp` e o catálogo soberano do `admvapp` (*Configurações > Estabelecimento > Login Estabelecimento*).
+- **Resumo Técnico & Implementação:**
+  1. **Slideshow Editorial Inteligente em 2 Níveis (`TriadeMnvClientLoginForm.tsx`):**
+     - **Nível 1 (Fotos Reais do Salão):** Busca automaticamente `cover_image_url` e até 5 imagens de `salon_media_items` pelo `slug` ou `id` do salão, aplicando filtro P&B editorial e película de contraste `from-slate-950/65 via-slate-950/55 to-slate-950/85`.
+     - **Nível 2 (Fallback Editorial Curado):** Quando o salão recém-criado ainda não enviou fotos (ex.: `bone`), alterna automaticamente 3 fotografias documentais de estúdio/barbearia/estética em crossfade suave (`5.5s`).
+  2. **Card Flutuante em Vidro Jateado (`TriadeUserLoginForm.tsx` — `variant="glass"`):**
+     - Superfície translúcida `bg-slate-950/75 backdrop-blur-2xl border border-white/10 shadow-[0_24px_64px_rgba(0,0,0,0.85)]`, logo White-Label do salão vazada sobre o vidro (ou logo oficial Vagou `forceTheme="dark"`, eliminando qualquer fundo branco sólido atrás da marca), inputs translúcidos sem bordas aninhadas (`bg-white/[0.07]`), CTA principal em `#20C933` com texto/ícone `text-white`, botão **Conta Google** OAuth nativo e troca instantânea entre **Entrar**, **Criar conta** e **Recuperar senha** dentro do mesmo vidro.
+  3. **Simulador ao Vivo por Slug no Admin (`AdminTriadeFormsCatalog.tsx` & `AdminSalonDetailView.tsx`):**
+     - Adicionado campo de simulação rápida de slug (`bone.vagouapp.com`) no subcabeçalho de *Login Estabelecimento* e integrado o palco completo na ficha individual de cada salão.
+- **Arquivos Impactados:**
+  - `/src/assets/images/mnv_slide_salon_interior_1794764499578.jpg` *(Novo)*
+  - `/src/assets/images/mnv_slide_barbershop_craft_1794764500496.jpg` *(Novo)*
+  - `/src/assets/images/mnv_slide_aesthetic_spa_1794764501452.jpg` *(Novo)*
+  - `/src/components/admin/triade-forms/TriadeUserLoginForm.tsx`
+  - `/src/components/admin/triade-forms/TriadeMnvClientLoginForm.tsx`
+  - `/src/components/admin/AdminTriadeFormsCatalog.tsx`
+  - `/src/components/admin/AdminSalonDetailView.tsx`
+  - `/src/components/embed/UniversalFormEmbedView.tsx`
+  - `/CHANGELOG.md`
+
+---
+
+### [2026-11-15] — 🛡️ Correção Definitiva de `salons_owner_id_fkey`, Triggers de Sanitização no PostgreSQL e Abertura Direta do App do Estabelecimento ao Concluir Cadastro (`bol-166`)
+- **Tipo:** `[Fix / Critical Foreign Key & Onboarding Redirect / Tríade Sync]`
+- **Motivo / Solicitação:**
+  - Investigação e correção definitiva do erro persistente `insert or update on table "salons" violates foreign key constraint "salons_owner_id_fkey"` exibido ao finalizar o cadastro de estabelecimento (ex.: proprietário `nexuscrwd@gmail.com` / `Anderson#` com endereço em `Avenida Coronel Alves e Rocha Filho, 495`), além de garantir que ao concluir o cadastro o modal feche imediatamente e abra direto o aplicativo do estabelecimento (`https://{slug}.vagouapp.com`) para o profissional.
+- **Causa Raiz Identificada:**
+  1. A coluna `public.salons.owner_id` referencia estritamente `auth.users(id)` (`ON DELETE SET NULL`), e **não** `public.clients(id)` nem `public.system_admins(id)`.
+  2. Usuários cadastrados em `public.clients` sem `SUPABASE_SERVICE_ROLE_KEY` configurada (como `Anderson#` / `nexuscrwd@gmail.com`, `id = 0c5fff9e-d0d4-42b3-a188-06bdb1189731`, `user_id = null`) possuíam `id` apenas em `public.clients`. Os fallbacks em `server.ts`, `src/services/supabaseApi.ts` e `TriadeUserLoginForm.tsx` atribuíam `existingClient.id` ou `existingAdmin.id` ao campo `owner_id`, violando `salons_owner_id_fkey`.
+  3. No `TriadeEstablishmentMasterForm.tsx`, em caso de erro o modal de revisão era fechado (devolvendo o usuário para a tela *"O salão fica no mesmo endereço do proprietário?"*), e em caso de sucesso abria um segundo modal intermediário (`SalonWelcomeModal`) em vez de fechar o modal e abrir direto o app `https://{slug}.vagouapp.com`.
+- **Resumo Técnico & Implementação:**
+  1. **Backend (`server.ts`):**
+     - `safeSupabaseWrite` agora intercepta erros `23503` / `salons_owner_id_fkey` / `user_id_fkey`, preserva o ID cadastral original em `branding.ownerRecordId` e remove/anula `owner_id` ou `user_id` automaticamente antes de reexecutar a gravação.
+     - `POST /api/admin/salons` e `POST /api/public/register-unified` jamais enviam `clients.id` ou `system_admins.id` em `salons.owner_id`; utilizam apenas `auth.users(id)` verificado e criam automaticamente o vínculo do proprietário em `public.professionals` (`role: 'Proprietário'`).
+  2. **Frontend (`src/services/supabaseApi.ts`, `TriadeUserLoginForm.tsx`, `TriadeEstablishmentMasterForm.tsx`, `TriadeEstablishmentModal.tsx`):**
+     - Removido o fallback `existingClientForOwner.id` em `owner_id` e adicionado tratamento de retry `23503` no cliente.
+     - Ao concluir o cadastro em fluxo real (`forcedStep === undefined`), o modal fecha imediatamente, dispara `SALON_MASTER_SUCCESS` + `VAGOU_REDIRECT` e abre direto `https://{slug}.vagouapp.com`.
+  3. **Banco de Dados (`/supabase/migrations/20261115_fix_salons_owner_id_fkey_and_trigger.sql`):**
+     - Criadas triggers `BEFORE INSERT OR UPDATE` (`trg_sanitize_salons_owner_id`, `trg_sanitize_clients_user_id`, `trg_sanitize_professionals_user_id`) para sanitizar automaticamente qualquer `owner_id` / `user_id` ausente de `auth.users` em qualquer aplicação da Tríade (`admvapp`, `mnvapp`, `pvapp`).
+- **Arquivos Impactados:**
+  - `/server.ts`
+  - `/src/services/supabaseApi.ts`
+  - `/src/components/admin/triade-forms/TriadeUserLoginForm.tsx`
+  - `/src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`
+  - `/src/components/admin/triade-forms/TriadeEstablishmentModal.tsx`
+  - `/supabase/migrations/20261115_fix_salons_owner_id_fkey_and_trigger.sql` *(Novo)*
+  - `/CHANGELOG.md`
+
+---
+
 ### [2026-11-15] — 🎨 Nova Ferramenta "Preferências" no Menu Configurações: Logotipos (Dark/Light), Ícone Mobile, Favicon e Paleta Completa de Cores & Fontes (`bol-165`)
 - **Tipo:** `[Feat / Branding & Theme Studio / Tríade Sync]`
 - **Motivo / Solicitação:**

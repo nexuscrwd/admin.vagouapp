@@ -357,7 +357,11 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
         {formType === 'mnv_login' && (
           <div className="w-full">
             <TriadeMnvClientLoginForm
+              salonId={salonId}
               salonName={salonName}
+              salonLogoUrl={salonLogoUrl}
+              salonColor={salonAccentColor}
+              stageMode="inline"
               variant="flat"
               showHeader={true}
               onSuccess={(data) => {

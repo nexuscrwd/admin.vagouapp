@@ -7,10 +7,10 @@ import {
   CheckCircle2,
   AlertCircle,
   ArrowRight,
-  ShieldCheck,
   Loader2,
   X,
   KeyRound,
+  Chrome,
 } from 'lucide-react';
 import { VagouOfficialLogo } from '../../common/VagouOfficialLogo';
 import { supabase, supabaseAdmin } from '../../../services/supabase';
@@ -48,10 +48,12 @@ export interface TriadeUserLoginFormProps {
   onSwitchToRecovery?: () => void;
   onClose?: () => void;
   showHeader?: boolean;
-  variant?: 'card' | 'flat';
+  variant?: 'card' | 'flat' | 'glass';
   title?: string;
   subtitle?: string;
+  salonLogoUrl?: string;
   submitButtonText?: string;
+  enableGoogleLogin?: boolean;
   activePhase?: UserLoginPhase;
   onPhaseChange?: (phase: UserLoginPhase) => void;
   showSwitchToRegister?: boolean;
@@ -66,26 +68,49 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
   showHeader = true,
   variant = 'card',
   title = 'Acessar Espaço',
-  subtitle = 'Acesso Oficial',
-  submitButtonText = 'Acessar Conta',
+  subtitle,
+  salonLogoUrl,
+  submitButtonText = 'Entrar',
+  enableGoogleLogin = false,
   activePhase,
   onPhaseChange,
   showSwitchToRegister = false,
   suppressParentPostMessage = false,
 }) => {
-  // Controle de Fases do Login
   const [internalPhase, setInternalPhase] = useState<UserLoginPhase>('credentials');
   const currentPhase = activePhase ?? internalPhase;
   const setPhase = (phase: UserLoginPhase) => {
     setInternalPhase(phase);
     onPhaseChange?.(phase);
   };
-  // Aceita: Usuário (@usuario), E-mail ou Celular
+
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [logoFailed, setLogoFailed] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const handleGoogleLogin = async () => {
+    setFeedback(null);
+    setIsGoogleLoading(true);
+    try {
+      const redirectTo =
+        typeof window !== 'undefined' ? window.location.origin : undefined;
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo },
+      });
+      if (error) {
+        setIsGoogleLoading(false);
+        setFeedback({ type: 'error', message: error.message });
+      }
+    } catch {
+      setIsGoogleLoading(false);
+      setFeedback({ type: 'error', message: 'Não foi possível iniciar o acesso com Google.' });
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,7 +118,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
 
     const rawId = identifier.trim();
     if (!rawId) {
-      setFeedback({ type: 'error', message: 'Informe seu usuário, e-mail ou celular.' });
+      setFeedback({ type: 'error', message: 'Informe seu usuário, celular ou e-mail.' });
       return;
     }
     if (!password) {
@@ -107,10 +132,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
       const cleanUsername = rawId.replace(/^@+/, '').toLowerCase();
       const digitsOnly = rawId.replace(/\D/g, '');
 
-      // 1. Busca usuário em public.clients
-      const { data: clientsData } = await supabaseAdmin
-        .from('clients')
-        .select('*');
+      const { data: clientsData } = await supabaseAdmin.from('clients').select('*');
 
       const matchedClient = (clientsData || []).find((c: any) => {
         const cEmail = (c.email || '').trim().toLowerCase();
@@ -118,12 +140,18 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
         const cPhone = (c.phone || '').replace(/\D/g, '');
         return (
           (cEmail && cEmail === rawId.toLowerCase()) ||
-          (cUser && (cUser === cleanUsername || cUser.replace(/#/g, '') === cleanUsername.replace(/#/g, ''))) ||
+          (cUser &&
+            (cUser === cleanUsername ||
+              cUser.replace(/#/g, '') === cleanUsername.replace(/#/g, ''))) ||
           (digitsOnly.length >= 8 && cPhone && cPhone.endsWith(digitsOnly.slice(-8)))
         );
       });
 
-      if (matchedClient && matchedClient.password_hash && matchedClient.password_hash !== password) {
+      if (
+        matchedClient &&
+        matchedClient.password_hash &&
+        matchedClient.password_hash !== password
+      ) {
         setIsLoading(false);
         setFeedback({ type: 'error', message: 'Senha incorreta. Verifique e tente novamente.' });
         return;
@@ -136,8 +164,8 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
       const resolvedPhone = matchedClient?.phone || rawId;
       const resolvedName = matchedClient?.name || matchedClient?.full_name || cleanUsername;
 
-      // 2. Autentica em Supabase Auth para obter sessão JWT real (access_token + refresh_token)
-      let authUserId: string | undefined = matchedClient?.user_id || matchedClient?.id;
+      // IMPORTANTE: verifiedAuthUserId SOMENTE recebe UUID confirmado de auth.users (nunca clients.id), evitando violar salons_owner_id_fkey
+      let verifiedAuthUserId: string | undefined = undefined;
       let authSession: { access_token: string; refresh_token: string } | undefined;
 
       try {
@@ -147,13 +175,12 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
         });
 
         if (!signInErr && signInData?.session) {
-          authUserId = signInData.user?.id || authUserId;
+          verifiedAuthUserId = signInData.user?.id;
           authSession = {
             access_token: signInData.session.access_token,
             refresh_token: signInData.session.refresh_token,
           };
         } else if (matchedClient) {
-          // Se o cliente existe em public.clients mas ainda não tinha sessão Auth, sincroniza via signUp
           const { data: signUpData } = await supabase.auth.signUp({
             email: resolvedEmail,
             password,
@@ -166,8 +193,10 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
               },
             },
           });
+          if (signUpData?.user?.id) {
+            verifiedAuthUserId = signUpData.user.id;
+          }
           if (signUpData?.session) {
-            authUserId = signUpData.user?.id || authUserId;
             authSession = {
               access_token: signUpData.session.access_token,
               refresh_token: signUpData.session.refresh_token,
@@ -176,7 +205,6 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
         }
       } catch {}
 
-      // 3. Verifica se é proprietário (salons) ou profissional (professionals) e repara vínculo em salon_members
       let accountType: 'client' | 'professional' | 'owner' =
         matchedClient?.origin_type === 'establishment' ||
         matchedClient?.access_level?.toLowerCase().includes('propriet')
@@ -191,26 +219,29 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
 
         if (ownerSalons && ownerSalons.length > 0) {
           accountType = 'owner';
-          if (authUserId) {
+          if (verifiedAuthUserId) {
             for (const s of ownerSalons) {
               if (!s.owner_id) {
-                await supabaseAdmin.from('salons').update({ owner_id: authUserId }).eq('id', s.id);
+                await supabaseAdmin
+                  .from('salons')
+                  .update({ owner_id: verifiedAuthUserId })
+                  .eq('id', s.id);
               }
               const { data: existingMember } = await supabaseAdmin
                 .from('salon_members')
                 .select('id')
                 .eq('salon_id', s.id)
-                .eq('user_id', authUserId)
+                .eq('user_id', verifiedAuthUserId)
                 .maybeSingle();
 
               if (!existingMember) {
                 const { error: mErr } = await supabaseAdmin
                   .from('salon_members')
-                  .insert([{ salon_id: s.id, user_id: authUserId, role: 'owner' }]);
+                  .insert([{ salon_id: s.id, user_id: verifiedAuthUserId, role: 'owner' }]);
                 if (mErr) {
                   await supabase
                     .from('salon_members')
-                    .insert([{ salon_id: s.id, user_id: authUserId, role: 'owner' }]);
+                    .insert([{ salon_id: s.id, user_id: verifiedAuthUserId, role: 'owner' }]);
                 }
               }
             }
@@ -229,10 +260,13 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
             );
             accountType = isOwnerProf ? 'owner' : 'professional';
 
-            if (authUserId) {
+            if (verifiedAuthUserId) {
               for (const p of profMatches) {
                 if (!p.user_id) {
-                  await supabaseAdmin.from('professionals').update({ user_id: authUserId }).eq('id', p.id);
+                  await supabaseAdmin
+                    .from('professionals')
+                    .update({ user_id: verifiedAuthUserId })
+                    .eq('id', p.id);
                 }
                 if (p.salon_id) {
                   const targetRole = isOwnerProf ? 'owner' : 'professional';
@@ -240,17 +274,19 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
                     .from('salon_members')
                     .select('id')
                     .eq('salon_id', p.salon_id)
-                    .eq('user_id', authUserId)
+                    .eq('user_id', verifiedAuthUserId)
                     .maybeSingle();
 
                   if (!existingMember) {
                     const { error: mErr } = await supabaseAdmin
                       .from('salon_members')
-                      .insert([{ salon_id: p.salon_id, user_id: authUserId, role: targetRole }]);
+                      .insert([{ salon_id: p.salon_id, user_id: verifiedAuthUserId, role: targetRole }]);
                     if (mErr) {
                       await supabase
                         .from('salon_members')
-                        .insert([{ salon_id: p.salon_id, user_id: authUserId, role: targetRole }]);
+                        .insert([
+                          { salon_id: p.salon_id, user_id: verifiedAuthUserId, role: targetRole },
+                        ]);
                     }
                   }
                 }
@@ -262,7 +298,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
 
       const resolvedPayload: TriadeUserLoginPayload = {
         identifier: rawId,
-        id: authUserId,
+        id: verifiedAuthUserId || matchedClient?.id,
         name: resolvedName,
         username: (matchedClient?.username || cleanUsername).replace(/^@+/, ''),
         email: resolvedEmail,
@@ -290,7 +326,6 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
         message: 'Acesso validado com sucesso!',
       });
 
-      // Dispara evento global para interoperabilidade (iframes e apps irmãos mnvapp / pvapp)
       if (typeof window !== 'undefined' && !suppressParentPostMessage) {
         window.parent?.postMessage(
           {
@@ -345,7 +380,10 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
     setFeedback(null);
 
     if (!identifier.trim()) {
-      setFeedback({ type: 'error', message: 'Informe seu usuário, e-mail ou celular para recuperação.' });
+      setFeedback({
+        type: 'error',
+        message: 'Informe seu usuário, celular ou e-mail para recuperação.',
+      });
       return;
     }
 
@@ -355,32 +393,68 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
       setIsLoading(false);
       setFeedback({
         type: 'success',
-        message: `Instruções de redefinição de acesso enviadas para o contato associado a "${identifier.trim()}".`,
+        message: `Instruções enviadas para o contato vinculado a "${identifier.trim()}".`,
       });
     }, 600);
   };
 
   const isCard = variant === 'card';
+  const isGlass = variant === 'glass';
+
+  // Superfície de input plana (sem borda aninhada quando está dentro de card/vidro jateado)
+  const inputSurfaceClass = isGlass
+    ? 'flex items-center bg-white/[0.07] hover:bg-white/[0.10] focus-within:bg-white/[0.12] focus-within:ring-1 focus-within:ring-[#20C933] rounded-xl px-3.5 py-3 min-h-[46px] transition'
+    : isCard
+      ? 'flex items-center bg-slate-950/90 focus-within:ring-1 focus-within:ring-emerald-500 rounded-xl px-3.5 py-3 min-h-[46px] transition'
+      : 'flex items-center bg-white/[0.07] hover:bg-white/[0.10] focus-within:bg-white/[0.12] focus-within:ring-1 focus-within:ring-[#20C933] rounded-xl px-3.5 py-3 min-h-[46px] transition';
 
   return (
     <div
       className={`triade-form-root w-full font-['Poppins'] ${
-        isCard
-          ? 'max-w-md mx-auto bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden'
-          : 'bg-transparent'
+        isGlass
+          ? 'max-w-md mx-auto bg-slate-950/75 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.85)] overflow-hidden'
+          : isCard
+            ? 'max-w-md mx-auto bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden'
+            : 'bg-transparent'
       } animate-fadeIn`}
     >
-      {/* Cabeçalho Soberano Centralizado (Logo no topo, Título abaixo, Sem Badges Redundantes) */}
+      {/* Cabeçalho Soberano Centralizado (Logo vazada sobre vidro, sem caixa branca de fundo) */}
       {showHeader && (
         <div
-          className={`px-6 pt-6 pb-4 sm:px-7 sm:pt-7 sm:pb-5 ${
-            isCard ? 'bg-slate-900 border-b border-slate-800/80' : 'bg-transparent border-b border-white/10'
+          className={`px-6 pt-7 pb-4 sm:px-7 sm:pt-8 sm:pb-5 ${
+            isGlass
+              ? 'bg-transparent border-b border-white/10'
+              : isCard
+                ? 'bg-slate-900 border-b border-slate-800/80'
+                : 'bg-transparent border-b border-white/10'
           } relative flex flex-col items-center justify-center text-center shrink-0`}
         >
-          <VagouOfficialLogo size="xl" variant="full" className="h-10 sm:h-12 w-auto object-contain mx-auto" />
-          <h2 className="font-bold text-white text-base sm:text-lg tracking-tight mt-2.5 text-center">
-            {currentPhase === 'recovery' ? 'Recuperação de Acesso' : title}
+          {salonLogoUrl && !logoFailed ? (
+            <img
+              src={salonLogoUrl}
+              alt={title}
+              referrerPolicy="no-referrer"
+              onError={() => setLogoFailed(true)}
+              className="h-12 sm:h-14 max-w-[180px] w-auto object-contain mx-auto drop-shadow-md"
+            />
+          ) : (
+            <VagouOfficialLogo
+              size="xl"
+              variant="full"
+              forceTheme="dark"
+              className="h-11 sm:h-12 w-auto object-contain mx-auto"
+            />
+          )}
+
+          <h2 className="font-bold text-white text-lg sm:text-xl tracking-tight mt-3 text-center">
+            {currentPhase === 'recovery' ? 'Recuperar Senha' : title}
           </h2>
+
+          {subtitle && currentPhase === 'credentials' && (
+            <p className="text-xs text-slate-400 mt-1 text-center max-w-xs truncate">
+              {subtitle}
+            </p>
+          )}
 
           {onClose && (
             <button
@@ -391,7 +465,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
                 }
                 onClose();
               }}
-              className="absolute top-4 right-4 p-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+              className="absolute top-4 right-4 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
               title="Fechar"
             >
               <X className="w-5 h-5" />
@@ -405,15 +479,15 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
         <form
           onSubmit={handleSubmit}
           className={`w-full ${
-            isCard || showHeader ? 'px-6 pt-5 pb-6 sm:px-7 sm:pt-6 sm:pb-7' : 'px-4 py-4 sm:p-6'
-          } space-y-5 animate-fadeIn`}
+            isCard || isGlass || showHeader ? 'px-6 pt-5 pb-6 sm:px-7 sm:pt-6 sm:pb-7' : 'px-4 py-4 sm:p-6'
+          } space-y-4 animate-fadeIn`}
         >
           {feedback && (
             <div
               className={`p-3.5 rounded-xl text-xs flex items-center gap-2.5 animate-fadeIn ${
                 feedback.type === 'success'
-                  ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300'
-                  : 'bg-rose-500/15 border border-rose-500/30 text-rose-300'
+                  ? 'bg-emerald-500/20 text-emerald-200'
+                  : 'bg-rose-500/20 text-rose-200'
               }`}
             >
               {feedback.type === 'success' ? (
@@ -425,67 +499,56 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
             </div>
           )}
 
-          {/* Campo Identificador: Usuário, E-mail ou Telefone */}
+          {/* Campo Identificador */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-2">
-              Usuário, E-mail ou Telefone <span className="text-emerald-400">*</span>
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+              Usuário, Celular ou E-mail
             </label>
-            <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 min-h-[46px] focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500 transition">
-              <User className="w-4 h-4 text-slate-500 mr-3 shrink-0" />
+            <div className={inputSurfaceClass}>
+              <User className="w-4 h-4 text-slate-400 mr-3 shrink-0" />
               <input
                 type="text"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="Usuário, E-mail ou Telefone"
-                className="w-full bg-transparent text-sm text-white placeholder-slate-600 outline-none"
+                placeholder="@usuario, (11) 99999-9999 ou e-mail"
+                className="w-full bg-transparent text-sm text-white placeholder-slate-500 outline-none"
                 required
               />
             </div>
           </div>
 
-          {/* Campo Senha com "Esqueceu a senha?" */}
+          {/* Campo Senha */}
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-xs font-semibold text-slate-300">
-                Senha de Acesso <span className="text-emerald-400">*</span>
-              </label>
-              <button
-                type="button"
-                onClick={() => {
-                  setPhase('recovery');
-                  onSwitchToRecovery?.();
-                }}
-                className="text-xs text-emerald-400 hover:text-emerald-300 hover:underline font-semibold cursor-pointer transition"
-              >
-                Esqueceu a senha?
-              </button>
-            </div>
-            <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 min-h-[46px] focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500 transition">
-              <Lock className="w-4 h-4 text-slate-500 mr-3 shrink-0" />
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+              Senha
+            </label>
+            <div className={inputSurfaceClass}>
+              <Lock className="w-4 h-4 text-slate-400 mr-3 shrink-0" />
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Digite sua senha"
-                className="w-full bg-transparent text-sm text-white placeholder-slate-600 outline-none"
+                className="w-full bg-transparent text-sm text-white placeholder-slate-500 outline-none"
                 required
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="text-slate-500 hover:text-slate-300 p-1 ml-2 cursor-pointer"
+                className="text-slate-400 hover:text-white p-1.5 ml-1 cursor-pointer transition"
+                aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
           </div>
 
-          {/* Botão de Ação Final (Fundo Verde = Texto Estritamente Branco) */}
+          {/* Botão Principal (Fundo Verde #20C933 = Texto e Ícone Branco Puro) */}
           <div className="pt-1">
             <button
               type="submit"
-              disabled={isLoading}
-              className="w-full py-3.5 px-5 min-h-[48px] rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 disabled:opacity-50"
+              disabled={isLoading || isGoogleLoading}
+              className="w-full py-3.5 px-5 min-h-[48px] rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-98 disabled:opacity-50 whitespace-nowrap"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 text-white animate-spin" />
@@ -498,21 +561,56 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
             </button>
           </div>
 
-          {/* Alternador para Cadastro se ainda não tiver conta (Apenas quando explicitamente habilitado) */}
-          {showSwitchToRegister && onSwitchToRegister && (
-            <div className="pt-3 border-t border-slate-800 text-center">
-              <p className="text-xs text-slate-400">
-                Ainda não possui conta?{' '}
-                <button
-                  type="button"
-                  onClick={onSwitchToRegister}
-                  className="text-emerald-400 hover:text-emerald-300 font-bold ml-1 cursor-pointer"
-                >
-                  Cadastrar agora
-                </button>
-              </p>
-            </div>
+          {/* Acesso Rápido Conta Google */}
+          {enableGoogleLogin && (
+            <>
+              <div className="flex items-center gap-3 py-0.5">
+                <div className="h-px flex-1 bg-white/10" />
+                <span className="text-[11px] font-medium text-slate-500">ou</span>
+                <div className="h-px flex-1 bg-white/10" />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGoogleLogin}
+                disabled={isLoading || isGoogleLoading}
+                className="w-full py-3 px-5 min-h-[46px] rounded-xl bg-white/[0.08] hover:bg-white/[0.14] text-white font-semibold text-sm transition flex items-center justify-center gap-2.5 cursor-pointer active:scale-98 disabled:opacity-50 whitespace-nowrap"
+              >
+                {isGoogleLoading ? (
+                  <Loader2 className="w-4 h-4 text-white animate-spin" />
+                ) : (
+                  <>
+                    <Chrome className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className="text-white">Conta Google</span>
+                  </>
+                )}
+              </button>
+            </>
           )}
+
+          {/* Rodapé Compacto: Esqueci a senha & Criar conta */}
+          <div className="pt-3 border-t border-white/10 flex items-center justify-between gap-3 text-xs">
+            <button
+              type="button"
+              onClick={() => {
+                setPhase('recovery');
+                onSwitchToRecovery?.();
+              }}
+              className="text-slate-400 hover:text-white font-medium cursor-pointer transition whitespace-nowrap py-1"
+            >
+              Esqueci a senha
+            </button>
+
+            {showSwitchToRegister && onSwitchToRegister && (
+              <button
+                type="button"
+                onClick={onSwitchToRegister}
+                className="text-emerald-400 hover:text-emerald-300 font-bold cursor-pointer transition whitespace-nowrap py-1"
+              >
+                Criar conta
+              </button>
+            )}
+          </div>
         </form>
       )}
 
@@ -521,15 +619,15 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
         <form
           onSubmit={handleRecoverySubmit}
           className={`w-full ${
-            isCard || showHeader ? 'px-6 pt-5 pb-6 sm:px-7 sm:pt-6 sm:pb-7' : 'px-4 py-4 sm:p-6'
-          } space-y-5 animate-fadeIn`}
+            isCard || isGlass || showHeader ? 'px-6 pt-5 pb-6 sm:px-7 sm:pt-6 sm:pb-7' : 'px-4 py-4 sm:p-6'
+          } space-y-4 animate-fadeIn`}
         >
           {feedback && (
             <div
               className={`p-3.5 rounded-xl text-xs flex items-center gap-2.5 animate-fadeIn ${
                 feedback.type === 'success'
-                  ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300'
-                  : 'bg-rose-500/15 border border-rose-500/30 text-rose-300'
+                  ? 'bg-emerald-500/20 text-emerald-200'
+                  : 'bg-rose-500/20 text-rose-200'
               }`}
             >
               {feedback.type === 'success' ? (
@@ -542,17 +640,17 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-2">
-              Usuário, E-mail ou Telefone <span className="text-emerald-400">*</span>
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+              Usuário, Celular ou E-mail
             </label>
-            <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 min-h-[46px] focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500 transition">
-              <User className="w-4 h-4 text-slate-500 mr-3 shrink-0" />
+            <div className={inputSurfaceClass}>
+              <User className="w-4 h-4 text-slate-400 mr-3 shrink-0" />
               <input
                 type="text"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="Usuário, E-mail ou Telefone"
-                className="w-full bg-transparent text-sm text-white placeholder-slate-600 outline-none"
+                placeholder="@usuario, (11) 99999-9999 ou e-mail"
+                className="w-full bg-transparent text-sm text-white placeholder-slate-500 outline-none"
                 required
               />
             </div>
@@ -562,26 +660,26 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3.5 px-5 min-h-[48px] rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 disabled:opacity-50"
+              className="w-full py-3.5 px-5 min-h-[48px] rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-98 disabled:opacity-50 whitespace-nowrap"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 text-white animate-spin" />
               ) : (
                 <>
                   <KeyRound className="w-4 h-4 text-white" />
-                  <span className="text-white font-bold">Enviar Instruções de Recuperação</span>
+                  <span className="text-white font-bold">Enviar Link de Recuperação</span>
                 </>
               )}
             </button>
           </div>
 
-          <div className="pt-3 border-t border-slate-800 text-center">
+          <div className="pt-3 border-t border-white/10 text-center">
             <button
               type="button"
               onClick={() => setPhase('credentials')}
-              className="text-xs text-emerald-400 hover:text-emerald-300 font-bold cursor-pointer"
+              className="text-xs text-emerald-400 hover:text-emerald-300 font-bold cursor-pointer py-1"
             >
-              ← Voltar para Acesso com Senha
+              ← Voltar para Entrar
             </button>
           </div>
         </form>

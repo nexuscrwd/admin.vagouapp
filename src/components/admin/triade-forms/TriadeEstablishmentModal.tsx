@@ -21,12 +21,29 @@ export const TriadeEstablishmentModal: React.FC<TriadeEstablishmentModalProps> =
   if (!isOpen) return null;
 
   const handleSuccess = async (payload: EstablishmentMasterPayload, createdSalon?: AdminSalonItem) => {
+    const cleanSlug = String(createdSalon?.slug || payload?.slug || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]/g, '');
+
+    onClose();
+
     if (createdSalon) {
       if (onViewDetails) {
         onViewDetails(createdSalon);
       }
       if (onSuccess) {
         onSuccess(payload);
+      }
+      if (cleanSlug && typeof document !== 'undefined') {
+        const link = document.createElement('a');
+        link.href = `https://${cleanSlug}.vagouapp.com`;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       }
       return;
     }
@@ -68,6 +85,16 @@ export const TriadeEstablishmentModal: React.FC<TriadeEstablishmentModalProps> =
 
     if (onSuccess) {
       onSuccess(payload);
+    }
+
+    if (cleanSlug && typeof document !== 'undefined') {
+      const link = document.createElement('a');
+      link.href = `https://${cleanSlug}.vagouapp.com`;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
   };
 

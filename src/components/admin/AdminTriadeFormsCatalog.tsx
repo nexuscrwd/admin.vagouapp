@@ -69,6 +69,7 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
 
   // Fases e Subfases de cada Formulário Exclusivo (Exclusivo Admin Master — Invisível aos Usuários)
   const [estabLoginPhase, setEstabLoginPhase] = useState<UserLoginPhase>('credentials');
+  const [previewLoginSlug, setPreviewLoginSlug] = useState<string>('bone');
   const [estabMasterPhase, setEstabMasterPhase] = useState<EstabMasterStep>('user_check');
   const [estabUserSubFlow, setEstabUserSubFlow] = useState<EstabUserAuthSubFlow>('none');
   const [estabAddressSubPhase, setEstabAddressSubPhase] = useState<EstabAddressSubPhase>('same_address_modal');
@@ -127,17 +128,17 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden font-['Poppins']">
       {/* ========================================================================= */}
-      {/* 🔑 1. ESTABELECIMENTO -> LOGIN ESTABELECIMENTO                            */}
+      {/* 🔑 1. ESTABELECIMENTO -> LOGIN ESTABELECIMENTO (VIDRO JATEADO + SLIDE)    */}
       {/* ========================================================================= */}
       {activeMainTab === 'estabelecimento_login' && (
         <div className="h-full flex flex-col min-h-0 overflow-hidden">
-          {/* Subcabeçalho Fixo ao Topo — Sem espaçamento com o cabeçalho superior, separado por linha */}
+          {/* Subcabeçalho Fixo ao Topo */}
           <div className="shrink-0 w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 lg:px-6 py-2.5 z-10 transition-colors shadow-2xs dark:shadow-none">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 max-w-7xl mx-auto">
-              <div className="flex items-center gap-1.5 flex-wrap w-full">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 {[
-                  { id: 'credentials', num: '1', label: 'Acesso com Senha', icon: KeyRound },
-                  { id: 'recovery', num: '2', label: 'Recuperação de Acesso', icon: RotateCcw },
+                  { id: 'credentials', num: '1', label: 'Acesso (Vidro Jateado)', icon: KeyRound },
+                  { id: 'recovery', num: '2', label: 'Recuperar Senha', icon: RotateCcw },
                 ].map((step) => {
                   const isActive = estabLoginPhase === step.id;
                   const IconComponent = step.icon;
@@ -161,37 +162,50 @@ export const AdminTriadeFormsCatalog: React.FC<AdminTriadeFormsCatalogProps> = (
                 })}
               </div>
 
-              <button
-                type="button"
-                onClick={() => setEmbedModalForm('mnv_login')}
-                className="py-1.5 px-3 rounded-xl bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0 self-start sm:self-auto"
-              >
-                <Code className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
-                <span>Gerar Embed (&lt;iframe&gt;)</span>
-              </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1">
+                  <Building2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  <input
+                    type="text"
+                    value={previewLoginSlug}
+                    onChange={(e) => setPreviewLoginSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                    placeholder="slug (ex: bone)"
+                    className="w-24 sm:w-28 bg-transparent text-xs font-semibold text-slate-800 dark:text-white outline-none"
+                  />
+                  <span className="text-[11px] text-slate-400">.vagouapp.com</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setEmbedModalForm('mnv_login')}
+                  className="py-1.5 px-3 rounded-xl bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0"
+                >
+                  <Code className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
+                  <span>Embed</span>
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Área de Dados Rolável (Rolagem vertical exclusiva para o formulário — Zero espaço no contêiner) */}
-          <div className="flex-1 overflow-y-auto p-0 m-0 min-h-0 custom-scrollbar">
-            <div className="p-4 lg:p-6">
-              {actionFeedback && (
-                <div className="p-3 mb-4 max-w-md mx-auto rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs flex items-center gap-2 animate-fadeIn font-medium">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span>{actionFeedback}</span>
-                </div>
-              )}
-              <div className="w-full max-w-none sm:max-w-md mx-auto">
-                <TriadeMnvClientLoginForm
-                  salonName="VagouApp"
-                  activePhase={estabLoginPhase}
-                  onPhaseChange={setEstabLoginPhase}
-                  onSuccess={(data) =>
-                    handleTriggerFeedback(`Login do estabelecimento validado para "${data.identifier}"!`)
-                  }
-                  onSwitchToRegister={() => setActiveMainTab('estabelecimento_cadastro')}
-                />
+          {/* Palco Cinematográfico em Tela Cheia (Slideshow + Vidro Jateado Sincronizado com o mnvapp) */}
+          <div className="flex-1 overflow-y-auto p-3 lg:p-5 min-h-0 custom-scrollbar flex flex-col">
+            {actionFeedback && (
+              <div className="p-3 mb-3 max-w-md mx-auto rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs flex items-center gap-2 animate-fadeIn font-medium shrink-0">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{actionFeedback}</span>
               </div>
+            )}
+            <div className="flex-1 w-full min-h-[600px]">
+              <TriadeMnvClientLoginForm
+                salonSlug={previewLoginSlug || undefined}
+                salonName={previewLoginSlug || 'VagouApp'}
+                stageMode="slideshow"
+                activePhase={estabLoginPhase}
+                onPhaseChange={setEstabLoginPhase}
+                onSuccess={(data) =>
+                  handleTriggerFeedback(`Acesso validado para "${data.identifier}"!`)
+                }
+              />
             </div>
           </div>
         </div>

@@ -1144,27 +1144,15 @@ export async function createAdminSalon(
       (String(salonData.status || 'active').toLowerCase() as 'active' | 'pending' | 'incomplete' | 'suspended') ||
       'active';
 
-    // Resolve o user_id do proprietário a partir da sessão Auth ou da tabela clients
-    let resolvedOwnerUserId: string | null = null;
+    // Resolve o user_id SOMENTE se houver sessão real do Supabase Auth (auth.users).
+    // JAMAIS usar clients.id ou system_admins.id em salons.owner_id, pois salons_owner_id_fkey exige auth.users(id).
+    let verifiedAuthOwnerId: string | null = null;
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       if (sessionData?.session?.user?.email?.toLowerCase() === ownerEmail) {
-        resolvedOwnerUserId = sessionData.session.user.id;
+        verifiedAuthOwnerId = sessionData.session.user.id;
       }
     } catch {}
-
-    if (!resolvedOwnerUserId) {
-      try {
-        const { data: existingClientForOwner } = await supabaseAdmin
-          .from('clients')
-          .select('id, user_id')
-          .eq('email', ownerEmail)
-          .maybeSingle();
-        if (existingClientForOwner) {
-          resolvedOwnerUserId = existingClientForOwner.user_id || existingClientForOwner.id || null;
-        }
-      } catch {}
-    }
 
     const resolvedFee = Number(salonData.fee_per_booking ?? salonData.billing_fee_value ?? 2.5);
     const resolvedPlan = salonData.billing_plan || 'PER_APPOINTMENT';
@@ -1175,7 +1163,7 @@ export async function createAdminSalon(
     const resolvedTradeName = salonData.trade_name?.trim() || 'Novo Salão';
 
     const dbInsert: Record<string, any> = {
-      ...(resolvedOwnerUserId ? { owner_id: resolvedOwnerUserId } : {}),
+      ...(verifiedAuthOwnerId ? { owner_id: verifiedAuthOwnerId } : {}),
       name: resolvedTradeName,
       trade_name: resolvedTradeName,
       legal_name: salonData.legal_name?.trim() || resolvedTradeName,
@@ -1290,6 +1278,22 @@ export async function createAdminSalon(
         delete workingInsert[missingCol];
         continue;
       }
+
+      // Blindagem automática contra salons_owner_id_fkey (código 23503)
+      if (
+        (res.error.code === '23503' ||
+          msg.includes('salons_owner_id_fkey') ||
+          msg.includes('foreign key constraint')) &&
+        workingInsert.owner_id !== undefined
+      ) {
+        workingInsert.branding = {
+          ...(workingInsert.branding && typeof workingInsert.branding === 'object' ? workingInsert.branding : {}),
+          ownerRecordId: workingInsert.owner_id,
+        };
+        delete workingInsert.owner_id;
+        continue;
+      }
+
       break;
     }
 
@@ -1338,10 +1342,10 @@ export async function createAdminSalon(
           .maybeSingle();
 
         if (!existingClient) {
-          const { data: insClient } = await supabaseAdmin
+          await supabaseAdmin
             .from('clients')
             .insert([{
-              ...(resolvedOwnerUserId ? { id: resolvedOwnerUserId, user_id: resolvedOwnerUserId } : {}),
+              ...(verifiedAuthOwnerId ? { id: verifiedAuthOwnerId, user_id: verifiedAuthOwnerId } : {}),
               name: ownerName,
               full_name: ownerName,
               username: ownerUsername,
@@ -1359,21 +1363,12 @@ export async function createAdminSalon(
               origin_salon_id: data.id,
               is_active: true,
               access_level: 'Proprietário (Dono)',
-            }])
-            .select('id, user_id')
-            .maybeSingle();
-
-          if (!resolvedOwnerUserId && insClient) {
-            resolvedOwnerUserId = insClient.user_id || insClient.id || null;
-          }
+            }]);
         } else {
-          if (!resolvedOwnerUserId) {
-            resolvedOwnerUserId = existingClient.user_id || existingClient.id || null;
-          }
           await supabaseAdmin
             .from('clients')
             .update({
-              ...(resolvedOwnerUserId ? { user_id: resolvedOwnerUserId } : {}),
+              ...(verifiedAuthOwnerId ? { user_id: verifiedAuthOwnerId } : {}),
               ...(ownerPersonalCpf ? { cpf: ownerPersonalCpf } : {}),
               origin_type: 'establishment',
               origin_salon_id: data.id,
@@ -1392,7 +1387,7 @@ export async function createAdminSalon(
         if (!existingProf) {
           await supabaseAdmin.from('professionals').insert([{
             salon_id: data.id,
-            user_id: resolvedOwnerUserId,
+            ...(verifiedAuthOwnerId ? { user_id: verifiedAuthOwnerId } : {}),
             name: ownerName,
             full_name: ownerName,
             username: ownerUsername,
@@ -1411,18 +1406,18 @@ export async function createAdminSalon(
             city: dbInsert.city,
             state: dbInsert.state,
           }]);
-        } else if (resolvedOwnerUserId) {
+        } else if (verifiedAuthOwnerId) {
           await supabaseAdmin
             .from('professionals')
-            .update({ user_id: resolvedOwnerUserId, role: 'Proprietário', access_level: 'Proprietário (Dono)' })
+            .update({ user_id: verifiedAuthOwnerId, role: 'Proprietário', access_level: 'Proprietário (Dono)' })
             .eq('id', existingProf.id);
         }
 
-        // Vincula o proprietário na tabela soberana salon_members (exigida pelo useSalonRole do mnvapp)
-        if (resolvedOwnerUserId) {
+        // Vincula owner_id e salon_members APENAS quando houver UUID confirmado em auth.users
+        if (verifiedAuthOwnerId) {
           await supabaseAdmin
             .from('salons')
-            .update({ owner_id: resolvedOwnerUserId })
+            .update({ owner_id: verifiedAuthOwnerId })
             .eq('id', data.id);
 
           try {
@@ -1430,17 +1425,17 @@ export async function createAdminSalon(
               .from('salon_members')
               .select('id')
               .eq('salon_id', data.id)
-              .eq('user_id', resolvedOwnerUserId)
+              .eq('user_id', verifiedAuthOwnerId)
               .maybeSingle();
 
             if (!existingMember) {
               const { error: memErr } = await supabaseAdmin
                 .from('salon_members')
-                .insert([{ salon_id: data.id, user_id: resolvedOwnerUserId, role: 'owner' }]);
+                .insert([{ salon_id: data.id, user_id: verifiedAuthOwnerId, role: 'owner' }]);
               if (memErr) {
                 await supabase
                   .from('salon_members')
-                  .insert([{ salon_id: data.id, user_id: resolvedOwnerUserId, role: 'owner' }]);
+                  .insert([{ salon_id: data.id, user_id: verifiedAuthOwnerId, role: 'owner' }]);
               }
             }
           } catch {}

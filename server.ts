@@ -826,6 +826,50 @@ async function startServer() {
         continue;
       }
 
+      // Blindagem automática contra violação de Foreign Key em owner_id / user_id (ex: salons_owner_id_fkey quando o titular está em public.clients ou system_admins sem conta em auth.users)
+      if (
+        error.code === '23503' ||
+        msg.includes('foreign key constraint') ||
+        msg.includes('salons_owner_id_fkey') ||
+        msg.includes('user_id_fkey')
+      ) {
+        if (
+          (msg.includes('owner_id') || msg.includes('salons_owner_id_fkey')) &&
+          workingPayload.owner_id !== undefined &&
+          workingPayload.owner_id !== null
+        ) {
+          strippedColumns.push('owner_id');
+          if (table === 'salons') {
+            workingPayload.branding = {
+              ...(workingPayload.branding && typeof workingPayload.branding === 'object'
+                ? workingPayload.branding
+                : {}),
+              ownerRecordId: workingPayload.owner_id,
+            };
+          }
+          if (mode === 'update') {
+            workingPayload.owner_id = null;
+          } else {
+            delete workingPayload.owner_id;
+          }
+          continue;
+        }
+
+        if (
+          msg.includes('user_id') &&
+          workingPayload.user_id !== undefined &&
+          workingPayload.user_id !== null
+        ) {
+          strippedColumns.push('user_id');
+          if (mode === 'update') {
+            workingPayload.user_id = null;
+          } else {
+            delete workingPayload.user_id;
+          }
+          continue;
+        }
+      }
+
       return { data: null, error, strippedColumns };
     }
 
@@ -3480,7 +3524,7 @@ async function startServer() {
         }
       }
 
-      // Garante vínculo único do Proprietário sem duplicar conta em múltiplas tabelas (bol-162)
+      // Garante vínculo único do Proprietário sem duplicar conta e NUNCA violando salons_owner_id_fkey (auth.users)
       if (data?.id && (payload.email || payload.owner_name || payload.legal_name)) {
         try {
           const ownerName = (payload.owner_name || payload.legal_name || payload.trade_name || 'Proprietário').trim();
@@ -3488,40 +3532,64 @@ async function startServer() {
           const ownerPhone = payload.phone_whatsapp?.trim() || '';
           const ownerUsername = ownerEmail.split('@')[0].replace(/[^a-zA-Z0-9._-]/g, '') || cleanSlug;
 
-          // 0. Verifica primeiro se o e-mail pertence a um Administrador (system_admins)
+          // 0. Verifica se já existe conta real em auth.users (única tabela aceita por salons_owner_id_fkey)
+          let verifiedAuthUserId: string | null = null;
+          try {
+            const { data: authList } = await supabaseAdmin.auth.admin.listUsers();
+            const matchedAuth = (authList?.users || []).find(
+              (u: any) => u.email?.toLowerCase() === ownerEmail
+            );
+            if (matchedAuth?.id) {
+              verifiedAuthUserId = matchedAuth.id;
+            }
+          } catch {}
+
+          // 1. Verifica se o e-mail pertence a um Administrador (system_admins)
           const { data: existingAdmin } = await supabaseAdmin
             .from('system_admins')
-            .select('id, email')
+            .select('id, email, password_hash')
             .ilike('email', ownerEmail)
             .maybeSingle();
 
-          let resolvedOwnerUserId: string | null = existingAdmin?.id || null;
-
-          // 1. Somente consulta/cria em clients se NÃO for Administrador do sistema
+          // 2. Somente consulta/cria em clients se NÃO for Administrador do sistema
+          let existingClientRow: any = null;
           if (!existingAdmin) {
             const { data: existingClient } = await supabaseAdmin
               .from('clients')
-              .select('id, user_id')
+              .select('id, user_id, password_hash')
               .ilike('email', ownerEmail)
               .maybeSingle();
+            existingClientRow = existingClient;
+          }
 
-            resolvedOwnerUserId = existingClient?.user_id || existingClient?.id || null;
+          // Se ainda não possui conta em auth.users e temos e-mail válido, tenta provisionar silenciosamente
+          if (!verifiedAuthUserId && ownerEmail.includes('@')) {
+            const candidatePassword =
+              existingAdmin?.password_hash ||
+              existingClientRow?.password_hash ||
+              'Vagou@2026!';
+            try {
+              const { data: createdAuth, error: createAuthErr } =
+                await supabaseAdmin.auth.admin.createUser({
+                  email: ownerEmail,
+                  password: candidatePassword,
+                  email_confirm: true,
+                  user_metadata: {
+                    full_name: ownerName,
+                    phone: ownerPhone || undefined,
+                    username: ownerUsername,
+                  },
+                });
+              if (!createAuthErr && createdAuth?.user?.id) {
+                verifiedAuthUserId = createdAuth.user.id;
+              }
+            } catch {}
+          }
 
-            if (!resolvedOwnerUserId) {
-              try {
-                const { data: authList } = await supabaseAdmin.auth.admin.listUsers();
-                const matchedAuth = (authList?.users || []).find(
-                  (u: any) => u.email?.toLowerCase() === ownerEmail
-                );
-                if (matchedAuth?.id) {
-                  resolvedOwnerUserId = matchedAuth.id;
-                }
-              } catch {}
-            }
-
-            if (!existingClient) {
-              const { data: insClient } = await safeSupabaseWrite('clients', 'insert', {
-                ...(resolvedOwnerUserId ? { id: resolvedOwnerUserId, user_id: resolvedOwnerUserId } : {}),
+          if (!existingAdmin) {
+            if (!existingClientRow) {
+              await safeSupabaseWrite('clients', 'insert', {
+                ...(verifiedAuthUserId ? { id: verifiedAuthUserId, user_id: verifiedAuthUserId } : {}),
                 name: ownerName,
                 full_name: ownerName,
                 username: ownerUsername,
@@ -3546,16 +3614,12 @@ async function startServer() {
                 created_at: nowIso,
                 updated_at: nowIso,
               });
-
-              if (!resolvedOwnerUserId && insClient) {
-                resolvedOwnerUserId = insClient.user_id || insClient.id || null;
-              }
             } else {
               await safeSupabaseWrite(
                 'clients',
                 'update',
                 {
-                  ...(resolvedOwnerUserId ? { user_id: resolvedOwnerUserId } : {}),
+                  ...(verifiedAuthUserId ? { user_id: verifiedAuthUserId } : {}),
                   origin_type: 'establishment',
                   origin_salon_id: data.id,
                   access_level: 'Proprietário (Dono)',
@@ -3570,26 +3634,66 @@ async function startServer() {
                   longitude: resolvedGeo.longitude,
                   formatted_address: resolvedGeo.formatted_address,
                 },
-                { eqCol: 'id', eqVal: existingClient.id }
+                { eqCol: 'id', eqVal: existingClientRow.id }
               );
             }
           }
 
-          // 4. Atualiza owner_id no salão e insere vínculo soberano em salon_members
-          if (resolvedOwnerUserId) {
-            await safeSupabaseWrite('salons', 'update', { owner_id: resolvedOwnerUserId }, { eqCol: 'id', eqVal: data.id });
+          // 3. Garante registro do Proprietário na equipe do salão (public.professionals) para abrir direto no app
+          const { data: existingProf } = await supabaseAdmin
+            .from('professionals')
+            .select('id')
+            .eq('salon_id', data.id)
+            .ilike('email', ownerEmail)
+            .maybeSingle();
+
+          if (!existingProf) {
+            await safeSupabaseWrite('professionals', 'insert', {
+              salon_id: data.id,
+              ...(verifiedAuthUserId ? { user_id: verifiedAuthUserId } : {}),
+              name: ownerName,
+              full_name: ownerName,
+              username: ownerUsername,
+              role: 'Proprietário',
+              access_level: 'Proprietário (Dono)',
+              phone: ownerPhone || null,
+              phone_whatsapp: ownerPhone || null,
+              email: ownerEmail,
+              cpf: payload.owner_cpf?.trim() || null,
+              status: 'active',
+              is_active: true,
+              cep: dbInsert.cep,
+              address: dbInsert.address,
+              street_number: dbInsert.street_number,
+              complement: dbInsert.complement,
+              neighborhood: dbInsert.neighborhood,
+              city: dbInsert.city,
+              state: dbInsert.state,
+              created_at: nowIso,
+              updated_at: nowIso,
+            });
+          }
+
+          // 4. Atualiza owner_id no salão SOMENTE se verifiedAuthUserId existir em auth.users
+          if (verifiedAuthUserId) {
+            await safeSupabaseWrite(
+              'salons',
+              'update',
+              { owner_id: verifiedAuthUserId },
+              { eqCol: 'id', eqVal: data.id }
+            );
 
             const { data: existingMember } = await supabaseAdmin
               .from('salon_members')
               .select('id')
               .eq('salon_id', data.id)
-              .eq('user_id', resolvedOwnerUserId)
+              .eq('user_id', verifiedAuthUserId)
               .maybeSingle();
 
             if (!existingMember) {
               await supabaseAdmin
                 .from('salon_members')
-                .insert([{ salon_id: data.id, user_id: resolvedOwnerUserId, role: 'owner' }]);
+                .insert([{ salon_id: data.id, user_id: verifiedAuthUserId, role: 'owner' }]);
             }
           }
         } catch (ownerSyncErr) {
@@ -4819,14 +4923,16 @@ async function startServer() {
         const effSalonPhoneWhatsapp = (!salonSameAsPersonalAddress && salonPhoneWhatsapp) ? salonPhoneWhatsapp : phone;
         const effSalonEmail = (!salonSameAsPersonalAddress && salonEmail) ? salonEmail : cleanEmail;
 
-        const { data: salonData, error: salonErr } = await supabaseAdmin
-          .from('salons')
-          .upsert({
+        const { data: salonData, error: salonErr } = await safeSupabaseWrite(
+          'salons',
+          'upsert',
+          {
+            name: tradeName.trim(),
             trade_name: tradeName.trim(),
             legal_name: cleanName,
             slug: cleanSlug,
             subdomain: cleanSlug,
-            owner_id: authUserId || null,
+            ...(authUserId ? { owner_id: authUserId } : {}),
             document_number: documentCpf || null,
             phone_whatsapp: effSalonPhoneWhatsapp || null,
             phone_landline: salonPhoneLandline || null,
@@ -4850,15 +4956,15 @@ async function startServer() {
               pwaName: tradeName.trim(),
             },
             updated_at: new Date().toISOString(),
-          }, { onConflict: 'slug' })
-          .select()
-          .single();
+          },
+          { onConflict: 'slug' }
+        );
 
         if (salonErr) {
           console.warn('Aviso no upsert do salão:', salonErr);
-        } else {
+        } else if (salonData) {
           createdSalon = salonData;
-          await supabaseAdmin.from('professionals').insert([{
+          await safeSupabaseWrite('professionals', 'insert', {
             salon_id: salonData.id,
             name: cleanName,
             full_name: cleanName,
@@ -4872,7 +4978,7 @@ async function startServer() {
             status: 'active',
             is_active: true,
             updated_at: new Date().toISOString(),
-          }]);
+          });
         }
       }
 
