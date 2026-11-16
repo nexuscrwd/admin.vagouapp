@@ -1166,18 +1166,43 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
 
           {/* RODAPÉ FIXO DE AÇÃO */}
           <div className="shrink-0 sticky bottom-0 z-20 p-3.5 sm:p-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 select-none">
-            <button
-              type="button"
-              onClick={handleDeleteUser}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border active:scale-95 ${
-                confirmingDelete
-                  ? 'bg-rose-600 text-white border-rose-600'
-                  : 'bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-600 dark:hover:bg-rose-600 text-rose-600 dark:text-rose-400 hover:text-white dark:hover:text-white border-rose-200 dark:border-rose-500/30'
-              }`}
-            >
-              <Trash2 className={`w-3.5 h-3.5 ${confirmingDelete ? 'text-white' : ''}`} />
-              <span>{confirmingDelete ? 'Confirmar Exclusão' : 'Excluir'}</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleDeleteUser}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border active:scale-95 ${
+                  confirmingDelete
+                    ? 'bg-rose-600 text-white border-rose-600'
+                    : 'bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-600 dark:hover:bg-rose-600 text-rose-600 dark:text-rose-400 hover:text-white dark:hover:text-white border-rose-200 dark:border-rose-500/30'
+                }`}
+              >
+                <Trash2 className={`w-3.5 h-3.5 ${confirmingDelete ? 'text-white' : ''}`} />
+                <span>{confirmingDelete ? 'Confirmar Exclusão' : 'Excluir'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleToggleCurrentStatus}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border active:scale-95 ${
+                  isActive
+                    ? 'bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/30'
+                    : 'bg-[#20C933] hover:bg-[#1bb32d] text-white border-transparent'
+                }`}
+                title={isActive ? 'Desativar / Suspender conta do usuário' : 'Reativar conta do usuário'}
+              >
+                {isActive ? (
+                  <>
+                    <Ban className="w-3.5 h-3.5" />
+                    <span>Desativar</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                    <span className="text-white">Reativar</span>
+                  </>
+                )}
+              </button>
+            </div>
 
             <div className="flex items-center gap-2">
               <button

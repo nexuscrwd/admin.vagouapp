@@ -59,9 +59,8 @@ export const ADMIN_PREFERENCES_STORAGE_KEY = 'vagou_admin_system_preferences_v1'
 const ADMIN_PREFERENCES_ROW_ID = 'global';
 
 /**
- * Tenta enviar imagem Base64 (data:image/...) ao Storage (bucket "media").
- * Se o bucket bloquear por política RLS (403), preserva o Data URL diretamente no JSONB do banco
- * para que o salvamento JAMAIS falhe.
+ * Envia imagem Base64 (data:image/...) ao Supabase Storage (bucket público "salon-media" com fallback "avatars")
+ * usando cache CDN de 1 ano (cacheControl: '31536000'), erradicando gravação de strings Base64 gigantes no PostgreSQL.
  */
 async function uploadPreferenceImage(raw: string | undefined, prefix: string): Promise<string> {
   const value = (raw || '').trim();
@@ -72,16 +71,22 @@ async function uploadPreferenceImage(raw: string | undefined, prefix: string): P
       ? 'svg'
       : blob.type.includes('jpeg') || blob.type.includes('jpg')
         ? 'jpg'
-        : 'png';
+        : blob.type.includes('webp')
+          ? 'webp'
+          : 'png';
     const path = `admin/${prefix}-${Date.now()}.${ext}`;
-    const { error } = await supabase.storage
-      .from('media')
-      .upload(path, blob, { contentType: blob.type || 'image/png', upsert: true });
-    if (error) {
-      return value;
+    const contentType = blob.type || 'image/png';
+
+    for (const bucketName of ['salon-media', 'avatars'] as const) {
+      const { error } = await supabase.storage
+        .from(bucketName)
+        .upload(path, blob, { contentType, cacheControl: '31536000', upsert: true });
+      if (!error) {
+        const { data } = supabase.storage.from(bucketName).getPublicUrl(path);
+        if (data?.publicUrl) return data.publicUrl;
+      }
     }
-    const { data } = supabase.storage.from('media').getPublicUrl(path);
-    return data?.publicUrl || value;
+    return value;
   } catch {
     return value;
   }
@@ -237,6 +242,18 @@ export const applySystemPreferencesToDom = (
       document.head.appendChild(styleEl);
     }
 
+    const autofillCss = `
+      input:-webkit-autofill,
+      input:-webkit-autofill:hover,
+      input:-webkit-autofill:focus,
+      input:-webkit-autofill:active {
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: ${activeTheme === 'dark' ? '#f8fafc' : '#0f172a'} !important;
+        transition: background-color 5000s ease-in-out 0s;
+        box-shadow: inset 0 0 20px 20px transparent !important;
+      }
+    `;
+
     if (!isCustomized) {
       styleEl.textContent = `
         :root {
@@ -250,6 +267,7 @@ export const applySystemPreferencesToDom = (
           --admin-section-bg: ${tokens.sectionBg};
           --admin-section-text: ${tokens.sectionText};
         }
+        ${autofillCss}
       `;
       return;
     }
@@ -266,6 +284,8 @@ export const applySystemPreferencesToDom = (
         --admin-section-bg: ${tokens.sectionBg};
         --admin-section-text: ${tokens.sectionText};
       }
+
+      ${autofillCss}
 
       /* 1. Fundo do App */
       .admvapp-shell,
@@ -368,6 +388,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
 
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastKnownUpdatedAtRef = useRef<string | undefined>(preferences.updatedAt);
   const isDark = theme === 'dark';
 
   useEffect(() => {
@@ -432,6 +453,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return { success: false, error: `Não foi possível salvar no banco: ${error.message}` };
       }
 
+      lastKnownUpdatedAtRef.current = updatedAt;
       setPreferencesState(toSave);
       try {
         localStorage.setItem(ADMIN_PREFERENCES_STORAGE_KEY, JSON.stringify(toSave));
@@ -443,12 +465,25 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  // Carrega as preferências salvas no banco (Supabase) ao iniciar, ao focar a janela e via Realtime — sincroniza Chrome, Edge, Safari e Mobile
+  // Carrega as preferências salvas no banco (Supabase) ao iniciar, ao focar a janela (checando updated_at primeiro) e via Realtime
   useEffect(() => {
     let active = true;
 
-    const fetchFromSupabase = async () => {
+    const fetchFromSupabase = async (checkTimestampFirst = false) => {
       try {
+        if (checkTimestampFirst && lastKnownUpdatedAtRef.current) {
+          const { data: meta, error: metaErr } = await supabase
+            .from('admin_preferences')
+            .select('updated_at')
+            .eq('id', ADMIN_PREFERENCES_ROW_ID)
+            .maybeSingle();
+
+          if (!active || metaErr || !meta?.updated_at) return;
+          if (meta.updated_at === lastKnownUpdatedAtRef.current) {
+            return; // Zero Egress desnecessário: nada mudou desde a última sincronização
+          }
+        }
+
         const { data, error } = await supabase
           .from('admin_preferences')
           .select('preferences, updated_at')
@@ -470,6 +505,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         if (!hasRemoteContent) return;
 
+        lastKnownUpdatedAtRef.current = data.updated_at || remoteObj.updatedAt;
         const merged = normalizeRemotePreferences(remoteObj, data.updated_at);
         setPreferencesState(merged);
         if (merged.activeTheme === 'dark' || merged.activeTheme === 'light') {
@@ -487,10 +523,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     };
 
-    fetchFromSupabase();
+    fetchFromSupabase(false);
 
     const handleWindowFocus = () => {
-      fetchFromSupabase();
+      fetchFromSupabase(true);
     };
     window.addEventListener('focus', handleWindowFocus);
 
@@ -505,7 +541,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           filter: `id=eq.${ADMIN_PREFERENCES_ROW_ID}`,
         },
         () => {
-          fetchFromSupabase();
+          fetchFromSupabase(false);
         }
       )
       .subscribe();

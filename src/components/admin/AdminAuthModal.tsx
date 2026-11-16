@@ -39,9 +39,12 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 overflow-y-auto ${
-        isGate ? 'bg-slate-950' : 'bg-slate-950/85 backdrop-blur-md animate-fadeIn'
+      className={`admvapp-shell fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 overflow-y-auto transition-colors ${
+        isGate
+          ? 'bg-slate-100 dark:bg-slate-950'
+          : 'bg-slate-900/60 dark:bg-slate-950/85 backdrop-blur-md animate-fadeIn'
       }`}
+      style={isGate ? { backgroundColor: 'var(--admin-app-bg)' } : undefined}
     >
       <div className="relative w-full max-w-md my-auto transition-all duration-200">
         {/* Botão de Fechar flutuante se não for Gate */}
@@ -49,7 +52,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
           <button
             type="button"
             onClick={safeClose}
-            className="absolute top-4 right-4 z-30 p-2 rounded-xl bg-slate-950/80 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 transition cursor-pointer shadow-lg"
+            className="absolute top-4 right-4 z-30 p-2 rounded-xl bg-white/90 dark:bg-slate-950/80 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800 transition cursor-pointer shadow-lg"
             title="Fechar"
             aria-label="Fechar"
           >

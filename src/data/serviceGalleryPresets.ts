@@ -216,19 +216,20 @@ export async function uploadSalonMediaToStorage(
       .from('salon-media')
       .upload(fileName, blob, {
         contentType: mimeType,
+        cacheControl: '31536000',
         upsert: true,
       });
 
     if (upErr) {
-      // Fallback para bucket 'media' caso 'salon-media' ainda não tenha sido criado
+      // Fallback para bucket 'avatars' caso 'salon-media' apresente restrição de MIME
       const { error: fallbackErr } = await supabaseAdmin.storage
-        .from('media')
-        .upload(fileName, blob, { contentType: mimeType, upsert: true });
+        .from('avatars')
+        .upload(fileName, blob, { contentType: mimeType, cacheControl: '31536000', upsert: true });
 
       if (fallbackErr) {
         return { success: false, error: upErr.message };
       }
-      const { data: pubData } = supabaseAdmin.storage.from('media').getPublicUrl(fileName);
+      const { data: pubData } = supabaseAdmin.storage.from('avatars').getPublicUrl(fileName);
       return { success: true, url: pubData.publicUrl };
     }
 

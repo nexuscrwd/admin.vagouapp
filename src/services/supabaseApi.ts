@@ -261,17 +261,26 @@ async function uploadClientBase64Media(rawUrl: string | undefined | null, prefix
   try {
     const res = await fetch(trimmed);
     const blob = await res.blob();
-    const ext = blob.type.includes('svg') ? 'svg' : blob.type.includes('jpeg') || blob.type.includes('jpg') ? 'jpg' : 'png';
+    const ext = blob.type.includes('svg')
+      ? 'svg'
+      : blob.type.includes('jpeg') || blob.type.includes('jpg')
+        ? 'jpg'
+        : blob.type.includes('webp')
+          ? 'webp'
+          : 'png';
     const cleanPrefix = prefix.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 24) || 'salon';
     const fileName = `salons/${cleanPrefix}-${Date.now()}.${ext}`;
+    const contentType = blob.type || 'image/png';
 
-    const { error: upErr } = await supabaseAdmin.storage
-      .from('media')
-      .upload(fileName, blob, { contentType: blob.type || 'image/png', upsert: true });
+    for (const bucketName of ['salon-media', 'avatars'] as const) {
+      const { error: upErr } = await supabaseAdmin.storage
+        .from(bucketName)
+        .upload(fileName, blob, { contentType, cacheControl: '31536000', upsert: true });
 
-    if (!upErr) {
-      const { data: pubData } = supabaseAdmin.storage.from('media').getPublicUrl(fileName);
-      if (pubData?.publicUrl) return pubData.publicUrl;
+      if (!upErr) {
+        const { data: pubData } = supabaseAdmin.storage.from(bucketName).getPublicUrl(fileName);
+        if (pubData?.publicUrl) return pubData.publicUrl;
+      }
     }
   } catch (e) {
     console.warn('[uploadClientBase64Media] Aviso no upload:', e);
@@ -2223,9 +2232,9 @@ export async function fetchUserProfileFromDb(identifier?: { email?: string; name
         };
       }
 
-      // 2b. Busca em clients
+      // 2b. Busca em clients (selecionando apenas colunas necessárias para economizar Egress)
       const { data: cls } = await (supabase.from('clients') as any)
-        .select('*')
+        .select('id, name, email, avatar_url, updated_at')
         .or(`email.ilike.%${term}%,name.ilike.%${term}%`)
         .order('updated_at', { ascending: false })
         .limit(1);
@@ -2244,16 +2253,12 @@ export async function fetchUserProfileFromDb(identifier?: { email?: string; name
     console.warn('Erro ao consultar perfil no Supabase:', err);
   }
 
-  // Se o usuário não tem foto enviada, retorna o perfil com avatarUrl vazia ''
-  // garantindo que a UI renderize o avatar canônico vetorial User (com as iniciais do próprio usuário).
   return null;
 }
 
 /**
- * Atualiza e sincroniza a sessão do administrador ativo diretamente com o Supabase,
- * garantindo que atualizações de avatar_url enviadas via celular sejam imediatamente refletidas.
- * Respeita a regra de Fonte Única da Verdade: se a foto foi alterada em professionals ou clients,
- * o Admin Master atualiza instantaneamente.
+ * Atualiza e sincroniza a sessão do administrador ativo diretamente com o Supabase
+ * sem disparar UPDATE automático na leitura (evitando loops de Realtime e consumo de Egress).
  */
 export async function refreshStoredAdmin(): Promise<SystemAdminUser | null> {
   const current = getStoredAdmin();
@@ -2269,13 +2274,10 @@ export async function refreshStoredAdmin(): Promise<SystemAdminUser | null> {
 
     const baseAdmin = (!error && data && data.length > 0) ? { ...current, ...data[0] } : current;
 
-    // Regra da Fonte Única da Verdade:
-    // Busca a foto mais recentemente atualizada vinculada a este usuário (professionals, clients ou fallback)
     const userEmail = (baseAdmin.email || current.email || '').trim().toLowerCase();
     const userName = (baseAdmin.full_name || current.full_name || '').trim();
-    const cleanFirstName = userName.split(' ')[0].toLowerCase();
 
-    // 1. Consulta em professionals com ordenação por updated_at DESC
+    // 1. Consulta leve em professionals com ordenação por updated_at DESC
     const { data: profData } = await supabase
       .from('professionals')
       .select('avatar_url, updated_at')
@@ -2285,7 +2287,7 @@ export async function refreshStoredAdmin(): Promise<SystemAdminUser | null> {
       .order('updated_at', { ascending: false })
       .limit(1);
 
-    // 2. Consulta em clients com ordenação por updated_at DESC
+    // 2. Consulta leve em clients com ordenação por updated_at DESC
     const { data: clientData } = await supabase
       .from('clients')
       .select('avatar_url, updated_at')
@@ -2295,7 +2297,6 @@ export async function refreshStoredAdmin(): Promise<SystemAdminUser | null> {
       .order('updated_at', { ascending: false })
       .limit(1);
 
-    // Filtra fotos válidas não-mock
     const candidates = [
       ...(profData || []),
       ...(clientData || []),
@@ -2317,13 +2318,6 @@ export async function refreshStoredAdmin(): Promise<SystemAdminUser | null> {
       ...baseAdmin,
       avatar_url: finalAvatar,
     };
-
-    // Propaga de volta para system_admins no Supabase se houver alteração
-    if (finalAvatar && (!data || data.length === 0 || data[0].avatar_url !== finalAvatar)) {
-      try {
-        await supabase.from('system_admins').update({ avatar_url: finalAvatar }).eq('id', updatedAdmin.id);
-      } catch {}
-    }
 
     setStoredAdmin(updatedAdmin);
     return updatedAdmin;

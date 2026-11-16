@@ -15,6 +15,68 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-11-16] — 🎨 Correção Definitiva de Tema/Preferências na Tela de Login, Persistência de Sessão Admin & Bloqueio de Autofill (`bol-173`)
+- **Tipo:** `[Fix / Theme Engine / Auth Persistence / UI Clean]`
+- **Motivo / Solicitação:**
+  - Investigação e correção do motivo pelo qual a tela de **Acesso Admin** continuava aparecendo com fundo escuro fixo (`bg-slate-950` / `bg-slate-900`) sobrepondo o logotipo de tema claro (`logoLightUrl`), deslogando o administrador ao recarregar a página e exibindo pontos `••••••••` ou preenchimento automático (`autofill`) do Chrome nos campos de login.
+- **Causas Raiz Encontradas e Corrigidas:**
+  1. **Perda da Sessão Admin ao Recarregar (`AdminMasterApp.tsx`):**
+     - `checkActiveSession` verificava apenas `supabase.auth.getSession()` e executava `setAdminUser(null)` quando não havia sessão Auth JWT, apagando a sessão salva de `public.system_admins` (`getStoredAdmin()`) e jogando o usuário de volta para a tela de login a cada atualização. Corrigido para priorizar `getStoredAdmin()`.
+  2. **Tela de Login Ignorando o Tema e as Preferências (`AdminAuthModal.tsx`, `TriadeAdminLoginForm.tsx`, `TriadeAdminRecoveryForm.tsx`, `AdminMasterApp.tsx`):**
+     - Os contêineres da tela de login tinham classes escuras fixas (`bg-slate-950`, `bg-slate-900`, `text-white`), ignorando o **Tema Light** e as cores salvas em `public.admin_preferences` (`--admin-app-bg`, `--admin-header-bg`, `--admin-section-bg`), o que fazia o logotipo do Tema Light (letras escuras) ficar invisível sobre o fundo escuro. Agora 100% sincronizado com o `ThemeContext`.
+  3. **Pontos no Placeholder e Autofill do Navegador (`TriadeAdminLoginForm.tsx`, `ThemeContext.tsx`):**
+     - Removido o `placeholder="••••••••"` do campo Senha, adicionada trava `readOnly={!inputUnlocked}` até o clique/foco com `autoComplete="new-password"` e injetado CSS global para `input:-webkit-autofill`.
+- **Arquivos Impactados:**
+  - `/src/components/admin/AdminMasterApp.tsx`
+  - `/src/components/admin/AdminAuthModal.tsx`
+  - `/src/components/admin/triade-forms/TriadeAdminLoginForm.tsx`
+  - `/src/components/admin/triade-forms/TriadeAdminRecoveryForm.tsx`
+  - `/src/context/ThemeContext.tsx`
+  - `/CHANGELOG.md`
+
+---
+
+### [2026-11-16] — 📐 Remoção da Coluna "Ações" na Tabela de Usuários para Ganho de Espaço Horizontal (`bol-172`)
+- **Tipo:** `[UI/UX / Layout Optimization]`
+- **Motivo / Solicitação:**
+  - Remoção da coluna `Ações` exclusivamente na tabela da seção **Usuários** para liberar espaço horizontal (evitando corte da coluna `Nome` e barra de rolagem horizontal), concentrando o gerenciamento de ações (`Salvar`, `Desativar / Reativar` e `Excluir`) diretamente dentro do modal do usuário (`AdminUserGeneralDataModal.tsx`) ao clicar na linha.
+- **Arquivos Impactados:**
+  - `/src/components/admin/AdminUsersManager.tsx`
+  - `/src/components/admin/AdminUserGeneralDataModal.tsx`
+  - `/CHANGELOG.md`
+
+---
+
+### [2026-11-16] — 🚀 Engenharia Anti-Egress & Migração de Imagens Base64 para o Supabase Storage CDN (`bol-171`)
+- **Tipo:** `[Perf / Storage Architecture / Database Cleanup / Tríade Sync]`
+- **Motivo / Solicitação:**
+  - Diagnóstico forense e correção imediata do consumo excessivo de **Egress (6.10 / 5 GB)** no projeto Supabase (`bdvagouapp`), onde imagens estavam sendo salvas como strings gigantes Base64 (`data:image/...`) dentro das tabelas PostgreSQL (`salons`, `admin_preferences`, `salon_media_items`, `appointments`) devido ao bloqueio de RLS no bucket `'media'`, sendo retransmitidas a cada `SELECT *`, `window.focus` e evento `Realtime`.
+- **Execução no Banco em Produção (`bdvagouapp`) & Redução Real Medida:**
+  1. **Migração Binária Ao Vivo (Base64 ➔ Bucket Público `salon-media`):**
+     - Extraídos todos os binários Base64 de `public.salons` (`bone`, `navalha-real`), `public.admin_preferences` (`global` — `logoDarkUrl`, `logoLightUrl`, `mobileAppIconUrl`, `faviconUrl`), `public.salon_media_items` e `public.appointments` (`salon_logo_url`), convertidos em arquivos `.png`/`.jpg` no bucket público `salon-media` com `cacheControl: '31536000'` (1 ano de cache CDN) e substituídos pelas URLs curtas de ~115 bytes.
+     - **Queda comprovada no peso das consultas (`SELECT *`):**
+       - `public.salons`: de **340.34 KB** ➔ **20.48 KB** (**-94.0%**)
+       - `public.admin_preferences`: de **261.72 KB** ➔ **1.17 KB** (**-99.55%**)
+       - `public.salon_media_items`: de **142.41 KB** ➔ **1.33 KB** (**-99.07%**)
+       - `public.appointments`: de **103.22 KB** ➔ **22.70 KB** (**-78.0%**)
+  2. **Blindagem de Upload para os Buckets `salon-media` e `avatars` (`ThemeContext.tsx`, `server.ts`, `supabaseApi.ts`, `serviceGalleryPresets.ts`):**
+     - Substituído o bucket bloqueado `'media'` por `'salon-media'` (com fallback automático para `'avatars'`) e adicionado `cacheControl: '31536000'` em todos os uploads.
+  3. **Eliminação de Polling Pesado no `window.focus` (`ThemeContext.tsx`):**
+     - Antes de baixar o JSON de `admin_preferences` ao focar a aba do navegador, o sistema consulta apenas `SELECT updated_at` (~40 bytes) e ignora o download se o timestamp não mudou (`lastKnownUpdatedAtRef`).
+  4. **Eliminação de Loop de Escrita Realtime & Debounce de 700ms (`supabaseApi.ts`, `AdminUsersManager.tsx`, `AdminMasterApp.tsx`):**
+     - Removido o `UPDATE system_admins` automático de dentro da função de leitura `refreshStoredAdmin()` e aplicado debounce de `700ms` nos canais Realtime.
+- **Arquivos Impactados:**
+  - `/src/context/ThemeContext.tsx`
+  - `/server.ts`
+  - `/src/services/supabaseApi.ts`
+  - `/src/data/serviceGalleryPresets.ts`
+  - `/src/components/admin/AdminUsersManager.tsx`
+  - `/src/components/admin/AdminMasterApp.tsx`
+  - `/supabase/migrations/20261116_storage_and_egress_cleanup.sql`
+  - `/CHANGELOG.md`
+
+---
+
 ### [2026-11-16] — 🔍 Perícia Geral & Blindagem de Persistência no Supabase em Todos os Formulários do App (`bol-170`)
 - **Tipo:** `[Fix / Forensic Database Audit / Cross-Table Promotion / Tríade Sync]`
 - **Motivo / Solicitação:**

@@ -92,9 +92,16 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
   };
 
   useEffect(() => {
-    // 🔐 Verificação Obrigatória de Sessão Supabase Auth + platform_admins:
+    // 🔐 Verificação de Sessão Admin (prioriza sessão persistida de system_admins e suporta Supabase Auth)
     const checkActiveSession = async () => {
       try {
+        const stored = getStoredAdmin();
+        if (stored && stored.id) {
+          setAdminUser(stored);
+          loadData();
+          return;
+        }
+
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.user) {
           setAdminUser(null);
@@ -126,34 +133,33 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
         setAdminUser(verifiedAdmin);
         loadData();
       } catch {
-        setAdminUser(null);
+        const fallbackStored = getStoredAdmin();
+        setAdminUser(fallbackStored || null);
       }
     };
 
     checkActiveSession();
 
-    // 📡 Sincronização em Tempo Real (Realtime) da Tríade:
-    // Qualquer alteração de avatar enviada via celular ou portal atualiza o cabeçalho imediatamente!
+    // 📡 Sincronização em Tempo Real (Realtime) da Tríade com debounce de 700ms:
+    let avatarSyncTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleAvatarSync = () => {
+      if (avatarSyncTimer) clearTimeout(avatarSyncTimer);
+      avatarSyncTimer = setTimeout(() => {
+        refreshStoredAdmin().then((fresh) => {
+          if (fresh) setAdminUser(fresh);
+        });
+      }, 700);
+    };
+
     const channel = supabase
       .channel('admin-avatar-live-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'professionals' }, () => {
-        refreshStoredAdmin().then((fresh) => {
-          if (fresh) setAdminUser(fresh);
-        });
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, () => {
-        refreshStoredAdmin().then((fresh) => {
-          if (fresh) setAdminUser(fresh);
-        });
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'system_admins' }, () => {
-        refreshStoredAdmin().then((fresh) => {
-          if (fresh) setAdminUser(fresh);
-        });
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'professionals' }, scheduleAvatarSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, scheduleAvatarSync)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'system_admins' }, scheduleAvatarSync)
       .subscribe();
 
     return () => {
+      if (avatarSyncTimer) clearTimeout(avatarSyncTimer);
       supabase.removeChannel(channel);
     };
   }, []);
@@ -231,10 +237,13 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
 
   const pendingCount = metrics.pendingSalons + metrics.incompleteSalons;
 
-  // 🔒 GATE DE ACESSO MASTER: Se não autenticado, bloqueia o sistema e exige Login/Cadastro
+  // 🔒 GATE DE ACESSO MASTER: Se não autenticado, bloqueia o sistema e exige Login/Cadastro respeitando o Tema/Preferências
   if (!adminUser) {
     return (
-      <div className="flex h-screen w-screen bg-slate-950 text-slate-100 font-sans overflow-hidden items-center justify-center">
+      <div
+        className="admvapp-shell flex h-screen w-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans overflow-hidden items-center justify-center transition-colors"
+        style={{ backgroundColor: 'var(--admin-app-bg)' }}
+      >
         <AdminAuthModal
           isOpen={true}
           isGate={true}
@@ -249,7 +258,10 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
   }
 
   return (
-    <div className="admvapp-shell flex h-screen w-screen bg-slate-950 text-slate-100 font-sans overflow-hidden">
+    <div
+      className="admvapp-shell flex h-screen w-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans overflow-hidden transition-colors"
+      style={{ backgroundColor: 'var(--admin-app-bg)' }}
+    >
       {/* 1. Permanent Fixed Sidebar */}
       <div className="shrink-0 h-full">
         <AdminSidebar

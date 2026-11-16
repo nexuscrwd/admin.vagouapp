@@ -876,11 +876,11 @@ async function startServer() {
     return { data: null, error: { message: 'Excesso de tentativas em safeSupabaseWrite' }, strippedColumns };
   }
 
-  // Helper para converter imagens Base64 de logo/favicon/avatar em URL pública do Supabase Storage
+  // Helper para converter imagens Base64 de logo/favicon/avatar em URL pública do Supabase Storage (salon-media / avatars) com cache CDN de 1 ano
   async function uploadBase64MediaIfNeeded(
     rawUrl: string | undefined | null,
     prefix: string,
-    targetBucket: 'media' | 'avatars' = 'media'
+    targetBucket: 'salon-media' | 'avatars' | 'media' = 'salon-media'
   ): Promise<string | null> {
     if (!rawUrl || typeof rawUrl !== 'string') return null;
     const trimmed = rawUrl.trim();
@@ -900,34 +900,20 @@ async function startServer() {
           : 'png';
         const buffer = Buffer.from(matches[2], 'base64');
         const cleanPrefix = prefix.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 32) || 'upload';
-        const folder = targetBucket === 'avatars' ? 'avatars' : 'salons';
+        const primaryBucket = targetBucket === 'avatars' ? 'avatars' : 'salon-media';
+        const fallbackBucket = primaryBucket === 'avatars' ? 'salon-media' : 'avatars';
+        const folder = primaryBucket === 'avatars' ? 'avatars' : 'salons';
         const fileName = `${folder}/${cleanPrefix}-${Date.now()}.${ext}`;
 
-        try {
-          await supabaseAdmin.storage.createBucket(targetBucket, { public: true });
-        } catch {}
+        for (const bucket of [primaryBucket, fallbackBucket]) {
+          const { error: upErr } = await supabaseAdmin.storage
+            .from(bucket)
+            .upload(fileName, buffer, { contentType, cacheControl: '31536000', upsert: true });
 
-        let { error: upErr } = await supabaseAdmin.storage
-          .from(targetBucket)
-          .upload(fileName, buffer, { contentType, upsert: true });
-
-        if (upErr && targetBucket !== 'media') {
-          try {
-            await supabaseAdmin.storage.createBucket('media', { public: true });
-            const fallbackFileName = `avatars/${cleanPrefix}-${Date.now()}.${ext}`;
-            const fbResult = await supabaseAdmin.storage
-              .from('media')
-              .upload(fallbackFileName, buffer, { contentType, upsert: true });
-            if (!fbResult.error) {
-              const { data: fbPub } = supabaseAdmin.storage.from('media').getPublicUrl(fallbackFileName);
-              if (fbPub?.publicUrl) return fbPub.publicUrl;
-            }
-          } catch {}
-        }
-
-        if (!upErr) {
-          const { data: pubData } = supabaseAdmin.storage.from(targetBucket).getPublicUrl(fileName);
-          if (pubData?.publicUrl) return pubData.publicUrl;
+          if (!upErr) {
+            const { data: pubData } = supabaseAdmin.storage.from(bucket).getPublicUrl(fileName);
+            if (pubData?.publicUrl) return pubData.publicUrl;
+          }
         }
       }
     } catch (e) {
@@ -1608,18 +1594,18 @@ async function startServer() {
       let mobileAppIconUrl = typeof body.mobileAppIconUrl === 'string' ? body.mobileAppIconUrl.trim() : '';
       let faviconUrl = typeof body.faviconUrl === 'string' ? body.faviconUrl.trim() : '';
 
-      // Se o administrador enviou imagens em Base64, faz upload automático para o Supabase Storage (bucket media)
+      // Se o administrador enviou imagens em Base64, faz upload automático para o Supabase Storage (bucket salon-media)
       if (logoDarkUrl.startsWith('data:image/')) {
-        logoDarkUrl = await uploadBase64MediaIfNeeded(logoDarkUrl, 'admin-logo-dark', 'media');
+        logoDarkUrl = (await uploadBase64MediaIfNeeded(logoDarkUrl, 'admin-logo-dark', 'salon-media')) || logoDarkUrl;
       }
       if (logoLightUrl.startsWith('data:image/')) {
-        logoLightUrl = await uploadBase64MediaIfNeeded(logoLightUrl, 'admin-logo-light', 'media');
+        logoLightUrl = (await uploadBase64MediaIfNeeded(logoLightUrl, 'admin-logo-light', 'salon-media')) || logoLightUrl;
       }
       if (mobileAppIconUrl.startsWith('data:image/')) {
-        mobileAppIconUrl = await uploadBase64MediaIfNeeded(mobileAppIconUrl, 'admin-mobile-icon', 'media');
+        mobileAppIconUrl = (await uploadBase64MediaIfNeeded(mobileAppIconUrl, 'admin-mobile-icon', 'salon-media')) || mobileAppIconUrl;
       }
       if (faviconUrl.startsWith('data:image/')) {
-        faviconUrl = await uploadBase64MediaIfNeeded(faviconUrl, 'admin-favicon', 'media');
+        faviconUrl = (await uploadBase64MediaIfNeeded(faviconUrl, 'admin-favicon', 'salon-media')) || faviconUrl;
       }
 
       const savedPrefs = {

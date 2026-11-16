@@ -156,30 +156,27 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
   useEffect(() => {
     loadAll();
 
-    // Sincronização em Tempo Real (Realtime) via Supabase
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleLoadAll = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        loadAll();
+      }, 700);
+    };
+
+    // Sincronização em Tempo Real (Realtime) via Supabase com debounce de 700ms para proteção de Egress
     const channel = supabase
       .channel('admvapp-users-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, () => {
-        loadAll();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'dependents' }, () => {
-        loadAll();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'professionals' }, () => {
-        loadAll();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'salon_users' }, () => {
-        loadAll();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'system_admins' }, () => {
-        loadAll();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_security_answers' }, () => {
-        loadAll();
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, scheduleLoadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dependents' }, scheduleLoadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'professionals' }, scheduleLoadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'salon_users' }, scheduleLoadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'system_admins' }, scheduleLoadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_security_answers' }, scheduleLoadAll)
       .subscribe();
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };
   }, []);
@@ -1176,7 +1173,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         {/* ======================================================== */}
         {viewMode === 'table' && (
           <div className="flex-1 overflow-auto min-h-0 custom-scrollbar w-full bg-white dark:bg-slate-900">
-            <table className="w-full text-left text-xs min-w-[1000px] border-separate border-spacing-0">
+            <table className="w-full text-left text-xs min-w-[780px] border-separate border-spacing-0">
               <thead className="sticky top-0 z-20">
                 <tr>
                   <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 w-10 text-center border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs select-none">
@@ -1201,13 +1198,12 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                   <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-center text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">Agend.</th>
                   <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">Criado em</th>
                   <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-center text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">Status</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-right text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200/80 dark:divide-slate-800/80">
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="py-12 text-center text-slate-500 dark:text-slate-400">
+                    <td colSpan={10} className="py-12 text-center text-slate-500 dark:text-slate-400">
                       Nenhum usuário encontrado com os filtros aplicados.
                     </td>
                   </tr>
@@ -1363,45 +1359,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                             <span className={`w-1.5 h-1.5 rounded-full ${statusBadge.dot}`} />
                             {statusBadge.label}
                           </span>
-                        </td>
-
-                        {/* 11. Ações (editar, desativar, excluir) */}
-                        <td className="py-3 px-3 text-right" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-1.5">
-                            {/* Editar (Abre Modal de Dados Gerais) */}
-                            <button
-                              onClick={() => handleOpenGeneralModal(user)}
-                              className="px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-semibold transition cursor-pointer border border-slate-200 dark:border-slate-700 flex items-center gap-1 shadow-2xs"
-                              title="Editar dados gerais do usuário"
-                            >
-                              <Edit className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                              <span className="hidden sm:inline">Editar</span>
-                            </button>
-
-                            {/* Desativar / Reativar */}
-                            <button
-                              onClick={() =>
-                                handleToggleGenericStatus(user.kind, user.originalId, !user.isActive)
-                              }
-                              className={`px-2 py-1 rounded text-[10px] font-bold transition cursor-pointer border shadow-2xs ${
-                                user.isActive
-                                  ? 'bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-500/30'
-                                  : 'bg-[#20C933] hover:bg-[#1bb32d] text-white border-transparent'
-                              }`}
-                              title={user.isActive ? 'Desativar / Suspender usuário' : 'Reativar conta'}
-                            >
-                              {user.isActive ? 'Desativar' : 'Reativar'}
-                            </button>
-
-                            {/* Excluir */}
-                            <button
-                              onClick={() => handleDeleteUser(user.kind, user.originalId, user.name)}
-                              className="p-1 rounded bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-600 text-rose-600 dark:text-rose-400 hover:text-white dark:hover:text-white transition cursor-pointer border border-rose-200 dark:border-rose-500/30 shadow-2xs"
-                              title="Excluir usuário"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
                         </td>
                       </tr>
                     );
