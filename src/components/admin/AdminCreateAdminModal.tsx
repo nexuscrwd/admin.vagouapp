@@ -126,6 +126,7 @@ export const AdminCreateAdminModal: React.FC<AdminCreateAdminModalProps> = ({
         email_confirmation: emailConfirm.trim().toLowerCase(),
         phone_whatsapp: phone.trim(),
         password: password,
+        role: role,
       });
 
       if (res.success && res.admin) {

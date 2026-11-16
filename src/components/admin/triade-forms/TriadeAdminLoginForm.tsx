@@ -28,8 +28,8 @@ export const TriadeAdminLoginForm: React.FC<TriadeAdminLoginFormProps> = ({
   variant = 'card',
 }) => {
   // Identificador aceita: Usuário (@fulano, fulano@, fulano#), E-mail ou Celular
-  const [identifier, setIdentifier] = useState('Anderson@');
-  const [password, setPassword] = useState('admin123');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);

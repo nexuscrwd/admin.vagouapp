@@ -57,7 +57,7 @@ export const AdminEditAdminModal: React.FC<AdminEditAdminModalProps> = ({
       setPhone(admin.phone_whatsapp || '');
       setRole(admin.role || 'superadmin');
       setIsActive(admin.is_active ?? true);
-      const currentPass = admin.password || 'Admin@2026!';
+      const currentPass = admin.password || '';
       setNewPassword(currentPass);
       setConfirmPassword(currentPass);
       setShowPassword(true);

@@ -1,3 +1,5 @@
+import { supabaseAdmin } from './supabase';
+
 export interface SalonCategory {
   id: string;
   name: string;
@@ -21,6 +23,7 @@ export const INITIAL_CATEGORIES: SalonCategory[] = [
 
 const STORAGE_KEY = 'vagou_admin_categories';
 const CATEGORY_CHANGE_EVENT = 'vagou:category-changed';
+const GLOBAL_CATEGORIES_ROW_ID = 'global_categories';
 
 export function getStoredCategories(): SalonCategory[] {
   try {
@@ -46,7 +49,33 @@ export function saveStoredCategories(categories: SalonCategory[]) {
   }
 }
 
+async function syncCategoriesToSupabase(categories: SalonCategory[]) {
+  try {
+    await supabaseAdmin.from('admin_preferences').upsert(
+      {
+        id: GLOBAL_CATEGORIES_ROW_ID,
+        preferences: { categories },
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'id' }
+    );
+  } catch {}
+}
+
 export async function fetchCategories(): Promise<SalonCategory[]> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('admin_preferences')
+      .select('preferences')
+      .eq('id', GLOBAL_CATEGORIES_ROW_ID)
+      .maybeSingle();
+
+    if (!error && Array.isArray(data?.preferences?.categories) && data.preferences.categories.length > 0) {
+      saveStoredCategories(data.preferences.categories);
+      return data.preferences.categories;
+    }
+  } catch {}
+
   try {
     const res = await fetch('/api/admin/categories');
     if (res.ok) {
@@ -63,6 +92,28 @@ export async function fetchCategories(): Promise<SalonCategory[]> {
 }
 
 export async function createCategory(cat: { name: string; slug?: string; icon?: string; description?: string }): Promise<{ success: boolean; category?: SalonCategory; error?: string }> {
+  const slug = (cat.slug || cat.name)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+
+  const current = getStoredCategories();
+  if (current.some((c) => c.slug === slug)) {
+    return { success: false, error: `Categoria com slug "${slug}" já existe.` };
+  }
+
+  const newCat: SalonCategory = {
+    id: `cat-${Date.now()}`,
+    name: cat.name.trim(),
+    slug,
+    icon: cat.icon || 'Tag',
+    is_default: false,
+    description: cat.description,
+  };
+
   try {
     const res = await fetch('/api/admin/categories', {
       method: 'POST',
@@ -71,56 +122,29 @@ export async function createCategory(cat: { name: string; slug?: string; icon?: 
     });
     const data = await res.json();
     if (data.success && data.category) {
-      const current = getStoredCategories();
       const exists = current.some((c) => c.slug === data.category.slug);
       const updated = exists ? current : [...current, data.category];
       saveStoredCategories(updated);
+      await syncCategoriesToSupabase(updated);
       return { success: true, category: data.category };
     }
-    return { success: false, error: data.error || 'Erro ao criar categoria' };
-  } catch (err: any) {
-    // Fallback local
-    const slug = (cat.slug || cat.name)
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9-]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '');
+  } catch {}
 
-    const current = getStoredCategories();
-    if (current.some((c) => c.slug === slug)) {
-      return { success: false, error: `Categoria com slug "${slug}" já existe.` };
-    }
-
-    const newCat: SalonCategory = {
-      id: `cat-${Date.now()}`,
-      name: cat.name.trim(),
-      slug,
-      icon: cat.icon || 'Tag',
-      is_default: false,
-      description: cat.description,
-    };
-    saveStoredCategories([...current, newCat]);
-    return { success: true, category: newCat };
-  }
+  const updated = [...current, newCat];
+  saveStoredCategories(updated);
+  await syncCategoriesToSupabase(updated);
+  return { success: true, category: newCat };
 }
 
 export async function deleteCategory(idOrSlug: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const res = await fetch(`/api/admin/categories/${idOrSlug}`, { method: 'DELETE' });
-    const data = await res.json();
-    if (data.success) {
-      const current = getStoredCategories().filter((c) => c.id !== idOrSlug && c.slug !== idOrSlug);
-      saveStoredCategories(current);
-      return { success: true };
-    }
-    return { success: false, error: data.error };
-  } catch {
-    const current = getStoredCategories().filter((c) => c.id !== idOrSlug && c.slug !== idOrSlug);
-    saveStoredCategories(current);
-    return { success: true };
-  }
+    await fetch(`/api/admin/categories/${idOrSlug}`, { method: 'DELETE' });
+  } catch {}
+
+  const current = getStoredCategories().filter((c) => c.id !== idOrSlug && c.slug !== idOrSlug);
+  saveStoredCategories(current);
+  await syncCategoriesToSupabase(current);
+  return { success: true };
 }
 
 export function getCategoryLabel(slug?: string, categories: SalonCategory[] = getStoredCategories()): string {

@@ -15,18 +15,51 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
-### [2026-11-16] — 🧹 Simplificação Soberana do Menu "Configurações", Painel de Governança e Tela Inicial (`bol-168`)
-- **Tipo:** `[Refactor / Clean Code & UX Simplification]`
+### [2026-11-16] — 🔍 Perícia Geral & Blindagem de Persistência no Supabase em Todos os Formulários do App (`bol-170`)
+- **Tipo:** `[Fix / Forensic Database Audit / Cross-Table Promotion / Tríade Sync]`
 - **Motivo / Solicitação:**
-  - Remoção das opções duplicadas de formulários de entrada/login, cadastros e Modal de Boas-Vindas que ficavam aninhadas sob **Configurações** (`Estabelecimento > Login Estabelecimento / Cadastro Estabelecimento / Modal Boas-Vindas`, `Usuário > Login Usuário / Cadastro Usuário` e `Embeds & iFrame`), visto que:
-    1. O login de estabelecimentos roda diretamente no próprio app de cada salão (`*.vagouapp.com` — `mnvapp`).
-    2. A criação e edição completa de **Estabelecimentos** (`+ Cadastrar`) e **Usuários** (`+ Cadastrar` / `+ Admin`) já estão disponíveis diretamente nos seus respectivos módulos principais.
-    3. O cadastro de salão já fecha a janela e abre o app do estabelecimento (`https://{slug}.vagouapp.com`) sem modal intermediário de boas-vindas.
-- **Resumo Técnico & Implementação:**
-  1. **Menu Lateral (`AdminSidebar.tsx`):** Mantida apenas a opção **Preferências** dentro de **Configurações**, removendo os submenus redundantes de `Estabelecimento`, `Usuário` e `Embeds & iFrame`.
-  2. **Painel de Configurações (`AdminSettingsPanel.tsx`):** Removidas as seções duplicadas de *Modal de Boas-Vindas & Kit de Lançamento* e *Central de Formulários da Tríade*, mantendo a gestão de **Administradores Corporativos do Sistema** e o atalho direto para **Preferências (Cores & Logo)**.
-  3. **Tela Inicial (`AdminHomeScreen.tsx`) & Roteamento (`AdminMasterApp.tsx`):** Substituído o card *Central de Formulários da Tríade* pelo card **Preferências & Identidade Visual** (`Realtime Sync`), mantendo intactos os componentes base (`TriadeEstablishmentMasterForm`, `TriadeUserRegisterForm`, `TriadeUserLoginForm`) utilizados nos botões `+ Cadastrar` de **Estabelecimentos** e **Usuários**.
+  - Investigação e correção da edição de dados de usuários no modal **Dados Gerais do Usuário** (onde a senha de **Samira Soraia Pires Silva** aparentava não persistir ao reabrir o modal e a promoção para **Superadministradora** não migrava o registro de `public.clients` para `public.system_admins`), além de vistoria minuciosa código a código de todos os formulários do aplicativo em relação ao banco de dados Supabase.
+- **Diagnóstico Forense & Causas Raiz Corrigidas:**
+  1. **Senha aparentando sumir ao reabrir o modal (`AdminUsersManager.tsx`, `supabaseApi.ts`, `server.ts`):**
+     - O banco grava a senha na coluna `password_hash`, mas `fetchAdminClients`, `fetchAdminProfessionals`, `fetchAdminSalonUsers` e o mapeador `allUnifiedUsers` em `AdminUsersManager.tsx` liam apenas `row.password || ''` (ignorando `row.password_hash`). Além disso, o fallback direto de `updateUnifiedUserData` em `supabaseApi.ts` não incluía `dbPayload.password_hash = payload.password`.
+     - **Correção:** Todas as rotas de listagem (`GET /api/admin/clients`, `professionals`, `salon-users`, `system-admins`) e funções de busca/mapeamento agora preenchem `password: row.password || row.password_hash || ''`, e o salvamento persiste `password_hash` tanto na tabela relacional quanto em `auth.users`.
+  2. **Promoção entre categorias/tabelas (`Cliente` ➔ `Superadministrador` em `public.system_admins`):**
+     - Ao alterar `Tipo de Conta` de `Cliente` (`clients`) para `Administrador` (`system_admins`) no modal `AdminUserGeneralDataModal.tsx`, o sistema executava apenas `UPDATE public.system_admins WHERE id = ...`. Como o registro original estava em `public.clients`, o `UPDATE` afetava `0 linhas` e não inseria o usuário em `public.system_admins`.
+     - **Correção:** Implementada migração transacional entre tabelas (`sourceTable` ➔ `targetTable`) tanto no backend (`PUT /api/admin/users/:kind/:id` em `server.ts`) quanto no cliente Service Role (`updateUnifiedUserData` em `supabaseApi.ts` com `safeSupabaseClientWrite`). Ao promover um usuário (ex.: **Samira Soraia Pires Silva**, `id: 7a4a3528-0c21-4636-9c09-803ef962ed49`), o registro completo é gravado via `upsert` em `public.system_admins` (`role: 'superadmin'`, `access_level: 'Superadmin Master'`), desvinculado de chaves estrangeiras e removido da tabela antiga (`public.clients`), recarregando todas as abas (`await loadAll()`).
+  3. **Proteção Automática contra Colunas Divergentes (`safeSupabaseClientWrite` em `supabaseApi.ts`):**
+     - Criado helper resiliente `safeSupabaseClientWrite` no frontend espelhando `safeSupabaseWrite` do servidor: caso o PostgREST retorne `PGRST204` para alguma coluna opcional ausente na tabela (ex.: `latitude`/`longitude` em `system_admins` ou `photo_url` em `clients`), a coluna inexistente é removida automaticamente e a gravação é concluída sem perder os demais campos.
+  4. **Vistoria e Correção dos Demais Formulários do App:**
+     - **Edição de Estabelecimento (`AdminEditSalonModal.tsx` & `AdminMasterApp.tsx`):** `handleSaveSalonUpdates` em `AdminMasterApp.tsx` agora retorna `Promise<boolean>` (`true`/`false`), corrigindo o falso alerta de erro ao salvar edições de salão, e `updateAdminSalon` mapeia 100% dos campos financeiros, endereço, PIX, horários e cores.
+     - **Criação de Administrador (`AdminCreateAdminModal.tsx` & `registerAdmin`):** O seletor de `role` (`superadmin` | `moderator` | `support`) agora é enviado e persistido em `public.system_admins`, sem sobrescrever a sessão do administrador logado.
+     - **Cadastro de Clientes (`TriadeUserRegisterForm.tsx` & `registerTriadeUser`):** Garantida a gravação de `cpf`, `password_hash`, `latitude` e `longitude` mesmo quando o cadastro ocorre via RPC `register_triade_user`.
+     - **Sub-formulários de Detalhes do Salão (`AdminSalonDetailView.tsx`) e Categorias (`categoriesService.ts`):** Adicionados fallbacks diretos via `supabaseAdmin` / `safeSupabaseClientWrite` para Serviços, Galeria de Mídias, Tema Camaleão, Profissionais da Equipe, Dependentes e Categorias Globais (`public.admin_preferences` com `id = 'global_categories'`).
 - **Arquivos Impactados:**
+  - `/server.ts`
+  - `/src/services/supabaseApi.ts`
+  - `/src/components/admin/AdminUsersManager.tsx`
+  - `/src/components/admin/AdminUserGeneralDataModal.tsx`
+  - `/src/components/admin/AdminCreateAdminModal.tsx`
+  - `/src/components/admin/AdminMasterApp.tsx`
+  - `/src/components/admin/AdminSalonDetailView.tsx`
+  - `/src/services/categoriesService.ts`
+  - `/CHANGELOG.md`
+
+---
+
+### [2026-11-16] — 🔒 Remoção de Senhas Fixas (`admin123`, `Admin@2026!`) & Telas de Login 100% em Branco + Simplificação do Menu "Configurações" (`bol-168` / `bol-169`)
+- **Tipo:** `[Security Fix / Refactor / Clean Code]`
+- **Motivo / Solicitação:**
+  - Remoção da senha padrão `admin123`, do usuário pré-preenchido `Anderson@` na tela de **Acesso Admin** e de quaisquer outras senhas fixas (`Admin@2026!`, `Vagou@2026`) no código-fonte, garantindo que todas as telas de login abram 100% em branco e validem exclusivamente a senha real gravada no banco (`password_hash`).
+  - Simplificação do menu **Configurações** mantendo apenas **Preferências**.
+- **Resumo Técnico & Implementação:**
+  1. **Telas de Login em Branco (`TriadeAdminLoginForm.tsx` & `TriadeUserLoginForm.tsx`):** Inicializados `identifier` e `password` como string vazia (`useState('')`).
+  2. **Remoção de Senhas Hardcoded (`supabaseApi.ts`, `server.ts`, `AdminEditAdminModal.tsx`):** Removidas todas as ocorrências e bypasses de `'admin123'`, `'Admin@2026!'` e `'Vagou@2026'`, autenticando exclusivamente contra `password_hash` em `public.system_admins`.
+  3. **Menu Lateral, Painel de Configurações e Tela Inicial (`AdminSidebar.tsx`, `AdminSettingsPanel.tsx`, `AdminHomeScreen.tsx`, `AdminMasterApp.tsx`):** Mantida apenas a opção **Preferências** dentro de **Configurações**, removendo os submenus redundantes de formulários/boas-vindas.
+- **Arquivos Impactados:**
+  - `/src/components/admin/triade-forms/TriadeAdminLoginForm.tsx`
+  - `/src/services/supabaseApi.ts`
+  - `/src/components/admin/AdminEditAdminModal.tsx`
+  - `/server.ts`
   - `/src/components/admin/AdminSidebar.tsx`
   - `/src/components/admin/AdminSettingsPanel.tsx`
   - `/src/components/admin/AdminHomeScreen.tsx`

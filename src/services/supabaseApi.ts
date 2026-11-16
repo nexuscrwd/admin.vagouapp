@@ -21,6 +21,60 @@ import {
 
 export { isMockAvatarUrl, sanitizeLocalStorageAvatars };
 
+/**
+ * Helper resiliente no cliente (Service Role) para gravar em qualquer tabela do Supabase
+ * removendo automaticamente colunas inexistentes (erro PGRST204) sem abortar a operação.
+ */
+export async function safeSupabaseClientWrite(
+  table: string,
+  mode: 'insert' | 'update' | 'upsert',
+  rawPayload: Record<string, any>,
+  options?: { eqColumn?: string; eqValue?: any; onConflict?: string }
+): Promise<{ data: any; error: any }> {
+  const workingPayload: Record<string, any> = { ...rawPayload };
+  let lastError: any = null;
+
+  for (let attempt = 0; attempt < 25; attempt++) {
+    let query: any;
+    if (mode === 'insert') {
+      query = supabaseAdmin.from(table).insert([workingPayload]).select().maybeSingle();
+    } else if (mode === 'upsert') {
+      query = supabaseAdmin
+        .from(table)
+        .upsert(workingPayload, options?.onConflict ? { onConflict: options.onConflict } : undefined)
+        .select()
+        .maybeSingle();
+    } else {
+      query = supabaseAdmin
+        .from(table)
+        .update(workingPayload)
+        .eq(options?.eqColumn || 'id', options?.eqValue)
+        .select()
+        .maybeSingle();
+    }
+
+    const { data, error } = await query;
+    if (!error) {
+      return { data, error: null };
+    }
+
+    lastError = error;
+    const msg = error.message || '';
+    const match =
+      msg.match(/Could not find the '([^']+)' column/i) ||
+      msg.match(/column "([^"]+)" of relation/i);
+
+    if (match && match[1] && match[1] in workingPayload) {
+      delete workingPayload[match[1]];
+      if (Object.keys(workingPayload).length === 0) break;
+      continue;
+    }
+    break;
+  }
+
+  return { data: null, error: lastError };
+}
+
 // Lista vazia por padrão — Zero dados mockados (Single Source of Truth no Supabase)
 export const INITIAL_MOCK_ADMIN_SALONS: AdminSalonItem[] = [];
 
@@ -428,7 +482,7 @@ export async function registerTriadeUser(userData: {
   const cleanUsername = userData.username.trim().replace(/^@+/, '');
   const cleanPhone = userData.phone.trim();
   const cleanCpf = (userData.cpf || '').trim();
-  const pass = userData.password || 'Vagou@2026';
+  const pass = (userData.password || '').trim();
   const addr = userData.address || { cep: '', street: '', number: '', complement: '', neighborhood: '', city: 'São Paulo', state: 'SP' };
   const isUuid = (val: any) =>
     typeof val === 'string' &&
@@ -556,12 +610,20 @@ export async function registerTriadeUser(userData: {
 
     if (!rpcErr && rpcData) {
       const rpcClientId = rpcData.client_id || rpcData.id;
-      if (authUserId && rpcClientId) {
+      if (rpcClientId) {
         try {
-          await supabaseAdmin
-            .from('clients')
-            .update({ user_id: authUserId })
-            .eq('id', rpcClientId);
+          await safeSupabaseClientWrite(
+            'clients',
+            'update',
+            {
+              ...(authUserId ? { user_id: authUserId } : {}),
+              ...(cleanCpf ? { cpf: cleanCpf } : {}),
+              ...(pass ? { password_hash: pass } : {}),
+              ...(addr.latitude !== undefined && addr.latitude !== null ? { latitude: addr.latitude } : {}),
+              ...(addr.longitude !== undefined && addr.longitude !== null ? { longitude: addr.longitude } : {}),
+            },
+            { eqColumn: 'id', eqValue: rpcClientId }
+          );
         } catch {}
       }
       return {
@@ -1567,14 +1629,20 @@ export async function updateAdminSalon(
       apiErrorMsg = fetchErr?.message || '';
     }
 
-    // 2. Fallback Supabase client (inclui todos os campos de endereço e coordenadas)
-    const dbPayload: Record<string, any> = {};
+    // 2. Fallback Supabase client (inclui todos os campos de endereço, financeiro, branding e coordenadas)
+    const dbPayload: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
     if (updates.trade_name !== undefined) {
       dbPayload.trade_name = updates.trade_name;
       dbPayload.name = updates.trade_name;
     }
     if (updates.legal_name !== undefined) dbPayload.legal_name = updates.legal_name;
-    if (updates.slug !== undefined) dbPayload.slug = updates.slug;
+    if (updates.slug !== undefined) {
+      dbPayload.slug = updates.slug;
+      dbPayload.subdomain = updates.slug;
+    }
+    if (updates.category !== undefined) dbPayload.category = updates.category;
     if (updates.status !== undefined) {
       dbPayload.status = updates.status;
       dbPayload.is_active = updates.status === 'active';
@@ -1586,8 +1654,17 @@ export async function updateAdminSalon(
     }
     if (updates.phone_landline !== undefined) dbPayload.phone_landline = updates.phone_landline;
     if (updates.email !== undefined) dbPayload.email = updates.email;
+    if (updates.document_type !== undefined) dbPayload.document_type = updates.document_type;
     if (updates.document_number !== undefined) dbPayload.document_number = updates.document_number;
     if (updates.owner_cpf !== undefined) dbPayload.owner_cpf = updates.owner_cpf;
+    if (updates.operating_model !== undefined) dbPayload.operating_model = updates.operating_model;
+    if (updates.billing_plan !== undefined) dbPayload.billing_plan = updates.billing_plan;
+    if (updates.fee_per_booking !== undefined || updates.billing_fee_value !== undefined) {
+      dbPayload.billing_fee_value = Number(updates.fee_per_booking ?? updates.billing_fee_value ?? 2.5);
+    }
+    if (updates.pix_key !== undefined) dbPayload.pix_key = updates.pix_key;
+    if (updates.pix_keys !== undefined) dbPayload.pix_keys = updates.pix_keys;
+    if (updates.operating_hours !== undefined) dbPayload.operating_hours = updates.operating_hours;
     if (updates.address !== undefined) dbPayload.address = updates.address;
     if (updates.street_number !== undefined) dbPayload.street_number = updates.street_number;
     if (updates.complement !== undefined) dbPayload.complement = updates.complement;
@@ -1598,12 +1675,23 @@ export async function updateAdminSalon(
     if (updates.latitude !== undefined) dbPayload.latitude = updates.latitude;
     if (updates.longitude !== undefined) dbPayload.longitude = updates.longitude;
     if (updates.logo_url !== undefined) dbPayload.logo_url = updates.logo_url;
-    if (updates.primary_color !== undefined) {
-      dbPayload.primary_color = updates.primary_color;
-    }
+    if (updates.logo_dark_url !== undefined) dbPayload.logo_dark_url = updates.logo_dark_url;
+    if (updates.logo_light_url !== undefined) dbPayload.logo_light_url = updates.logo_light_url;
+    if (updates.favicon_url !== undefined) dbPayload.favicon_url = updates.favicon_url;
+    if (updates.cover_image_url !== undefined) dbPayload.cover_image_url = updates.cover_image_url;
+    if (updates.facade_photo_url !== undefined) dbPayload.facade_photo_url = updates.facade_photo_url;
+    if (updates.interior_photo_url !== undefined) dbPayload.interior_photo_url = updates.interior_photo_url;
+    if (updates.slogan !== undefined) dbPayload.slogan = updates.slogan;
+    if (updates.brand_font !== undefined) dbPayload.brand_font = updates.brand_font;
+    if (updates.default_theme !== undefined) dbPayload.default_theme = updates.default_theme;
+    if (updates.primary_color !== undefined) dbPayload.primary_color = updates.primary_color;
+    if (updates.secondary_color !== undefined) dbPayload.secondary_color = updates.secondary_color;
 
     if (Object.keys(dbPayload).length > 0) {
-      const { error } = await supabaseAdmin.from('salons').update(dbPayload).eq('id', salonId);
+      const { data: updatedRow, error } = await safeSupabaseClientWrite('salons', 'update', dbPayload, {
+        eqColumn: 'id',
+        eqValue: salonId,
+      });
       if (error) {
         console.error('[Supabase Admin Update] Erro ao gravar no banco:', error.message);
         return {
@@ -1611,6 +1699,7 @@ export async function updateAdminSalon(
           error: apiErrorMsg || error.message || 'Não foi possível gravar as alterações no Supabase.',
         };
       }
+      return { success: true, salon: updatedRow || undefined };
     }
 
     return { success: true };
@@ -2252,19 +2341,29 @@ export async function registerAdmin(payload: {
   email_confirmation: string;
   phone_whatsapp: string;
   password: string;
+  role?: 'superadmin' | 'moderator' | 'support';
 }): Promise<{ success: boolean; admin?: SystemAdminUser; error?: string; message?: string }> {
+  const resolvedRole: 'superadmin' | 'moderator' | 'support' =
+    payload.role === 'moderator' || payload.role === 'support' ? payload.role : 'superadmin';
+  const resolvedAccessLevel =
+    resolvedRole === 'moderator'
+      ? 'Moderador'
+      : resolvedRole === 'support'
+      ? 'Suporte Técnico'
+      : 'Superadmin Master';
+
   // 1. Tenta via backend Express API (/api/admin/auth/register)
   try {
     const resp = await fetch('/api/admin/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, role: resolvedRole }),
     });
     const text = await resp.text();
     if (text && text.trim().startsWith('{')) {
       const json = JSON.parse(text);
       if (resp.ok && json.success) {
-        if (json.admin) setStoredAdmin(json.admin);
+        if (json.admin && !getStoredAdmin()) setStoredAdmin(json.admin);
         return json;
       }
       if (json.error) {
@@ -2285,7 +2384,17 @@ export async function registerAdmin(payload: {
 
     if (!rpcError && rpcData && typeof rpcData === 'object') {
       if (rpcData.success && rpcData.admin) {
-        setStoredAdmin(rpcData.admin);
+        if (resolvedRole !== 'superadmin' && rpcData.admin.id) {
+          await safeSupabaseClientWrite(
+            'system_admins',
+            'update',
+            { role: resolvedRole, access_level: resolvedAccessLevel },
+            { eqColumn: 'id', eqValue: rpcData.admin.id }
+          );
+          rpcData.admin.role = resolvedRole;
+          rpcData.admin.access_level = resolvedAccessLevel;
+        }
+        if (!getStoredAdmin()) setStoredAdmin(rpcData.admin);
         return { success: true, admin: rpcData.admin, message: 'Administrador cadastrado com sucesso!' };
       }
       if (rpcData.error) {
@@ -2294,28 +2403,24 @@ export async function registerAdmin(payload: {
     }
   } catch {}
 
-  // 3. Tenta inserção direta via client Supabase
+  // 3. Tenta inserção direta via supabaseAdmin
   try {
-    const { data: dbAdmin, error: insertError } = await supabase
-      .from('system_admins')
-      .insert([
-        {
-          full_name: payload.full_name.trim(),
-          username: payload.username.trim(),
-          email: payload.email.trim().toLowerCase(),
-          phone_whatsapp: payload.phone_whatsapp.trim(),
-          password_hash: payload.password,
-          role: 'superadmin',
-          is_active: true,
-        },
-      ])
-      .select()
-      .single();
+    const { data: dbAdmin, error: insertError } = await safeSupabaseClientWrite('system_admins', 'insert', {
+      full_name: payload.full_name.trim(),
+      username: payload.username.trim().replace(/^@+/, ''),
+      email: payload.email.trim().toLowerCase(),
+      phone_whatsapp: payload.phone_whatsapp.trim(),
+      password_hash: payload.password,
+      role: resolvedRole,
+      access_level: resolvedAccessLevel,
+      is_active: true,
+    });
 
     if (!insertError && dbAdmin) {
       const { password_hash, ...safeAdmin } = dbAdmin;
-      setStoredAdmin(safeAdmin as SystemAdminUser);
-      return { success: true, admin: safeAdmin as SystemAdminUser, message: 'Administrador cadastrado com sucesso!' };
+      const adminWithPass = { ...safeAdmin, password: password_hash || payload.password } as SystemAdminUser;
+      if (!getStoredAdmin()) setStoredAdmin(adminWithPass);
+      return { success: true, admin: adminWithPass, message: 'Administrador cadastrado com sucesso!' };
     }
   } catch {}
 
@@ -2379,7 +2484,7 @@ export async function loginAdmin(
 
     if (!dbError && dbAdmins && dbAdmins.length > 0) {
       const match = dbAdmins[0];
-      if (match.password_hash === password || password === 'admin123' || password === 'Admin@2026!') {
+      if (match.password_hash && match.password_hash === password) {
         if (!match.is_active) {
           return { success: false, error: 'Conta de administrador inativa ou suspensa.' };
         }
@@ -2388,23 +2493,6 @@ export async function loginAdmin(
         return { success: true, admin: safeAdmin as SystemAdminUser };
       }
       return { success: false, error: 'Senha incorreta para este administrador.' };
-    } else if (
-      (strippedQuery === 'anderson' || lowerQuery.includes('nexuscrwd') || lowerQuery === 'admin') &&
-      (password === 'admin123' || password === 'Admin@2026!')
-    ) {
-      // Fallback de contingência para administrador principal
-      const fallbackMaster: SystemAdminUser = {
-        id: 'adm-001',
-        username: 'Anderson@',
-        email: 'nexuscrwd@gmail.com',
-        full_name: 'Anderson Administrador Master',
-        phone_whatsapp: '(11) 99999-9999',
-        role: 'superadmin',
-        is_active: true,
-        created_at: new Date().toISOString(),
-      };
-      setStoredAdmin(fallbackMaster);
-      return { success: true, admin: fallbackMaster };
     }
   } catch (fallbackErr) {
     console.warn('[loginAdmin] Erro no fallback direto:', fallbackErr);
@@ -2567,7 +2655,7 @@ export async function toggleAdminStatus(
   } catch {}
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('system_admins')
       .update({ is_active: isActive })
       .eq('id', adminId)
@@ -2749,6 +2837,7 @@ export async function fetchAdminClients(): Promise<UserClientItem[]> {
             username: (c.username || (c.email ? c.email.split('@')[0] : (c.name || 'cliente').toLowerCase().replace(/\s+/g, ''))).replace(/^@+/, ''),
             phone: c.phone || c.phone_whatsapp || '—',
             phone_secondary: c.phone_secondary || '',
+            password: c.password_hash || c.password || '',
             dependents: Array.isArray(c.dependents) ? c.dependents : [],
             is_active: c.is_active !== undefined ? !!c.is_active : true,
             access_level: c.access_level || 'Cliente Titular',
@@ -2845,6 +2934,7 @@ export async function fetchAdminSalonUsers(): Promise<UserSalonAccessItem[]> {
           email: cleanEmail,
           phone_whatsapp: su.phone_whatsapp || su.phone || '—',
           phone_secondary: su.phone_secondary || '',
+          password: su.password_hash || su.password || '',
           role: su.role || 'owner',
           access_level: su.access_level || 'Proprietário (Dono)',
           is_active: su.is_active !== false,
@@ -2888,6 +2978,7 @@ export async function fetchAdminProfessionals(): Promise<UserProfessionalItem[]>
         username: (p.username || (p.nickname ? p.nickname.toLowerCase().replace(/\s+/g, '') : (p.email ? p.email.split('@')[0] : (p.name || 'prof').toLowerCase().replace(/\s+/g, '')))).replace(/^@+/, ''),
         phone_whatsapp: p.phone || p.phone_whatsapp || '—',
         phone_secondary: p.phone_secondary || '',
+        password: p.password_hash || p.password || '',
         current_salon_name: p.salons?.trade_name || p.current_salon_name || 'Sem Salão Ativo',
         status: p.status || (p.is_active === false ? 'suspended' : 'active'),
         access_level: p.access_level || 'MEI Parceiro',
@@ -2954,24 +3045,32 @@ export async function updateAdminUser(
     console.warn('[updateAdminUser] Falha na rota Express, tentando fallback direto no Supabase:', apiErr);
   }
 
-  // 2. Fallback via client Supabase (se RLS permitir)
+  // 2. Fallback via client Supabase Service Role (safeSupabaseClientWrite)
   try {
-    const { data, error } = await supabase
-      .from('system_admins')
-      .update(dbUpdates)
-      .eq('id', adminId)
-      .select()
-      .single();
+    if (dbUpdates.role && !dbUpdates.access_level) {
+      dbUpdates.access_level =
+        dbUpdates.role === 'moderator'
+          ? 'Moderador'
+          : dbUpdates.role === 'support'
+          ? 'Suporte Técnico'
+          : 'Superadmin Master';
+    }
+    const { data, error } = await safeSupabaseClientWrite('system_admins', 'update', dbUpdates, {
+      eqColumn: 'id',
+      eqValue: adminId,
+    });
 
     if (error) {
       console.warn('[Supabase Admin] Falha ao atualizar dados do admin:', error);
       return { success: false, error: error.message };
     }
 
-    const updatedAdmin = data ? {
-      ...data,
-      password: data.password_hash || dbUpdates.password_hash || 'Admin@2026!',
-    } : undefined;
+    const updatedAdmin = data
+      ? {
+          ...data,
+          password: data.password_hash || dbUpdates.password_hash || '',
+        }
+      : undefined;
 
     return { success: true, admin: updatedAdmin as SystemAdminUser };
   } catch (err: any) {
@@ -3025,7 +3124,7 @@ export async function updateUnifiedUserData(
   kind: 'client' | 'professional' | 'salon_user' | 'admin' | 'dependent',
   id: string,
   payload: any
-): Promise<{ success: boolean; user?: any; error?: string }> {
+): Promise<{ success: boolean; user?: any; migrated?: boolean; sourceTable?: string; targetTable?: string; error?: string }> {
   let apiErrorMsg = '';
   try {
     const resp = await fetch(`/api/admin/users/${kind}/${id}`, {
@@ -3037,7 +3136,13 @@ export async function updateUnifiedUserData(
     if (text && text.trim().startsWith('{')) {
       const json = JSON.parse(text);
       if (resp.ok && json.success) {
-        return { success: true, user: json.user };
+        return {
+          success: true,
+          user: json.user,
+          migrated: json.migrated,
+          sourceTable: json.sourceTable,
+          targetTable: json.targetTable,
+        };
       }
       if (json.error) {
         apiErrorMsg = json.error;
@@ -3048,7 +3153,7 @@ export async function updateUnifiedUserData(
     console.warn('[updateUnifiedUserData] Fallback direto via Supabase:', err);
   }
 
-  // Fallback direto via Supabase client
+  // Fallback direto via Supabase Service Role com suporte a promoção entre tabelas (Ex: client ➔ system_admins)
   try {
     if (id.startsWith('su-')) {
       const realSalonId = id.replace(/^su-/, '');
@@ -3068,59 +3173,221 @@ export async function updateUnifiedUserData(
       if (payload.latitude !== undefined) salonPayload.latitude = payload.latitude;
       if (payload.longitude !== undefined) salonPayload.longitude = payload.longitude;
 
-      const { error } = await supabaseAdmin.from('salons').update(salonPayload).eq('id', realSalonId);
+      const { error } = await safeSupabaseClientWrite('salons', 'update', salonPayload, {
+        eqColumn: 'id',
+        eqValue: realSalonId,
+      });
       if (error) {
         return { success: false, error: apiErrorMsg || error.message };
       }
       return { success: true };
     }
 
-    let table = 'clients';
-    if (kind === 'professional') table = 'professionals';
-    else if (kind === 'salon_user') table = 'salon_users';
-    else if (kind === 'admin') table = 'system_admins';
+    const kindToTable = (k?: string) => {
+      if (k === 'professional') return 'professionals';
+      if (k === 'salon_user') return 'salon_users';
+      if (k === 'admin') return 'system_admins';
+      if (k === 'dependent') return 'dependents';
+      return 'clients';
+    };
 
-    const dbPayload: any = {};
-    if (payload.name !== undefined) {
-      if (table === 'clients') dbPayload.name = payload.name;
-      else dbPayload.full_name = payload.name;
-    }
-    if (payload.username !== undefined) dbPayload.username = payload.username;
-    if (payload.email !== undefined) dbPayload.email = payload.email;
-    if (payload.phone !== undefined) {
-      if (table === 'clients') dbPayload.phone = payload.phone;
-      else dbPayload.phone_whatsapp = payload.phone;
-    }
-    if (payload.phoneSecondary !== undefined) dbPayload.phone_secondary = payload.phoneSecondary;
-    if (payload.cpf !== undefined) dbPayload.cpf = payload.cpf;
-    if (payload.address !== undefined) dbPayload.address = payload.address;
-    if (payload.streetNumber !== undefined) dbPayload.street_number = payload.streetNumber;
-    if (payload.complement !== undefined) dbPayload.complement = payload.complement;
-    if (payload.neighborhood !== undefined) dbPayload.neighborhood = payload.neighborhood;
-    if (payload.city !== undefined) dbPayload.city = payload.city;
-    if (payload.state !== undefined) dbPayload.state = payload.state;
-    if (payload.cep !== undefined) dbPayload.cep = payload.cep;
-    if (payload.latitude !== undefined) dbPayload.latitude = payload.latitude;
-    if (payload.longitude !== undefined) dbPayload.longitude = payload.longitude;
-    if (payload.accessLevel !== undefined) dbPayload.access_level = payload.accessLevel;
-    if (payload.isActive !== undefined) {
-      if (table === 'professionals') dbPayload.status = payload.isActive ? 'active' : 'suspended';
-      else dbPayload.is_active = payload.isActive;
-    }
+    const targetKind = payload.targetKind || kind;
+    const targetTable = kindToTable(targetKind);
+    let sourceTable = kindToTable(payload.sourceKind || kind);
+    let existingRecord: any = null;
 
-    if (payload.avatarUrl !== undefined || payload.avatar_url !== undefined) {
-      const av = payload.avatarUrl !== undefined ? payload.avatarUrl : payload.avatar_url;
-      dbPayload.avatar_url = av || null;
-      if (table === 'clients' || table === 'professionals') {
-        dbPayload.photo_url = av || null;
+    // 1. Localiza o registro existente no banco (na tabela de origem ou em qualquer outra tabela por id)
+    const { data: foundInSource } = await supabaseAdmin
+      .from(sourceTable)
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (foundInSource) {
+      existingRecord = foundInSource;
+    } else {
+      for (const candidateTable of ['system_admins', 'salon_users', 'professionals', 'clients', 'dependents']) {
+        if (candidateTable === sourceTable) continue;
+        const { data: foundOther } = await supabaseAdmin
+          .from(candidateTable)
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+        if (foundOther) {
+          existingRecord = foundOther;
+          sourceTable = candidateTable;
+          break;
+        }
       }
     }
 
-    const { error } = await supabaseAdmin.from(table).update(dbPayload).eq('id', id);
+    const resolvedName = (payload.name ?? existingRecord?.full_name ?? existingRecord?.name ?? '').trim();
+    const resolvedEmail = (payload.email && payload.email !== '—' ? payload.email : existingRecord?.email ?? '')
+      .trim()
+      .toLowerCase();
+    const resolvedUsername = (
+      payload.username ??
+      existingRecord?.username ??
+      (resolvedEmail ? resolvedEmail.split('@')[0] : 'usuario')
+    )
+      .trim()
+      .replace(/^@+/, '');
+    const resolvedPhone = (
+      payload.phone && payload.phone !== '—'
+        ? payload.phone
+        : existingRecord?.phone_whatsapp ?? existingRecord?.phone ?? ''
+    ).trim();
+    const resolvedPhoneSecondary = (
+      payload.phoneSecondary && payload.phoneSecondary !== '—'
+        ? payload.phoneSecondary
+        : existingRecord?.phone_secondary ?? ''
+    ).trim();
+    const resolvedCpf = (payload.cpf ?? existingRecord?.cpf ?? '').trim();
+    const resolvedPassword =
+      payload.password !== undefined && String(payload.password).trim() !== '' && payload.password !== '—'
+        ? String(payload.password).trim()
+        : existingRecord?.password_hash || '';
+    const resolvedAccessLevel = payload.accessLevel ?? existingRecord?.access_level ?? undefined;
+    const resolvedIsActive = payload.isActive !== undefined ? Boolean(payload.isActive) : true;
+    const resolvedAvatar =
+      payload.avatarUrl !== undefined
+        ? payload.avatarUrl
+        : payload.avatar_url !== undefined
+        ? payload.avatar_url
+        : existingRecord?.avatar_url ?? null;
+
+    const dbPayload: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (resolvedName) {
+      if (targetTable === 'clients') {
+        dbPayload.name = resolvedName;
+        dbPayload.full_name = resolvedName;
+      } else if (targetTable === 'professionals') {
+        dbPayload.name = resolvedName;
+      } else {
+        dbPayload.full_name = resolvedName;
+      }
+    }
+
+    if (resolvedUsername && targetTable !== 'dependents') dbPayload.username = resolvedUsername;
+    if (resolvedEmail && targetTable !== 'dependents') dbPayload.email = resolvedEmail;
+
+    if (targetTable !== 'dependents') {
+      if (targetTable === 'clients') {
+        dbPayload.phone = resolvedPhone || null;
+      } else if (targetTable === 'professionals') {
+        dbPayload.phone = resolvedPhone || null;
+        dbPayload.phone_whatsapp = resolvedPhone || null;
+      } else {
+        dbPayload.phone_whatsapp = resolvedPhone || null;
+      }
+      dbPayload.phone_secondary = resolvedPhoneSecondary || null;
+    }
+
+    if (payload.cpf !== undefined || existingRecord?.cpf) dbPayload.cpf = resolvedCpf || null;
+    if (payload.address !== undefined) dbPayload.address = payload.address || null;
+    if (payload.streetNumber !== undefined) dbPayload.street_number = payload.streetNumber || null;
+    if (payload.complement !== undefined) dbPayload.complement = payload.complement || null;
+    if (payload.neighborhood !== undefined) dbPayload.neighborhood = payload.neighborhood || null;
+    if (payload.city !== undefined) dbPayload.city = payload.city || 'São Paulo';
+    if (payload.state !== undefined) dbPayload.state = payload.state || 'SP';
+    if (payload.cep !== undefined) dbPayload.cep = payload.cep || null;
+    if (payload.latitude !== undefined) dbPayload.latitude = payload.latitude;
+    if (payload.longitude !== undefined) dbPayload.longitude = payload.longitude;
+    if (resolvedAccessLevel !== undefined) dbPayload.access_level = resolvedAccessLevel;
+    if (resolvedPassword && targetTable !== 'dependents') dbPayload.password_hash = resolvedPassword;
+
+    if (targetTable === 'system_admins') {
+      const lowerAccess = String(resolvedAccessLevel || '').toLowerCase();
+      dbPayload.role = lowerAccess.includes('moderador')
+        ? 'moderator'
+        : lowerAccess.includes('suporte')
+        ? 'support'
+        : 'superadmin';
+      dbPayload.is_active = resolvedIsActive;
+    } else if (targetTable === 'salon_users') {
+      const lowerAccess = String(resolvedAccessLevel || '').toLowerCase();
+      dbPayload.role = lowerAccess.includes('gerente')
+        ? 'manager'
+        : lowerAccess.includes('recep')
+        ? 'receptionist'
+        : 'owner';
+      dbPayload.is_active = resolvedIsActive;
+    } else if (targetTable === 'professionals') {
+      dbPayload.status = resolvedIsActive ? 'active' : 'suspended';
+      dbPayload.is_active = resolvedIsActive;
+      dbPayload.role = existingRecord?.role || 'Especialista';
+    } else if (targetTable === 'clients') {
+      dbPayload.is_active = resolvedIsActive;
+    }
+
+    if (resolvedAvatar !== undefined) {
+      dbPayload.avatar_url = resolvedAvatar || null;
+      if (targetTable === 'professionals') {
+        dbPayload.photo_url = resolvedAvatar || null;
+      }
+    }
+
+    const isCrossTableMigration = sourceTable !== targetTable;
+
+    if (isCrossTableMigration) {
+      const insertPayload: Record<string, any> = {
+        id,
+        ...dbPayload,
+        created_at: existingRecord?.created_at || new Date().toISOString(),
+        created_via: existingRecord?.created_via || 'admvapp',
+      };
+
+      const { data: migratedData, error: migErr } = await safeSupabaseClientWrite(
+        targetTable,
+        'upsert',
+        insertPayload,
+        { onConflict: 'id' }
+      );
+
+      if (migErr) {
+        return { success: false, error: apiErrorMsg || migErr.message };
+      }
+
+      // Remove da tabela antiga após gravar na nova tabela
+      try {
+        if (sourceTable === 'clients') {
+          await supabaseAdmin.from('user_security_answers').delete().eq('client_id', id);
+          await supabaseAdmin.from('dependents').delete().eq('parent_client_id', id);
+          await supabaseAdmin.from('appointments').update({ client_id: null }).eq('client_id', id);
+        } else if (sourceTable === 'professionals') {
+          await supabaseAdmin.from('appointments').update({ professional_id: null }).eq('professional_id', id);
+        }
+        await supabaseAdmin.from(sourceTable).delete().eq('id', id);
+      } catch (cleanupErr) {
+        console.warn('[updateUnifiedUserData] Aviso ao remover registro antigo após promoção:', cleanupErr);
+      }
+
+      return {
+        success: true,
+        user: migratedData,
+        migrated: true,
+        sourceTable,
+        targetTable,
+      };
+    }
+
+    const { data: updatedData, error } = await safeSupabaseClientWrite(targetTable, 'update', dbPayload, {
+      eqColumn: 'id',
+      eqValue: id,
+    });
     if (error) {
       return { success: false, error: apiErrorMsg || error.message };
     }
-    return { success: true };
+    return {
+      success: true,
+      user: updatedData,
+      migrated: false,
+      sourceTable,
+      targetTable,
+    };
   } catch (err: any) {
     return { success: false, error: apiErrorMsg || err?.message || 'Erro ao salvar dados do usuário' };
   }
@@ -3206,7 +3473,7 @@ export async function batchDeleteUnifiedUsers(
     console.warn('[batchDeleteUnifiedUsers] Falha rota Express batch, fallback direto:', err);
   }
 
-  // Fallback direto via Supabase client
+  // Fallback direto via Supabase Service Role
   try {
     const clientIds = items.filter((it) => it.kind === 'client').map((it) => it.id);
     const depIds = items.filter((it) => it.kind === 'dependent').map((it) => it.id);
@@ -3215,19 +3482,19 @@ export async function batchDeleteUnifiedUsers(
     const adminIds = items.filter((it) => it.kind === 'admin').map((it) => it.id);
 
     if (clientIds.length > 0) {
-      await supabase.from('clients').delete().in('id', clientIds);
+      await supabaseAdmin.from('clients').delete().in('id', clientIds);
     }
     if (depIds.length > 0) {
-      await supabase.from('dependents').delete().in('id', depIds);
+      await supabaseAdmin.from('dependents').delete().in('id', depIds);
     }
     if (profIds.length > 0) {
-      await supabase.from('professionals').delete().in('id', profIds);
+      await supabaseAdmin.from('professionals').delete().in('id', profIds);
     }
     if (salonUserIds.length > 0) {
-      await supabase.from('salon_users').delete().in('id', salonUserIds);
+      await supabaseAdmin.from('salon_users').delete().in('id', salonUserIds);
     }
     if (adminIds.length > 0) {
-      await supabase.from('system_admins').delete().in('id', adminIds);
+      await supabaseAdmin.from('system_admins').delete().in('id', adminIds);
     }
 
     return { success: true, count: items.length };
@@ -3256,8 +3523,8 @@ export async function toggleUnifiedUserStatus(
     else if (kind === 'salon_user') table = 'salon_users';
     else if (kind === 'admin') table = 'system_admins';
 
-    const updateData = table === 'professionals' ? { status: isActive ? 'active' : 'suspended' } : { is_active: isActive };
-    await supabase.from(table).update(updateData).eq('id', id);
+    const updateData = table === 'professionals' ? { status: isActive ? 'active' : 'suspended', is_active: isActive } : { is_active: isActive };
+    await supabaseAdmin.from(table).update(updateData).eq('id', id);
     return { success: true };
   } catch {
     return { success: true };

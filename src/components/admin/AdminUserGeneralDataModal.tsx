@@ -347,12 +347,12 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
       };
 
       await onSave(updatedRow);
-      setFeedbackMsg({ text: 'Dados atualizados com sucesso!', type: 'success' });
+      setFeedbackMsg({ text: 'Dados atualizados com sucesso no Supabase!', type: 'success' });
       setTimeout(() => {
         onClose();
       }, 700);
-    } catch {
-      setFeedbackMsg({ text: 'Falha ao salvar dados.', type: 'error' });
+    } catch (err: any) {
+      setFeedbackMsg({ text: err?.message || 'Falha ao salvar dados no banco.', type: 'error' });
     } finally {
       setIsSaving(false);
     }

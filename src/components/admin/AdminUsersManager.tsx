@@ -195,9 +195,12 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
     setIsGeneralModalOpen(true);
   };
 
-  // Salvar Alterações no Modal de Dados Gerais
+  // Salvar Alterações no Modal de Dados Gerais (incluindo promoção entre categorias/tabelas)
   const handleSaveGeneralModal = async (updatedUser: UnifiedUserRow) => {
-    await updateUnifiedUserData(updatedUser.kind, updatedUser.originalId, {
+    const sourceKind = selectedUserForModal?.kind || updatedUser.kind;
+    const res = await updateUnifiedUserData(updatedUser.kind, updatedUser.originalId, {
+      sourceKind,
+      targetKind: updatedUser.kind,
       name: updatedUser.name,
       username: updatedUser.username,
       email: updatedUser.email,
@@ -216,7 +219,20 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
       latitude: updatedUser.latitude,
       longitude: updatedUser.longitude,
       isActive: updatedUser.isActive,
+      avatarUrl: updatedUser.avatarUrl,
     });
+
+    if (!res.success) {
+      throw new Error(res.error || 'Não foi possível gravar as alterações no banco de dados.');
+    }
+
+    if (sourceKind !== updatedUser.kind || res.migrated) {
+      await loadAll();
+      triggerFeedback(
+        `Usuário "${updatedUser.name}" promovido/migrado para ${updatedUser.roleLabel} (${updatedUser.accessLevel}) com sucesso!`
+      );
+      return;
+    }
 
     if (updatedUser.kind === 'client') {
       setClients((prev) =>
@@ -230,6 +246,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                 phone: updatedUser.phone,
                 phone_secondary: updatedUser.phoneSecondary,
                 cpf: updatedUser.cpf,
+                password: updatedUser.password,
                 access_level: updatedUser.accessLevel,
                 address: updatedUser.address,
                 street_number: updatedUser.streetNumber,
@@ -239,6 +256,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                 state: updatedUser.state,
                 cep: updatedUser.cep,
                 is_active: updatedUser.isActive,
+                avatar_url: updatedUser.avatarUrl || c.avatar_url,
               }
             : c
         )
@@ -255,6 +273,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                 phone_whatsapp: updatedUser.phone,
                 phone_secondary: updatedUser.phoneSecondary,
                 cpf: updatedUser.cpf,
+                password: updatedUser.password,
                 access_level: updatedUser.accessLevel,
                 address: updatedUser.address,
                 street_number: updatedUser.streetNumber,
@@ -264,6 +283,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                 state: updatedUser.state,
                 cep: updatedUser.cep,
                 status: updatedUser.isActive ? 'active' : 'suspended',
+                avatar_url: updatedUser.avatarUrl || p.avatar_url,
               }
             : p
         )
@@ -280,6 +300,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                 phone_whatsapp: updatedUser.phone,
                 phone_secondary: updatedUser.phoneSecondary,
                 cpf: updatedUser.cpf,
+                password: updatedUser.password,
                 access_level: updatedUser.accessLevel,
                 address: updatedUser.address,
                 street_number: updatedUser.streetNumber,
@@ -289,11 +310,21 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                 state: updatedUser.state,
                 cep: updatedUser.cep,
                 is_active: updatedUser.isActive,
+                avatar_url: updatedUser.avatarUrl || su.avatar_url,
               }
             : su
         )
       );
     } else if (updatedUser.kind === 'admin') {
+      const resolvedAdminRole: SystemAdminUser['role'] = String(updatedUser.accessLevel || '')
+        .toLowerCase()
+        .includes('moderador')
+        ? 'moderator'
+        : String(updatedUser.accessLevel || '')
+            .toLowerCase()
+            .includes('suporte')
+        ? 'support'
+        : 'superadmin';
       setAdmins((prev) =>
         prev.map((a) =>
           a.id === updatedUser.originalId
@@ -305,6 +336,8 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                 phone_whatsapp: updatedUser.phone,
                 phone_secondary: updatedUser.phoneSecondary,
                 cpf: updatedUser.cpf,
+                password: updatedUser.password,
+                role: resolvedAdminRole,
                 access_level: updatedUser.accessLevel,
                 address: updatedUser.address,
                 street_number: updatedUser.streetNumber,
@@ -314,6 +347,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                 state: updatedUser.state,
                 cep: updatedUser.cep,
                 is_active: updatedUser.isActive,
+                avatar_url: updatedUser.avatarUrl || a.avatar_url,
               }
             : a
         )
@@ -486,6 +520,9 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         if (!existing.avatarUrl && candidate.avatarUrl) {
           existing.avatarUrl = candidate.avatarUrl;
         }
+        if (!existing.password && candidate.password) {
+          existing.password = candidate.password;
+        }
         if (candidate.hasSecurityQuestion) {
           existing.hasSecurityQuestion = true;
           existing.securityQuestionsConfigured = candidate.securityQuestionsConfigured;
@@ -522,7 +559,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         phone: a.phone_whatsapp || (a as any).phone || '—',
         phoneSecondary: a.phone_secondary || a.phone_whatsapp || (a as any).phone || '—',
         email: cleanEmail || '—',
-        password: a.password || '',
+        password: a.password || (a as any).password_hash || '',
         roleLabel: 'Administrador',
         roleBadgeClass: 'bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-500/30 font-bold',
         accessLevel: a.access_level || (a.role === 'superadmin' ? 'Superadmin Master' : a.role === 'moderator' ? 'Moderador' : 'Suporte Técnico'),
@@ -568,7 +605,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         phone: su.phone_whatsapp || (su as any).phone || '—',
         phoneSecondary: su.phone_secondary || su.phone_whatsapp || (su as any).phone || '—',
         email: cleanEmail || '—',
-        password: su.password || '',
+        password: su.password || (su as any).password_hash || '',
         roleLabel: 'Proprietário',
         roleBadgeClass: 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/30 font-bold',
         accessLevel: su.access_level || (su.role === 'owner' ? 'Proprietário (Dono)' : su.role === 'manager' ? 'Gerente Geral' : 'Recepção & Atendimento'),
@@ -616,7 +653,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         phone: p.phone_whatsapp || (p as any).phone || '—',
         phoneSecondary: p.phone_secondary || p.phone_whatsapp || (p as any).phone || '—',
         email: cleanEmail || '—',
-        password: p.password || '',
+        password: p.password || (p as any).password_hash || '',
         roleLabel: 'Profissional',
         roleBadgeClass: 'bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/30 font-bold',
         accessLevel: p.access_level || (p.contract_type === 'partner_mei' ? 'MEI Parceiro' : 'CLT Profissional'),
@@ -669,7 +706,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         phone: c.phone || '—',
         phoneSecondary: c.phone_secondary || c.phone || '—',
         email: cleanEmail || '—',
-        password: c.password || '',
+        password: c.password || (c as any).password_hash || '',
         roleLabel: 'Cliente',
         roleBadgeClass: 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30 font-bold',
         accessLevel: c.access_level || 'Cliente Titular',

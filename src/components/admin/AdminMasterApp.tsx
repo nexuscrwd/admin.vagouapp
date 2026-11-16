@@ -163,12 +163,15 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
     setIsEditModalOpen(true);
   };
 
-  const handleSaveSalonUpdates = async (salonId: string, updates: Partial<AdminSalonItem>) => {
+  const handleSaveSalonUpdates = async (salonId: string, updates: Partial<AdminSalonItem>): Promise<boolean> => {
     const res = await updateAdminSalon(salonId, updates);
     if (res.success) {
       setSalons((prev) => prev.map((s) => (s.id === salonId ? { ...s, ...updates } : s)));
+      setSelectedSalonForDetail((prev) => (prev && prev.id === salonId ? { ...prev, ...updates } : prev));
       fetchAdminDashboardMetrics().then(setMetrics);
+      return true;
     }
+    return false;
   };
 
   const handleCreateSalon = async (payload: Partial<AdminSalonItem>) => {

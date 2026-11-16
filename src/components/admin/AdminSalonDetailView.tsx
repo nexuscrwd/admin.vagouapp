@@ -78,7 +78,8 @@ import {
 } from '../../data/serviceGalleryPresets';
 import { SalonLogo } from '../common/SalonLogo';
 import { UserAvatar } from '../common/UserAvatar';
-import { supabase } from '../../services/supabase';
+import { supabase, supabaseAdmin } from '../../services/supabase';
+import { safeSupabaseClientWrite } from '../../services/supabaseApi';
 import { TriadeMnvClientLoginForm } from './triade-forms/TriadeMnvClientLoginForm';
 import { TriadeUserRegisterForm } from './triade-forms/TriadeUserRegisterForm';
 import { SalonWelcomeModal } from './SalonWelcomeModal';
@@ -546,11 +547,38 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
   // Helper de persistência de mídia no backend (public.salon_media_items + branding.mediaItems)
   const syncMediaItemWithBackend = async (action: 'upsert' | 'delete', item?: SalonMediaItem, mediaId?: string) => {
     try {
-      await fetch(`/api/admin/salons/${salon.id}/media`, {
+      const resp = await fetch(`/api/admin/salons/${salon.id}/media`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, item, mediaId }),
       });
+      if (resp.ok) return;
+    } catch {}
+
+    try {
+      const { data: currentSalon } = await supabaseAdmin
+        .from('salons')
+        .select('branding')
+        .eq('id', salon.id)
+        .maybeSingle();
+      const brandingObj =
+        currentSalon?.branding && typeof currentSalon.branding === 'object' ? { ...currentSalon.branding } : {};
+      let mediaList: any[] = Array.isArray(brandingObj.mediaItems) ? [...brandingObj.mediaItems] : [];
+
+      if (action === 'delete' && mediaId) {
+        mediaList = mediaList.filter((m) => m.id !== mediaId);
+      } else if (item) {
+        const idx = mediaList.findIndex((m) => m.id === item.id);
+        if (idx >= 0) mediaList[idx] = item;
+        else mediaList.unshift(item);
+      }
+
+      await safeSupabaseClientWrite(
+        'salons',
+        'update',
+        { branding: { ...brandingObj, mediaItems: mediaList } },
+        { eqColumn: 'id', eqValue: salon.id }
+      );
     } catch (err) {
       console.warn('Erro ao sincronizar mídia no Supabase:', err);
     }
@@ -559,11 +587,38 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
   // Helper de persistência de serviço no backend (public.services + public.salon_services)
   const syncServiceWithBackend = async (action: 'upsert' | 'delete', service?: SalonServiceRecord, serviceId?: string) => {
     try {
-      await fetch(`/api/admin/salons/${salon.id}/services`, {
+      const resp = await fetch(`/api/admin/salons/${salon.id}/services`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, service, serviceId }),
       });
+      if (resp.ok) return;
+    } catch {}
+
+    try {
+      if (action === 'delete' && serviceId) {
+        await supabaseAdmin.from('services').delete().eq('id', serviceId);
+        await supabaseAdmin.from('salon_services').delete().eq('id', serviceId);
+      } else if (service) {
+        const isValidUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(service.id || '');
+        const resolvedId = isValidUuid ? service.id : crypto.randomUUID();
+        const payload = {
+          id: resolvedId,
+          salon_id: salon.id,
+          name: service.name,
+          category: service.category || 'Geral',
+          price: Number(service.price) || 0,
+          duration_minutes: Number(service.duration_minutes) || 30,
+          commission_rate: Number(service.commission_rate ?? 50),
+          description: service.description || '',
+          is_active: service.is_active !== false,
+          photos: Array.isArray(service.photos) ? service.photos : [],
+          videos: Array.isArray(service.videos) ? service.videos : [],
+          slides: Array.isArray(service.slides) ? service.slides : [],
+        };
+        await safeSupabaseClientWrite('services', 'upsert', payload, { onConflict: 'id' });
+        await safeSupabaseClientWrite('salon_services', 'upsert', payload, { onConflict: 'id' });
+      }
     } catch (err) {
       console.warn('Erro ao sincronizar serviço no Supabase:', err);
     }
@@ -1115,11 +1170,54 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
   const handleSaveBrandingTheme = async () => {
     setIsSavingTheme(true);
     try {
-      await fetch(`/api/admin/salons/${salon.id}/branding-theme`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(themeForm),
-      });
+      let savedViaApi = false;
+      try {
+        const resp = await fetch(`/api/admin/salons/${salon.id}/branding-theme`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(themeForm),
+        });
+        if (resp.ok) savedViaApi = true;
+      } catch {}
+
+      if (!savedViaApi) {
+        await safeSupabaseClientWrite(
+          'salons',
+          'update',
+          {
+            theme_preset_id: themeForm.themePresetId,
+            primary_color: themeForm.primaryColor,
+            secondary_color: themeForm.secondaryColor,
+            facade_photo_url: themeForm.facadePhotoUrl,
+            interior_photo_url: themeForm.interiorPhotoUrl,
+            logo_dark_url: themeForm.logoDarkUrl,
+            logo_light_url: themeForm.logoLightUrl,
+            default_theme: themeForm.defaultTheme,
+            pwa_name: themeForm.pwaName,
+            show_slogan: themeForm.showSlogan,
+            logo_text_fallback: themeForm.logoTextFallback,
+            logo_text_color: themeForm.logoTextColor,
+            show_hero_slides: themeForm.showHeroSlides,
+            welcome_style: themeForm.welcomeStyle,
+            section_header_bg_color: themeForm.sectionHeaderBgColor,
+            section_header_text_color: themeForm.sectionHeaderTextColor,
+            section_header_icon_color: themeForm.sectionHeaderIconColor,
+            section_header_bg_style: themeForm.sectionHeaderBgStyle,
+            section_header_border: themeForm.sectionHeaderBorder,
+            nav_style: themeForm.navStyle,
+            nav_shape: themeForm.navShape,
+            nav_border: themeForm.navBorder,
+            nav_icon_border: themeForm.navIconBorder,
+            nav_bg_style: themeForm.navBgStyle,
+            nav_bg_color: themeForm.navBgColor,
+            nav_btn_bg_color: themeForm.navBtnBgColor,
+            nav_btn_active_bg_color: themeForm.navBtnActiveBgColor,
+            nav_active_color: themeForm.navActiveColor,
+            nav_text_color: themeForm.navTextColor,
+          },
+          { eqColumn: 'id', eqValue: salon.id }
+        );
+      }
       salon.theme_preset_id = themeForm.themePresetId;
       salon.primary_color = themeForm.primaryColor;
       salon.secondary_color = themeForm.secondaryColor;
@@ -1249,13 +1347,42 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     setIsProModalOpen(false);
 
     try {
-      await fetch(`/api/admin/salons/${salon.id}/professionals`, {
+      const resp = await fetch(`/api/admin/salons/${salon.id}/professionals`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'upsert', professional: proPayload }),
       });
-    } catch (err) {
-      console.warn('Erro ao salvar profissional no Supabase:', err);
+      if (!resp.ok) throw new Error('Fallback to direct Supabase write');
+    } catch {
+      try {
+        const isValidUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          proPayload.id || ''
+        );
+        const resolvedId = isValidUuid ? proPayload.id : crypto.randomUUID();
+        await safeSupabaseClientWrite(
+          'professionals',
+          'upsert',
+          {
+            id: resolvedId,
+            salon_id: salon.id,
+            current_salon_id: salon.id,
+            name: proPayload.name,
+            role: proPayload.role,
+            access_level: proPayload.access_level,
+            phone: proPayload.phone || null,
+            phone_whatsapp: proPayload.phone || null,
+            email: proPayload.email || null,
+            avatar_url: proPayload.avatar_url || null,
+            commission_rate: proPayload.commission_rate,
+            product_commission_rate: proPayload.product_commission_rate,
+            is_active: proPayload.is_active,
+            status: proPayload.is_active ? 'active' : 'suspended',
+          },
+          { onConflict: 'id' }
+        );
+      } catch (err) {
+        console.warn('Erro ao salvar profissional no Supabase:', err);
+      }
     }
   };
 
@@ -1263,13 +1390,18 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     if (!confirm('Deseja realmente remover este profissional da equipe?')) return;
     setTeam((prev) => prev.filter((p) => p.id !== professionalId));
     try {
-      await fetch(`/api/admin/salons/${salon.id}/professionals`, {
+      const resp = await fetch(`/api/admin/salons/${salon.id}/professionals`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'delete', professionalId }),
       });
-    } catch (err) {
-      console.warn('Erro ao remover profissional no Supabase:', err);
+      if (!resp.ok) throw new Error('Fallback delete');
+    } catch {
+      try {
+        await supabaseAdmin.from('professionals').delete().eq('id', professionalId);
+      } catch (err) {
+        console.warn('Erro ao remover profissional no Supabase:', err);
+      }
     }
   };
 
@@ -1280,7 +1412,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
 
     const clientId = selectedClientForDeps.id;
     const tempDep: UserFamilyDependent = {
-      id: `dep-${Date.now()}`,
+      id: crypto.randomUUID(),
       parent_client_id: clientId,
       full_name: newDepForm.full_name.trim(),
       relationship: newDepForm.relationship,
@@ -1296,6 +1428,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'add', dependent: tempDep }),
       });
+      if (!resp.ok) throw new Error('Fallback add dependent');
       const json = await resp.json();
       const savedDep: UserFamilyDependent = json?.dependent || tempDep;
 
@@ -1315,6 +1448,23 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         })
       );
     } catch {
+      try {
+        await safeSupabaseClientWrite(
+          'dependents',
+          'upsert',
+          {
+            id: tempDep.id,
+            parent_client_id: clientId,
+            full_name: tempDep.full_name,
+            relationship: tempDep.relationship,
+            birth_date: tempDep.birth_date || null,
+            notes: tempDep.notes || null,
+            is_unlinked: false,
+          },
+          { onConflict: 'id' }
+        );
+      } catch {}
+
       setClients((prev) =>
         prev.map((c) => {
           if (c.id === clientId) {
@@ -1361,13 +1511,23 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     );
 
     try {
-      await fetch(`/api/admin/clients/${clientId}/dependents`, {
+      const resp = await fetch(`/api/admin/clients/${clientId}/dependents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'remove', dependentId }),
       });
-    } catch (err) {
-      console.warn('Erro ao desvincular dependente:', err);
+      if (!resp.ok) throw new Error('Fallback remove dependent');
+    } catch {
+      try {
+        await safeSupabaseClientWrite(
+          'dependents',
+          'update',
+          { is_unlinked: true, unlinked_at: new Date().toISOString() },
+          { eqColumn: 'id', eqValue: dependentId }
+        );
+      } catch (err) {
+        console.warn('Erro ao desvincular dependente:', err);
+      }
     }
   };
 
