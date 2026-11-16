@@ -15,6 +15,26 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-11-16] — 🧹 Simplificação Soberana do Menu "Configurações", Painel de Governança e Tela Inicial (`bol-168`)
+- **Tipo:** `[Refactor / Clean Code & UX Simplification]`
+- **Motivo / Solicitação:**
+  - Remoção das opções duplicadas de formulários de entrada/login, cadastros e Modal de Boas-Vindas que ficavam aninhadas sob **Configurações** (`Estabelecimento > Login Estabelecimento / Cadastro Estabelecimento / Modal Boas-Vindas`, `Usuário > Login Usuário / Cadastro Usuário` e `Embeds & iFrame`), visto que:
+    1. O login de estabelecimentos roda diretamente no próprio app de cada salão (`*.vagouapp.com` — `mnvapp`).
+    2. A criação e edição completa de **Estabelecimentos** (`+ Cadastrar`) e **Usuários** (`+ Cadastrar` / `+ Admin`) já estão disponíveis diretamente nos seus respectivos módulos principais.
+    3. O cadastro de salão já fecha a janela e abre o app do estabelecimento (`https://{slug}.vagouapp.com`) sem modal intermediário de boas-vindas.
+- **Resumo Técnico & Implementação:**
+  1. **Menu Lateral (`AdminSidebar.tsx`):** Mantida apenas a opção **Preferências** dentro de **Configurações**, removendo os submenus redundantes de `Estabelecimento`, `Usuário` e `Embeds & iFrame`.
+  2. **Painel de Configurações (`AdminSettingsPanel.tsx`):** Removidas as seções duplicadas de *Modal de Boas-Vindas & Kit de Lançamento* e *Central de Formulários da Tríade*, mantendo a gestão de **Administradores Corporativos do Sistema** e o atalho direto para **Preferências (Cores & Logo)**.
+  3. **Tela Inicial (`AdminHomeScreen.tsx`) & Roteamento (`AdminMasterApp.tsx`):** Substituído o card *Central de Formulários da Tríade* pelo card **Preferências & Identidade Visual** (`Realtime Sync`), mantendo intactos os componentes base (`TriadeEstablishmentMasterForm`, `TriadeUserRegisterForm`, `TriadeUserLoginForm`) utilizados nos botões `+ Cadastrar` de **Estabelecimentos** e **Usuários**.
+- **Arquivos Impactados:**
+  - `/src/components/admin/AdminSidebar.tsx`
+  - `/src/components/admin/AdminSettingsPanel.tsx`
+  - `/src/components/admin/AdminHomeScreen.tsx`
+  - `/src/components/admin/AdminMasterApp.tsx`
+  - `/CHANGELOG.md`
+
+---
+
 ### [2026-11-16] — ☁️ Correção Definitiva da Persistência Global no Supabase da Ferramenta "Preferências" (Sincronização Real entre Chrome, Edge e Mobile) (`bol-167.2`)
 - **Tipo:** `[Fix / Database Persistence & Cross-Browser Sync / Tríade Sync]`
 - **Motivo / Solicitação:**

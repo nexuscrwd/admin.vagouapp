@@ -6,10 +6,9 @@ import {
   CalendarCheck,
   Settings,
   ArrowRight,
-  FileText,
+  Palette,
 } from 'lucide-react';
 import { AdminScreenId, AdminDashboardMetrics, AdminSalonItem } from '../../types/admin';
-import { VagouOfficialLogo } from '../common/VagouOfficialLogo';
 
 interface AdminHomeScreenProps {
   metrics: AdminDashboardMetrics;
@@ -24,12 +23,9 @@ export const AdminHomeScreen: React.FC<AdminHomeScreenProps> = ({
   metrics,
   salons,
   onNavigateScreen,
-  onOpenCreateSalon,
   onOpenCreateAdmin,
-  onOpenSalonDetail,
 }) => {
   const pendingCount = metrics.pendingSalons + metrics.incompleteSalons;
-  const recentSalons = salons.slice(0, 4);
 
   const navSections = [
     {
@@ -92,7 +88,7 @@ export const AdminHomeScreen: React.FC<AdminHomeScreenProps> = ({
     {
       id: 'settings' as AdminScreenId,
       title: 'Configurações & Governança',
-      description: 'Sincronização da Tríade, comunicados técnicos, logs de auditoria e infraestrutura.',
+      description: 'Controle de administradores corporativos e governança soberana da plataforma.',
       icon: Settings,
       badge: 'Cluster Supabase',
       badgeColor: 'bg-slate-500/10 text-slate-300 border-slate-500/20',
@@ -102,16 +98,16 @@ export const AdminHomeScreen: React.FC<AdminHomeScreenProps> = ({
       buttonText: 'Configurações do Sistema',
     },
     {
-      id: 'forms' as AdminScreenId,
-      title: 'Central de Formulários da Tríade',
-      description: 'Modelos de onboarding, termos de uso, formulários de adesão e cadastros unificados.',
-      icon: FileText,
-      badge: 'Tríade v2.2.0',
+      id: 'preferences' as AdminScreenId,
+      title: 'Preferências & Identidade Visual',
+      description: 'Edição em tempo real de logotipos (Dark/Light), ícone mobile, favicon, cores e fontes.',
+      icon: Palette,
+      badge: 'Realtime Sync',
       badgeColor: 'bg-teal-500/10 text-teal-400 border-teal-500/20',
       accentColor: 'from-teal-500/20 via-teal-500/5 to-transparent',
       borderColor: 'hover:border-teal-500/40',
       buttonBg: 'bg-teal-600 hover:bg-teal-500 text-white',
-      buttonText: 'Abrir Formulários',
+      buttonText: 'Abrir Preferências',
     },
   ];
 

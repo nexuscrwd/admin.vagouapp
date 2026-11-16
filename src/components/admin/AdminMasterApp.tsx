@@ -18,7 +18,7 @@ import {
   SystemAdminUser,
   AdminAuthTab,
 } from '../../types/admin';
-import { AdminSidebar, FormsSubTabId } from './AdminSidebar';
+import { AdminSidebar } from './AdminSidebar';
 import { AdminHeader } from './AdminHeader';
 import { AdminHomeScreen } from './AdminHomeScreen';
 import { AdminSalonsList } from './AdminSalonsList';
@@ -28,7 +28,6 @@ import { AdminAppointmentsMonitor } from './AdminAppointmentsMonitor';
 import { AdminUsersManager } from './AdminUsersManager';
 import { AdminSettingsPanel } from './AdminSettingsPanel';
 import { AdminPreferencesPanel } from './AdminPreferencesPanel';
-import { AdminTriadeFormsCatalog } from './AdminTriadeFormsCatalog';
 import { AdminAuthModal } from './AdminAuthModal';
 import { AdminCreateAdminModal } from './AdminCreateAdminModal';
 import { AdminPortalManager } from './AdminPortalManager';
@@ -58,7 +57,6 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
   const [adminUser, setAdminUser] = useState<SystemAdminUser | null>(() => getStoredAdmin());
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalInitialTab, setAuthModalInitialTab] = useState<AdminAuthTab>('login');
-  const [formsActiveTab, setFormsActiveTab] = useState<FormsSubTabId>('estabelecimento_cadastro');
   const [isCreateAdminModalOpen, setIsCreateAdminModalOpen] = useState(false);
 
   // Salon Modals
@@ -257,11 +255,6 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
           pendingCount={pendingCount}
           adminUser={adminUser}
           onOpenAuthModal={handleOpenAuthModal}
-          activeFormsTab={formsActiveTab}
-          onSelectFormsTab={(tab) => {
-            setFormsActiveTab(tab);
-            setCurrentScreen('forms');
-          }}
         />
       </div>
 
@@ -341,24 +334,16 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
           {/* SCREEN: APPOINTMENTS */}
           {currentScreen === 'appointments' && <AdminAppointmentsMonitor />}
 
-          {/* SCREEN: SETTINGS (Includes Tríade Governance inside) */}
+          {/* SCREEN: SETTINGS */}
           {currentScreen === 'settings' && (
             <AdminSettingsPanel
-              onNavigateToForms={() => setCurrentScreen('forms')}
               onNavigateToPreferences={() => setCurrentScreen('preferences')}
             />
           )}
 
           {/* SCREEN: PREFERENCES (Cores, Temas, Logotipos & Favicon) */}
-          {currentScreen === 'preferences' && <AdminPreferencesPanel />}
-
-          {/* SCREEN: FORMS (Central de Formulários da Tríade) */}
-          {currentScreen === 'forms' && (
-            <AdminTriadeFormsCatalog
-              onBack={() => setCurrentScreen('settings')}
-              activeTab={formsActiveTab}
-              onTabChange={setFormsActiveTab}
-            />
+          {(currentScreen === 'preferences' || currentScreen === 'forms') && (
+            <AdminPreferencesPanel />
           )}
         </main>
       </div>

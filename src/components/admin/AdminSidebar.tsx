@@ -11,10 +11,6 @@ import {
   PanelLeftOpen,
   ChevronDown,
   ChevronRight,
-  Code,
-  KeyRound,
-  UserPlus,
-  Sparkles,
   Palette,
 } from 'lucide-react';
 import { AdminScreenId, SystemAdminUser, AdminAuthTab } from '../../types/admin';
@@ -27,7 +23,6 @@ export type FormsSubTabId =
   | 'usuario_login'
   | 'usuario_cadastro'
   | 'embeds'
-  // Compatibilidade legada
   | 'estabelecimento'
   | 'usuarios';
 
@@ -48,8 +43,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   currentScreen,
   onSelectScreen,
   onCloseMobile,
-  activeFormsTab = 'estabelecimento_cadastro',
-  onSelectFormsTab,
 }) => {
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
     try {
@@ -60,8 +53,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   });
 
   const [isSettingsMenuOpen, setIsSettingsMenuOpen] = useState<boolean>(true);
-  const [isEstabGroupOpen, setIsEstabGroupOpen] = useState<boolean>(true);
-  const [isUserGroupOpen, setIsUserGroupOpen] = useState<boolean>(true);
 
   const toggleCollapsed = () => {
     setIsCollapsed((prev) => {
@@ -87,21 +78,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     { id: 'settings', label: 'Configurações', icon: Settings },
   ];
 
-  const isEstabActive =
-    currentScreen === 'forms' &&
-    (activeFormsTab === 'estabelecimento_login' ||
-      activeFormsTab === 'estabelecimento_cadastro' ||
-      activeFormsTab === 'welcome_modal' ||
-      activeFormsTab === 'estabelecimento');
-
-  const isUserActive =
-    currentScreen === 'forms' &&
-    (activeFormsTab === 'usuario_login' ||
-      activeFormsTab === 'usuario_cadastro' ||
-      activeFormsTab === 'usuarios');
-
-  const isEmbedsActive = currentScreen === 'forms' && activeFormsTab === 'embeds';
-  const isWelcomeActive = currentScreen === 'forms' && activeFormsTab === 'welcome_modal';
   const isPreferencesActive = currentScreen === 'preferences';
 
   return (
@@ -167,7 +143,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             const isSettingsItem = item.id === 'settings';
             const isActive =
               currentScreen === item.id ||
-              (isSettingsItem && (currentScreen === 'forms' || currentScreen === 'preferences'));
+              (isSettingsItem && currentScreen === 'preferences');
 
             return (
               <div key={item.id} className="space-y-1">
@@ -192,7 +168,13 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                   }`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-700 dark:group-hover:text-white'}`} />
+                    <Icon
+                      className={`w-4 h-4 shrink-0 ${
+                        isActive
+                          ? 'text-white'
+                          : 'text-slate-400 group-hover:text-slate-700 dark:group-hover:text-white'
+                      }`}
+                    />
                     {!isCollapsed && <span className="truncate">{item.label}</span>}
                   </div>
 
@@ -203,21 +185,26 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                         setIsSettingsMenuOpen((prev) => !prev);
                       }}
                       className="p-0.5 rounded hover:bg-white/20 transition cursor-pointer"
-                      title={isSettingsMenuOpen ? 'Recolher subitens de configurações' : 'Expandir subitens de configurações'}
+                      title={
+                        isSettingsMenuOpen
+                          ? 'Recolher subitens de configurações'
+                          : 'Expandir subitens de configurações'
+                      }
                     >
                       {isSettingsMenuOpen ? (
                         <ChevronDown className="w-3.5 h-3.5 text-white/90" />
                       ) : (
-                        <ChevronRight className={`w-3.5 h-3.5 ${isActive ? 'text-white/90' : 'text-slate-400'}`} />
+                        <ChevronRight
+                          className={`w-3.5 h-3.5 ${isActive ? 'text-white/90' : 'text-slate-400'}`}
+                        />
                       )}
                     </div>
                   )}
                 </button>
 
-                {/* Árvore Hierárquica de Configurações -> Preferências, Estabelecimento & Usuário */}
+                {/* Subitem Limpo de Configurações -> Preferências */}
                 {isSettingsItem && !isCollapsed && isSettingsMenuOpen && (
-                  <div className="pl-2.5 pr-1 py-1 space-y-1.5 animate-fadeIn border-l-2 border-emerald-500/30 ml-3 my-1">
-                    {/* ITEM PRINCIPAL: PREFERÊNCIAS (CORES, TEMAS, LOGOTIPOS & FAVICON) */}
+                  <div className="pl-2.5 pr-1 py-1 space-y-1 animate-fadeIn border-l-2 border-emerald-500/30 ml-3 my-1">
                     <button
                       type="button"
                       onClick={(e) => {
@@ -237,225 +224,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                         }`}
                       />
                       <span className="truncate">Preferências</span>
-                    </button>
-                    {/* GRUPO 1: ESTABELECIMENTO */}
-                    <div className="space-y-0.5">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsEstabGroupOpen((prev) => !prev);
-                        }}
-                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer text-left ${
-                          isEstabActive
-                            ? 'bg-emerald-500/15 text-emerald-500 dark:text-emerald-400 border border-emerald-500/30'
-                            : 'text-slate-400 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Building2 className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
-                          <span className="truncate">Estabelecimento</span>
-                        </div>
-                        {isEstabGroupOpen ? (
-                          <ChevronDown className="w-3 h-3 shrink-0 text-slate-400" />
-                        ) : (
-                          <ChevronRight className="w-3 h-3 shrink-0 text-slate-400" />
-                        )}
-                      </button>
-
-                      {isEstabGroupOpen && (
-                        <div className="pl-3 space-y-0.5 border-l border-slate-700/60 ml-2.5 pt-0.5">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSelectFormsTab?.('estabelecimento_login');
-                              onSelectScreen('forms');
-                              onCloseMobile?.();
-                            }}
-                            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] transition cursor-pointer text-left ${
-                              currentScreen === 'forms' && activeFormsTab === 'estabelecimento_login'
-                                ? 'bg-[#20C933] text-white font-bold shadow-xs'
-                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
-                            }`}
-                          >
-                            <KeyRound
-                              className={`w-3 h-3 shrink-0 ${
-                                currentScreen === 'forms' && activeFormsTab === 'estabelecimento_login'
-                                  ? 'text-white'
-                                  : 'text-emerald-400'
-                              }`}
-                            />
-                            <span className="truncate">Login Estabelecimento</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSelectFormsTab?.('estabelecimento_cadastro');
-                              onSelectScreen('forms');
-                              onCloseMobile?.();
-                            }}
-                            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] transition cursor-pointer text-left ${
-                              currentScreen === 'forms' &&
-                              (activeFormsTab === 'estabelecimento_cadastro' || activeFormsTab === 'estabelecimento')
-                                ? 'bg-[#20C933] text-white font-bold shadow-xs'
-                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
-                            }`}
-                          >
-                            <Building2
-                              className={`w-3 h-3 shrink-0 ${
-                                currentScreen === 'forms' &&
-                                (activeFormsTab === 'estabelecimento_cadastro' || activeFormsTab === 'estabelecimento')
-                                  ? 'text-white'
-                                  : 'text-emerald-400'
-                              }`}
-                            />
-                            <span className="truncate">Cadastro Estabelecimento</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSelectFormsTab?.('welcome_modal');
-                              onSelectScreen('forms');
-                              onCloseMobile?.();
-                            }}
-                            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] transition cursor-pointer text-left ${
-                              isWelcomeActive
-                                ? 'bg-[#20C933] text-white font-bold shadow-xs'
-                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
-                            }`}
-                          >
-                            <Sparkles
-                              className={`w-3 h-3 shrink-0 ${
-                                isWelcomeActive ? 'text-white' : 'text-emerald-400'
-                              }`}
-                            />
-                            <span className="truncate">Modal Boas-Vindas</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* GRUPO 2: USUÁRIO */}
-                    <div className="space-y-0.5">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsUserGroupOpen((prev) => !prev);
-                        }}
-                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer text-left ${
-                          isUserActive
-                            ? 'bg-emerald-500/15 text-emerald-500 dark:text-emerald-400 border border-emerald-500/30'
-                            : 'text-slate-400 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Users className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
-                          <span className="truncate">Usuário</span>
-                        </div>
-                        {isUserGroupOpen ? (
-                          <ChevronDown className="w-3 h-3 shrink-0 text-slate-400" />
-                        ) : (
-                          <ChevronRight className="w-3 h-3 shrink-0 text-slate-400" />
-                        )}
-                      </button>
-
-                      {isUserGroupOpen && (
-                        <div className="pl-3 space-y-0.5 border-l border-slate-700/60 ml-2.5 pt-0.5">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSelectFormsTab?.('usuario_login');
-                              onSelectScreen('forms');
-                              onCloseMobile?.();
-                            }}
-                            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] transition cursor-pointer text-left ${
-                              currentScreen === 'forms' && activeFormsTab === 'usuario_login'
-                                ? 'bg-[#20C933] text-white font-bold shadow-xs'
-                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
-                            }`}
-                          >
-                            <KeyRound
-                              className={`w-3 h-3 shrink-0 ${
-                                currentScreen === 'forms' && activeFormsTab === 'usuario_login'
-                                  ? 'text-white'
-                                  : 'text-emerald-400'
-                              }`}
-                            />
-                            <span className="truncate">Login Usuário</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSelectFormsTab?.('usuario_cadastro');
-                              onSelectScreen('forms');
-                              onCloseMobile?.();
-                            }}
-                            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] transition cursor-pointer text-left ${
-                              currentScreen === 'forms' &&
-                              (activeFormsTab === 'usuario_cadastro' || activeFormsTab === 'usuarios')
-                                ? 'bg-[#20C933] text-white font-bold shadow-xs'
-                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
-                            }`}
-                          >
-                            <UserPlus
-                              className={`w-3 h-3 shrink-0 ${
-                                currentScreen === 'forms' &&
-                                (activeFormsTab === 'usuario_cadastro' || activeFormsTab === 'usuarios')
-                                  ? 'text-white'
-                                  : 'text-emerald-400'
-                              }`}
-                            />
-                            <span className="truncate">Cadastro Usuário</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* ITEM 3: EMBEDS & IFRAME */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSelectFormsTab?.('embeds');
-                        onSelectScreen('forms');
-                        onCloseMobile?.();
-                      }}
-                      className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer text-left ${
-                        isEmbedsActive
-                          ? 'bg-[#20C933] text-white shadow-xs'
-                          : 'text-slate-400 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
-                      }`}
-                    >
-                      <Code className={`w-3.5 h-3.5 shrink-0 ${isEmbedsActive ? 'text-white' : 'text-emerald-400'}`} />
-                      <span className="truncate">Embeds & iFrame</span>
-                    </button>
-
-                    {/* ITEM 4: MODAL DE BOAS-VINDAS (ACESSO DIRETO) */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSelectFormsTab?.('welcome_modal');
-                        onSelectScreen('forms');
-                        onCloseMobile?.();
-                      }}
-                      className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer text-left ${
-                        isWelcomeActive
-                          ? 'bg-[#20C933] text-white shadow-xs'
-                          : 'text-slate-400 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
-                      }`}
-                    >
-                      <Sparkles className={`w-3.5 h-3.5 shrink-0 ${isWelcomeActive ? 'text-white' : 'text-emerald-400'}`} />
-                      <span className="truncate">Modal Boas-Vindas</span>
                     </button>
                   </div>
                 )}
