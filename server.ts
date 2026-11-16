@@ -1574,13 +1574,29 @@ async function startServer() {
 
   app.get('/api/admin/preferences', async (_req, res) => {
     try {
+      // Tenta ler do banco Supabase primeiro para persistência global entre navegadores (Chrome, Edge, etc.)
+      const { data, error } = await supabaseAdmin
+        .from('admin_preferences')
+        .select('preferences, updated_at')
+        .eq('id', 'global')
+        .maybeSingle();
+
+      if (!error && data?.preferences) {
+        return res.json({
+          success: true,
+          preferences: data.preferences,
+        });
+      }
+
+      // Fallback para disco local se o banco estiver indisponível
       const stored = readAdminPreferencesFromDisk();
       return res.json({
         success: true,
         preferences: stored || null,
       });
     } catch (err: any) {
-      return res.status(500).json({ success: false, error: err.message });
+      const stored = readAdminPreferencesFromDisk();
+      return res.json({ success: true, preferences: stored || null });
     }
   });
 
@@ -1616,7 +1632,20 @@ async function startServer() {
         updatedAt: new Date().toISOString(),
       };
 
+      // Salva no disco local (fallback)
       writeAdminPreferencesToDisk(savedPrefs);
+
+      // Salva no banco Supabase (tabela admin_preferences) para persistência global entre navegadores
+      try {
+        await supabaseAdmin
+          .from('admin_preferences')
+          .upsert(
+            { id: 'global', preferences: savedPrefs, updated_at: savedPrefs.updatedAt },
+            { onConflict: 'id' }
+          );
+      } catch (dbErr) {
+        console.warn('[preferences] Aviso: Não foi possível salvar admin_preferences no Supabase (usando disco/local):', dbErr);
+      }
 
       return res.json({
         success: true,

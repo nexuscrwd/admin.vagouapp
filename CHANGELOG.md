@@ -15,6 +15,22 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-11-16] — ☁️ Persistência Global no Supabase da Ferramenta "Preferências" (Sincronização Cruzada entre Chrome, Edge e Mobile) (`bol-167.2`)
+- **Tipo:** `[Fix / Database Persistence & Cross-Browser Sync / Tríade Sync]`
+- **Motivo / Solicitação:**
+  - Correção do problema onde as alterações realizadas no painel de **Preferências** (Logotipos Dark/Light, Ícone Mobile, Favicon, Cores e Fontes) ficavam restritas apenas ao navegador local (`localStorage`), fazendo com que ao abrir o sistema em outro navegador (ex.: abrindo no Edge após alterar no Chrome) as personalizações não aparecessem.
+- **Resumo Técnico & Implementação:**
+  1. **Tabela Supabase `admin_preferences` (`20261116_admin_preferences_table.sql`):**
+     - Criada a tabela no banco de dados para armazenar o JSONB de preferências global (`id = 'global'`).
+  2. **Atualização da API do Servidor (`server.ts` — `/api/admin/preferences`):**
+     - As rotas `GET` e `POST /api/admin/preferences` agora gravam e leem diretamente do Supabase (`public.admin_preferences`), garantindo que qualquer alteração feita por qualquer administrador seja instantaneamente persistida no banco e refletida em todos os navegadores e dispositivos.
+- **Arquivos Impactados:**
+  - `/supabase/migrations/20261116_admin_preferences_table.sql` *(Novo)*
+  - `/server.ts`
+  - `/CHANGELOG.md`
+
+---
+
 ### [2026-11-15] — ✨ Entrada Cinematográfica em Vidro Jateado + Slideshow Inteligente para Estabelecimentos (`bol-167`)
 - **Tipo:** `[Feat / UI/UX Glassmorphism & Slideshow / Tríade Sync — Opção 2 Nativa mnvapp + Espelho admvapp]`
 - **Motivo / Solicitação:**
