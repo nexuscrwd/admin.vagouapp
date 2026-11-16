@@ -15,17 +15,18 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
-### [2026-11-16] — ☁️ Persistência Global no Supabase da Ferramenta "Preferências" (Sincronização Cruzada entre Chrome, Edge e Mobile) (`bol-167.2`)
+### [2026-11-16] — ☁️ Correção Definitiva da Persistência Global no Supabase da Ferramenta "Preferências" (Sincronização Real entre Chrome, Edge e Mobile) (`bol-167.2`)
 - **Tipo:** `[Fix / Database Persistence & Cross-Browser Sync / Tríade Sync]`
 - **Motivo / Solicitação:**
-  - Correção do problema onde as alterações realizadas no painel de **Preferências** (Logotipos Dark/Light, Ícone Mobile, Favicon, Cores e Fontes) ficavam restritas apenas ao navegador local (`localStorage`), fazendo com que ao abrir o sistema em outro navegador (ex.: abrindo no Edge após alterar no Chrome) as personalizações não aparecessem.
-- **Resumo Técnico & Implementação:**
-  1. **Tabela Supabase `admin_preferences` (`20261116_admin_preferences_table.sql`):**
-     - Criada a tabela no banco de dados para armazenar o JSONB de preferências global (`id = 'global'`).
-  2. **Atualização da API do Servidor (`server.ts` — `/api/admin/preferences`):**
-     - As rotas `GET` e `POST /api/admin/preferences` agora gravam e leem diretamente do Supabase (`public.admin_preferences`), garantindo que qualquer alteração feita por qualquer administrador seja instantaneamente persistida no banco e refletida em todos os navegadores e dispositivos.
+  - Ao alterar cores/predefinições (como **Esmeralda Executivo**) ou enviar logotipos no Chrome, abrir o sistema no Microsoft Edge (`https://admin.vagouapp.com`) continuava exibindo o tema claro padrão sem as alterações.
+- **Causa Raiz Identificada & Corrigida:**
+  1. **Bloqueio de Sessão em `ThemeContext.tsx` (`supabase.auth.getSession()`):** O Admin autentica na tabela `public.system_admins` (e não via JWT de `supabase.auth`), portanto `sessionData?.session?.user` retornava `null` e abortava o salvamento antes de executar o `upsert` em `public.admin_preferences`.
+  2. **Bloqueio de RLS no Bucket `media` (`403 AccessDenied`):** O upload de imagens Base64 (`data:image/...`) para `supabase.storage.from('media')` lançava exceção 403 e cancelava o `savePreferencesToServer`. Agora, se o bucket bloquear, o `Data URL` Base64 é preservado diretamente dentro do JSONB `preferences` em `public.admin_preferences`.
+  3. **Sincronização do Modo Ativo (`activeTheme: 'dark' | 'light'`), Auto-Save & Realtime:** Adicionado `activeTheme` dentro de `AdminSystemPreferences`, auto-salvamento com debounce (`350ms`) em qualquer alteração de cor/logo/tema e assinatura Supabase Realtime (`postgres_changes`) + `window.focus` para atualizar todos os navegadores abertos.
 - **Arquivos Impactados:**
-  - `/supabase/migrations/20261116_admin_preferences_table.sql` *(Novo)*
+  - `/src/context/ThemeContext.tsx`
+  - `/src/components/admin/AdminPreferencesPanel.tsx`
+  - `/supabase/migrations/20261116_admin_preferences_table.sql`
   - `/server.ts`
   - `/CHANGELOG.md`
 

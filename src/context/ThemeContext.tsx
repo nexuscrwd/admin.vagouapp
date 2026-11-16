@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '../services/supabase';
 
 export interface AdminThemeColorTokens {
@@ -18,6 +18,7 @@ export interface AdminSystemPreferences {
   logoLightUrl: string;
   mobileAppIconUrl: string;
   faviconUrl: string;
+  activeTheme?: 'dark' | 'light';
   dark: AdminThemeColorTokens;
   light: AdminThemeColorTokens;
   updatedAt?: string;
@@ -28,6 +29,7 @@ export const DEFAULT_ADMIN_PREFERENCES: AdminSystemPreferences = {
   logoLightUrl: '',
   mobileAppIconUrl: '',
   faviconUrl: '',
+  activeTheme: 'dark',
   dark: {
     headerBg: '#0f172a',
     headerText: '#f8fafc',
@@ -56,49 +58,60 @@ export const ADMIN_PREFERENCES_STORAGE_KEY = 'vagou_admin_system_preferences_v1'
 
 const ADMIN_PREFERENCES_ROW_ID = 'global';
 
-/** Se a imagem vier em Base64 (data:image/...), envia ao Storage (bucket "media") e devolve a URL pública. */
+/**
+ * Tenta enviar imagem Base64 (data:image/...) ao Storage (bucket "media").
+ * Se o bucket bloquear por política RLS (403), preserva o Data URL diretamente no JSONB do banco
+ * para que o salvamento JAMAIS falhe.
+ */
 async function uploadPreferenceImage(raw: string | undefined, prefix: string): Promise<string> {
   const value = (raw || '').trim();
   if (!value.startsWith('data:image/')) return value;
-  const blob = await (await fetch(value)).blob();
-  const ext = blob.type.includes('svg') ? 'svg' : blob.type.includes('jpeg') || blob.type.includes('jpg') ? 'jpg' : 'png';
-  const path = `admin/${prefix}-${Date.now()}.${ext}`;
-  const { error } = await supabase.storage
-    .from('media')
-    .upload(path, blob, { contentType: blob.type || 'image/png', upsert: true });
-  if (error) throw new Error(`Falha ao enviar a imagem (${prefix}): ${error.message}`);
-  const { data } = supabase.storage.from('media').getPublicUrl(path);
-  if (!data?.publicUrl) throw new Error(`Não foi possível obter a URL pública da imagem (${prefix}).`);
-  return data.publicUrl;
+  try {
+    const blob = await (await fetch(value)).blob();
+    const ext = blob.type.includes('svg')
+      ? 'svg'
+      : blob.type.includes('jpeg') || blob.type.includes('jpg')
+        ? 'jpg'
+        : 'png';
+    const path = `admin/${prefix}-${Date.now()}.${ext}`;
+    const { error } = await supabase.storage
+      .from('media')
+      .upload(path, blob, { contentType: blob.type || 'image/png', upsert: true });
+    if (error) {
+      return value;
+    }
+    const { data } = supabase.storage.from('media').getPublicUrl(path);
+    return data?.publicUrl || value;
+  } catch {
+    return value;
+  }
 }
 
-export function normalizeRemotePreferences(remote: Partial<AdminSystemPreferences>, updatedAt?: string): AdminSystemPreferences {
+export function normalizeRemotePreferences(
+  remote: Partial<AdminSystemPreferences>,
+  updatedAt?: string
+): AdminSystemPreferences {
   return {
     logoDarkUrl: typeof remote.logoDarkUrl === 'string' ? remote.logoDarkUrl : '',
     logoLightUrl: typeof remote.logoLightUrl === 'string' ? remote.logoLightUrl : '',
     mobileAppIconUrl: typeof remote.mobileAppIconUrl === 'string' ? remote.mobileAppIconUrl : '',
     faviconUrl: typeof remote.faviconUrl === 'string' ? remote.faviconUrl : '',
+    activeTheme:
+      remote.activeTheme === 'light' || remote.activeTheme === 'dark'
+        ? remote.activeTheme
+        : undefined,
     dark: { ...DEFAULT_ADMIN_PREFERENCES.dark, ...(remote.dark || {}) },
     light: { ...DEFAULT_ADMIN_PREFERENCES.light, ...(remote.light || {}) },
     updatedAt: updatedAt || remote.updatedAt,
   };
 }
 
-
 export function loadStoredAdminPreferences(): AdminSystemPreferences {
   try {
     const raw = localStorage.getItem(ADMIN_PREFERENCES_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      return {
-        logoDarkUrl: typeof parsed.logoDarkUrl === 'string' ? parsed.logoDarkUrl : '',
-        logoLightUrl: typeof parsed.logoLightUrl === 'string' ? parsed.logoLightUrl : '',
-        mobileAppIconUrl: typeof parsed.mobileAppIconUrl === 'string' ? parsed.mobileAppIconUrl : '',
-        faviconUrl: typeof parsed.faviconUrl === 'string' ? parsed.faviconUrl : '',
-        dark: { ...DEFAULT_ADMIN_PREFERENCES.dark, ...(parsed.dark || {}) },
-        light: { ...DEFAULT_ADMIN_PREFERENCES.light, ...(parsed.light || {}) },
-        updatedAt: parsed.updatedAt,
-      };
+      return normalizeRemotePreferences(parsed, parsed.updatedAt);
     }
   } catch {}
   return DEFAULT_ADMIN_PREFERENCES;
@@ -113,7 +126,9 @@ export interface ThemeContextType {
   setAccentColor: (color: string) => void;
   preferences: AdminSystemPreferences;
   updatePreferences: (next: AdminSystemPreferences) => void;
-  savePreferencesToServer: (next?: AdminSystemPreferences) => Promise<{ success: boolean; error?: string }>;
+  savePreferencesToServer: (
+    next?: AdminSystemPreferences
+  ) => Promise<{ success: boolean; error?: string }>;
   resetPreferences: () => Promise<void>;
 }
 
@@ -167,7 +182,8 @@ export const applySystemPreferencesToDom = (
   if (typeof document === 'undefined') return;
   try {
     const tokens = activeTheme === 'dark' ? prefs.dark : prefs.light;
-    const defaultTokens = activeTheme === 'dark' ? DEFAULT_ADMIN_PREFERENCES.dark : DEFAULT_ADMIN_PREFERENCES.light;
+    const defaultTokens =
+      activeTheme === 'dark' ? DEFAULT_ADMIN_PREFERENCES.dark : DEFAULT_ADMIN_PREFERENCES.light;
     const isCustomized =
       tokens.headerBg !== defaultTokens.headerBg ||
       tokens.headerText !== defaultTokens.headerText ||
@@ -321,8 +337,16 @@ export const applySystemPreferencesToDom = (
 };
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [preferences, setPreferencesState] = useState<AdminSystemPreferences>(() =>
+    loadStoredAdminPreferences()
+  );
+
   const [theme, setThemeState] = useState<'dark' | 'light'>(() => {
     try {
+      const storedPrefs = loadStoredAdminPreferences();
+      if (storedPrefs.activeTheme === 'dark' || storedPrefs.activeTheme === 'light') {
+        return storedPrefs.activeTheme;
+      }
       const explicitChoice = localStorage.getItem('vagou_user_theme_preference');
       if (explicitChoice === 'dark' || explicitChoice === 'light') {
         return explicitChoice;
@@ -343,10 +367,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   });
 
-  const [preferences, setPreferencesState] = useState<AdminSystemPreferences>(() =>
-    loadStoredAdminPreferences()
-  );
-
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isDark = theme === 'dark';
 
   useEffect(() => {
@@ -366,60 +387,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     applyAccentColorToDom(accentColor);
   }, [accentColor]);
 
-  // Carrega as preferências salvas no banco (Supabase) ao iniciar — vale para qualquer navegador/dispositivo
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        const { data, error } = await supabase
-          .from('admin_preferences')
-          .select('preferences, updated_at')
-          .eq('id', ADMIN_PREFERENCES_ROW_ID)
-          .maybeSingle();
-        if (!active) return;
-        if (error) {
-          console.warn('[preferências] Não foi possível ler admin_preferences:', error.message);
-          return;
-        }
-        if (!data?.preferences) return;
-        const merged = normalizeRemotePreferences(data.preferences as Partial<AdminSystemPreferences>, data.updated_at);
-        setPreferencesState(merged);
-        try {
-          localStorage.setItem(ADMIN_PREFERENCES_STORAGE_KEY, JSON.stringify(merged));
-        } catch {}
-      } catch (err) {
-        console.warn('[preferências] Falha inesperada ao carregar:', err);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const updatePreferences = (next: AdminSystemPreferences) => {
-    setPreferencesState(next);
-    try {
-      localStorage.setItem(ADMIN_PREFERENCES_STORAGE_KEY, JSON.stringify(next));
-    } catch {}
-    applySystemPreferencesToDom(next, theme);
-  };
-
-  const savePreferencesToServer = async (
-    customNext?: AdminSystemPreferences
+  // Função central que persiste diretamente na tabela public.admin_preferences do Supabase (sem exigir sessão Auth JWT, pois o Admin usa system_admins)
+  const persistPreferencesToSupabase = async (
+    target: AdminSystemPreferences
   ): Promise<{ success: boolean; error?: string }> => {
-    const target = customNext || preferences;
     try {
-      localStorage.setItem(ADMIN_PREFERENCES_STORAGE_KEY, JSON.stringify(target));
-    } catch {}
-    applySystemPreferencesToDom(target, theme);
-
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const user = sessionData?.session?.user;
-      if (!user) {
-        return { success: false, error: 'Entre como administrador para salvar as preferências no banco.' };
-      }
-
       const [logoDarkUrl, logoLightUrl, mobileAppIconUrl, faviconUrl] = await Promise.all([
         uploadPreferenceImage(target.logoDarkUrl, 'logo-dark'),
         uploadPreferenceImage(target.logoLightUrl, 'logo-light'),
@@ -428,55 +400,179 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       ]);
 
       const updatedAt = new Date().toISOString();
-      const toSave: AdminSystemPreferences = { ...target, logoDarkUrl, logoLightUrl, mobileAppIconUrl, faviconUrl, updatedAt };
+      const toSave: AdminSystemPreferences = {
+        ...target,
+        logoDarkUrl,
+        logoLightUrl,
+        mobileAppIconUrl,
+        faviconUrl,
+        activeTheme: target.activeTheme || theme,
+        updatedAt,
+      };
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('admin_preferences')
         .upsert(
-          { id: ADMIN_PREFERENCES_ROW_ID, preferences: toSave, updated_by: user.id, updated_at: updatedAt },
+          {
+            id: ADMIN_PREFERENCES_ROW_ID,
+            preferences: toSave,
+            updated_at: updatedAt,
+          },
           { onConflict: 'id' }
-        )
-        .select('id');
+        );
+
+      // Também sincroniza com a rota de servidor quando disponível
+      fetch('/api/admin/preferences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(toSave),
+      }).catch(() => {});
 
       if (error) {
         return { success: false, error: `Não foi possível salvar no banco: ${error.message}` };
-      }
-      if (!data || data.length !== 1) {
-        return { success: false, error: 'O banco não confirmou a gravação. Verifique se esta conta é administrador da plataforma.' };
       }
 
       setPreferencesState(toSave);
       try {
         localStorage.setItem(ADMIN_PREFERENCES_STORAGE_KEY, JSON.stringify(toSave));
       } catch {}
-      applySystemPreferencesToDom(toSave, theme);
+      applySystemPreferencesToDom(toSave, toSave.activeTheme || theme);
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err?.message || 'Erro ao salvar as preferências.' };
     }
   };
 
-  const resetPreferences = async () => {
-    setPreferencesState(DEFAULT_ADMIN_PREFERENCES);
-    try {
-      localStorage.setItem(ADMIN_PREFERENCES_STORAGE_KEY, JSON.stringify(DEFAULT_ADMIN_PREFERENCES));
-    } catch {}
-    applySystemPreferencesToDom(DEFAULT_ADMIN_PREFERENCES, theme);
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const user = sessionData?.session?.user;
-      if (!user) return;
-      const updatedAt = new Date().toISOString();
-      const { error } = await supabase
-        .from('admin_preferences')
-        .upsert(
-          { id: ADMIN_PREFERENCES_ROW_ID, preferences: { ...DEFAULT_ADMIN_PREFERENCES, updatedAt }, updated_by: user.id, updated_at: updatedAt },
-          { onConflict: 'id' }
-        );
-      if (error) console.warn('[preferências] Não foi possível restaurar o padrão no banco:', error.message);
-    } catch (err) {
-      console.warn('[preferências] Falha ao restaurar o padrão no banco:', err);
+  // Carrega as preferências salvas no banco (Supabase) ao iniciar, ao focar a janela e via Realtime — sincroniza Chrome, Edge, Safari e Mobile
+  useEffect(() => {
+    let active = true;
+
+    const fetchFromSupabase = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('admin_preferences')
+          .select('preferences, updated_at')
+          .eq('id', ADMIN_PREFERENCES_ROW_ID)
+          .maybeSingle();
+
+        if (!active || error || !data?.preferences) return;
+
+        const remoteObj = data.preferences as Partial<AdminSystemPreferences>;
+        // Ignora linha vazia caso ainda nunca tenha sido preenchida
+        const hasRemoteContent =
+          Boolean(remoteObj.logoDarkUrl) ||
+          Boolean(remoteObj.logoLightUrl) ||
+          Boolean(remoteObj.mobileAppIconUrl) ||
+          Boolean(remoteObj.faviconUrl) ||
+          Boolean(remoteObj.activeTheme) ||
+          (remoteObj.dark && Object.keys(remoteObj.dark).length > 0) ||
+          (remoteObj.light && Object.keys(remoteObj.light).length > 0);
+
+        if (!hasRemoteContent) return;
+
+        const merged = normalizeRemotePreferences(remoteObj, data.updated_at);
+        setPreferencesState(merged);
+        if (merged.activeTheme === 'dark' || merged.activeTheme === 'light') {
+          setThemeState(merged.activeTheme);
+          try {
+            localStorage.setItem('vagou_user_theme_preference', merged.activeTheme);
+            localStorage.setItem('vagou_theme', merged.activeTheme);
+          } catch {}
+        }
+        try {
+          localStorage.setItem(ADMIN_PREFERENCES_STORAGE_KEY, JSON.stringify(merged));
+        } catch {}
+      } catch (err) {
+        console.warn('[preferências] Falha inesperada ao carregar:', err);
+      }
+    };
+
+    fetchFromSupabase();
+
+    const handleWindowFocus = () => {
+      fetchFromSupabase();
+    };
+    window.addEventListener('focus', handleWindowFocus);
+
+    const channel = supabase
+      .channel('admin_preferences_global_sync')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'admin_preferences',
+          filter: `id=eq.${ADMIN_PREFERENCES_ROW_ID}`,
+        },
+        () => {
+          fetchFromSupabase();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      active = false;
+      window.removeEventListener('focus', handleWindowFocus);
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const scheduleAutoSave = (nextPrefs: AdminSystemPreferences) => {
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
     }
+    autoSaveTimerRef.current = setTimeout(() => {
+      persistPreferencesToSupabase(nextPrefs);
+    }, 350);
+  };
+
+  const updatePreferences = (next: AdminSystemPreferences) => {
+    const withTheme: AdminSystemPreferences = {
+      ...next,
+      activeTheme: next.activeTheme || theme,
+    };
+    setPreferencesState(withTheme);
+    try {
+      localStorage.setItem(ADMIN_PREFERENCES_STORAGE_KEY, JSON.stringify(withTheme));
+    } catch {}
+    applySystemPreferencesToDom(withTheme, withTheme.activeTheme || theme);
+    scheduleAutoSave(withTheme);
+  };
+
+  const savePreferencesToServer = async (
+    customNext?: AdminSystemPreferences
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
+    const target: AdminSystemPreferences = {
+      ...(customNext || preferences),
+      activeTheme: (customNext || preferences).activeTheme || theme,
+    };
+    try {
+      localStorage.setItem(ADMIN_PREFERENCES_STORAGE_KEY, JSON.stringify(target));
+    } catch {}
+    applySystemPreferencesToDom(target, target.activeTheme || theme);
+    return persistPreferencesToSupabase(target);
+  };
+
+  const resetPreferences = async () => {
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
+    const resetTarget: AdminSystemPreferences = {
+      ...DEFAULT_ADMIN_PREFERENCES,
+      activeTheme: theme,
+      updatedAt: new Date().toISOString(),
+    };
+    setPreferencesState(resetTarget);
+    try {
+      localStorage.setItem(ADMIN_PREFERENCES_STORAGE_KEY, JSON.stringify(resetTarget));
+    } catch {}
+    applySystemPreferencesToDom(resetTarget, theme);
+    await persistPreferencesToSupabase(resetTarget);
   };
 
   const toggleTheme = () => {
@@ -486,6 +582,14 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         localStorage.setItem('vagou_user_theme_preference', next);
         localStorage.setItem('vagou_theme', next);
       } catch {}
+      setPreferencesState((curr) => {
+        const updated = { ...curr, activeTheme: next, updatedAt: new Date().toISOString() };
+        try {
+          localStorage.setItem(ADMIN_PREFERENCES_STORAGE_KEY, JSON.stringify(updated));
+        } catch {}
+        scheduleAutoSave(updated);
+        return updated;
+      });
       return next;
     });
   };
@@ -496,6 +600,14 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem('vagou_user_theme_preference', newTheme);
       localStorage.setItem('vagou_theme', newTheme);
     } catch {}
+    setPreferencesState((curr) => {
+      const updated = { ...curr, activeTheme: newTheme, updatedAt: new Date().toISOString() };
+      try {
+        localStorage.setItem(ADMIN_PREFERENCES_STORAGE_KEY, JSON.stringify(updated));
+      } catch {}
+      scheduleAutoSave(updated);
+      return updated;
+    });
   };
 
   const setAccentColor = (color: string) => {

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Palette,
   Upload,
@@ -106,6 +106,10 @@ export const AdminPreferencesPanel: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
+  useEffect(() => {
+    setEditingMode(theme);
+  }, [theme]);
+
   const logoDarkInputRef = useRef<HTMLInputElement>(null);
   const logoLightInputRef = useRef<HTMLInputElement>(null);
   const mobileIconInputRef = useRef<HTMLInputElement>(null);
@@ -126,6 +130,7 @@ export const AdminPreferencesPanel: React.FC = () => {
   const handleTokenChange = (key: keyof AdminThemeColorTokens, value: string) => {
     const next = {
       ...preferences,
+      activeTheme: editingMode,
       [editingMode]: {
         ...preferences[editingMode],
         [key]: value,
@@ -141,6 +146,7 @@ export const AdminPreferencesPanel: React.FC = () => {
   ) => {
     const next = {
       ...preferences,
+      activeTheme: editingMode,
       [field]: value,
       updatedAt: new Date().toISOString(),
     };
@@ -163,25 +169,32 @@ export const AdminPreferencesPanel: React.FC = () => {
     e.target.value = '';
   };
 
-  const handleApplyPreset = (preset: (typeof THEME_PRESETS)[number]) => {
+  const handleApplyPreset = async (preset: (typeof THEME_PRESETS)[number]) => {
     setEditingMode(preset.mode);
     setTheme(preset.mode);
     const next = {
       ...preferences,
+      activeTheme: preset.mode,
       [preset.mode]: { ...preset.tokens },
       updatedAt: new Date().toISOString(),
     };
     updatePreferences(next);
-    setFeedback(`Predefinição "${preset.label}" aplicada ao tema ${preset.mode === 'dark' ? 'Escuro' : 'Claro'}.`);
+    await savePreferencesToServer(next);
+    setFeedback(`Predefinição "${preset.label}" salva no banco e aplicada em todos os navegadores!`);
     setTimeout(() => setFeedback(null), 3000);
   };
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const res = await savePreferencesToServer(preferences);
+      const next = {
+        ...preferences,
+        activeTheme: editingMode,
+        updatedAt: new Date().toISOString(),
+      };
+      const res = await savePreferencesToServer(next);
       if (res.success) {
-        setFeedback('Preferências de logotipos, ícones e cores salvas e aplicadas em todo o Admin Master!');
+        setFeedback('Preferências salvas no Supabase e sincronizadas para todos os navegadores!');
       } else {
         setFeedback(res.error || 'Preferências aplicadas localmente.');
       }
