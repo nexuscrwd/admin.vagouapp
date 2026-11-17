@@ -55,8 +55,9 @@ export const TriadeAdminRegisterForm: React.FC<TriadeAdminRegisterFormProps> = (
   // Validações em Tempo Real
   const cleanUsername = username.replace(/^@+/, '');
   const hasUppercase = /[A-Z]/.test(cleanUsername);
+  const hasLowercase = /[a-z]/.test(cleanUsername);
   const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(cleanUsername);
-  const isUsernameValid = cleanUsername.length >= 3 && hasUppercase && hasSpecialChar;
+  const isUsernameValid = cleanUsername.length >= 3 && hasUppercase && hasLowercase && hasSpecialChar;
   const isEmailMatching =
     email.trim().length > 0 &&
     emailConfirm.trim().length > 0 &&
@@ -76,7 +77,7 @@ export const TriadeAdminRegisterForm: React.FC<TriadeAdminRegisterFormProps> = (
 
     if (!isUsernameValid) {
       setErrorMessage(
-        'O Nome de usuário deve ter ao menos 3 caracteres, contendo 1 letra maiúscula e 1 caractere especial.'
+        'O Nome de usuário deve conter ao menos 1 letra maiúscula, 1 letra minúscula e 1 caractere especial (Ex: Anderson@, jOse#, pauLa**).'
       );
       return;
     }
@@ -229,6 +230,15 @@ export const TriadeAdminRegisterForm: React.FC<TriadeAdminRegisterFormProps> = (
             }`}
           >
             • 1 Maiúscula (A-Z)
+          </span>
+          <span
+            className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition ${
+              hasLowercase
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                : 'bg-slate-800 text-slate-400 border border-slate-700'
+            }`}
+          >
+            • 1 Minúscula (a-z)
           </span>
           <span
             className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition ${

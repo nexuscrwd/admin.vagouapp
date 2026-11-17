@@ -79,8 +79,9 @@ export const AdminEditAdminModal: React.FC<AdminEditAdminModalProps> = ({
   // Sanitização e Validação do Nome de Usuário
   const cleanUsername = username.replace(/^@+/, '');
   const hasUppercase = /[A-Z]/.test(cleanUsername);
+  const hasLowercase = /[a-z]/.test(cleanUsername);
   const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(cleanUsername);
-  const isUsernameValid = cleanUsername.length >= 3 && hasUppercase && hasSpecialChar;
+  const isUsernameValid = cleanUsername.length >= 3 && hasUppercase && hasLowercase && hasSpecialChar;
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,7 +95,7 @@ export const AdminEditAdminModal: React.FC<AdminEditAdminModalProps> = ({
 
     if (!isUsernameValid) {
       setErrorMessage(
-        'O Nome de usuário deve ter ao menos 3 caracteres, com ao menos UMA letra maiúscula e UM caractere especial (Ex: Anderson@, jOse#, pauLa**).'
+        'O Nome de usuário deve conter ao menos 1 letra maiúscula, 1 letra minúscula e 1 caractere especial (Ex: Anderson@, jOse#, pauLa**).'
       );
       return;
     }
@@ -254,6 +255,15 @@ export const AdminEditAdminModal: React.FC<AdminEditAdminModalProps> = ({
                 }`}
               >
                 • 1 Maiúscula (A-Z)
+              </span>
+              <span
+                className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition ${
+                  hasLowercase
+                    ? 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
+                }`}
+              >
+                • 1 Minúscula (a-z)
               </span>
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition ${

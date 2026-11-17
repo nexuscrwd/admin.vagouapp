@@ -497,6 +497,18 @@ export async function registerTriadeUser(userData: {
     typeof val === 'string' &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
 
+  if (
+    !/[A-Z]/.test(cleanUsername) ||
+    !/[a-z]/.test(cleanUsername) ||
+    !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(cleanUsername)
+  ) {
+    return {
+      success: false,
+      error:
+        'O nome de usuário deve conter ao menos 1 letra maiúscula, 1 letra minúscula e 1 caractere especial (Ex: Anderson@, Ana#1).',
+    };
+  }
+
   // 0. Trava Soberana Pré-Cadastro: impede criar usuário com username, e-mail, WhatsApp ou CPF já existentes
   const preCheck = await checkTriadeUserConflict({
     username: cleanUsername,
@@ -2345,6 +2357,19 @@ export async function registerAdmin(payload: {
       : resolvedRole === 'support'
       ? 'Suporte Técnico'
       : 'Superadmin Master';
+
+  const cleanUser = payload.username.trim().replace(/^@+/, '');
+  if (
+    !/[A-Z]/.test(cleanUser) ||
+    !/[a-z]/.test(cleanUser) ||
+    !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(cleanUser)
+  ) {
+    return {
+      success: false,
+      error:
+        'O Nome de usuário deve conter ao menos 1 letra maiúscula, 1 letra minúscula e 1 caractere especial (Ex: Anderson@, jOse#, pauLa**).',
+    };
+  }
 
   // 1. Tenta via backend Express API (/api/admin/auth/register)
   try {

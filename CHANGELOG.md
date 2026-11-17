@@ -15,6 +15,54 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-11-16] — 🔐 Regra Unificada de Nome de Usuário (1 Maiúscula, 1 Minúscula e 1 Caractere Especial) (`bol-177`)
+- **Tipo:** `[Feat / Validation / Security]`
+- **Motivo / Solicitação:**
+  - Ajuste das regras de validação do Nome de Usuário no cadastro e edição de usuários e administradores para exigir obrigatoriamente ao menos **1 letra maiúscula (`A-Z`)**, **1 letra minúscula (`a-z`)** e **1 caractere especial (`@`, `#`, `$`, `!`, etc.)**.
+- **Arquivos Impactados:**
+  - `/src/components/admin/triade-forms/TriadeUserRegisterForm.tsx`
+  - `/src/components/admin/triade-forms/TriadeAdminRegisterForm.tsx`
+  - `/src/components/admin/AdminCreateAdminModal.tsx`
+  - `/src/components/admin/AdminEditAdminModal.tsx`
+  - `/src/components/admin/AdminUserGeneralDataModal.tsx`
+  - `/src/services/supabaseApi.ts`
+  - `/server.ts`
+  - `/CHANGELOG.md`
+
+---
+
+### [2026-11-16] — 📊 Grade Estilo Planilha em Estabelecimentos & Reordenação do Menu Lateral (`bol-176`)
+- **Tipo:** `[UI/UX / Navigation / Data Grid Design]`
+- **Motivo / Solicitação:**
+  - Aplicação das mesmas linhas de grade suaves horizontais e verticais (estilo planilha Excel para Tema Claro e Escuro) na tabela da seção **Estabelecimentos** (`AdminSalonsList.tsx`).
+  - Reordenação do menu lateral (`AdminSidebar.tsx`) de cima para baixo para: **Início**, **Usuários**, **Estabelecimentos**, **Portal VAPP**, **Agendamentos** e **Configurações**.
+- **Arquivos Impactados:**
+  - `/src/components/admin/AdminSidebar.tsx`
+  - `/src/components/admin/AdminSalonsList.tsx`
+  - `/CHANGELOG.md`
+
+---
+
+### [2026-11-16] — 📊 Grade Estilo Planilha (Excel Gridlines) Suave para Tema Claro e Escuro na Tabela de Usuários (`bol-175`)
+- **Tipo:** `[UI/UX / Data Grid Design]`
+- **Motivo / Solicitação:**
+  - Adição de linhas de grade suaves (horizontais e verticais entre células, estilo planilha Excel/Airtable) na tabela de **Usuários**, com suporte calibrado para **Tema Claro** (`border-slate-200/70` + listras suaves `even:bg-slate-50/45`) e **Tema Escuro** (`dark:border-slate-800/75` + listras suaves `dark:even:bg-slate-900/45`).
+- **Arquivos Impactados:**
+  - `/src/components/admin/AdminUsersManager.tsx`
+  - `/CHANGELOG.md`
+
+---
+
+### [2026-11-16] — 🧹 Layout Plano Sem Bordas nas Células da Tabela de Usuários (`bol-174`)
+- **Tipo:** `[UI/UX / Anti-Slop Flat Layout]`
+- **Motivo / Solicitação:**
+  - Remoção de todas as bordas e caixas/pílulas (`border`, `rounded`, `bg-*`) dos elementos internos selecionados na tabela de **Usuários** (`Nome Usuário`, `Tipo`, `Seg. OK / S/ Seg.`, `Depend.`, `Agend.` e `Status`), mantendo apenas os dados internos limpos.
+- **Arquivos Impactados:**
+  - `/src/components/admin/AdminUsersManager.tsx`
+  - `/CHANGELOG.md`
+
+---
+
 ### [2026-11-16] — 🎨 Correção Definitiva de Tema/Preferências na Tela de Login, Persistência de Sessão Admin & Bloqueio de Autofill (`bol-173`)
 - **Tipo:** `[Fix / Theme Engine / Auth Persistence / UI Clean]`
 - **Motivo / Solicitação:**

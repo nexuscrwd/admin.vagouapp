@@ -282,11 +282,26 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
     }
   };
 
+  const cleanUsernameRule = username.trim().replace(/^@+/, '');
+  const hasUpperUsername = /[A-Z]/.test(cleanUsernameRule);
+  const hasLowerUsername = /[a-z]/.test(cleanUsernameRule);
+  const hasSpecialUsername = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(cleanUsernameRule);
+  const isUsernameRuleValid =
+    cleanUsernameRule.length >= 3 && hasUpperUsername && hasLowerUsername && hasSpecialUsername;
+
   // Salvar formulário
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
       setFeedbackMsg({ text: 'O nome completo é obrigatório.', type: 'error' });
+      return;
+    }
+
+    if (kind !== 'dependent' && !isUsernameRuleValid) {
+      setFeedbackMsg({
+        text: 'O nome de usuário deve conter ao menos 1 letra maiúscula, 1 letra minúscula e 1 caractere especial (Ex: Anderson@, Ana#1).',
+        type: 'error',
+      });
       return;
     }
 
@@ -629,18 +644,63 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                 {/* 2. Nome de Usuário */}
                 <div className="sm:col-span-5">
                   <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Usuário
+                    Usuário {kind !== 'dependent' && <span className="text-rose-500">*</span>}
                   </label>
-                  <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 focus-within:border-emerald-500 transition">
-                    <UserCheck className="w-3.5 h-3.5 text-slate-400 mr-1.5 shrink-0" />
+                  <div
+                    className={`flex items-center bg-slate-50 dark:bg-slate-950 border rounded-lg px-2.5 py-1.5 transition ${
+                      cleanUsernameRule
+                        ? isUsernameRuleValid
+                          ? 'border-emerald-500/70 focus-within:border-emerald-500'
+                          : 'border-amber-500/70 focus-within:border-amber-500'
+                        : 'border-slate-200 dark:border-slate-800 focus-within:border-emerald-500'
+                    }`}
+                  >
+                    <UserCheck
+                      className={`w-3.5 h-3.5 mr-1.5 shrink-0 ${
+                        cleanUsernameRule && isUsernameRuleValid
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : 'text-slate-400'
+                      }`}
+                    />
                     <input
                       type="text"
                       value={username.replace(/^@+/, '')}
                       onChange={(e) => setUsername(e.target.value.replace(/^@+/, ''))}
-                      placeholder="usuario.login"
+                      placeholder="Ex: Anderson@"
                       className="bg-transparent text-xs text-slate-900 dark:text-white outline-none w-full font-mono"
                     />
                   </div>
+                  {kind !== 'dependent' && (
+                    <div className="flex flex-wrap items-center gap-1 mt-1">
+                      <span
+                        className={`text-[9px] px-1.5 py-0.5 rounded font-medium transition ${
+                          hasUpperUsername
+                            ? 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                        }`}
+                      >
+                        • 1 Maiúscula
+                      </span>
+                      <span
+                        className={`text-[9px] px-1.5 py-0.5 rounded font-medium transition ${
+                          hasLowerUsername
+                            ? 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                        }`}
+                      >
+                        • 1 Minúscula
+                      </span>
+                      <span
+                        className={`text-[9px] px-1.5 py-0.5 rounded font-medium transition ${
+                          hasSpecialUsername
+                            ? 'bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                        }`}
+                      >
+                        • 1 Especial
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* 3. CPF Pessoal (Opcional - Obrigatório apenas após integração com Gateway de Pagamento) */}

@@ -1951,14 +1951,15 @@ async function startServer() {
           ? 'Moderador'
           : 'Suporte Técnico';
 
-      // Validação de Username: Ao menos uma letra maiúscula e um caractere especial
+      // Validação de Username: Ao menos uma letra maiúscula, uma minúscula e um caractere especial
       const hasUppercase = /[A-Z]/.test(cleanUsername);
+      const hasLowercase = /[a-z]/.test(cleanUsername);
       const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(cleanUsername);
 
-      if (!hasUppercase || !hasSpecialChar) {
+      if (!hasUppercase || !hasLowercase || !hasSpecialChar) {
         return res.status(400).json({
           success: false,
-          error: 'O nome de usuário deve conter ao menos uma letra maiúscula e um caractere especial (Ex: Anderson@, jOse#, pauLa**).',
+          error: 'O nome de usuário deve conter ao menos uma letra maiúscula, uma minúscula e um caractere especial (Ex: Anderson@, jOse#, pauLa**).',
         });
       }
 
@@ -4856,6 +4857,18 @@ async function startServer() {
       const cleanEmail = String(email).trim().toLowerCase();
       const cleanName = resolvedName;
       const cleanUsername = (username || cleanEmail.split('@')[0] || 'usuario').trim().replace(/^@+/, '');
+      if (
+        username &&
+        (!/[A-Z]/.test(cleanUsername) ||
+          !/[a-z]/.test(cleanUsername) ||
+          !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(cleanUsername))
+      ) {
+        return res.status(400).json({
+          success: false,
+          error:
+            'O nome de usuário deve conter ao menos 1 letra maiúscula, 1 letra minúscula e 1 caractere especial (Ex: Anderson@, Ana#1).',
+        });
+      }
       const cleanSlug = String(slug || '')
         .toLowerCase()
         .trim()

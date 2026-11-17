@@ -558,7 +558,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         email: cleanEmail || '—',
         password: a.password || (a as any).password_hash || '',
         roleLabel: 'Administrador',
-        roleBadgeClass: 'bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-500/30 font-bold',
+        roleBadgeClass: 'text-purple-700 dark:text-purple-400 font-bold',
         accessLevel: a.access_level || (a.role === 'superadmin' ? 'Superadmin Master' : a.role === 'moderator' ? 'Moderador' : 'Suporte Técnico'),
         address: a.address || '',
         streetNumber: a.street_number || '',
@@ -604,7 +604,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         email: cleanEmail || '—',
         password: su.password || (su as any).password_hash || '',
         roleLabel: 'Proprietário',
-        roleBadgeClass: 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/30 font-bold',
+        roleBadgeClass: 'text-amber-700 dark:text-amber-400 font-bold',
         accessLevel: su.access_level || (su.role === 'owner' ? 'Proprietário (Dono)' : su.role === 'manager' ? 'Gerente Geral' : 'Recepção & Atendimento'),
         address: su.address || '',
         streetNumber: su.street_number || '',
@@ -652,7 +652,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         email: cleanEmail || '—',
         password: p.password || (p as any).password_hash || '',
         roleLabel: 'Profissional',
-        roleBadgeClass: 'bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/30 font-bold',
+        roleBadgeClass: 'text-blue-700 dark:text-blue-400 font-bold',
         accessLevel: p.access_level || (p.contract_type === 'partner_mei' ? 'MEI Parceiro' : 'CLT Profissional'),
         address: p.address || '',
         streetNumber: p.street_number || '',
@@ -705,7 +705,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         email: cleanEmail || '—',
         password: c.password || (c as any).password_hash || '',
         roleLabel: 'Cliente',
-        roleBadgeClass: 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30 font-bold',
+        roleBadgeClass: 'text-emerald-700 dark:text-emerald-400 font-bold',
         accessLevel: c.access_level || 'Cliente Titular',
         address: c.address || '',
         streetNumber: c.street_number || '',
@@ -751,7 +751,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
           email: c.email || '—',
           password: '—',
           roleLabel: 'Dependente',
-          roleBadgeClass: 'bg-teal-50 dark:bg-teal-500/15 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-500/30 font-bold',
+          roleBadgeClass: 'text-teal-700 dark:text-teal-400 font-bold',
           accessLevel: `Conta Família (${fullName})`,
           address: c.address || '',
           streetNumber: c.street_number || '',
@@ -947,18 +947,18 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
     document.body.removeChild(link);
   };
 
-  // Badge de Status Padronizado
+  // Status Plano (Sem Bordas / Sem Caixa)
   const getStatusBadge = (isActive: boolean) => {
     if (isActive) {
       return {
         label: 'Ativo',
-        className: 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30 font-bold',
+        className: 'text-emerald-700 dark:text-emerald-400 font-bold',
         dot: 'bg-emerald-500 dark:bg-emerald-400',
       };
     }
     return {
       label: 'Inativo',
-      className: 'bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-500/30 font-bold',
+      className: 'text-rose-700 dark:text-rose-400 font-bold',
       dot: 'bg-rose-500 dark:bg-rose-400',
     };
   };
@@ -1172,14 +1172,14 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         {/* VIEW 1: TABELA REORGANIZADA — Cabeçalho das colunas 100% fixo ao topo (sticky top-0), rolando SOMENTE os dados */}
         {/* ======================================================== */}
         {viewMode === 'table' && (
-          <div className="flex-1 overflow-auto min-h-0 custom-scrollbar w-full bg-white dark:bg-slate-900">
+          <div className="flex-1 overflow-auto min-h-0 custom-scrollbar w-full bg-white dark:bg-slate-950 border-t border-slate-200/80 dark:border-slate-800/80">
             <table className="w-full text-left text-xs min-w-[780px] border-separate border-spacing-0">
               <thead className="sticky top-0 z-20">
                 <tr>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 w-10 text-center border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs select-none">
+                  <th className="sticky top-0 z-20 bg-slate-100/95 dark:bg-slate-900 py-2.5 px-3 w-10 text-center border-b border-r border-slate-200/90 dark:border-slate-800/90 backdrop-blur-xs select-none">
                     <button
                       onClick={toggleSelectAll}
-                      className="cursor-pointer text-slate-400 hover:text-emerald-500 transition"
+                      className="cursor-pointer text-slate-400 hover:text-emerald-500 transition flex items-center justify-center mx-auto"
                       title="Selecionar todos os usuários listados"
                     >
                       {selectedIds.length > 0 && selectedIds.length === filteredUsers.length ? (
@@ -1189,21 +1189,21 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                       )}
                     </button>
                   </th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">Nome</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">Nome Usuário</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">WhatsApp</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">Tipo</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">E-mail</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-center text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">Depend.</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-center text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">Agend.</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">Criado em</th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-center text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">Status</th>
+                  <th className="sticky top-0 z-20 bg-slate-100/95 dark:bg-slate-900 py-2.5 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-r border-slate-200/90 dark:border-slate-800/90 backdrop-blur-xs whitespace-nowrap">Nome</th>
+                  <th className="sticky top-0 z-20 bg-slate-100/95 dark:bg-slate-900 py-2.5 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-r border-slate-200/90 dark:border-slate-800/90 backdrop-blur-xs whitespace-nowrap">Nome Usuário</th>
+                  <th className="sticky top-0 z-20 bg-slate-100/95 dark:bg-slate-900 py-2.5 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-r border-slate-200/90 dark:border-slate-800/90 backdrop-blur-xs whitespace-nowrap">WhatsApp</th>
+                  <th className="sticky top-0 z-20 bg-slate-100/95 dark:bg-slate-900 py-2.5 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-r border-slate-200/90 dark:border-slate-800/90 backdrop-blur-xs whitespace-nowrap">Tipo</th>
+                  <th className="sticky top-0 z-20 bg-slate-100/95 dark:bg-slate-900 py-2.5 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-r border-slate-200/90 dark:border-slate-800/90 backdrop-blur-xs whitespace-nowrap">E-mail</th>
+                  <th className="sticky top-0 z-20 bg-slate-100/95 dark:bg-slate-900 py-2.5 px-3 font-semibold text-center text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-r border-slate-200/90 dark:border-slate-800/90 backdrop-blur-xs whitespace-nowrap">Depend.</th>
+                  <th className="sticky top-0 z-20 bg-slate-100/95 dark:bg-slate-900 py-2.5 px-3 font-semibold text-center text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-r border-slate-200/90 dark:border-slate-800/90 backdrop-blur-xs whitespace-nowrap">Agend.</th>
+                  <th className="sticky top-0 z-20 bg-slate-100/95 dark:bg-slate-900 py-2.5 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-r border-slate-200/90 dark:border-slate-800/90 backdrop-blur-xs whitespace-nowrap">Criado em</th>
+                  <th className="sticky top-0 z-20 bg-slate-100/95 dark:bg-slate-900 py-2.5 px-3 font-semibold text-center text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200/90 dark:border-slate-800/90 backdrop-blur-xs whitespace-nowrap">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200/80 dark:divide-slate-800/80">
+              <tbody>
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="py-12 text-center text-slate-500 dark:text-slate-400">
+                    <td colSpan={10} className="py-12 text-center text-slate-500 dark:text-slate-400 border-b border-slate-200/70 dark:border-slate-800/75">
                       Nenhum usuário encontrado com os filtros aplicados.
                     </td>
                   </tr>
@@ -1217,20 +1217,22 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                       <tr
                         key={user.id}
                         onClick={() => handleOpenGeneralModal(user)}
-                        className={`hover:bg-slate-50/90 dark:hover:bg-slate-800/60 transition-colors cursor-pointer ${
-                          isSelected ? 'bg-emerald-50/50 dark:bg-emerald-950/20' : ''
+                        className={`transition-colors cursor-pointer ${
+                          isSelected
+                            ? 'bg-emerald-50/70 dark:bg-emerald-950/30 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
+                            : 'bg-white dark:bg-slate-950 even:bg-slate-50/45 dark:even:bg-slate-900/45 hover:bg-emerald-50/35 dark:hover:bg-emerald-500/10'
                         }`}
                         title="Clique na linha para abrir os Dados Gerais do usuário"
                       >
                         {/* Checkbox */}
                         <td
-                          className="py-3 px-3 text-center"
+                          className="py-2.5 px-3 text-center border-b border-r border-slate-200/70 dark:border-slate-800/75"
                           onClick={(e) => {
                             e.stopPropagation();
                             toggleSelectOne(user.id);
                           }}
                         >
-                          <button className="cursor-pointer text-slate-400 hover:text-emerald-500 transition">
+                          <button className="cursor-pointer text-slate-400 hover:text-emerald-500 transition flex items-center justify-center mx-auto">
                             {isSelected ? (
                               <CheckSquare className="w-4 h-4 text-emerald-500" />
                             ) : (
@@ -1240,7 +1242,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                         </td>
 
                         {/* 1. Nome */}
-                        <td className="py-3 px-3">
+                        <td className="py-2.5 px-3 border-b border-r border-slate-200/70 dark:border-slate-800/75">
                           <div className="flex items-center gap-2.5">
                             <UserAvatar name={user.name} photoUrl={user.avatarUrl} size="sm" />
                             <div className="min-w-0">
@@ -1257,14 +1259,14 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                         </td>
 
                         {/* 2. Nome Usuário */}
-                        <td className="py-3 px-3">
-                          <span className="font-mono text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20 truncate block max-w-[140px]">
+                        <td className="py-2.5 px-3 border-b border-r border-slate-200/70 dark:border-slate-800/75">
+                          <span className="font-mono text-xs font-semibold text-emerald-700 dark:text-emerald-400 truncate block max-w-[140px]">
                             {user.username}
                           </span>
                         </td>
 
                         {/* 3. WhatsApp (Principal) */}
-                        <td className="py-3 px-3">
+                        <td className="py-2.5 px-3 border-b border-r border-slate-200/70 dark:border-slate-800/75">
                           <div className="flex items-center gap-1.5 font-mono text-slate-800 dark:text-slate-200">
                             <Phone className="w-3 h-3 text-emerald-500 shrink-0" />
                             <span className="truncate max-w-[130px]">{user.phone}</span>
@@ -1272,9 +1274,9 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                         </td>
 
                         {/* 4. Tipo + Indicador Compacto de Pergunta Secreta */}
-                        <td className="py-3 px-3">
-                          <div className="flex items-center gap-1 flex-wrap">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap ${user.roleBadgeClass}`}>
+                        <td className="py-2.5 px-3 border-b border-r border-slate-200/70 dark:border-slate-800/75">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`inline-flex items-center text-[11px] font-bold whitespace-nowrap ${user.roleBadgeClass}`}>
                               {user.roleLabel}
                             </span>
                             {user.kind === 'client' && (
@@ -1284,13 +1286,13 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                                     ? 'Pergunta secreta configurada'
                                     : 'Pergunta secreta não configurada'
                                 }
-                                className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold border whitespace-nowrap ${
+                                className={`inline-flex items-center gap-1 text-[10px] font-semibold whitespace-nowrap ${
                                   user.hasSecurityQuestion
-                                    ? 'bg-[#10B981] text-white border-[#10B981]'
-                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                                    ? 'text-emerald-600 dark:text-emerald-400'
+                                    : 'text-slate-400 dark:text-slate-500'
                                 }`}
                               >
-                                <KeyRound className={`w-2.5 h-2.5 ${user.hasSecurityQuestion ? 'text-white' : 'text-slate-400'}`} />
+                                <KeyRound className={`w-3 h-3 ${user.hasSecurityQuestion ? 'text-emerald-500' : 'text-slate-400'}`} />
                                 <span>{user.hasSecurityQuestion ? 'Seg. OK' : 'S/ Seg.'}</span>
                               </span>
                             )}
@@ -1298,19 +1300,19 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                         </td>
 
                         {/* 5. E-mail */}
-                        <td className="py-3 px-3">
+                        <td className="py-2.5 px-3 border-b border-r border-slate-200/70 dark:border-slate-800/75">
                           <span className="text-slate-700 dark:text-slate-300 font-mono text-[11px] block truncate max-w-[160px]">
                             {user.email}
                           </span>
                         </td>
 
                         {/* 8. Depend. (numero de dependentes vinculado ao usuário) */}
-                        <td className="py-3 px-3 text-center">
+                        <td className="py-2.5 px-3 text-center border-b border-r border-slate-200/70 dark:border-slate-800/75">
                           <span
-                            className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-bold font-mono ${
+                            className={`inline-block text-[11px] font-bold font-mono ${
                               user.dependentsCount > 0
-                                ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
-                                : 'text-slate-400 bg-slate-100 dark:bg-slate-800'
+                                ? 'text-emerald-700 dark:text-emerald-400'
+                                : 'text-slate-400 dark:text-slate-500'
                             }`}
                           >
                             {user.dependentsCount}
@@ -1318,12 +1320,12 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                         </td>
 
                         {/* 9. Agend. (numero de agendamentos) */}
-                        <td className="py-3 px-3 text-center">
+                        <td className="py-2.5 px-3 text-center border-b border-r border-slate-200/70 dark:border-slate-800/75">
                           <span
-                            className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-bold font-mono ${
+                            className={`inline-block text-[11px] font-bold font-mono ${
                               user.appointmentsCount > 0
-                                ? 'bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400'
-                                : 'text-slate-400 bg-slate-100 dark:bg-slate-800'
+                                ? 'text-blue-700 dark:text-blue-400'
+                                : 'text-slate-400 dark:text-slate-500'
                             }`}
                           >
                             {user.appointmentsCount}
@@ -1332,7 +1334,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
 
                         {/* 10. Criado em (Data + Hora + Origem) */}
                         <td
-                          className="py-3 px-3 whitespace-nowrap"
+                          className="py-2.5 px-3 whitespace-nowrap border-b border-r border-slate-200/70 dark:border-slate-800/75"
                           title={`Criado em: ${createdParts.fullLabel} • Origem: ${user.originLabel}`}
                         >
                           {createdParts.valid ? (
@@ -1352,9 +1354,9 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                         </td>
 
                         {/* 11. Status */}
-                        <td className="py-3 px-3 text-center">
+                        <td className="py-2.5 px-3 text-center border-b border-slate-200/70 dark:border-slate-800/75">
                           <span
-                            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusBadge.className}`}
+                            className={`inline-flex items-center gap-1.5 text-[11px] font-bold ${statusBadge.className}`}
                           >
                             <span className={`w-1.5 h-1.5 rounded-full ${statusBadge.dot}`} />
                             {statusBadge.label}

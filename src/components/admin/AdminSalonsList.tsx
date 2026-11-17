@@ -488,14 +488,14 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
 
         {/* VIEW 1: DATA TABLE — Cabeçalho das colunas 100% fixo ao topo (sticky top-0), rolando SOMENTE os dados */}
         {viewMode === 'table' && (
-          <div className="flex-1 overflow-auto min-h-0 custom-scrollbar w-full bg-white dark:bg-slate-900">
+          <div className="flex-1 overflow-auto min-h-0 custom-scrollbar w-full bg-white dark:bg-slate-950 border-t border-slate-200/80 dark:border-slate-800/80">
             <table className="w-full text-left text-xs border-separate border-spacing-0">
               <thead className="sticky top-0 z-20">
                 <tr>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 w-8 border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs select-none">
+                  <th className="sticky top-0 z-20 bg-slate-100/95 dark:bg-slate-900 py-2.5 px-3 w-10 text-center border-b border-r border-slate-200/90 dark:border-slate-800/90 backdrop-blur-xs select-none">
                     <button
                       onClick={toggleSelectAll}
-                      className="text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
+                      className="text-slate-400 hover:text-emerald-500 transition cursor-pointer flex items-center justify-center mx-auto"
                       title="Selecionar todos"
                     >
                       {selectedIds.length === filteredSalons.length && filteredSalons.length > 0 ? (
@@ -505,28 +505,28 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                       )}
                     </button>
                   </th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">
+                  <th className="sticky top-0 z-20 bg-slate-100/95 dark:bg-slate-900 py-2.5 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-r border-slate-200/90 dark:border-slate-800/90 backdrop-blur-xs whitespace-nowrap">
                     Salão / Marca
                   </th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">
+                  <th className="sticky top-0 z-20 bg-slate-100/95 dark:bg-slate-900 py-2.5 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-r border-slate-200/90 dark:border-slate-800/90 backdrop-blur-xs whitespace-nowrap">
                     Subdomínio
                   </th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">
+                  <th className="sticky top-0 z-20 bg-slate-100/95 dark:bg-slate-900 py-2.5 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-r border-slate-200/90 dark:border-slate-800/90 backdrop-blur-xs whitespace-nowrap">
                     Categoria
                   </th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">
+                  <th className="sticky top-0 z-20 bg-slate-100/95 dark:bg-slate-900 py-2.5 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-r border-slate-200/90 dark:border-slate-800/90 backdrop-blur-xs whitespace-nowrap">
                     Localização
                   </th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">
+                  <th className="sticky top-0 z-20 bg-slate-100/95 dark:bg-slate-900 py-2.5 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-r border-slate-200/90 dark:border-slate-800/90 backdrop-blur-xs whitespace-nowrap">
                     Contato
                   </th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">
+                  <th className="sticky top-0 z-20 bg-slate-100/95 dark:bg-slate-900 py-2.5 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-r border-slate-200/90 dark:border-slate-800/90 backdrop-blur-xs whitespace-nowrap">
                     Criado em
                   </th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-3 font-semibold text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">
+                  <th className="sticky top-0 z-20 bg-slate-100/95 dark:bg-slate-900 py-2.5 px-3 font-semibold text-center text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-r border-slate-200/90 dark:border-slate-800/90 backdrop-blur-xs whitespace-nowrap">
                     Status
                   </th>
-                  <th className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 py-3 px-4 font-semibold text-right text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 dark:border-slate-800 shadow-2xs backdrop-blur-xs whitespace-nowrap">
+                  <th className="sticky top-0 z-20 bg-slate-100/95 dark:bg-slate-900 py-2.5 px-4 font-semibold text-right text-slate-600 dark:text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200/90 dark:border-slate-800/90 backdrop-blur-xs whitespace-nowrap">
                     Ações
                   </th>
                 </tr>
@@ -534,7 +534,7 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
               <tbody>
                 {filteredSalons.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="py-12 text-center text-slate-500 dark:text-slate-400 text-xs border-b border-slate-200/80 dark:border-slate-800/80">
+                    <td colSpan={9} className="py-12 text-center text-slate-500 dark:text-slate-400 text-xs border-b border-slate-200/70 dark:border-slate-800/75">
                       Nenhum estabelecimento encontrado com os filtros aplicados.
                     </td>
                   </tr>
@@ -548,20 +548,22 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                       <tr
                         key={salon.id}
                         onClick={() => handleSelectSalonDetail(salon)}
-                        className={`transition group cursor-pointer ${
-                          isSelected ? 'bg-emerald-50 dark:bg-emerald-950/20' : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40 text-slate-800 dark:text-slate-200'
+                        className={`transition-colors group cursor-pointer ${
+                          isSelected
+                            ? 'bg-emerald-50/70 dark:bg-emerald-950/30 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
+                            : 'bg-white dark:bg-slate-950 even:bg-slate-50/45 dark:even:bg-slate-900/45 hover:bg-emerald-50/35 dark:hover:bg-emerald-500/10 text-slate-800 dark:text-slate-200'
                         }`}
                         title={`Clique para abrir a página completa de ${salon.trade_name}`}
                       >
                         {/* Checkbox */}
-                        <td className="py-3 px-3 border-b border-slate-200/80 dark:border-slate-800/80">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleSelectOne(salon.id);
-                            }}
-                            className="text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
-                          >
+                        <td
+                          className="py-2.5 px-3 text-center border-b border-r border-slate-200/70 dark:border-slate-800/75"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleSelectOne(salon.id);
+                          }}
+                        >
+                          <button className="text-slate-400 hover:text-emerald-500 transition cursor-pointer flex items-center justify-center mx-auto">
                             {isSelected ? (
                               <CheckSquare className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                             ) : (
@@ -571,7 +573,7 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                         </td>
 
                         {/* Name & Logo */}
-                        <td className="py-3 px-3 border-b border-slate-200/80 dark:border-slate-800/80">
+                        <td className="py-2.5 px-3 border-b border-r border-slate-200/70 dark:border-slate-800/75">
                           <div className="flex items-center gap-3">
                             <SalonLogo
                               logoUrl={salon.logo_url}
@@ -596,32 +598,32 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                         </td>
 
                         {/* Subdomain */}
-                        <td className="py-3 px-3 border-b border-slate-200/80 dark:border-slate-800/80">
+                        <td className="py-2.5 px-3 border-b border-r border-slate-200/70 dark:border-slate-800/75">
                           <span className="font-mono text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20 font-medium">
                             {salon.slug}.vagouapp.com
                           </span>
                         </td>
 
                         {/* Category */}
-                        <td className="py-3 px-3 border-b border-slate-200/80 dark:border-slate-800/80">
+                        <td className="py-2.5 px-3 border-b border-r border-slate-200/70 dark:border-slate-800/75">
                           <span className="text-slate-700 dark:text-slate-300 font-medium">{getCategoryLabel(salon.category)}</span>
                         </td>
 
                         {/* Location */}
-                        <td className="py-3 px-3 text-slate-700 dark:text-slate-300 border-b border-slate-200/80 dark:border-slate-800/80">
+                        <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300 border-b border-r border-slate-200/70 dark:border-slate-800/75">
                           <span className="block truncate max-w-[130px] font-medium">{salon.neighborhood || salon.city}</span>
                           <span className="text-[10px] text-slate-500 dark:text-slate-400 block">{salon.state || 'SP'}</span>
                         </td>
 
                         {/* Contact */}
-                        <td className="py-3 px-3 border-b border-slate-200/80 dark:border-slate-800/80">
+                        <td className="py-2.5 px-3 border-b border-r border-slate-200/70 dark:border-slate-800/75">
                           <span className="font-mono text-[11px] text-slate-700 dark:text-slate-300 block">{salon.phone_whatsapp || '—'}</span>
                           <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate max-w-[120px]">{salon.email || ''}</span>
                         </td>
 
                         {/* Criado em (Data + Hora + Origem) */}
                         <td
-                          className="py-3 px-3 border-b border-slate-200/80 dark:border-slate-800/80 whitespace-nowrap"
+                          className="py-2.5 px-3 border-b border-r border-slate-200/70 dark:border-slate-800/75 whitespace-nowrap"
                           title={`Criado em: ${createdParts.fullLabel} • Origem: ${originInfo.label}`}
                         >
                           {createdParts.valid ? (
@@ -641,7 +643,7 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                         </td>
 
                         {/* Status Badge */}
-                        <td className="py-3 px-3 border-b border-slate-200/80 dark:border-slate-800/80">
+                        <td className="py-2.5 px-3 text-center border-b border-r border-slate-200/70 dark:border-slate-800/75">
                           <span
                             className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusBadge.className}`}
                           >
@@ -651,7 +653,7 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                         </td>
 
                         {/* Actions */}
-                        <td className="py-3 px-4 text-right border-b border-slate-200/80 dark:border-slate-800/80">
+                        <td className="py-2.5 px-4 text-right border-b border-slate-200/70 dark:border-slate-800/75">
                           <div className="flex items-center justify-end gap-1.5">
                             {salon.status === 'pending' && (
                               <button

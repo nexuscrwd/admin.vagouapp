@@ -71,8 +71,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     badge?: number;
   }[] = [
     { id: 'dashboard', label: 'Início', icon: Home },
-    { id: 'salons', label: 'Estabelecimentos', icon: Building2 },
     { id: 'users', label: 'Usuários', icon: Users },
+    { id: 'salons', label: 'Estabelecimentos', icon: Building2 },
     { id: 'portal', label: 'Portal VAPP', icon: Globe },
     { id: 'appointments', label: 'Agendamentos', icon: CalendarCheck },
     { id: 'settings', label: 'Configurações', icon: Settings },

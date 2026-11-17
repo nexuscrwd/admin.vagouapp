@@ -246,6 +246,19 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     return () => clearTimeout(timer);
   }, [otpCountdown]);
 
+  // Regras de Validação de Nome de Usuário em Tempo Real (1 Maiúscula, 1 Minúscula e 1 Caractere Especial)
+  const cleanUsernameRule = username.trim().replace(/^@+/, '');
+  const userRules = {
+    hasUpper: /[A-Z]/.test(cleanUsernameRule),
+    hasLower: /[a-z]/.test(cleanUsernameRule),
+    hasSpecial: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(cleanUsernameRule),
+  };
+  const isUsernameFormatValid =
+    cleanUsernameRule.length >= 3 &&
+    userRules.hasUpper &&
+    userRules.hasLower &&
+    userRules.hasSpecial;
+
   // Regras de Validação de Senha em Tempo Real
   const passRules = {
     hasMin: password.length >= 6,
@@ -434,8 +447,12 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
       return;
     }
     const cleanUser = username.trim().replace(/^@+/, '');
-    if (!cleanUser || cleanUser.replace(/@+$/g, '').trim().length < 2) {
-      setFeedback({ type: 'error', message: 'Informe um nome de usuário válido.' });
+    if (!cleanUser || !isUsernameFormatValid) {
+      setFeedback({
+        type: 'error',
+        message:
+          'O nome de usuário deve conter ao menos 1 letra maiúscula, 1 letra minúscula e 1 caractere especial (Ex: Anderson@, Ana#1).',
+      });
       return;
     }
 
@@ -599,6 +616,15 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     // Validação geral de integridade
     if (!fullName.trim() || !username.trim()) {
       setFeedback({ type: 'error', message: 'Preencha seu nome e nome de usuário.' });
+      setPhase('identification');
+      return;
+    }
+    if (!isUsernameFormatValid) {
+      setFeedback({
+        type: 'error',
+        message:
+          'O nome de usuário deve conter ao menos 1 letra maiúscula, 1 letra minúscula e 1 caractere especial (Ex: Anderson@, Ana#1).',
+      });
       setPhase('identification');
       return;
     }
@@ -908,7 +934,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                       <span>Verificando...</span>
                     </span>
                   )}
-                  {usernameCheckStatus === 'available' && (
+                  {usernameCheckStatus === 'available' && isUsernameFormatValid && (
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400">
                       <CheckCircle2 className="w-3 h-3 text-emerald-400" />
                       <span>Disponível</span>
@@ -925,8 +951,12 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                   className={`flex items-center bg-slate-950 border rounded-xl px-3.5 py-3 min-h-[46px] transition ${
                     usernameCheckStatus === 'taken'
                       ? 'border-rose-500 focus-within:border-rose-500'
-                      : usernameCheckStatus === 'available'
-                        ? 'border-emerald-500/60 focus-within:border-emerald-500'
+                      : cleanUsernameRule
+                        ? isUsernameFormatValid && usernameCheckStatus === 'available'
+                          ? 'border-emerald-500/60 focus-within:border-emerald-500'
+                          : !isUsernameFormatValid
+                            ? 'border-amber-500/60 focus-within:border-amber-500'
+                            : 'border-slate-800 focus-within:border-emerald-500'
                         : 'border-slate-800 focus-within:border-emerald-500'
                   }`}
                 >
@@ -934,7 +964,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                     className={`w-4 h-4 mr-2.5 shrink-0 ${
                       usernameCheckStatus === 'taken'
                         ? 'text-rose-400'
-                        : usernameCheckStatus === 'available'
+                        : isUsernameFormatValid && usernameCheckStatus === 'available'
                           ? 'text-emerald-400'
                           : 'text-slate-500'
                     }`}
@@ -946,10 +976,39 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                       setFeedback(null);
                       setUsername(e.target.value.replace(/^@+/, ''));
                     }}
-                    placeholder="Seu nome de usuário"
-                    className="w-full bg-transparent text-xs sm:text-sm text-white placeholder-slate-600 outline-none"
+                    placeholder="Ex: Anderson@"
+                    className="w-full bg-transparent text-xs sm:text-sm text-white placeholder-slate-600 outline-none font-mono"
                     required
                   />
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                  <span
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition ${
+                      userRules.hasUpper
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-slate-800 text-slate-400 border border-slate-700'
+                    }`}
+                  >
+                    • 1 Maiúscula (A-Z)
+                  </span>
+                  <span
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition ${
+                      userRules.hasLower
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-slate-800 text-slate-400 border border-slate-700'
+                    }`}
+                  >
+                    • 1 Minúscula (a-z)
+                  </span>
+                  <span
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition ${
+                      userRules.hasSpecial
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-slate-800 text-slate-400 border border-slate-700'
+                    }`}
+                  >
+                    • 1 Caractere Especial (@, #, $, !)
+                  </span>
                 </div>
                 {usernameCheckStatus === 'taken' && usernameConflictMessage && (
                   <p className="text-[11px] text-rose-400 font-medium mt-1.5 flex items-start gap-1">
