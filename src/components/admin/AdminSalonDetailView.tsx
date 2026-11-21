@@ -19,12 +19,10 @@ import {
   Copy,
   Check,
   Play,
-  Pause,
   Plus,
   Trash2,
   Search,
   Sparkles,
-  DollarSign,
   Sun,
   Moon,
   Eye,
@@ -40,9 +38,6 @@ import {
   UploadCloud,
   Cloud,
   Maximize2,
-  Filter,
-  FolderHeart,
-  Folder,
   Layout,
   Bookmark,
   QrCode,
@@ -72,8 +67,6 @@ import {
 } from '../../types/admin';
 import {
   SERVICE_GALLERY_PRESETS,
-  getCuratedServiceFallbackPhoto,
-  uploadSalonMediaToStorage,
   ServiceGalleryPreset,
 } from '../../data/serviceGalleryPresets';
 import { SalonLogo } from '../common/SalonLogo';
@@ -86,17 +79,6 @@ import { SalonWelcomeModal } from './SalonWelcomeModal';
 import { AdminSalonUtilitiesAndSyncPanel, SalonUtilitiesData } from './AdminSalonUtilitiesAndSyncPanel';
 import { formatCreatedAtParts, resolveRecordOriginInfo } from '../../utils/dateTimeFormat';
 
-const CHAMELEON_THEME_PRESETS = [
-  { id: 'emerald', name: 'Esmeralda Vagou', primary: '#20C933', secondary: '#059669' },
-  { id: 'gold', name: 'Ouro Imperial', primary: '#D97706', secondary: '#B45309' },
-  { id: 'rose', name: 'Rose Beauty', primary: '#E11D48', secondary: '#BE123C' },
-  { id: 'purple', name: 'Royal Studio', primary: '#7C3AED', secondary: '#6D28D9' },
-  { id: 'amber', name: 'Âmbar Barber', primary: '#F59E0B', secondary: '#D97706' },
-  { id: 'blue', name: 'Oceano Prime', primary: '#2563EB', secondary: '#1D4ED8' },
-  { id: 'crimson', name: 'Rubi Intenso', primary: '#DC2626', secondary: '#B91C1C' },
-  { id: 'cyan', name: 'Ciano Clean', primary: '#0891B2', secondary: '#0E7490' },
-];
-
 interface AdminSalonDetailViewProps {
   salon: AdminSalonItem;
   onBack: () => void;
@@ -105,7 +87,7 @@ interface AdminSalonDetailViewProps {
   onUpdateSalon?: (updated: Partial<AdminSalonItem>) => void;
 }
 
-export interface SalonClientRecord {
+interface SalonClientRecord {
   id: string;
   name: string;
   phone: string;
@@ -118,7 +100,7 @@ export interface SalonClientRecord {
   status: 'active' | 'inactive';
 }
 
-export interface SalonProfessionalRecord {
+interface SalonProfessionalRecord {
   id: string;
   name: string;
   role: string;
@@ -133,9 +115,9 @@ export interface SalonProfessionalRecord {
   services_count?: number;
 }
 
-export type SalonMediaMainTab = 'fotos' | 'videos' | 'imagens';
-export type SalonMediaSubTab = 'all' | 'servicos' | 'profissionais' | 'espaco' | 'banner' | 'logotipo';
-export type SalonThemePresetId =
+type SalonMediaMainTab = 'fotos' | 'videos' | 'imagens';
+type SalonMediaSubTab = 'all' | 'servicos' | 'profissionais' | 'espaco' | 'banner' | 'logotipo';
+type SalonThemePresetId =
   | 'pastel-light-mint'
   | 'emerald-dark'
   | 'gold-luxury'
@@ -143,7 +125,7 @@ export type SalonThemePresetId =
   | 'purple-neon'
   | 'clean-light';
 
-export interface SalonMediaItem {
+interface SalonMediaItem {
   id: string;
   url: string;
   title: string;
@@ -166,7 +148,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [isWelcomeQrModalOpen, setIsWelcomeQrModalOpen] = useState(false);
 
-  // Estado do Tema Camaleão & Identidade Visual (Sincronizado com mnvapp — SQL v5.0 Pastel Light Mint)
   const [themeForm, setThemeForm] = useState({
     themePresetId: (salon.theme_preset_id as SalonThemePresetId) || 'pastel-light-mint',
     primaryColor: salon.primary_color || '#10B981',
@@ -175,7 +156,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     interiorPhotoUrl: salon.interior_photo_url || '',
     logoDarkUrl: salon.logo_dark_url || salon.logo_url || '',
     logoLightUrl: salon.logo_light_url || salon.logo_url || '',
-    // Configurações Físicas de UI / Layout (Tríade Sync v5.0 — bol-158 / bol-159)
+
     defaultTheme: (salon.default_theme as SalonThemeMode) || 'light',
     pwaName: salon.pwa_name || salon.trade_name || '',
     showSlogan: salon.show_slogan ?? true,
@@ -202,13 +183,11 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
   const [isSavingTheme, setIsSavingTheme] = useState(false);
   const [themeSaveSuccess, setThemeSaveSuccess] = useState(false);
 
-  // Estado do Modal de Presets Curados de Serviços (1-Toque)
   const [isCuratedPresetsModalOpen, setIsCuratedPresetsModalOpen] = useState(false);
   const [curatedPresetTargetServiceId, setCuratedPresetTargetServiceId] = useState<string | null>(null);
   const [curatedPresetCategoryFilter, setCuratedPresetCategoryFilter] = useState<string>('all');
   const [previewNavTab, setPreviewNavTab] = useState<'home' | 'services' | 'appointments' | 'space'>('home');
 
-  // Estado de Utilidades Operacionais (Zero Mocks — Carregado exclusivamente do Supabase)
   const [utilitiesData, setUtilitiesData] = useState<SalonUtilitiesData>({
     energyMeters: [],
     energyReadings: [],
@@ -227,7 +206,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     inventoryItems: [],
   });
 
-  // Modal de Cadastro / Edição de Profissional na Equipe (public.professionals)
   const [isProModalOpen, setIsProModalOpen] = useState(false);
   const [editingPro, setEditingPro] = useState<SalonProfessionalRecord | null>(null);
   const [proForm, setProForm] = useState({
@@ -242,7 +220,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     is_active: true,
   });
 
-  // Modal de Conta Família & Dependentes do Cliente (public.dependents)
   const [selectedClientForDeps, setSelectedClientForDeps] = useState<SalonClientRecord | null>(null);
   const [newDepForm, setNewDepForm] = useState({
     full_name: '',
@@ -251,7 +228,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     notes: '',
   });
 
-  // Acervo Central de Mídias do Estabelecimento (Galeria Geral com Abas Fotos / Videos / Imagens)
   const [salonMedia, setSalonMedia] = useState<SalonMediaItem[]>([]);
   const [mediaMainTab, setMediaMainTab] = useState<SalonMediaMainTab>('fotos');
   const [mediaSubTab, setMediaSubTab] = useState<SalonMediaSubTab>('all');
@@ -261,7 +237,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
   const [viewingMediaItem, setViewingMediaItem] = useState<SalonMediaItem | null>(null);
   const [mediaItemToLink, setMediaItemToLink] = useState<SalonMediaItem | null>(null);
 
-  // Formulário de Nova Mídia
   const [newMediaForm, setNewMediaForm] = useState({
     title: '',
     url: '',
@@ -272,28 +247,23 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     is_cover: false,
   });
 
-  // Estado do Seletor do Google Fotos
   const [googlePhotosAlbumFilter, setGooglePhotosAlbumFilter] = useState<string>('all');
   const [selectedGooglePhotos, setSelectedGooglePhotos] = useState<string[]>([]);
   const [isGooglePhotosImporting, setIsGooglePhotosImporting] = useState(false);
 
-  // Seletor da Galeria Central nos Modais de Serviço
   const [isSelectFromGalleryModalOpen, setIsSelectFromGalleryModalOpen] = useState(false);
   const [targetServiceForGallerySelect, setTargetServiceForGallerySelect] = useState<{
     serviceId: string;
     targetType: 'photo' | 'slide';
   } | null>(null);
 
-  // Clientes Fixos
   const [clients, setClients] = useState<SalonClientRecord[]>([]);
-  const [isLoadingClients, setIsLoadingClients] = useState(false);
+  const [, setIsLoadingClients] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
 
-  // Equipe / Colaboradores
   const [team, setTeam] = useState<SalonProfessionalRecord[]>([]);
-  const [isLoadingTeam, setIsLoadingTeam] = useState(false);
+  const [, setIsLoadingTeam] = useState(false);
 
-  // Catálogo de Serviços & Procedimentos
   const [services, setServices] = useState<SalonServiceRecord[]>([]);
   const [isLoadingServices, setIsLoadingServices] = useState(false);
   const [serviceSearch, setServiceSearch] = useState('');
@@ -308,7 +278,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     description: '',
   });
 
-  // Estado para Edição de Serviço Existente
   const [editingService, setEditingService] = useState<SalonServiceRecord | null>(null);
   const [editServiceForm, setEditServiceForm] = useState({
     name: '',
@@ -320,24 +289,20 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     is_active: true,
   });
 
-  // Modais de Mídia do Respectivo Serviço (CRUD por Serviço)
   const [selectedServiceForPhotos, setSelectedServiceForPhotos] = useState<SalonServiceRecord | null>(null);
   const [selectedServiceForVideos, setSelectedServiceForVideos] = useState<SalonServiceRecord | null>(null);
   const [selectedServiceForSlides, setSelectedServiceForSlides] = useState<SalonServiceRecord | null>(null);
   const [viewingPhotoUrl, setViewingPhotoUrl] = useState<string | null>(null);
 
-  // Estados dos formulários de inserção nos modais
   const [newPhotoUrl, setNewPhotoUrl] = useState('');
   const [newVideoUrl, setNewVideoUrl] = useState('');
   const [newVideoTitle, setNewVideoTitle] = useState('');
   const [newSlideUrl, setNewSlideUrl] = useState('');
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
 
-  // Sandbox Simulator Modal
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
   const [simulatorMode, setSimulatorMode] = useState<'cadastro' | 'login'>('cadastro');
 
-  // Carrega Clientes, Equipe, Serviços, Mídias, Tema e Utilidades do Supabase (Full Sync 360º)
   const reloadFullSalonSync = async () => {
     try {
       const resp = await fetch(`/api/admin/salons/${salon.id}/full-sync`);
@@ -400,7 +365,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         }
       }
     } catch {
-      // Fallback para queries diretas do cliente Supabase abaixo
+
     }
     return false;
   };
@@ -419,7 +384,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
           return;
         }
 
-        // 1. Busca Profissionais
         const { data: prosData } = await supabase
           .from('professionals')
           .select('*')
@@ -445,7 +409,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
           setTeam([]);
         }
 
-        // 2. Busca Clientes reais (via appointments)
         const { data: apptsData } = await supabase
           .from('appointments')
           .select('client_id, client_name, client_phone, client_email, appointment_date, status')
@@ -477,7 +440,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
           setClients([]);
         }
 
-        // 3. Busca Catálogo de Serviços reais (tabela 'services')
         setIsLoadingServices(true);
         const { data: servData } = await supabase
           .from('services')
@@ -508,26 +470,29 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
           setServices([]);
         }
 
-        // 4. Carrega Acervo Geral de Mídias reais do Estabelecimento
         const { data: mediaData } = await supabase
-          .from('salon_media_items')
+          .from('media_assets')
           .select('*')
-          .eq('salon_id', salon.id)
+          .eq('owner_type', 'salon')
+          .eq('owner_id', salon.id)
           .order('created_at', { ascending: false });
 
         if (mediaData && mediaData.length > 0) {
           setSalonMedia(
-            mediaData.map((m: any) => ({
-              id: m.id,
-              title: m.title || m.caption || 'Mídia',
-              url: m.url || m.media_url,
-              type: (m.type || m.media_type || 'image') === 'video' ? 'video' : 'image',
-              duration_seconds: m.duration_seconds || 5,
-              media_group: m.media_group || 'fotos',
-              category: m.category || 'servicos',
-              created_at: m.created_at,
-              is_cover: Boolean(m.is_cover),
-            }))
+            mediaData.map((m: any) => {
+              const isVideo = String(m.mime_type || '').startsWith('video/');
+              return {
+                id: m.id,
+                title: m.metadata?.title || m.storage_path?.split('/').pop() || 'Mídia',
+                url: m.public_url,
+                type: isVideo ? 'video' : 'image',
+                duration_seconds: m.duration_seconds || 5,
+                media_group: isVideo ? 'videos' : 'fotos',
+                category: m.purpose || 'gallery',
+                created_at: m.created_at,
+                is_cover: m.purpose === 'cover',
+              };
+            })
           );
         } else {
           setSalonMedia([]);
@@ -544,7 +509,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     loadSalonDetails();
   }, [salon.id, salon.category, salon.slug, salon.cover_image_url]);
 
-  // Helper de persistência de mídia no backend (public.salon_media_items + branding.mediaItems)
   const syncMediaItemWithBackend = async (action: 'upsert' | 'delete', item?: SalonMediaItem, mediaId?: string) => {
     try {
       const resp = await fetch(`/api/admin/salons/${salon.id}/media`, {
@@ -584,7 +548,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     }
   };
 
-  // Helper de persistência de serviço no backend (public.services + public.salon_services)
   const syncServiceWithBackend = async (action: 'upsert' | 'delete', service?: SalonServiceRecord, serviceId?: string) => {
     try {
       const resp = await fetch(`/api/admin/salons/${salon.id}/services`, {
@@ -598,7 +561,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     try {
       if (action === 'delete' && serviceId) {
         await supabaseAdmin.from('services').delete().eq('id', serviceId);
-        await supabaseAdmin.from('salon_services').delete().eq('id', serviceId);
       } else if (service) {
         const isValidUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(service.id || '');
         const resolvedId = isValidUuid ? service.id : crypto.randomUUID();
@@ -609,22 +571,17 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
           category: service.category || 'Geral',
           price: Number(service.price) || 0,
           duration_minutes: Number(service.duration_minutes) || 30,
-          commission_rate: Number(service.commission_rate ?? 50),
           description: service.description || '',
           is_active: service.is_active !== false,
-          photos: Array.isArray(service.photos) ? service.photos : [],
-          videos: Array.isArray(service.videos) ? service.videos : [],
-          slides: Array.isArray(service.slides) ? service.slides : [],
+          gallery_urls: Array.isArray(service.photos) ? service.photos : [],
         };
         await safeSupabaseClientWrite('services', 'upsert', payload, { onConflict: 'id' });
-        await safeSupabaseClientWrite('salon_services', 'upsert', payload, { onConflict: 'id' });
       }
     } catch (err) {
       console.warn('Erro ao sincronizar serviço no Supabase:', err);
     }
   };
 
-  // Handlers da Galeria Central de Mídias do Estabelecimento
   const handleAddNewMedia = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMediaForm.url.trim()) return;
@@ -669,19 +626,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     });
     setIsUploadMediaModalOpen(false);
     await syncMediaItemWithBackend('upsert', newMedia);
-  };
-
-  const handleSetAsCover = async (mediaItem: SalonMediaItem) => {
-    salon.cover_image_url = mediaItem.url;
-    onUpdateSalon?.({ cover_image_url: mediaItem.url });
-    const updatedItem: SalonMediaItem = { ...mediaItem, is_cover: true };
-    setSalonMedia((prev) =>
-      prev.map((m) => ({
-        ...m,
-        is_cover: m.id === mediaItem.id,
-      }))
-    );
-    await syncMediaItemWithBackend('upsert', updatedItem);
   };
 
   const handleSetAsBanner = async (mediaItem: SalonMediaItem) => {
@@ -999,7 +943,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     await syncServiceWithBackend('upsert', updatedService);
   };
 
-  // Handlers de Fotos do Serviço (CRUD)
   const handleAddPhotoToService = async (serviceId: string, url: string) => {
     if (!url.trim()) return;
     let updatedRef: SalonServiceRecord | undefined;
@@ -1033,7 +976,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     if (updatedRef) await syncServiceWithBackend('upsert', updatedRef);
   };
 
-  // Handlers de Vídeos 5s do Serviço (CRUD)
   const handleAddVideoToService = async (serviceId: string, videoUrl: string, title?: string) => {
     if (!videoUrl.trim()) return;
     const newVideo: SalonServiceMediaItem = {
@@ -1071,7 +1013,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     if (updatedRef) await syncServiceWithBackend('upsert', updatedRef);
   };
 
-  // Handlers de Slide do Serviço (Limite de até 5 imagens e ordenação)
   const handleAddSlideToService = async (serviceId: string, url: string) => {
     if (!url.trim()) return;
     let updatedRef: SalonServiceRecord | undefined;
@@ -1129,7 +1070,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     if (updatedRef) await syncServiceWithBackend('upsert', updatedRef);
   };
 
-  // Handler de Seleção de Preset Curado de Serviço (1-Toque)
   const handleSelectCuratedPreset = async (preset: ServiceGalleryPreset) => {
     if (curatedPresetTargetServiceId) {
       let updatedServiceRef: SalonServiceRecord | undefined;
@@ -1166,7 +1106,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     setCuratedPresetTargetServiceId(null);
   };
 
-  // Handler de Salvamento do Tema Camaleão, Identidade Visual & UI Settings no Supabase
   const handleSaveBrandingTheme = async () => {
     setIsSavingTheme(true);
     try {
@@ -1288,7 +1227,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     }
   };
 
-  // Handlers de CRUD de Profissionais na tabela public.professionals
   const handleOpenAddProModal = () => {
     setEditingPro(null);
     setProForm({
@@ -1405,7 +1343,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     }
   };
 
-  // Handlers de Conta Família & Dependentes na tabela public.dependents
   const handleAddClientDependent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedClientForDeps || !newDepForm.full_name.trim()) return;
@@ -1546,7 +1483,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     return matchesSearch && matchesCategory;
   });
 
-  // Sub-abas dinâmicas conforme a aba principal selecionada (Fotos / Vídeos / Imagens)
   const currentSubTabs: { id: SalonMediaSubTab; label: string }[] =
     mediaMainTab === 'fotos'
       ? [
@@ -1567,7 +1503,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
           { id: 'logotipo', label: 'Logotipo' },
         ];
 
-  // Helper para normalizar o grupo de mídia
   const resolveMediaGroup = (item: SalonMediaItem): 'fotos' | 'videos' | 'imagens' => {
     if (item.media_group) return item.media_group;
     if (item.type === 'video') return 'videos';
@@ -1575,7 +1510,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     return 'fotos';
   };
 
-  // Helper para normalizar a sub-categoria
   const resolveMediaSubCategory = (item: SalonMediaItem): string => {
     if (item.category === 'procedimento') return 'servicos';
     if (item.category === 'equipe') return 'profissionais';
@@ -1583,7 +1517,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
     return item.category || 'servicos';
   };
 
-  // Filtragem estrita e reativa das mídias
   const filteredMedia = salonMedia.filter((item) => {
     const group = resolveMediaGroup(item);
     if (group !== mediaMainTab) return false;
@@ -1615,12 +1548,10 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
 
   return (
     <div className="space-y-6 pb-12 animate-fadeIn">
-      {/* ======================================================== */}
-      {/* 1. CABEÇALHO SOBERANO DO ESTABELECIMENTO                 */}
-      {/* ======================================================== */}
+
       <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-md space-y-5">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          {/* Lado Esquerdo: Botão Voltar + Logo + Título */}
+
           <div className="flex items-start sm:items-center gap-3.5">
             <button
               onClick={onBack}
@@ -1675,7 +1606,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             </div>
           </div>
 
-          {/* Lado Direito: Ações Rápidas */}
           <div className="flex items-center gap-2 self-start md:self-auto shrink-0 flex-wrap">
             <button
               type="button"
@@ -1728,9 +1658,8 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
           </div>
         </div>
 
-        {/* NAVEGAÇÃO DE ABAS DA SEÇÃO */}
         <div className="flex items-center gap-1 border-t border-slate-200 dark:border-slate-800 pt-3 overflow-x-auto">
-          {/* 1. Dados */}
+
           <button
             onClick={() => setActiveTab('general')}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-2 whitespace-nowrap ${
@@ -1743,7 +1672,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             <span>Dados</span>
           </button>
 
-          {/* 2. Id. Visual */}
           <button
             onClick={() => setActiveTab('branding')}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-2 whitespace-nowrap ${
@@ -1756,7 +1684,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             <span>Id. Visual</span>
           </button>
 
-          {/* 3. Galeria de Imagens (Acervo Central de Mídias do Estabelecimento) */}
           <button
             onClick={() => setActiveTab('media')}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-2 whitespace-nowrap ${
@@ -1778,7 +1705,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             </span>
           </button>
 
-          {/* 4. Serviços */}
           <button
             onClick={() => setActiveTab('services')}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-2 whitespace-nowrap ${
@@ -1800,7 +1726,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             </span>
           </button>
 
-          {/* 4. Equipe */}
           <button
             onClick={() => setActiveTab('team')}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-2 whitespace-nowrap ${
@@ -1813,7 +1738,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             <span>Equipe</span>
           </button>
 
-          {/* 5. Clientes */}
           <button
             onClick={() => setActiveTab('clients')}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-2 whitespace-nowrap ${
@@ -1826,7 +1750,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             <span>Clientes</span>
           </button>
 
-          {/* 6. Formulários */}
           <button
             onClick={() => setActiveTab('forms')}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-2 whitespace-nowrap ${
@@ -1839,7 +1762,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             <span>Formulários</span>
           </button>
 
-          {/* 7. Utilidades & DRE (Sincronizado com Meu Negócio) */}
           <button
             onClick={() => setActiveTab('utilities')}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-2 whitespace-nowrap ${
@@ -1852,7 +1774,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             <span>Utilidades &amp; DRE</span>
           </button>
 
-          {/* 8. Sincronização DB ⇄ MNV */}
           <button
             onClick={() => setActiveTab('db-sync')}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-2 whitespace-nowrap ${
@@ -1867,14 +1788,9 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         </div>
       </div>
 
-      {/* ======================================================== */}
-      {/* 2. CONTEÚDO DAS ABAS                                     */}
-      {/* ======================================================== */}
-
-      {/* ABA 1: DADOS GERAIS (2 COLUNAS LADO A LADO) */}
       {activeTab === 'general' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {/* Coluna 1: Titular / Proprietário Responsável */}
+
           <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3.5 flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
@@ -1924,7 +1840,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             </div>
           </div>
 
-          {/* Coluna 2: Dados Comerciais & Fiscais */}
           <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3 shadow-sm flex flex-col justify-between">
             <h4 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5 pb-2 border-b border-slate-100 dark:border-slate-800">
               <CreditCard className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -1972,7 +1887,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             </div>
           </div>
 
-          {/* Linha Inferior Completa: Link Exclusivo do App & Placa QR Code de Balcão */}
           <div className="md:col-span-2 p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-4 w-full sm:w-auto">
               <div className="bg-white p-2 rounded-xl border border-slate-200 shrink-0">
@@ -2032,10 +1946,9 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         </div>
       )}
 
-      {/* ABA 2: IDENTIDADE VISUAL & TEMA CAMALEÃO (SINCRONIZADO COM MEU NEGÓCIO) */}
       {activeTab === 'branding' && (
         <div className="space-y-5">
-          {/* Barra Superior de Sincronização do Tema Camaleão */}
+
           <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
@@ -2072,7 +1985,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             </button>
           </div>
 
-          {/* Presets Oficiais do Tema Camaleão (Incluindo Padrão Verde Pastel Clarinho SQL v5.0 — bol-158/159) */}
           <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
             <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
               Presets Oficiais do Tema Camaleão (theme_preset_id)
@@ -2184,10 +2096,10 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-            {/* Card: Logotipos & Fotos do Espaço (Fachada e Interior) */}
+
             <div className="lg:col-span-2 p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Logotipo Versão Dark */}
+
                 <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                   <div className="flex items-center justify-between text-xs">
                     <span className="flex items-center gap-1.5 font-semibold text-slate-200">
@@ -2216,7 +2128,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                   />
                 </div>
 
-                {/* Logotipo Versão Light */}
                 <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-3">
                   <div className="flex items-center justify-between text-xs">
                     <span className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-200">
@@ -2246,7 +2157,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 </div>
               </div>
 
-              {/* Fotos Oficiais do Espaço Físico (Sincronizadas com SalonConfigModal do mnvapp) */}
               <div className="pt-3 border-t border-slate-200 dark:border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
@@ -2290,7 +2200,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
               </div>
             </div>
 
-            {/* Card: Cores Customizadas e Preview */}
             <div className="lg:col-span-1 p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
               <div className="flex items-center gap-2 pb-2 border-b border-slate-200 dark:border-slate-800">
                 <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
@@ -2329,7 +2238,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 </div>
               </div>
 
-              {/* Preview de Botão com a cor do salão */}
               <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-2">
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
                   Preview de Ação no App
@@ -2343,7 +2251,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 </button>
               </div>
 
-              {/* Subdomínio Oficial */}
               <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5 text-xs">
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
                   Subdomínio Oficial
@@ -2356,7 +2263,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             </div>
           </div>
 
-          {/* NOVO: ESTILIZAÇÃO AVANÇADA DA BARRA DE NAVEGAÇÃO INFERIOR (BOTTOMNAV) - SINCRONIZADA COM MNVAPP & PVAPP */}
           <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-2">
@@ -2380,7 +2286,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* 1. Estilo de Preenchimento do Fundo (nav_bg_style) */}
+
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
                   Estilo do Fundo (nav_bg_style)
@@ -2410,7 +2316,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 </div>
               </div>
 
-              {/* 2. Formato e Contorno (nav_shape) */}
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
                   Formato da Barra (nav_shape)
@@ -2438,7 +2343,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 </div>
               </div>
 
-              {/* 3. Borda Externa (nav_border) & Borda dos Ícones (nav_icon_border) */}
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
                   Bordas (nav_border / nav_icon_border)
@@ -2482,9 +2386,8 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
               </div>
             </div>
 
-            {/* Paleta Hexadecimal Dedicada do Rodapé */}
             <div className="pt-2 border-t border-slate-200 dark:border-slate-800 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-              {/* Cor de Fundo do Rodapé */}
+
               <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
                 <span className="text-[10px] font-bold text-slate-500 block truncate">Fundo (nav_bg_color)</span>
                 <div className="flex items-center gap-1.5">
@@ -2504,7 +2407,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 </div>
               </div>
 
-              {/* Cor de Destaque / Item Ativo */}
               <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
                 <span className="text-[10px] font-bold text-slate-500 block truncate">Ativo (nav_active_color)</span>
                 <div className="flex items-center gap-1.5">
@@ -2524,7 +2426,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 </div>
               </div>
 
-              {/* Cor do Texto e Ícones Base */}
               <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
                 <span className="text-[10px] font-bold text-slate-500 block truncate">Base (nav_text_color)</span>
                 <div className="flex items-center gap-1.5">
@@ -2544,7 +2445,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 </div>
               </div>
 
-              {/* Fundo Botão Inativo */}
               <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
                 <span className="text-[10px] font-bold text-slate-500 block truncate">Botão Inativo</span>
                 <div className="flex items-center gap-1.5">
@@ -2564,7 +2464,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 </div>
               </div>
 
-              {/* Fundo Botão Ativo */}
               <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1">
                 <span className="text-[10px] font-bold text-slate-500 block truncate">Botão Ativo</span>
                 <div className="flex items-center gap-1.5">
@@ -2585,7 +2484,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
               </div>
             </div>
 
-            {/* PREVIEW INTERATIVO AO VIVO DA BARRA DE NAVEGAÇÃO INFERIOR (Abas Oficiais da Vitrine v5.0) */}
             <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-bold text-slate-200 flex items-center gap-1.5">
@@ -2597,7 +2495,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 </span>
               </div>
 
-              {/* Contêiner de Simulação do Rodapé */}
               <div className="py-6 px-4 bg-gradient-to-b from-slate-900 to-slate-950 rounded-xl flex items-center justify-center">
                 <nav
                   className={`w-full max-w-sm transition-all duration-300 flex items-center justify-around px-2 py-2 ${
@@ -2708,7 +2605,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             </div>
           </div>
 
-          {/* NOVO: BARRA DE SEÇÕES & CATEGORIAS (VITRINE WHITE-LABEL) */}
           <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-2">
@@ -2792,7 +2688,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
               </div>
             </div>
 
-            {/* Simulação Visual dos Chips */}
             <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center gap-2 overflow-x-auto">
               {['Todos', 'Cabelo', 'Barba', 'Unhas', 'Estética', 'Combos'].map((c, i) => (
                 <div
@@ -2812,7 +2707,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             </div>
           </div>
 
-          {/* NOVO: IDENTIDADE PWA, EXPERIÊNCIA DE ENTRADA & METADADOS */}
           <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-2">
@@ -2927,12 +2821,11 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         </div>
       )}
 
-      {/* ABA 3: GALERIA DE IMAGENS DO ESTABELECIMENTO (ACERVO CENTRAL DE MÍDIAS) */}
       {activeTab === 'media' && (
         <div className="space-y-6">
-          {/* Card Principal da Galeria do Estabelecimento */}
+
           <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
-            {/* Header da Seção: Título e Ações Principais */}
+
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -2944,7 +2837,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 </p>
               </div>
 
-              {/* Botões de Ação no Topo */}
               <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
                 <button
                   type="button"
@@ -2985,9 +2877,8 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
               </div>
             </div>
 
-            {/* AS 3 ABAS PRINCIPAIS: FOTOS, VÍDEOS (5S) E IMAGENS */}
             <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800">
-              {/* 1. Aba Fotos */}
+
               <button
                 type="button"
                 onClick={() => {
@@ -3013,7 +2904,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 </span>
               </button>
 
-              {/* 2. Aba Vídeos */}
               <button
                 type="button"
                 onClick={() => {
@@ -3040,7 +2930,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 </span>
               </button>
 
-              {/* 3. Aba Imagens */}
               <button
                 type="button"
                 onClick={() => {
@@ -3068,9 +2957,8 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
               </button>
             </div>
 
-            {/* SUB-ABAS ESPECÍFICAS DA ABA SELECIONADA + CAMPO DE BUSCA */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-              {/* Chips de Sub-aba */}
+
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
                 <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap mr-1">
                   Sub-abas:
@@ -3110,7 +2998,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 })}
               </div>
 
-              {/* Busca por Título */}
               <div className="relative w-full sm:w-64">
                 <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
@@ -3125,7 +3012,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
               </div>
             </div>
 
-            {/* Grid de Cards de Mídia */}
             {filteredMedia.length === 0 ? (
               <div className="py-12 text-center text-xs text-slate-500 dark:text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
                 <Images className="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-700" />
@@ -3180,7 +3066,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                       key={item.id}
                       className="group relative rounded-xl overflow-hidden bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col transition hover:border-slate-300 dark:hover:border-slate-700"
                     >
-                      {/* Thumbnail Container */}
+
                       <div
                         className="relative aspect-video sm:aspect-square w-full bg-slate-900 overflow-hidden cursor-pointer"
                         onClick={() => setViewingMediaItem(item)}
@@ -3209,7 +3095,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                           />
                         )}
 
-                        {/* Badges de Topo */}
                         <div className="absolute top-2 left-2 flex items-center gap-1">
                           {item.type === 'video' ? (
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-600 text-white flex items-center gap-0.5 shadow-xs">
@@ -3244,7 +3129,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                           </span>
                         </div>
 
-                        {/* Overlay com Ações ao Hover */}
                         <div
                           className="absolute inset-0 bg-slate-950/75 opacity-0 group-hover:opacity-100 transition duration-200 p-2 flex flex-col justify-between"
                           onClick={(e) => e.stopPropagation()}
@@ -3281,7 +3165,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                           </div>
 
                           <div className="space-y-1">
-                            {/* Ações Específicas por Tipo e Aba */}
+
                             {mediaMainTab === 'imagens' ? (
                               <div className="grid grid-cols-2 gap-1">
                                 <button
@@ -3329,7 +3213,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                         </div>
                       </div>
 
-                      {/* Metadados no Rodapé do Card */}
                       <div className="p-2.5 space-y-1">
                         <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate" title={item.title}>
                           {item.title}
@@ -3360,12 +3243,11 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         </div>
       )}
 
-      {/* ABA 4: SERVIÇOS (CATÁLOGO DE PROCEDIMENTOS COM MÍDIAS, VÍDEOS 5S E SLIDE DE 5 IMAGENS POR SERVIÇO) */}
       {activeTab === 'services' && (
         <div className="space-y-6">
-          {/* Card Principal do Catálogo de Procedimentos */}
+
           <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-            {/* Header da Seção: Título e Ação de Novo Serviço */}
+
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -3398,7 +3280,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
               </div>
             </div>
 
-            {/* Filtros e Busca Rápida */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-1">
               <div className="relative flex-1 max-w-sm">
                 <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -3411,7 +3292,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 />
               </div>
 
-              {/* Categorias Chips */}
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 text-xs">
                 {serviceCategories.map((cat) => (
                   <button
@@ -3430,7 +3310,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
               </div>
             </div>
 
-              {/* Tabela Plana e Limpa de Serviços */}
               {isLoadingServices ? (
                 <div className="py-8 text-center text-xs text-slate-500">Carregando catálogo de serviços...</div>
               ) : filteredServices.length === 0 ? (
@@ -3461,7 +3340,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
 
                         return (
                           <tr key={srv.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition">
-                            {/* 1. Procedimento */}
+
                             <td className="py-2.5 px-3">
                               <div className="font-semibold text-slate-900 dark:text-white">{srv.name}</div>
                               {srv.description && (
@@ -3471,19 +3350,16 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                               )}
                             </td>
 
-                            {/* 2. Categoria */}
                             <td className="py-2.5 px-3">
                               <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[11px] font-medium text-slate-700 dark:text-slate-300">
                                 {srv.category}
                               </span>
                             </td>
 
-                            {/* 3. Valor */}
                             <td className="py-2.5 px-3 font-semibold text-emerald-600 dark:text-emerald-400 font-mono">
                               R$ {srv.price.toFixed(2).replace('.', ',')}
                             </td>
 
-                            {/* 4. Duração */}
                             <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300">
                               <span className="inline-flex items-center gap-1 font-mono text-[11px]">
                                 <Clock className="w-3 h-3 text-slate-400" />
@@ -3491,7 +3367,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                               </span>
                             </td>
 
-                            {/* 5. Fotos (Galeria do Serviço com CRUD) */}
                             <td className="py-2.5 px-3 text-center">
                               <button
                                 type="button"
@@ -3508,7 +3383,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                               </button>
                             </td>
 
-                            {/* 6. Vídeos (Vídeos de 5s do Serviço com CRUD) */}
                             <td className="py-2.5 px-3 text-center">
                               <button
                                 type="button"
@@ -3525,7 +3399,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                               </button>
                             </td>
 
-                            {/* 7. Slide (Carrossel de 5 Imagens do Serviço com CRUD) */}
                             <td className="py-2.5 px-3 text-center">
                               <button
                                 type="button"
@@ -3547,7 +3420,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                               </button>
                             </td>
 
-                            {/* 8. Status */}
                             <td className="py-2.5 px-3 text-center">
                               <button
                                 type="button"
@@ -3567,7 +3439,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                               </button>
                             </td>
 
-                            {/* 9. Ação (Editar e Excluir) */}
                             <td className="py-2.5 px-3 text-right">
                               <div className="flex items-center justify-end gap-1">
                                 <button
@@ -3601,7 +3472,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         </div>
       )}
 
-      {/* ABA 4: EQUIPE & COLABORADORES (SINCRONIZADO COM PUBLIC.PROFESSIONALS) */}
       {activeTab === 'team' && (
         <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
@@ -3725,7 +3595,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         </div>
       )}
 
-      {/* ABA 5: CLIENTES FIXOS & CONTA FAMÍLIA (PUBLIC.CLIENTS + PUBLIC.DEPENDENTS) */}
       {activeTab === 'clients' && (
         <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
@@ -3838,7 +3707,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         </div>
       )}
 
-      {/* ABA 7: UTILIDADES, CONSUMO, DRE & ESTOQUE (SINCRONIZADO COM MEU NEGÓCIO) */}
       {activeTab === 'utilities' && (
         <AdminSalonUtilitiesAndSyncPanel
           salonId={salon.id}
@@ -3855,7 +3723,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         />
       )}
 
-      {/* ABA 8: AUDITORIA DE SINCRONIZAÇÃO DB ⇄ MEU NEGÓCIO (MNVAPP) */}
       {activeTab === 'db-sync' && (
         <AdminSalonUtilitiesAndSyncPanel
           salonId={salon.id}
@@ -3872,10 +3739,9 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         />
       )}
 
-      {/* ABA 6: FORMULÁRIOS INTEGRADOS DO SALÃO */}
       {activeTab === 'forms' && (
         <div className="space-y-6">
-          {/* Header da Seção */}
+
           <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -3894,13 +3760,10 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             </div>
           </div>
 
-          {/* GRADE LADO A LADO (MAX 2 COLUNAS): CADA FORMULÁRIO COMO ELE REALMENTE É */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-            {/* ======================================================== */}
-            {/* COLUNA 1: FORMULÁRIO DE LOGIN DE ACESSO                  */}
-            {/* ======================================================== */}
+
             <div className="flex flex-col rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-md overflow-hidden">
-              {/* Barra de Título / Identificação do Form 1 */}
+
               <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/80 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <div className="w-7 h-7 rounded-lg bg-sky-500/15 text-sky-500 border border-sky-500/30 flex items-center justify-center font-bold text-xs">
@@ -3930,7 +3793,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 </button>
               </div>
 
-              {/* Contêiner com o Palco Real em Vidro Jateado + Slideshow */}
               <div className="bg-slate-950 flex flex-col justify-center min-h-[560px]">
                 <TriadeMnvClientLoginForm
                   salonId={salon.id}
@@ -3945,7 +3807,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 />
               </div>
 
-              {/* Rodapé com URL do Form de Login */}
               <div className="p-3 bg-slate-50 dark:bg-slate-950/60 border-t border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
                 <span className="text-slate-500 dark:text-slate-400 font-mono truncate max-w-[280px]">
                   {salonLoginUrl}
@@ -3964,11 +3825,8 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
               </div>
             </div>
 
-            {/* ======================================================== */}
-            {/* COLUNA 2: FORMULÁRIO DE CADASTRO DE CLIENTE              */}
-            {/* ======================================================== */}
             <div className="flex flex-col rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-md overflow-hidden">
-              {/* Barra de Título / Identificação do Form 2 */}
+
               <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/80 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 flex items-center justify-center font-bold text-xs">
@@ -3998,7 +3856,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 </button>
               </div>
 
-              {/* Contêiner com o Formulário Real como ele é */}
               <div className="p-4 sm:p-5 bg-slate-950 flex flex-col justify-center min-h-[520px]">
                 <div className="w-full max-w-md mx-auto">
                   <TriadeUserRegisterForm
@@ -4014,7 +3871,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 </div>
               </div>
 
-              {/* Rodapé com URL do Form de Cadastro */}
               <div className="p-3 bg-slate-50 dark:bg-slate-950/60 border-t border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-[11px]">
                 <span className="text-slate-500 dark:text-slate-400 font-mono truncate max-w-[280px]">
                   {clientRegistrationUrl}
@@ -4034,7 +3890,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             </div>
           </div>
 
-          {/* Código Iframe Embed Pronto */}
           <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2.5 shadow-sm">
             <div className="flex items-center justify-between">
               <span className="font-mono text-xs font-bold text-slate-900 dark:text-emerald-400 flex items-center gap-1.5">
@@ -4061,9 +3916,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         </div>
       )}
 
-      {/* ======================================================== */}
-      {/* 3. MODAIS: SIMULADOR DE FORMULÁRIO DO SALÃO              */}
-      {/* ======================================================== */}
       {isSimulatorOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn overflow-y-auto">
           <div className="w-full max-w-md bg-slate-950 border border-slate-800 rounded-2xl shadow-2xl relative my-auto max-h-[90vh] flex flex-col overflow-hidden">
@@ -4126,7 +3978,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         </div>
       )}
 
-      {/* MODAL 1: GALERIA DE FOTOS DO PROCEDIMENTO COM CRUD */}
       {selectedServiceForPhotos && (() => {
         const activeSrv = services.find((s) => s.id === selectedServiceForPhotos.id) || selectedServiceForPhotos;
         const photos = activeSrv.photos || [];
@@ -4134,7 +3985,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn">
             <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-              {/* Header */}
+
               <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center">
@@ -4167,7 +4018,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 </button>
               </div>
 
-              {/* Formulário Rápido de Adição de Foto */}
               <div className="p-4 bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 space-y-2">
                 <form
                   onSubmit={(e) => {
@@ -4195,7 +4045,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                   </button>
                 </form>
 
-                {/* Botão Escolher da Galeria Central + Sugestões Rápidas */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-slate-200 dark:border-slate-800 text-xs">
                   <button
                     type="button"
@@ -4243,7 +4092,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 </div>
               </div>
 
-              {/* Grid de Fotos do Serviço */}
               <div className="p-4 overflow-y-auto flex-1">
                 {photos.length === 0 ? (
                   <div className="py-12 text-center text-xs text-slate-500 dark:text-slate-400">
@@ -4287,7 +4135,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 )}
               </div>
 
-              {/* Rodapé */}
               <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 flex items-center justify-between text-xs">
                 <span className="text-slate-500">
                   Fotos sincronizadas na vitrine deste procedimento.
@@ -4305,7 +4152,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         );
       })()}
 
-      {/* MODAL 2: VÍDEOS DE 5S DO PROCEDIMENTO COM CRUD */}
       {selectedServiceForVideos && (() => {
         const activeSrv = services.find((s) => s.id === selectedServiceForVideos.id) || selectedServiceForVideos;
         const videos = activeSrv.videos || [];
@@ -4313,7 +4159,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn">
             <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-              {/* Header */}
+
               <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-xl bg-[#20C933]/15 text-[#20C933] flex items-center justify-center">
@@ -4347,7 +4193,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 </button>
               </div>
 
-              {/* Formulário Rápido de Adição de Vídeo */}
               <div className="p-4 bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 space-y-2">
                 <form
                   onSubmit={(e) => {
@@ -4382,7 +4227,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                   </button>
                 </form>
 
-                {/* Sugestões Rápidas de Vídeo */}
                 <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
                   <span className="font-semibold">Inserir vídeo de teste:</span>
                   <button
@@ -4415,7 +4259,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 </div>
               </div>
 
-              {/* Lista/Grid de Vídeos de 5s */}
               <div className="p-4 overflow-y-auto flex-1">
                 {videos.length === 0 ? (
                   <div className="py-12 text-center text-xs text-slate-500 dark:text-slate-400">
@@ -4463,7 +4306,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 )}
               </div>
 
-              {/* Rodapé */}
               <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 flex items-center justify-between text-xs">
                 <span className="text-slate-500">
                   Vídeos verticais de 5 segundos ativam o Stories Nível 3 no radar de urgência.
@@ -4481,7 +4323,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         );
       })()}
 
-      {/* MODAL 3: SLIDE DO PROCEDIMENTO COM ATÉ 5 IMAGENS E CRUD */}
       {selectedServiceForSlides && (() => {
         const activeSrv = services.find((s) => s.id === selectedServiceForSlides.id) || selectedServiceForSlides;
         const slides = activeSrv.slides || [];
@@ -4491,7 +4332,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn">
             <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-              {/* Header */}
+
               <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center">
@@ -4530,7 +4371,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 </button>
               </div>
 
-              {/* Formulário de Adicionar ao Slide (se < 5 fotos) */}
               <div className="p-4 bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 space-y-2">
                 {isLimitReached ? (
                   <div className="px-3 py-2 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-700 dark:text-purple-300 text-xs flex items-center justify-between">
@@ -4566,7 +4406,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                   </form>
                 )}
 
-                {/* Botão Escolher da Galeria Central + Sugestões Rápidas */}
                 {!isLimitReached && (
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-slate-200 dark:border-slate-800 text-xs">
                     <button
@@ -4616,7 +4455,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 )}
               </div>
 
-              {/* Corpo: Carrossel Interativo de Slides */}
               <div className="p-4 overflow-y-auto flex-1 space-y-4">
                 {slides.length === 0 ? (
                   <div className="py-12 text-center text-xs text-slate-500 dark:text-slate-400">
@@ -4627,7 +4465,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                   </div>
                 ) : (
                   <>
-                    {/* Visualização do Slide Ativo em Destaque */}
+
                     <div className="relative rounded-2xl overflow-hidden aspect-video bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-md">
                       <img
                         src={slides[currentActiveIndex]}
@@ -4635,7 +4473,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                         className="w-full h-full object-cover"
                       />
 
-                      {/* Badge do Slide Atual */}
                       <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-slate-950/80 backdrop-blur-xs text-white text-xs font-mono font-bold border border-white/10 flex items-center gap-1.5 shadow-md">
                         <Layers className="w-3.5 h-3.5 text-purple-400" />
                         <span>
@@ -4643,7 +4480,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                         </span>
                       </div>
 
-                      {/* Botões de Navegação Anterior / Próximo */}
                       {slides.length > 1 && (
                         <>
                           <button
@@ -4674,7 +4510,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                       )}
                     </div>
 
-                    {/* Barra de Miniaturas e Controles de Ordenação */}
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between text-xs text-slate-500">
                         <span>Miniaturas do Slide (Clique para selecionar ou reordenar):</span>
@@ -4746,7 +4581,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 )}
               </div>
 
-              {/* Rodapé */}
               <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 flex items-center justify-between text-xs">
                 <span className="text-slate-500">
                   Carrossel dinâmico exibido no Radar e na vitrine do procedimento.
@@ -4764,7 +4598,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         );
       })()}
 
-      {/* MODAL 4: VISUALIZADOR DE FOTO EM ALTA RESOLUÇÃO */}
       {viewingPhotoUrl && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-sm animate-fadeIn cursor-pointer"
@@ -4796,7 +4629,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         </div>
       )}
 
-      {/* Modal: Novo Procedimento / Serviço */}
       {isAddServiceModalOpen && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
           <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[90vh] flex flex-col">
@@ -4920,7 +4752,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         document.body
       )}
 
-      {/* MODAL: EDITAR PROCEDIMENTO EXISTENTE */}
       {editingService && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
           <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[90vh] flex flex-col">
@@ -5050,7 +4881,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 />
               </div>
 
-              {/* Mídias Vinculadas com Atalhos Rápidos */}
               <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
                 <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 block mb-2">
                   Mídias Vinculadas a este Procedimento:
@@ -5134,7 +4964,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         </div>
       )}
 
-      {/* MODAL: UPLOAD LOCAL / NOVA MÍDIA NA GALERIA */}
       {isUploadMediaModalOpen && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
           <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[90vh] flex flex-col">
@@ -5156,7 +4985,7 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
             </div>
 
             <form onSubmit={handleAddNewMedia} className="p-5 space-y-4 overflow-y-auto flex-1">
-              {/* Dropzone Mockup */}
+
               <div className="p-4 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-800 text-center space-y-2 hover:border-emerald-500 transition cursor-pointer bg-slate-50 dark:bg-slate-950">
                 <UploadCloud className="w-8 h-8 mx-auto text-emerald-600 dark:text-emerald-400" />
                 <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
@@ -5264,7 +5093,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 </label>
               )}
 
-              {/* Sugestões Rápidas para Teste */}
               <div className="flex items-center gap-1.5 text-[10px] text-slate-500 flex-wrap">
                 <span className="font-semibold">Inserir link de teste:</span>
                 <button
@@ -5344,11 +5172,10 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         document.body
       )}
 
-      {/* MODAL: GOOGLE FOTOS PICKER (INTEGRAÇÃO EM NUVEM) */}
       {isGooglePhotosModalOpen && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
           <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            {/* Header Google Fotos */}
+
             <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-blue-600/15 text-blue-600 flex items-center justify-center">
@@ -5377,7 +5204,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
               </button>
             </div>
 
-            {/* Filtro por Álbuns do Google Fotos */}
             <div className="p-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 flex items-center gap-2 overflow-x-auto">
               <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap pl-1">Álbuns:</span>
               {[
@@ -5401,7 +5227,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
               ))}
             </div>
 
-            {/* Grid de Fotos do Google Fotos */}
             <div className="p-4 overflow-y-auto flex-1">
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                 {googlePhotosLibrary
@@ -5441,7 +5266,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                           />
                         )}
 
-                        {/* Checkbox de Seleção */}
                         <div
                           className={`absolute top-2 right-2 w-6 h-6 rounded-lg flex items-center justify-center transition shadow-md ${
                             isSelected
@@ -5452,7 +5276,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                           <Check className="w-3.5 h-3.5 text-white stroke-[3]" />
                         </div>
 
-                        {/* Legenda na base */}
                         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/90 to-transparent p-2">
                           <p className="text-[10px] font-bold text-white truncate">{item.title}</p>
                           <span className="text-[9px] text-slate-300 font-mono">{item.date}</span>
@@ -5463,7 +5286,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
               </div>
             </div>
 
-            {/* Rodapé do Seletor */}
             <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-slate-700 dark:text-slate-300">
@@ -5504,7 +5326,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         document.body
       )}
 
-      {/* MODAL: VISUALIZADOR DE MÍDIA EM ALTA RESOLUÇÃO (LIGHTBOX) */}
       {viewingMediaItem && createPortal(
         <div
           className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-fadeIn"
@@ -5611,7 +5432,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         document.body
       )}
 
-      {/* MODAL: VINCULAR MÍDIA DA GALERIA A UM SERVIÇO ESPECÍFICO */}
       {mediaItemToLink && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
           <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden">
@@ -5698,7 +5518,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         document.body
       )}
 
-      {/* MODAL: SELECIONAR DA GALERIA CENTRAL DO SALÃO PARA O PROCEDIMENTO */}
       {isSelectFromGalleryModalOpen && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
           <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
@@ -5771,7 +5590,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         document.body
       )}
 
-      {/* MODAL OFICIAL DE LINK DO APP & QR CODE DE BALCÃO */}
       <SalonWelcomeModal
         isOpen={isWelcomeQrModalOpen}
         onClose={() => setIsWelcomeQrModalOpen(false)}
@@ -5785,7 +5603,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
         }}
       />
 
-      {/* MODAL: ADICIONAR / EDITAR PROFISSIONAL NA TABELA PUBLIC.PROFESSIONALS */}
       {isProModalOpen &&
         createPortal(
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn">
@@ -5941,7 +5758,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
           document.body
         )}
 
-      {/* MODAL: CONTA FAMÍLIA & DEPENDENTES DO CLIENTE (PUBLIC.DEPENDENTS) */}
       {selectedClientForDeps &&
         createPortal(
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn">
@@ -6079,12 +5895,11 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
           document.body
         )}
 
-      {/* Modal de Presets Curados de Serviços (1-Toque / Acervo Oficial Tríade) */}
       {isCuratedPresetsModalOpen &&
         createPortal(
           <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm">
             <div className="w-full max-w-4xl max-h-[90vh] bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-slate-100 animate-in fade-in zoom-in-95 duration-150">
-              {/* Header */}
+
               <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between gap-3 bg-slate-900/90 sticky top-0 z-10">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
@@ -6116,7 +5931,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 </button>
               </div>
 
-              {/* Filtros de Categoria */}
               <div className="px-4 py-3 border-b border-slate-800 bg-slate-950/40 flex items-center gap-2 overflow-x-auto no-scrollbar">
                 {[
                   { id: 'all', label: 'Todos os Presets' },
@@ -6145,7 +5959,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 })}
               </div>
 
-              {/* Grid de Presets */}
               <div className="p-4 sm:p-6 overflow-y-auto flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 {SERVICE_GALLERY_PRESETS.filter(
                   (p) => curatedPresetCategoryFilter === 'all' || p.category === curatedPresetCategoryFilter
@@ -6191,7 +6004,6 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 ))}
               </div>
 
-              {/* Rodapé Fixo */}
               <div className="sticky bottom-0 z-20 p-3 sm:p-4 border-t border-slate-800 bg-slate-900 flex items-center justify-between">
                 <span className="text-xs text-slate-400">
                   {SERVICE_GALLERY_PRESETS.filter(

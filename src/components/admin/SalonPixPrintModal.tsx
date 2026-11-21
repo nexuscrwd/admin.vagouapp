@@ -7,14 +7,12 @@ import {
   Check,
   QrCode,
   Store,
-  Sparkles,
   Smartphone,
   ShieldCheck,
-  Building2,
 } from 'lucide-react';
 import { generatePixPayload, getPixQrCodeUrl } from '../../services/pixGenerator';
 
-export interface SalonPixPrintModalProps {
+interface SalonPixPrintModalProps {
   isOpen: boolean;
   onClose: () => void;
   salonName: string;
@@ -32,7 +30,6 @@ export const SalonPixPrintModal: React.FC<SalonPixPrintModalProps> = ({
   salonName,
   logoUrl,
   pixKey,
-  pixKeyType,
   holderName,
   institution,
   city = 'São Paulo',
@@ -68,7 +65,7 @@ export const SalonPixPrintModal: React.FC<SalonPixPrintModalProps> = ({
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
-      {/* Estilos dedicados para impressão limpa de plaquinha de balcão */}
+
       <style>{`
         @media print {
           body * {
@@ -98,7 +95,7 @@ export const SalonPixPrintModal: React.FC<SalonPixPrintModalProps> = ({
       `}</style>
 
       <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden transition-all text-white font-['Poppins']">
-        {/* Cabeçalho do Modal */}
+
         <div className="p-3.5 sm:p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/90 no-print">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
@@ -123,14 +120,13 @@ export const SalonPixPrintModal: React.FC<SalonPixPrintModalProps> = ({
           </button>
         </div>
 
-        {/* Área Rolável / Visualização da Plaquinha */}
         <div className="p-4 sm:p-5 overflow-y-auto space-y-4">
-          {/* CARTÃO IMPRESSÍVEL (PLAQUINHA DE BALCÃO) */}
+
           <div
             id="pix-printable-card"
             className="p-5 sm:p-6 rounded-2xl bg-white text-slate-900 border-2 border-emerald-500 shadow-xl flex flex-col items-center text-center space-y-3.5 relative overflow-hidden"
           >
-            {/* Faixa Superior com Logotipo e Nome do Estabelecimento */}
+
             <div className="flex items-center justify-center gap-2.5">
               {logoUrl ? (
                 <img
@@ -153,13 +149,11 @@ export const SalonPixPrintModal: React.FC<SalonPixPrintModalProps> = ({
               </div>
             </div>
 
-            {/* Selo / Banner do Banco Central */}
             <div className="w-full py-1 px-3 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center gap-1.5 text-[11px] font-bold text-emerald-800">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
               <span>Chave Verificada • Banco Central</span>
             </div>
 
-            {/* QR CODE ALTA DEFINIÇÃO */}
             <div className="p-2.5 rounded-2xl bg-slate-50 border-2 border-slate-200 shadow-inner flex flex-col items-center justify-center">
               <img
                 src={qrCodeUrl}
@@ -172,7 +166,6 @@ export const SalonPixPrintModal: React.FC<SalonPixPrintModalProps> = ({
               </span>
             </div>
 
-            {/* Dados da Chave PIX e Titular */}
             <div className="w-full space-y-1 pt-1 border-t border-slate-200">
               <div className="flex items-center justify-center gap-1 text-xs">
                 <span className="text-slate-500 font-medium">Chave PIX:</span>
@@ -189,7 +182,6 @@ export const SalonPixPrintModal: React.FC<SalonPixPrintModalProps> = ({
             </div>
           </div>
 
-          {/* Ações e Códigos (Apenas na Tela / no-print) */}
           <div className="space-y-2 no-print">
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -231,7 +223,6 @@ export const SalonPixPrintModal: React.FC<SalonPixPrintModalProps> = ({
           </div>
         </div>
 
-        {/* Rodapé com Botão Imprimir */}
         <div className="p-3.5 sm:p-4 bg-slate-900 border-t border-slate-800 flex items-center justify-between gap-3 no-print">
           <button
             type="button"

@@ -19,7 +19,7 @@ import { SystemAdminUser } from '../../../types/admin';
 import { registerAdmin } from '../../../services/supabaseApi';
 import { VagouOfficialLogo } from '../../common/VagouOfficialLogo';
 
-export interface TriadeAdminRegisterFormProps {
+interface TriadeAdminRegisterFormProps {
   onSuccess?: (newAdmin: SystemAdminUser) => void;
   onSwitchToLogin?: () => void;
   onClose?: () => void;
@@ -44,7 +44,6 @@ export const TriadeAdminRegisterForm: React.FC<TriadeAdminRegisterFormProps> = (
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Formatação de Máscara de Telefone ((11) 99999-9999)
   const formatPhone = (val: string) => {
     const raw = val.replace(/\D/g, '').slice(0, 11);
     if (raw.length <= 2) return raw;
@@ -52,7 +51,6 @@ export const TriadeAdminRegisterForm: React.FC<TriadeAdminRegisterFormProps> = (
     return `(${raw.slice(0, 2)}) ${raw.slice(2, 7)}-${raw.slice(7)}`;
   };
 
-  // Validações em Tempo Real
   const cleanUsername = username.replace(/^@+/, '');
   const hasUppercase = /[A-Z]/.test(cleanUsername);
   const hasLowercase = /[a-z]/.test(cleanUsername);
@@ -133,14 +131,13 @@ export const TriadeAdminRegisterForm: React.FC<TriadeAdminRegisterFormProps> = (
 
   return (
     <div className="triade-form-root w-full max-w-md mx-auto bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden animate-fadeIn font-['Poppins']">
-      {/* Top Banner com Logo Oficial do VagouApp e Título Centralizados */}
+
       <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border-b border-slate-800/80 px-6 pt-6 pb-4 sm:px-7 sm:pt-6 sm:pb-5 relative flex flex-col items-center justify-center text-center">
         <VagouOfficialLogo size="xl" variant="full" className="h-9 sm:h-10 w-auto max-w-[200px] object-contain mx-auto" />
         <h2 className="font-bold text-white text-sm sm:text-base tracking-tight mt-2 text-center">
           Cadastrar Novo Administrador
         </h2>
 
-        {/* Botão Fechar Oficial da Tríade */}
         <button
           type="button"
           onClick={() => {
@@ -163,7 +160,6 @@ export const TriadeAdminRegisterForm: React.FC<TriadeAdminRegisterFormProps> = (
         </button>
       </div>
 
-      {/* Alertas */}
       {errorMessage && (
         <div className="mx-6 sm:mx-7 mt-5 mb-0 p-3.5 rounded-xl bg-rose-950/80 border border-rose-800/80 text-rose-200 text-xs flex items-start gap-2.5 animate-fadeIn">
           <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
@@ -178,9 +174,8 @@ export const TriadeAdminRegisterForm: React.FC<TriadeAdminRegisterFormProps> = (
         </div>
       )}
 
-      {/* Formulário de Cadastro */}
       <form onSubmit={handleSubmit} className="w-full px-6 pt-5 pb-6 sm:px-7 sm:pt-6 sm:pb-7 space-y-4">
-        {/* Nome Completo & Nome de Usuário */}
+
         <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
           <div className="sm:col-span-7">
             <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
@@ -220,7 +215,6 @@ export const TriadeAdminRegisterForm: React.FC<TriadeAdminRegisterFormProps> = (
           </div>
         </div>
 
-        {/* Badges de Validação */}
         <div className="flex flex-wrap items-center gap-1.5 -mt-1">
           <span
             className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition ${
@@ -251,7 +245,6 @@ export const TriadeAdminRegisterForm: React.FC<TriadeAdminRegisterFormProps> = (
           </span>
         </div>
 
-        {/* Grid: E-mail e Confirmação de E-mail */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
@@ -291,7 +284,6 @@ export const TriadeAdminRegisterForm: React.FC<TriadeAdminRegisterFormProps> = (
           </div>
         </div>
 
-        {/* Grid: Celular/WhatsApp e Nível de Acesso */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
@@ -327,7 +319,6 @@ export const TriadeAdminRegisterForm: React.FC<TriadeAdminRegisterFormProps> = (
           </div>
         </div>
 
-        {/* Grid: Senha e Confirmação de Senha */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
@@ -374,7 +365,6 @@ export const TriadeAdminRegisterForm: React.FC<TriadeAdminRegisterFormProps> = (
           </div>
         </div>
 
-        {/* Botão de Concluir Cadastro (Fundo Verde = Texto/Ícone Branco Obrigatório) */}
         <button
           type="submit"
           disabled={isLoading || !isUsernameValid || !isEmailMatching}
@@ -391,7 +381,6 @@ export const TriadeAdminRegisterForm: React.FC<TriadeAdminRegisterFormProps> = (
           )}
         </button>
 
-        {/* Link para Voltar ao Login */}
         {onSwitchToLogin && (
           <div className="pt-2 text-center">
             <button

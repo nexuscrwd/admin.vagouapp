@@ -66,7 +66,7 @@ const DARK_MAP_STYLES = [
   { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
 ];
 
-export interface GoogleAddressPinPickerProps {
+interface GoogleAddressPinPickerProps {
   cep?: string;
   address?: string;
   streetNumber?: string;
@@ -141,7 +141,7 @@ export const GoogleAddressPinPicker: React.FC<GoogleAddressPinPickerProps> = ({
       setIsGeocoding(true);
 
       try {
-        // 1. Tenta via Google Maps Browser Geocoder se SDK carregado
+
         if (window.google?.maps?.Geocoder) {
           const fullAddressQuery = [
             cleanAddress ? `${cleanAddress}${cleanNum ? `, ${cleanNum}` : ''}` : '',
@@ -194,7 +194,6 @@ export const GoogleAddressPinPicker: React.FC<GoogleAddressPinPickerProps> = ({
           }
         }
 
-        // 2. Fallback via Backend (/api/geo/geocode: Google Server -> Nominatim -> BrasilAPI v2)
         const apiRes = await geocodeAddressViaApi({
           cep: cleanCep,
           address: cleanAddress,
@@ -221,7 +220,6 @@ export const GoogleAddressPinPicker: React.FC<GoogleAddressPinPickerProps> = ({
     [cep, address, streetNumber, neighborhood, city, state, hasValidCoords, onCoordinatesChange]
   );
 
-  // Dispara geocodificação automática com debounce quando endereço/número/CEP são preenchidos
   useEffect(() => {
     const cleanCep = String(cep || '').replace(/\D/g, '');
     const hasEnoughAddress = (address && address.trim().length >= 3 && city) || cleanCep.length === 8;
@@ -234,7 +232,6 @@ export const GoogleAddressPinPicker: React.FC<GoogleAddressPinPickerProps> = ({
     return () => clearTimeout(timer);
   }, [cep, address, streetNumber, neighborhood, city, state, runGeocode]);
 
-  // Inicializa ou atualiza o mapa interativo quando aberto
   useEffect(() => {
     if (!showMap || !sdkReady || !mapContainerRef.current || !window.google?.maps?.Map) return;
 
@@ -287,7 +284,6 @@ export const GoogleAddressPinPicker: React.FC<GoogleAddressPinPickerProps> = ({
     }
   }, [showMap, sdkReady, hasValidCoords, latitude, longitude, onCoordinatesChange]);
 
-  // Destrói referência quando oculta o mapa para permitir reabertura limpa
   useEffect(() => {
     if (!showMap) {
       mapInstanceRef.current = null;

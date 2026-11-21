@@ -2,12 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Navigation, ShieldAlert, CheckCircle2, RefreshCw } from 'lucide-react';
 import { loadGoogleMapsSdk } from './GoogleAddressPinPicker';
 
-export interface RouteStepItem {
+interface RouteStepItem {
   instruction: string;
   distanceMeters: number;
 }
 
-export interface InteractiveGoogleRouteMapProps {
+interface InteractiveGoogleRouteMapProps {
   routeId: string;
   originLat: number;
   originLng: number;
@@ -43,7 +43,6 @@ const DARK_ROUTE_MAP_STYLES = [
   { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
 ];
 
-// Decodificador nativo de Google Encoded Polyline (garante funcionamento mesmo antes da library geometry)
 function decodePolylineString(encoded: string): Array<{ lat: number; lng: number }> {
   if (!encoded || typeof encoded !== 'string') return [];
   const points: Array<{ lat: number; lng: number }> = [];
@@ -79,7 +78,6 @@ function decodePolylineString(encoded: string): Array<{ lat: number; lng: number
   return points;
 }
 
-// Distância Haversine em metros para o throttle de telemetria (>= 20m ou 15s conforme comunicado mnvapp bol-023)
 function haversineDistanceMeters(
   lat1: number,
   lng1: number,
@@ -126,7 +124,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
   const destMarkerRef = useRef<any>(null);
   const moverMarkerRef = useRef<any>(null);
 
-  // Refs de estabilização (Comunicado mnvapp bol-023: evita flickering e re-fitBounds em updates de GPS)
   const lastFittedRouteKeyRef = useRef<string>('');
   const lastMoverUpdateRef = useRef<{ lat: number; lng: number; timestamp: number }>({
     lat: 0,
@@ -139,7 +136,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     loadGoogleMapsSdk().then((ready) => setSdkReady(ready));
   }, []);
 
-  // 1. CICLO DE VIDA ESTÁVEL DO GOOGLE.MAPS.MAP: Inicializa APENAS em [sdkReady, isDark]
   useEffect(() => {
     if (!sdkReady || !mapContainerRef.current || !window.google?.maps?.Map) return;
 
@@ -205,13 +201,11 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     }
   }, [sdkReady, isDark]);
 
-  // 2. Alternância imperativa entre Mapa Completo (com polilinha viária) e Simplificado (apenas pinos)
   useEffect(() => {
     if (!polylineRef.current || !mapRef.current) return;
     polylineRef.current.setMap(showSimplifiedOnly ? null : mapRef.current);
   }, [showSimplifiedOnly]);
 
-  // 3. GARANTIA TRIPLA DE POLILINHA SEGUINDO A MALHA VIÁRIA REAL (Camada 1 Routes API v2 -> Camada 2 Browser DirectionsService -> Camada 3 OSRM)
   useEffect(() => {
     if (!sdkReady || !mapRef.current) return;
 
@@ -239,7 +233,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         destMarkerRef.current.setPosition({ lat: destLat, lng: destLng });
       }
 
-      // fitBounds único por rota (evita flickering a cada tick de 10s)
       if (lastFittedRouteKeyRef.current !== routeSignature && pathPoints.length > 0) {
         lastFittedRouteKeyRef.current = routeSignature;
         const bounds = new window.google.maps.LatLngBounds();
@@ -265,7 +258,7 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     const resolveRoadGeometry = async () => {
       setIsRecalculating(true);
       try {
-        // Se já veio uma encodedPolyline real de múltiplas coordenadas (> 2 pontos), aplica imediatamente
+
         if (encodedPolylineOverride && encodedPolylineOverride.length > 12) {
           const pts = decodePolylineString(encodedPolylineOverride);
           if (pts.length > 2) {
@@ -275,7 +268,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
           }
         }
 
-        // CAMADA 1 & 3 via Backend (/api/geo/route -> Google Routes API v2 com Referer OU OSRM Road Network)
         let backendData: any = null;
         try {
           const resp = await fetch('/api/geo/route', {
@@ -310,7 +302,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
           }
         }
 
-        // CAMADA 2: google.maps.DirectionsService direto no navegador (usa o HTTP Referrer nativo da página)
         if (window.google?.maps?.DirectionsService) {
           const directionsService = new window.google.maps.DirectionsService();
           const gMode =
@@ -360,7 +351,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
           }
         }
 
-        // CAMADA 3: Resposta OSRM do backend (malha viária real com encodedPolyline)
         if (backendData?.success && backendData?.encodedPolyline) {
           const pts = decodePolylineString(backendData.encodedPolyline);
           if (pts.length >= 2) {
@@ -388,7 +378,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     };
   }, [sdkReady, routeId, originLat, originLng, destLat, destLng, travelMode, encodedPolylineOverride]);
 
-  // 4. ATUALIZAÇÃO IMPERATIVA DO MARCADOR GPS COM THROTTLE (>= 20m ou >= 15s) — Zero Flickering
   useEffect(() => {
     if (!sdkReady || !moverMarkerRef.current) return;
     const targetLat = moverLat ?? originLat;
@@ -411,7 +400,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
     <div className="relative w-full rounded-xl overflow-hidden bg-slate-950">
       <div ref={mapContainerRef} className="w-full h-72 sm:h-80 bg-slate-900" />
 
-      {/* Barra Superior de Telemetria Estável */}
       <div className="absolute top-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950/90 text-slate-200 text-[11px] font-bold">
           {isRecalculating ? (
@@ -432,7 +420,6 @@ export const InteractiveGoogleRouteMap: React.FC<InteractiveGoogleRouteMapProps>
         )}
       </div>
 
-      {/* Alerta de Adversidade na Via (se ativo) */}
       {adversityLabel && (
         <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between px-3 py-2 rounded-lg bg-amber-500 text-slate-950 text-xs font-extrabold">
           <div className="flex items-center gap-2">

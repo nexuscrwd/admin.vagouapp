@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { TriadeEstablishmentMasterForm, EstablishmentMasterPayload } from './TriadeEstablishmentMasterForm';
 import { AdminSalonItem } from '../../../types/admin';
 
-export interface TriadeEstablishmentModalProps {
+interface TriadeEstablishmentModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCreate?: (salon: Partial<AdminSalonItem>) => Promise<any>;

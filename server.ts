@@ -1,10 +1,13 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
-import { GoogleGenAI } from '@google/genai';
 import { createClient } from '@supabase/supabase-js';
+import multer from 'multer';
+import sharp from 'sharp';
+import * as webpush from 'web-push';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -12,7 +15,6 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Supabase Configuration with strict URL and Key validation
 const DEFAULT_SUPABASE_URL = 'https://xemenxdhuoekytyhmgyt.supabase.co';
 const DEFAULT_SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhlbWVueGRodW9la3l0eWhtZ3l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyMDE2MzAsImV4cCI6MjEwNTc3NzYzMH0.P-q6bQspwuQNhub08hjWmsjLrugr3CVA1NIdznWJxuo';
@@ -56,7 +58,6 @@ function getSafeSupabaseUrl(): string {
 function getSafeSupabaseKey(): string {
   const serviceKeyCandidates = [
     process.env.SUPABASE_SERVICE_ROLE_KEY,
-    process.env.VITE_SUPABASE_SERVICE_ROLE_KEY,
     process.env.SUPABASE_SERVICE_ROLE,
     process.env.SERVICE_ROLE_KEY,
   ];
@@ -84,14 +85,12 @@ function getSafeSupabaseKey(): string {
 const SUPABASE_URL = getSafeSupabaseUrl();
 const SUPABASE_SERVICE_ROLE_KEY = [
   process.env.SUPABASE_SERVICE_ROLE_KEY,
-  process.env.VITE_SUPABASE_SERVICE_ROLE_KEY,
   process.env.SUPABASE_SERVICE_ROLE,
   process.env.SERVICE_ROLE_KEY,
 ].find((k) => typeof k === 'string' && k.trim().startsWith('eyJ'))?.trim() || '';
 
 const SUPABASE_AUTH_KEY = SUPABASE_SERVICE_ROLE_KEY || getSafeSupabaseKey();
 
-// Admin client using Service Role key (bypasses RLS) or anon key fallback
 const supabaseAdmin = createClient(
   SUPABASE_URL,
   SUPABASE_AUTH_KEY,
@@ -103,7 +102,82 @@ const supabaseAdmin = createClient(
   }
 );
 
-// In-Memory store for Tríade Technical Bulletins (7º Mandamento)
+const VAPID_PUBLIC_KEY = (process.env.VAPID_PUBLIC_KEY || '').trim();
+const VAPID_PRIVATE_KEY = (process.env.VAPID_PRIVATE_KEY || '').trim();
+const VAPID_SUBJECT = (process.env.VAPID_SUBJECT || 'mailto:contato@vagouapp.com').trim();
+
+if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+  try {
+    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+  } catch (err) {
+    console.warn('[WebPush] Aviso ao configurar VAPID:', err);
+  }
+}
+
+const ALLOWED_MEDIA_BUCKETS = new Set(['avatars', 'branding', 'services', 'salon-media']);
+const ALLOWED_OWNER_TYPES = new Set([
+  'profile',
+  'salon',
+  'service',
+  'service_offer',
+  'professional',
+  'admin_preference',
+]);
+const ALLOWED_IMAGE_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/avif',
+  'image/svg+xml',
+  'image/x-icon',
+  'image/vnd.microsoft.icon',
+]);
+const ALLOWED_VIDEO_MIME_TYPES = new Set(['video/mp4', 'video/webm', 'video/quicktime']);
+
+const mediaUploadMiddleware = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 },
+});
+
+function isSafeMediaUrl(url: unknown): boolean {
+  if (typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (!trimmed) return true;
+  if (/^(data:|javascript:|vbscript:)/i.test(trimmed)) return false;
+  return trimmed.startsWith('https://') || trimmed.startsWith('http://') || trimmed.startsWith('/');
+}
+
+async function verifyAdminAccess(req: express.Request): Promise<{ ok: boolean; userId?: string }> {
+  const authHeader = String(req.headers.authorization || '');
+  if (!authHeader.startsWith('Bearer ')) {
+    return { ok: false };
+  }
+  const token = authHeader.slice(7).trim();
+  if (!token) return { ok: false };
+
+  try {
+    const { data, error } = await supabaseAdmin.auth.getUser(token);
+    if (error || !data?.user) return { ok: false };
+    const role = String(data.user.app_metadata?.role || '').toLowerCase();
+    if (role === 'super_admin' || role === 'admin') {
+      return { ok: true, userId: data.user.id };
+    }
+    const { data: sysAdmin } = await supabaseAdmin
+      .from('system_admins')
+      .select('id, is_active')
+      .eq('user_id', data.user.id)
+      .eq('is_active', true)
+      .maybeSingle();
+    if (sysAdmin) {
+      return { ok: true, userId: data.user.id };
+    }
+    return { ok: false };
+  } catch {
+    return { ok: false };
+  }
+}
+
 interface TechnicalBulletin {
   id: string;
   timestamp: string;
@@ -132,7 +206,7 @@ const TRIADE_BULLETINS: TechnicalBulletin[] = [
     targetApps: ['mnvapp', 'pvapp'],
     title: 'Saneamento e Blindagem Anti-Duplicidade de Contas (1 Pessoa = 1 Único Cadastro Soberano — bol-162)',
     category: 'schema_change',
-    summary: '1. Consolidação Automática system_admins ⇄ clients: Registros duplicados onde a mesma pessoa constava simultaneamente em public.system_admins e public.clients (ex.: Anderson Pires / Anderson@ / andersonhpires@gmail.com) foram consolidados no registro soberano de Administrador (preservando total_appointments, dependents_count e avatar_url e removendo a linha sombra de public.clients). 2. Fim do Auto-Upsert Cruzado no Login/Salão: Removidos os upserts automáticos em múltiplas tabelas durante login administrativo e criação de salão. 3. Blindagem SQL + Backend + UI: Criados índices únicos parciais (idx_system_admins_unique_lower_email, idx_system_admins_unique_norm_username, idx_clients_unique_lower_email) e triggers (trg_prevent_client_duplicate_of_admin e trg_consolidate_client_on_admin_upsert) em /supabase/migrations/20261114_deduplicate_users_and_unique_guards.sql.',
+    summary: '1. Consolidação Automática system_admins ⇄ clients: Registros duplicados onde a mesma pessoa constava simultaneamente em public.system_admins e public.clients foram consolidados no registro soberano de Administrador (preservando total_appointments, dependents_count e avatar_url e removendo a linha sombra de public.clients). 2. Fim do Auto-Upsert Cruzado no Login/Salão: Removidos os upserts automáticos em múltiplas tabelas durante login administrativo e criação de salão. 3. Blindagem SQL + Backend + UI com índices únicos parciais e triggers.',
     impactedTables: ['public.system_admins', 'public.clients', 'public.professionals', 'public.salon_users', 'public.appointments'],
     sqlMigration: `-- Arquivo oficial sincronizado em /supabase/migrations/20261114_deduplicate_users_and_unique_guards.sql e /supabase_schema.sql`,
     instructions: '1. pvapp & mnvapp: Antes de inserir em public.clients, verificar se LOWER(email) ou LOWER(REPLACE(username, "@", "")) já existe em public.system_admins ou public.clients. 2. Executar /supabase/migrations/20261114_deduplicate_users_and_unique_guards.sql no SQL Editor do Supabase.',
@@ -535,7 +609,7 @@ ADD COLUMN IF NOT EXISTS brand_font VARCHAR(60) DEFAULT 'Poppins';`,
     summary: 'Adequação Oficial da Tríade: 1. O Endereço do Estabelecimento (Salão) passa a ser cadastrado e armazenado de forma totalmente independente do endereço residencial do cidadão/profissional quando não forem no mesmo local. O Radar do PVAPP (portal.vagouapp.com) DEVE utilizar obrigatoriamente as colunas de endereço do salão (address, cep, city, neighborhood, latitude, longitude) da tabela salons. 2. Os Meios de Contato Comerciais (WhatsApp do Salão, Telefone Fixo e E-mail do Salão) são desmarcados por padrão no cadastro para incentivar o preenchimento dos contatos comerciais dedicados. 3. Script SQL preventivo disponibilizado para inclusão de colunas em salons.',
     impactedTables: ['public.salons', 'public.profiles'],
     sqlMigration: `-- Executar no Supabase SQL Editor para garantir total integridade
-ALTER TABLE public.salons 
+ALTER TABLE public.salons
 ADD COLUMN IF NOT EXISTS phone_landline TEXT,
 ADD COLUMN IF NOT EXISTS subdomain TEXT,
 ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active',
@@ -621,7 +695,7 @@ ADD COLUMN IF NOT EXISTS state TEXT;`,
 BEGIN
   IF EXISTS (SELECT 1 FROM public.clients WHERE email ILIKE '%elisa%') THEN
     UPDATE public.clients
-    SET 
+    SET
       avatar_url = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80',
       name = 'Elisa Pires',
       phone = '(11) 98765-4321',
@@ -640,7 +714,7 @@ BEGIN
 END $$;
 
 UPDATE auth.users
-SET raw_user_meta_data = COALESCE(raw_user_meta_data, '{}'::jsonb) || 
+SET raw_user_meta_data = COALESCE(raw_user_meta_data, '{}'::jsonb) ||
   jsonb_build_object(
     'full_name', 'Elisa Pires',
     'phone', '(11) 98765-4321',
@@ -702,21 +776,15 @@ WHERE email ILIKE '%elisa%';`,
 
 async function startServer() {
   const app = express();
-  // Dev server must always bind to port 3000 per environment constraints
+
   const PORT = 3000;
 
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-  // Initialize Gemini AI
   const apiKey = process.env.GEMINI_API_KEY;
-  let ai: GoogleGenAI | null = null;
-  if (apiKey) {
-    ai = new GoogleGenAI({ apiKey });
-  }
 
-  // Explicit PWA Service Worker & Manifest routing
-  app.get('/sw.js', (req, res) => {
+  app.get('/sw.js', (_req, res) => {
     res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
     res.setHeader('Service-Worker-Allowed', '/');
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
@@ -725,7 +793,7 @@ async function startServer() {
     return res.sendFile(swPath);
   });
 
-  app.get('/manifest.json', (req, res) => {
+  app.get('/manifest.json', (_req, res) => {
     res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -733,8 +801,7 @@ async function startServer() {
     return res.sendFile(manifestPath);
   });
 
-  // Health check & Service Role verification
-  app.get('/api/health', (req, res) => {
+  app.get('/api/health', (_req, res) => {
     res.json({
       status: 'ok',
       service: 'admvapp - Admin Master VagouApp',
@@ -746,14 +813,8 @@ async function startServer() {
     });
   });
 
-  // ============================================================================
-  // 🌍 MOTOR DE GEOLOCALIZAÇÃO, GEOCODING EXATO & ROTAS VIÁRIAS EM 3 CAMADAS
-  // ============================================================================
-
-  // Cache em memória de colunas ainda não existentes fisicamente no PostgREST para escrita em 1 único round-trip
   const KNOWN_MISSING_COLUMNS: Record<string, Set<string>> = {};
 
-  // Helper: Escrita resiliente no Supabase que remove automaticamente colunas ainda não migradas no cache PostgREST (PGRST204)
   async function safeSupabaseWrite(
     table: string,
     mode: 'insert' | 'update' | 'upsert',
@@ -767,7 +828,6 @@ async function startServer() {
       KNOWN_MISSING_COLUMNS[table] = new Set<string>();
     }
 
-    // Pré-remove colunas já identificadas como ausentes no schema físico desta tabela
     for (const knownMissing of KNOWN_MISSING_COLUMNS[table]) {
       if (workingPayload[knownMissing] !== undefined) {
         strippedColumns.push(knownMissing);
@@ -815,7 +875,7 @@ async function startServer() {
         const missingCol = colMatch[1];
         KNOWN_MISSING_COLUMNS[table].add(missingCol);
         strippedColumns.push(missingCol);
-        // Se a tabela for salons e existir branding, preserva o valor lá dentro antes de remover a coluna física
+
         if (table === 'salons') {
           workingPayload.branding = {
             ...(workingPayload.branding && typeof workingPayload.branding === 'object' ? workingPayload.branding : {}),
@@ -826,7 +886,6 @@ async function startServer() {
         continue;
       }
 
-      // Blindagem automática contra violação de Foreign Key em owner_id / user_id (ex: salons_owner_id_fkey quando o titular está em public.clients ou system_admins sem conta em auth.users)
       if (
         error.code === '23503' ||
         msg.includes('foreign key constraint') ||
@@ -876,7 +935,6 @@ async function startServer() {
     return { data: null, error: { message: 'Excesso de tentativas em safeSupabaseWrite' }, strippedColumns };
   }
 
-  // Helper para converter imagens Base64 de logo/favicon/avatar em URL pública do Supabase Storage (salon-media / avatars) com cache CDN de 1 ano
   async function uploadBase64MediaIfNeeded(
     rawUrl: string | undefined | null,
     prefix: string,
@@ -922,7 +980,6 @@ async function startServer() {
     return trimmed;
   }
 
-  // Helper: Resolve Latitude e Longitude exatas a partir de Endereço / CEP (Google Maps Geocoding -> BrasilAPI v2 -> Nominatim)
   async function resolveAddressCoordinatesServerSide(input: {
     cep?: string | null;
     address?: string | null;
@@ -978,7 +1035,6 @@ async function startServer() {
     const fullQuery = addressParts.join(', ');
     const referer = refererHeader || process.env.APP_URL || 'https://adm.vagouapp.com/';
 
-    // Camada 1: Google Maps Geocoding API Oficial
     if (GOOGLE_MAPS_API_KEY) {
       try {
         const gUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(fullQuery)}&region=br&language=pt-BR&key=${encodeURIComponent(GOOGLE_MAPS_API_KEY)}`;
@@ -1004,7 +1060,6 @@ async function startServer() {
       }
     }
 
-    // Camada 2: OpenStreetMap Nominatim (malha viária brasileira com rua e número)
     try {
       const nomQuery = [
         input.address ? `${input.address}${input.street_number ? ` ${input.street_number}` : ''}` : '',
@@ -1031,7 +1086,6 @@ async function startServer() {
       }
     } catch {}
 
-    // Camada 3: BrasilAPI CEP v2 (possui coordenadas de geolocalização por CEP)
     if (cleanCep.length === 8) {
       try {
         const brRes = await fetch(`https://brasilapi.com.br/api/cep/v2/${cleanCep}`);
@@ -1060,7 +1114,6 @@ async function startServer() {
     };
   }
 
-  // Helper: Propaga Endereço e Coordenadas para todas as tabelas vinculadas ao mesmo CPF / E-mail / ID
   async function syncAddressAndCoordsAcrossCpfTables(params: {
     cpf?: string | null;
     email?: string | null;
@@ -1118,7 +1171,6 @@ async function startServer() {
     const isUuid = (v: any) =>
       typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
 
-    // 1. Atualiza em public.clients (por userId, email ou cpf)
     try {
       const clientPayload = {
         ...commonAddressFields,
@@ -1138,7 +1190,6 @@ async function startServer() {
       }
     } catch {}
 
-    // 2. Atualiza em public.professionals (por userId, email ou cpf)
     try {
       if (isUuid(params.userId)) {
         await safeSupabaseWrite('professionals', 'update', commonAddressFields, { eqCol: 'id', eqVal: params.userId });
@@ -1155,7 +1206,6 @@ async function startServer() {
       }
     } catch {}
 
-    // 3. Atualiza em public.profiles
     try {
       if (isUuid(params.userId)) {
         await safeSupabaseWrite('profiles', 'update', commonAddressFields, { eqCol: 'id', eqVal: params.userId });
@@ -1165,17 +1215,6 @@ async function startServer() {
       }
     } catch {}
 
-    // 4. Atualiza em public.salon_users
-    try {
-      if (isUuid(params.userId)) {
-        await safeSupabaseWrite('salon_users', 'update', commonAddressFields, { eqCol: 'id', eqVal: params.userId });
-      }
-      if (cleanEmail) {
-        await safeSupabaseWrite('salon_users', 'update', commonAddressFields, { eqCol: 'email', eqVal: cleanEmail });
-      }
-    } catch {}
-
-    // 5. Atualiza em public.salons se solicitado (ex: edição de Gestor/Salão ou endereço unificado)
     if (params.syncSalons) {
       try {
         if (isUuid(params.salonId)) {
@@ -1189,8 +1228,7 @@ async function startServer() {
     }
   }
 
-  // Endpoint 1: Configuração do Google Maps JS SDK para o Frontend
-  app.get('/api/geo/config', (req, res) => {
+  app.get('/api/geo/config', (_req, res) => {
     res.json({
       success: true,
       apiKey: GOOGLE_MAPS_API_KEY,
@@ -1198,13 +1236,11 @@ async function startServer() {
     });
   });
 
-  // Endpoint 2: Geocoding Direto (Endereço/CEP -> Lat/Lng) e Reverso (Lat/Lng -> Endereço)
   app.post('/api/geo/geocode', async (req, res) => {
     try {
       const body = req.body || {};
       const referer = req.headers.referer || process.env.APP_URL || 'https://adm.vagouapp.com/';
 
-      // Modo Geocodificação Reversa (quando o usuário arrasta o pino no mapa)
       if (body.lat !== undefined && body.lng !== undefined && !body.address && !body.cep) {
         const lat = Number(body.lat);
         const lng = Number(body.lng);
@@ -1243,7 +1279,6 @@ async function startServer() {
         });
       }
 
-      // Modo Geocodificação Direta (Endereço / CEP -> Lat/Lng)
       const resolved = await resolveAddressCoordinatesServerSide(
         {
           cep: body.cep,
@@ -1266,8 +1301,6 @@ async function startServer() {
     }
   });
 
-  // Endpoint 3: Cálculo de Rota Viária Real em 3 Camadas (Comunicado Oficial mnvapp bol-023)
-  // Camada 1: Google Maps Routes API v2 com Referer -> Camada 2: DirectionsService no Browser -> Camada 3: Malha Viária OSRM com encodedPolyline real
   app.post('/api/geo/route', async (req, res) => {
     try {
       const { originLat, originLng, destLat, destLng, travelMode = 'DRIVE' } = req.body || {};
@@ -1282,7 +1315,6 @@ async function startServer() {
 
       const referer = String(req.headers.referer || process.env.APP_URL || 'https://adm.vagouapp.com/');
 
-      // CAMADA 1: Google Maps Routes API v2 (computeRoutes)
       if (GOOGLE_MAPS_API_KEY) {
         try {
           const googleMode =
@@ -1343,7 +1375,6 @@ async function startServer() {
         }
       }
 
-      // CAMADA 3: Malha Viária Real OSRM (com encodedPolyline real seguindo as ruas, nunca linha reta de 2 pontos)
       try {
         const osrmProfile = travelMode === 'walking' || travelMode === 'WALK' ? 'foot' : 'driving';
         const osrmUrl = `https://router.project-osrm.org/route/v1/${osrmProfile}/${oLng},${oLat};${dLng},${dLat}?overview=full&geometries=polyline&steps=true`;
@@ -1389,13 +1420,11 @@ async function startServer() {
     }
   });
 
-  // Sincronização Universal de Avatares (Fonte Única da Verdade & Conversão Base64 -> Storage)
-  app.all('/api/admin/sync-avatars', async (req, res) => {
+  app.all('/api/admin/sync-avatars', async (_req, res) => {
     try {
       let convertedCount = 0;
       let syncedTablesCount = 0;
 
-      // 1. Procura registros com Base64 cru em professionals
       const { data: profsWithBase64 } = await supabaseAdmin
         .from('professionals')
         .select('id, name, email, avatar_url')
@@ -1422,15 +1451,15 @@ async function startServer() {
                 convertedCount++;
 
                 const now = new Date().toISOString();
-                // Atualiza professionals
+
                 await supabaseAdmin.from('professionals').update({ avatar_url: publicUrl, updated_at: now }).eq('id', p.id);
-                // Propaga para clients
+
                 if (p.email) {
                   await supabaseAdmin.from('clients').update({ avatar_url: publicUrl, updated_at: now }).eq('email', p.email);
                 } else if (p.name) {
                   await supabaseAdmin.from('clients').update({ avatar_url: publicUrl, updated_at: now }).ilike('name', `%${p.name}%`);
                 }
-                // Propaga para system_admins
+
                 if (p.email) {
                   await supabaseAdmin.from('system_admins').update({ avatar_url: publicUrl }).eq('email', p.email);
                 } else if (p.name) {
@@ -1445,7 +1474,6 @@ async function startServer() {
         }
       }
 
-      // 2. Busca o avatar mais recente em todo o banco para sincronização cruzada
       const { data: latestProf } = await supabaseAdmin
         .from('professionals')
         .select('name, email, avatar_url, updated_at')
@@ -1457,7 +1485,7 @@ async function startServer() {
       if (latestProf && latestProf.length > 0 && latestProf[0].avatar_url) {
         const top = latestProf[0];
         if (!top.avatar_url.includes('unsplash.com') && !top.avatar_url.startsWith('data:image/')) {
-          // Garante que system_admins e clients tenham este avatar
+
           if (top.email) {
             await supabaseAdmin.from('system_admins').update({ avatar_url: top.avatar_url }).eq('email', top.email);
             await supabaseAdmin.from('clients').update({ avatar_url: top.avatar_url }).eq('email', top.email);
@@ -1481,11 +1509,10 @@ async function startServer() {
     }
   });
 
-  // Status da Tríade VagouApp
-  app.get('/api/admin/triade-status', async (req, res) => {
+  app.get('/api/admin/triade-status', async (_req, res) => {
     try {
-      // Test Supabase connection
-      const { data, error } = await supabaseAdmin.from('salons').select('id', { count: 'exact', head: true });
+
+      const { error } = await supabaseAdmin.from('salons').select('id', { count: 'exact', head: true });
       const dbConnected = !error;
 
       res.json({
@@ -1535,9 +1562,6 @@ async function startServer() {
     }
   });
 
-  // ============================================================================
-  // 🎨 PREFERÊNCIAS VISUAIS, CORES, LOGOTIPOS & FAVICON DO SISTEMA (admin.vapp)
-  // ============================================================================
   const ADMIN_PREFS_FILE = path.join(__dirname, '.admin-preferences.json');
 
   const readAdminPreferencesFromDisk = (): any | null => {
@@ -1560,27 +1584,35 @@ async function startServer() {
 
   app.get('/api/admin/preferences', async (_req, res) => {
     try {
-      // Tenta ler do banco Supabase primeiro para persistência global entre navegadores (Chrome, Edge, etc.)
+
       const { data, error } = await supabaseAdmin
         .from('admin_preferences')
-        .select('preferences, updated_at')
+        .select('logo_dark_url, logo_light_url, mobile_app_icon_url, favicon_url, preferences, updated_at')
         .eq('id', 'global')
         .maybeSingle();
 
-      if (!error && data?.preferences) {
+      if (!error && data) {
+        const basePrefs = data.preferences && typeof data.preferences === 'object' ? data.preferences : {};
+        const merged = {
+          ...basePrefs,
+          logoDarkUrl: data.logo_dark_url || basePrefs.logoDarkUrl || '',
+          logoLightUrl: data.logo_light_url || basePrefs.logoLightUrl || '',
+          mobileAppIconUrl: data.mobile_app_icon_url || basePrefs.mobileAppIconUrl || '',
+          faviconUrl: data.favicon_url || basePrefs.faviconUrl || '',
+          updatedAt: data.updated_at || basePrefs.updatedAt,
+        };
         return res.json({
           success: true,
-          preferences: data.preferences,
+          preferences: merged,
         });
       }
 
-      // Fallback para disco local se o banco estiver indisponível
       const stored = readAdminPreferencesFromDisk();
       return res.json({
         success: true,
         preferences: stored || null,
       });
-    } catch (err: any) {
+    } catch {
       const stored = readAdminPreferencesFromDisk();
       return res.json({ success: true, preferences: stored || null });
     }
@@ -1589,25 +1621,20 @@ async function startServer() {
   app.post('/api/admin/preferences', async (req, res) => {
     try {
       const body = req.body || {};
-      let logoDarkUrl = typeof body.logoDarkUrl === 'string' ? body.logoDarkUrl.trim() : '';
-      let logoLightUrl = typeof body.logoLightUrl === 'string' ? body.logoLightUrl.trim() : '';
-      let mobileAppIconUrl = typeof body.mobileAppIconUrl === 'string' ? body.mobileAppIconUrl.trim() : '';
-      let faviconUrl = typeof body.faviconUrl === 'string' ? body.faviconUrl.trim() : '';
+      const logoDarkUrl = typeof body.logoDarkUrl === 'string' ? body.logoDarkUrl.trim() : '';
+      const logoLightUrl = typeof body.logoLightUrl === 'string' ? body.logoLightUrl.trim() : '';
+      const mobileAppIconUrl = typeof body.mobileAppIconUrl === 'string' ? body.mobileAppIconUrl.trim() : '';
+      const faviconUrl = typeof body.faviconUrl === 'string' ? body.faviconUrl.trim() : '';
 
-      // Se o administrador enviou imagens em Base64, faz upload automático para o Supabase Storage (bucket salon-media)
-      if (logoDarkUrl.startsWith('data:image/')) {
-        logoDarkUrl = (await uploadBase64MediaIfNeeded(logoDarkUrl, 'admin-logo-dark', 'salon-media')) || logoDarkUrl;
-      }
-      if (logoLightUrl.startsWith('data:image/')) {
-        logoLightUrl = (await uploadBase64MediaIfNeeded(logoLightUrl, 'admin-logo-light', 'salon-media')) || logoLightUrl;
-      }
-      if (mobileAppIconUrl.startsWith('data:image/')) {
-        mobileAppIconUrl = (await uploadBase64MediaIfNeeded(mobileAppIconUrl, 'admin-mobile-icon', 'salon-media')) || mobileAppIconUrl;
-      }
-      if (faviconUrl.startsWith('data:image/')) {
-        faviconUrl = (await uploadBase64MediaIfNeeded(faviconUrl, 'admin-favicon', 'salon-media')) || faviconUrl;
+      const urlFields = [logoDarkUrl, logoLightUrl, mobileAppIconUrl, faviconUrl];
+      if (urlFields.some((u) => u && !isSafeMediaUrl(u))) {
+        return res.status(400).json({
+          success: false,
+          error: 'Persistência de imagens Base64 proibida no v6.0. Faça upload binário via POST /api/media/upload.',
+        });
       }
 
+      const nowIso = new Date().toISOString();
       const savedPrefs = {
         logoDarkUrl,
         logoLightUrl,
@@ -1615,22 +1642,28 @@ async function startServer() {
         faviconUrl,
         dark: body.dark || {},
         light: body.light || {},
-        updatedAt: new Date().toISOString(),
+        updatedAt: nowIso,
       };
 
-      // Salva no disco local (fallback)
       writeAdminPreferencesToDisk(savedPrefs);
 
-      // Salva no banco Supabase (tabela admin_preferences) para persistência global entre navegadores
       try {
         await supabaseAdmin
           .from('admin_preferences')
           .upsert(
-            { id: 'global', preferences: savedPrefs, updated_at: savedPrefs.updatedAt },
+            {
+              id: 'global',
+              logo_dark_url: logoDarkUrl || null,
+              logo_light_url: logoLightUrl || null,
+              mobile_app_icon_url: mobileAppIconUrl || null,
+              favicon_url: faviconUrl || null,
+              preferences: savedPrefs,
+              updated_at: nowIso,
+            },
             { onConflict: 'id' }
           );
       } catch (dbErr) {
-        console.warn('[preferences] Aviso: Não foi possível salvar admin_preferences no Supabase (usando disco/local):', dbErr);
+        console.warn('[preferences] Aviso ao persistir admin_preferences no Supabase:', dbErr);
       }
 
       return res.json({
@@ -1642,17 +1675,8 @@ async function startServer() {
     }
   });
 
-  // ==========================================
-  // 🔐 ADMIN AUTHENTICATION & ACCESS ROUTES
-  // ==========================================
-
-  // In-memory fallback if database table not yet migrated
   const localAdmins: any[] = [];
 
-  // ============================================================================
-  // 🛡️ MOTOR SOBERANO DE CONSOLIDAÇÃO E DESDUPLICAÇÃO DE USUÁRIOS (bol-162)
-  // Garante 1 Pessoa = 1 Único Cadastro no Banco (Prioridade: Admin > Proprietário > Profissional > Cliente)
-  // ============================================================================
   const normalizeEmailKey = (val: any): string =>
     typeof val === 'string' ? val.trim().toLowerCase() : '';
 
@@ -1697,14 +1721,14 @@ async function startServer() {
 
     const [
       { data: sysAdmins },
-      { data: salonUsers },
+      { data: profileRows },
       { data: professionals },
       { data: clients },
     ] = await Promise.all([
-      supabaseAdmin.from('system_admins').select('id, full_name, name, username, email, phone_whatsapp, cpf'),
-      supabaseAdmin.from('salon_users').select('id, full_name, username, email, phone_whatsapp, document_cpf'),
-      supabaseAdmin.from('professionals').select('id, name, username, email, phone, cpf, role'),
-      supabaseAdmin.from('clients').select('id, full_name, name, username, email, phone, phone_whatsapp, cpf'),
+      supabaseAdmin.from('system_admins').select('id, full_name, username, email, phone_whatsapp, cpf'),
+      supabaseAdmin.from('profiles').select('id, full_name, username, email, phone, cpf'),
+      supabaseAdmin.from('professionals').select('id, full_name, email, phone, cpf, role'),
+      supabaseAdmin.from('clients').select('id, full_name, email, phone, cpf'),
     ]);
 
     const allRecords: Array<{
@@ -1717,19 +1741,19 @@ async function startServer() {
     }> = [
       ...(sysAdmins || []).map((r: any) => ({
         roleLabel: 'Administrador',
-        name: r.full_name || r.name || r.username || 'Administrador',
+        name: r.full_name || r.username || 'Administrador',
         username: r.username || '',
         email: r.email || '',
         phone: r.phone_whatsapp || '',
         cpf: r.cpf || '',
       })),
-      ...(salonUsers || []).map((r: any) => ({
-        roleLabel: 'Proprietário',
-        name: r.full_name || r.username || 'Proprietário',
+      ...(profileRows || []).map((r: any) => ({
+        roleLabel: 'Usuário',
+        name: r.full_name || r.username || 'Usuário',
         username: r.username || '',
         email: r.email || '',
-        phone: r.phone_whatsapp || '',
-        cpf: r.document_cpf || '',
+        phone: r.phone || '',
+        cpf: r.cpf || '',
       })),
       ...(professionals || []).map((r: any) => ({
         roleLabel: String(r.role || '').toLowerCase().includes('propriet') ? 'Proprietário' : 'Profissional',
@@ -1808,7 +1832,6 @@ async function startServer() {
       const adminsList = Array.isArray(adminsData) ? adminsData : [];
       const clientsList = Array.isArray(clientsData) ? clientsData : [];
 
-      // 1. Deduplicação interna em system_admins (mantém o mais antigo por email/username)
       const seenAdminEmails = new Set<string>();
       const seenAdminUsers = new Set<string>();
       const canonicalAdmins: any[] = [];
@@ -1830,7 +1853,6 @@ async function startServer() {
         await supabaseAdmin.from('system_admins').delete().in('id', duplicateAdminIds);
       }
 
-      // 2. Identifica registros em public.clients que pertencem a um Administrador (mesmo email, username ou CPF válido)
       const shadowClientIdsToDelete: string[] = [];
       const seenClientEmails = new Set<string>();
       const seenClientUsers = new Set<string>();
@@ -1852,7 +1874,7 @@ async function startServer() {
         });
 
         if (matchingAdmin) {
-          // Consolida contadores e dados úteis no registro de Administrador antes de excluir a duplicata em clients
+
           const mergedAppointments = Math.max(
             Number(matchingAdmin.total_appointments) || 0,
             Number(cl.total_appointments) || 0
@@ -1887,7 +1909,6 @@ async function startServer() {
           continue;
         }
 
-        // 3. Deduplicação interna em public.clients (mesmo e-mail ou username)
         if ((clEmail && seenClientEmails.has(clEmail)) || (clUser && seenClientUsers.has(clUser))) {
           shadowClientIdsToDelete.push(cl.id);
           continue;
@@ -1924,15 +1945,139 @@ async function startServer() {
     }
   };
 
-  // Executa saneamento imediato ao iniciar o servidor
   consolidateDuplicateUsersInSupabase();
 
-  // 1. Register Admin
+  app.get('/api/admin/bootstrap/status', async (_req, res) => {
+    try {
+      const { count, error } = await supabaseAdmin
+        .from('system_admins')
+        .select('id', { count: 'exact', head: true });
+
+      if (error) {
+        return res.json({ success: true, needsBootstrap: false });
+      }
+      return res.json({ success: true, needsBootstrap: (count ?? 0) === 0 });
+    } catch {
+      return res.json({ success: true, needsBootstrap: false });
+    }
+  });
+
+  app.post('/api/admin/bootstrap', async (req, res) => {
+    try {
+      const { count } = await supabaseAdmin
+        .from('system_admins')
+        .select('id', { count: 'exact', head: true });
+
+      if ((count ?? 0) > 0) {
+        return res.status(409).json({
+          success: false,
+          error: 'O Super Admin inicial já foi configurado. Faça login normalmente.',
+        });
+      }
+
+      const { full_name, username, email, phone_whatsapp = '', password } = req.body || {};
+      const cleanName = String(full_name || '').trim();
+      const cleanUsername = String(username || '').replace(/^@+/, '').trim();
+      const cleanEmail = String(email || '').trim().toLowerCase();
+      const cleanPhone = String(phone_whatsapp || '').trim();
+      const cleanPassword = String(password || '');
+
+      if (!cleanName || !cleanUsername || !cleanEmail || cleanPassword.length < 8) {
+        return res.status(400).json({
+          success: false,
+          error: 'Preencha nome, usuário, e-mail e senha (mínimo 8 caracteres).',
+        });
+      }
+
+      if (!/[A-Z]/.test(cleanUsername) || !/[a-z]/.test(cleanUsername) || !/[^A-Za-z0-9\s]/.test(cleanUsername)) {
+        return res.status(400).json({
+          success: false,
+          error: 'O nome de usuário deve conter 1 letra maiúscula, 1 minúscula e 1 caractere especial.',
+        });
+      }
+
+      let authUserId: string | null = null;
+      if (SUPABASE_SERVICE_ROLE_KEY) {
+        const { data: createdAuth, error: authErr } = await supabaseAdmin.auth.admin.createUser({
+          email: cleanEmail,
+          password: cleanPassword,
+          email_confirm: true,
+          app_metadata: { role: 'super_admin' },
+          user_metadata: {
+            full_name: cleanName,
+            username: cleanUsername,
+            phone: cleanPhone,
+            created_via: 'admvapp',
+          },
+        });
+        if (!authErr && createdAuth?.user?.id) {
+          authUserId = createdAuth.user.id;
+        } else {
+          const { data: listed } = await supabaseAdmin.auth.admin.listUsers();
+          const existingAuth = (listed?.users || []).find(
+            (u: any) => String(u.email || '').toLowerCase() === cleanEmail
+          );
+          if (existingAuth?.id) {
+            authUserId = existingAuth.id;
+            await supabaseAdmin.auth.admin.updateUserById(existingAuth.id, {
+              password: cleanPassword,
+              app_metadata: { role: 'super_admin' },
+              user_metadata: { full_name: cleanName, username: cleanUsername, phone: cleanPhone },
+            });
+          }
+        }
+      }
+
+      const { data: rpcAdminId, error: rpcErr } = await supabaseAdmin.rpc('bootstrap_initial_super_admin', {
+        p_email: cleanEmail,
+        p_full_name: cleanName,
+        p_username: cleanUsername,
+        p_password: cleanPassword,
+        p_user_id: authUserId,
+      });
+
+      if (rpcErr) {
+        return res.status(400).json({
+          success: false,
+          error: rpcErr.message || 'Falha ao executar bootstrap_initial_super_admin.',
+        });
+      }
+
+      if (cleanPhone && rpcAdminId) {
+        await supabaseAdmin
+          .from('system_admins')
+          .update({ phone_whatsapp: cleanPhone })
+          .eq('id', rpcAdminId);
+      }
+
+      const { data: adminRow } = await supabaseAdmin
+        .from('system_admins')
+        .select('id, user_id, full_name, username, email, phone_whatsapp, role, access_level, is_active, avatar_url, created_at')
+        .eq('email', cleanEmail)
+        .maybeSingle();
+
+      return res.json({
+        success: true,
+        admin: adminRow || {
+          id: rpcAdminId || authUserId || crypto.randomUUID(),
+          full_name: cleanName,
+          username: cleanUsername,
+          email: cleanEmail,
+          phone_whatsapp: cleanPhone,
+          role: 'super_admin',
+          is_active: true,
+        },
+        message: '1º Super Admin criado com sucesso!',
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   app.post('/api/admin/auth/register', async (req, res) => {
     try {
       const { full_name, username, email, email_confirmation, phone_whatsapp, password, role: reqRole } = req.body;
 
-      // Validações
       if (!full_name || !username || !email || !phone_whatsapp || !password) {
         return res.status(400).json({ success: false, error: 'Todos os campos são obrigatórios.' });
       }
@@ -1943,15 +2088,15 @@ async function startServer() {
 
       const cleanUsername = username.replace(/^@+/, '').trim();
       const cleanEmail = email.trim().toLowerCase();
-      const resolvedRole = reqRole === 'moderator' || reqRole === 'support' ? reqRole : 'superadmin';
-      const resolvedAccessLevel =
-        resolvedRole === 'superadmin'
-          ? 'Superadmin Master'
-          : resolvedRole === 'moderator'
-          ? 'Moderador'
-          : 'Suporte Técnico';
+      const normalizedReqRole = String(reqRole || '').toLowerCase();
+      const resolvedRole =
+        normalizedReqRole === 'support'
+          ? 'support'
+          : normalizedReqRole === 'admin' || normalizedReqRole === 'moderator'
+          ? 'admin'
+          : 'super_admin';
+      const resolvedAccessLevel = resolvedRole === 'super_admin' ? 100 : resolvedRole === 'admin' ? 70 : 40;
 
-      // Validação de Username: Ao menos uma letra maiúscula, uma minúscula e um caractere especial
       const hasUppercase = /[A-Z]/.test(cleanUsername);
       const hasLowercase = /[a-z]/.test(cleanUsername);
       const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(cleanUsername);
@@ -1963,7 +2108,6 @@ async function startServer() {
         });
       }
 
-      // Verifica se já existe administrador com o mesmo e-mail ou username
       const { data: existingAdmins } = await supabaseAdmin
         .from('system_admins')
         .select('id, email, username');
@@ -1981,12 +2125,30 @@ async function startServer() {
         });
       }
 
-      // Tenta persistir no Supabase system_admins
+      let authUserId: string | null = null;
+      if (SUPABASE_SERVICE_ROLE_KEY) {
+        try {
+          const { data: authCreated } = await supabaseAdmin.auth.admin.createUser({
+            email: cleanEmail,
+            password,
+            email_confirm: true,
+            app_metadata: { role: resolvedRole },
+            user_metadata: {
+              full_name: full_name.trim(),
+              username: cleanUsername,
+              phone: phone_whatsapp.trim(),
+              created_via: 'admvapp',
+            },
+          });
+          if (authCreated?.user?.id) authUserId = authCreated.user.id;
+        } catch {}
+      }
+
       try {
         const nowAdminIso = new Date().toISOString();
         const { data: dbAdmin, error: dbError } = await safeSupabaseWrite('system_admins', 'insert', {
+          user_id: authUserId,
           full_name: full_name.trim(),
-          name: full_name.trim(),
           username: cleanUsername,
           email: cleanEmail,
           phone_whatsapp: phone_whatsapp.trim(),
@@ -2000,18 +2162,16 @@ async function startServer() {
         });
 
         if (!dbError && dbAdmin) {
-          // Se havia cadastro prévio como cliente com o mesmo e-mail/username, consolida para evitar duplicidade
           await consolidateDuplicateUsersInSupabase();
           const { password_hash, ...safeAdmin } = dbAdmin;
           return res.json({
             success: true,
-            admin: { ...safeAdmin, password },
+            admin: safeAdmin,
             message: 'Administrador cadastrado com sucesso!',
           });
         }
       } catch {}
 
-      // Fallback em memória
       const exists = localAdmins.find(
         (a) => a.username.toLowerCase() === cleanUsername.toLowerCase() || a.email.toLowerCase() === cleanEmail
       );
@@ -2025,8 +2185,9 @@ async function startServer() {
         username: cleanUsername,
         email: cleanEmail,
         phone_whatsapp: phone_whatsapp.trim(),
-        password: password,
-        role: 'superadmin',
+        password,
+        role: resolvedRole,
+        access_level: resolvedAccessLevel,
         is_active: true,
         created_at: new Date().toISOString(),
       };
@@ -2039,7 +2200,6 @@ async function startServer() {
     }
   });
 
-  // 2. Login Admin (Autenticação Soberana em public.system_admins — Zero Auto-Duplicação em Outras Tabelas)
   app.post('/api/admin/auth/login', async (req, res) => {
     try {
       const { identifier, password } = req.body;
@@ -2047,22 +2207,63 @@ async function startServer() {
         return res.status(400).json({ success: false, error: 'Informe o Nome de Usuário / E-mail e a Senha.' });
       }
 
-      const query = identifier.trim().toLowerCase();
+      const rawIdentifier = String(identifier).trim();
+      const query = rawIdentifier.toLowerCase();
       const strippedQuery = query.replace(/^@+/, '');
+
+      try {
+        const { data: rpcRows, error: rpcErr } = await supabaseAdmin.rpc('verify_admin_login', {
+          p_identifier: strippedQuery,
+          p_password: String(password),
+        });
+
+        if (!rpcErr && Array.isArray(rpcRows) && rpcRows.length > 0) {
+          const verified = rpcRows[0];
+          try {
+            await supabaseAdmin
+              .from('system_admins')
+              .update({ last_login_at: new Date().toISOString() })
+              .eq('id', verified.id);
+          } catch {}
+
+          const { data: fullAdmin } = await supabaseAdmin
+            .from('system_admins')
+            .select('id, user_id, full_name, username, email, phone_whatsapp, role, access_level, is_active, avatar_url, last_login_at, created_at')
+            .eq('id', verified.id)
+            .maybeSingle();
+
+          return res.json({
+            success: true,
+            admin: fullAdmin || {
+              id: verified.id,
+              user_id: verified.user_id,
+              full_name: verified.full_name,
+              username: verified.username,
+              email: verified.email,
+              role: verified.role || 'super_admin',
+              access_level: verified.access_level ?? 100,
+              avatar_url: verified.avatar_url || '',
+              is_active: true,
+            },
+          });
+        }
+      } catch (rpcCatch) {
+        console.warn('[login] verify_admin_login RPC notice:', rpcCatch);
+      }
 
       try {
         const { data: admins, error: dbError } = await supabaseAdmin
           .from('system_admins')
           .select('*')
-          .or(`email.ilike.%${query}%,username.ilike.%${strippedQuery}%`)
+          .or(`email.ilike.${query},username.ilike.${strippedQuery}`)
           .limit(1);
 
         if (!dbError && admins && admins.length > 0) {
           const admin = admins[0];
-          if (admin.password_hash && admin.password_hash === password) {
-            if (!admin.is_active) {
-              return res.status(403).json({ success: false, error: 'Conta de administrador inativa ou suspensa.' });
-            }
+          if (!admin.is_active) {
+            return res.status(403).json({ success: false, error: 'Conta de administrador inativa ou suspensa.' });
+          }
+          if (admin.password_hash && !String(admin.password_hash).startsWith('$2') && admin.password_hash === password) {
             try {
               await supabaseAdmin
                 .from('system_admins')
@@ -2071,15 +2272,13 @@ async function startServer() {
             } catch {}
             const { password_hash, ...safeAdmin } = admin;
             return res.json({ success: true, admin: safeAdmin });
-          } else {
-            return res.status(401).json({ success: false, error: 'Senha incorreta.' });
           }
+          return res.status(401).json({ success: false, error: 'Senha incorreta.' });
         }
       } catch (dbErr) {
         console.warn('[login] Erro na consulta ao banco:', dbErr);
       }
 
-      // Fallback em memória
       const match = localAdmins.find(
         (a) => a.username.toLowerCase() === query || a.email.toLowerCase() === query
       );
@@ -2098,7 +2297,6 @@ async function startServer() {
     }
   });
 
-  // 3. Recovery (Dados de Acesso ou Senha com Redefinição Real)
   app.post('/api/admin/auth/recovery', async (req, res) => {
     try {
       const { type, query, new_password } = req.body;
@@ -2108,7 +2306,6 @@ async function startServer() {
 
       const cleanQuery = query.trim().toLowerCase();
 
-      // Busca o administrador no Supabase system_admins
       let matchedAdmin: any = null;
       try {
         const { data: dbAdmins } = await supabaseAdmin
@@ -2124,7 +2321,6 @@ async function startServer() {
         console.warn('[recovery] Erro na busca em system_admins:', err);
       }
 
-      // Fallback em localAdmins
       if (!matchedAdmin) {
         matchedAdmin = localAdmins.find(
           (a) =>
@@ -2135,10 +2331,10 @@ async function startServer() {
       }
 
       if (type === 'access_data') {
-        // Recuperar Dados de Acesso (Username / E-mail)
+
         if (matchedAdmin) {
           const maskedEmail = matchedAdmin.email
-            ? matchedAdmin.email.replace(/^(.)(.*)(@.*)$/, (_, a, b, c) => a + '***' + c)
+            ? matchedAdmin.email.replace(/^(.)(.*)(@.*)$/, (_, a, _b, c) => a + '***' + c)
             : 'E-mail não cadastrado';
           return res.json({
             success: true,
@@ -2159,7 +2355,7 @@ async function startServer() {
           hint: 'Verifique os dados ou contate um superadministrador da Tríade.',
         });
       } else {
-        // Redefinir ou Recuperar Senha
+
         if (!matchedAdmin) {
           return res.status(404).json({
             success: false,
@@ -2167,7 +2363,6 @@ async function startServer() {
           });
         }
 
-        // Se nova senha foi fornecida, atualiza imediatamente no banco
         if (new_password) {
           if (typeof new_password !== 'string' || new_password.length < 6) {
             return res.status(400).json({
@@ -2176,7 +2371,6 @@ async function startServer() {
             });
           }
 
-          // Atualiza em system_admins
           try {
             await supabaseAdmin
               .from('system_admins')
@@ -2189,7 +2383,6 @@ async function startServer() {
             console.warn('[recovery] Falha ao atualizar senha em system_admins:', updateErr);
           }
 
-          // Atualiza em localAdmins se presente
           const localIdx = localAdmins.findIndex((a) => a.id === matchedAdmin.id);
           if (localIdx >= 0) {
             localAdmins[localIdx].password = new_password;
@@ -2203,7 +2396,6 @@ async function startServer() {
           });
         }
 
-        // Apenas validação de existência do usuário para avançar à etapa da nova senha
         return res.json({
           success: true,
           type: 'password_user_verified',
@@ -2218,8 +2410,7 @@ async function startServer() {
     }
   });
 
-  // 4. List System Admins
-  app.get('/api/admin/system-admins', async (req, res) => {
+  app.get('/api/admin/system-admins', async (_req, res) => {
     try {
       await consolidateDuplicateUsersInSupabase();
       const { data, error } = await supabaseAdmin
@@ -2242,7 +2433,6 @@ async function startServer() {
     }
   });
 
-  // 4b. Update System Admin Details & Password (Service Role bypasses RLS)
   app.put('/api/admin/system-admins/:id', async (req, res) => {
     try {
       const { id } = req.params;
@@ -2262,7 +2452,6 @@ async function startServer() {
       if (payload.is_active !== undefined) updateData.is_active = !!payload.is_active;
       if (payload.avatar_url !== undefined) updateData.avatar_url = payload.avatar_url;
 
-      // Trata atualização de senha para salvar em password_hash no Supabase
       if (payload.password) {
         updateData.password_hash = payload.password;
       } else if (payload.password_hash) {
@@ -2295,7 +2484,6 @@ async function startServer() {
     }
   });
 
-  // 5. Toggle Admin Active Status
   app.patch('/api/admin/system-admins/:id/status', async (req, res) => {
     try {
       const { id } = req.params;
@@ -2318,7 +2506,6 @@ async function startServer() {
     }
   });
 
-  // UNIFIED USERS CRUD (Clients, Professionals, Salon Users, Admins) — Blindado com Geocoding e Propagação por CPF
   app.put('/api/admin/users/:kind/:id', async (req, res) => {
     try {
       const { kind, id } = req.params;
@@ -2327,7 +2514,7 @@ async function startServer() {
 
       const resolveTableByKind = (k: string) => {
         if (k === 'professional') return 'professionals';
-        if (k === 'salon_user') return 'salon_users';
+        if (k === 'salon_user') return 'salon_members';
         if (k === 'admin') return 'system_admins';
         if (k === 'dependent') return 'dependents';
         return 'clients';
@@ -2338,7 +2525,6 @@ async function startServer() {
       let sourceTable = resolveTableByKind(sourceKind);
       const targetTable = resolveTableByKind(targetKind);
 
-      // Resolve coordenadas automaticamente caso endereço ou CEP sejam enviados
       const hasAddressFields =
         body.cep !== undefined ||
         body.address !== undefined ||
@@ -2377,7 +2563,6 @@ async function startServer() {
 
       const streetNumberVal = body.streetNumber !== undefined ? body.streetNumber : body.street_number;
 
-      // Caso especial: Gestor de Salão com ID sintético "su-<salon_id>" vindo de GET /api/admin/salon-users
       if (id.startsWith('su-')) {
         const realSalonId = id.replace(/^su-/, '');
         const salonUpdatePayload: Record<string, any> = {
@@ -2460,10 +2645,9 @@ async function startServer() {
         });
       }
 
-      // 1. Localiza o registro existente (em sourceTable ou varrendo as demais tabelas caso o kind tenha mudado na UI antes do envio)
       let existingRecord: any = null;
       const candidateTables = Array.from(
-        new Set([sourceTable, targetTable, 'clients', 'system_admins', 'professionals', 'salon_users'])
+        new Set([sourceTable, targetTable, 'clients', 'system_admins', 'professionals', 'salon_members'])
       );
       for (const tbl of candidateTables) {
         try {
@@ -2533,23 +2717,31 @@ async function startServer() {
         body.accessLevel ||
         existingRecord?.access_level ||
         (targetTable === 'system_admins'
-          ? 'Superadmin Master'
+          ? 100
           : targetTable === 'professionals'
           ? 'MEI Parceiro'
-          : targetTable === 'salon_users'
+          : targetTable === 'salon_members'
           ? 'Proprietário (Dono)'
           : 'Cliente Titular');
 
-      updatePayload.access_level = resolvedAccessLevel;
       if (targetTable === 'system_admins') {
         const lower = String(resolvedAccessLevel).toLowerCase();
-        if (lower.includes('super')) updatePayload.role = 'superadmin';
-        else if (lower.includes('moder')) updatePayload.role = 'moderator';
-        else updatePayload.role = 'support';
+        if (lower.includes('super') || resolvedAccessLevel === 100) {
+          updatePayload.role = 'super_admin';
+          updatePayload.access_level = 100;
+        } else if (lower.includes('moder') || lower.includes('admin') || resolvedAccessLevel === 70) {
+          updatePayload.role = 'admin';
+          updatePayload.access_level = 70;
+        } else {
+          updatePayload.role = 'support';
+          updatePayload.access_level = 40;
+        }
       } else if (targetTable === 'professionals') {
         updatePayload.role = existingRecord?.role || 'Especialista';
-      } else if (targetTable === 'salon_users') {
+      } else if (targetTable === 'salon_members') {
         updatePayload.role = existingRecord?.role || 'owner';
+      } else {
+        updatePayload.access_level = resolvedAccessLevel;
       }
 
       updatePayload.address = body.address !== undefined ? body.address : existingRecord?.address || '';
@@ -2624,7 +2816,6 @@ async function startServer() {
       let data: any = null;
       let error: any = null;
 
-      // 2. Se houve promoção/mudança de tabela (ex: client -> system_admins) ou o registro não existe em targetTable, faz UPSERT em targetTable e remove da tabela antiga!
       if (sourceTable !== targetTable) {
         const upsertPayload: Record<string, any> = {
           id,
@@ -2639,7 +2830,7 @@ async function startServer() {
         error = writeRes.error;
 
         if (!error) {
-          // Remove o registro antigo de sourceTable para cumprir a regra "1 Pessoa = 1 Único Cadastro"
+
           try {
             if (sourceTable === 'clients') {
               await supabaseAdmin.from('appointments').update({ client_id: null }).eq('client_id', id);
@@ -2661,7 +2852,6 @@ async function startServer() {
         data = writeRes.data;
         error = writeRes.error;
 
-        // Se o update retornou null (registro não encontrado na tabela), faz upsert garantido
         if (!error && !data) {
           const upsertRes = await safeSupabaseWrite(
             targetTable,
@@ -2679,7 +2869,6 @@ async function startServer() {
         return res.status(400).json({ success: false, error: error.message });
       }
 
-      // 3. Se uma senha foi informada/alterada, sincroniza também em auth.users do Supabase
       if (resolvedPassword && resolvedPassword.length >= 4) {
         try {
           let authTargetId =
@@ -2708,7 +2897,6 @@ async function startServer() {
         }
       }
 
-      // 4. Se avatar foi atualizado, sincroniza também em public.profiles
       if (updatePayload.avatar_url !== undefined) {
         try {
           const profId = (data as any)?.user_id || id;
@@ -2726,7 +2914,6 @@ async function startServer() {
         } catch {}
       }
 
-      // 5. Sincroniza endereço e coordenadas em todas as tabelas vinculadas ao mesmo CPF/E-mail/ID
       if (hasAddressFields) {
         await syncAddressAndCoordsAcrossCpfTables({
           cpf: resolvedCpf || data?.cpf,
@@ -2768,7 +2955,6 @@ async function startServer() {
     }
   });
 
-  // ADMIN: Reset Administrativo de Segurança (Pergunta Secreta e/ou Senha de Usuário)
   app.post('/api/admin/users/:kind/:id/reset-security', async (req, res) => {
     try {
       const { kind, id } = req.params;
@@ -2826,10 +3012,11 @@ async function startServer() {
           if (pro?.email) targetEmail = String(pro.email).toLowerCase();
           await safeSupabaseWrite('professionals', 'update', { password_hash: cleanPass, updated_at: new Date().toISOString() }, { eqCol: 'id', eqVal: cleanId });
         } else if (kind === 'salon_user') {
-          const { data: sal } = await supabaseAdmin.from('salons').select('id, owner_id, email, owner_email').eq('id', cleanId).maybeSingle();
-          if (sal?.owner_id) authTargetId = sal.owner_id;
-          targetEmail = String(sal?.owner_email || sal?.email || '').toLowerCase();
-          await safeSupabaseWrite('salon_users', 'update', { password_hash: cleanPass, updated_at: new Date().toISOString() }, { eqCol: 'id', eqVal: cleanId });
+          const { data: member } = await supabaseAdmin.from('salon_members').select('id, user_id, salon_id').eq('id', cleanId).maybeSingle();
+          if (member?.user_id) authTargetId = member.user_id;
+          const { data: sal } = await supabaseAdmin.from('salons').select('id, owner_id, email').eq('id', member?.salon_id || cleanId).maybeSingle();
+          if (!authTargetId && sal?.owner_id) authTargetId = sal.owner_id;
+          targetEmail = String(sal?.email || '').toLowerCase();
         } else if (kind === 'admin') {
           const { data: adm } = await supabaseAdmin.from('system_admins').select('id, email').eq('id', cleanId).maybeSingle();
           if (adm?.email) targetEmail = String(adm.email).toLowerCase();
@@ -2862,7 +3049,6 @@ async function startServer() {
     }
   });
 
-  // UPLOAD DEDICADO DE AVATAR / FOTO DE USUÁRIO (Câmera ou Galeria)
   app.post(['/api/admin/upload-avatar', '/api/public/upload-avatar'], async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     try {
@@ -2876,24 +3062,19 @@ async function startServer() {
         return res.status(500).json({ success: false, error: 'Falha ao processar e salvar imagem no Supabase Storage.' });
       }
 
-      // Se userId e kind foram fornecidos, persiste imediatamente no banco
       if (userId && kind) {
         let table = 'clients';
         if (kind === 'professional') table = 'professionals';
-        else if (kind === 'salon_user') table = 'salon_users';
+        else if (kind === 'salon_user') table = 'profiles';
         else if (kind === 'admin') table = 'system_admins';
 
         const updateData: Record<string, any> = {
           avatar_url: uploadedUrl,
           updated_at: new Date().toISOString(),
         };
-        if (table === 'clients' || table === 'professionals') {
-          updateData.photo_url = uploadedUrl;
-        }
 
         await safeSupabaseWrite(table, 'update', updateData, { eqCol: 'id', eqVal: userId });
 
-        // Tenta também sincronizar no auth profiles se aplicável
         try {
           if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
             await supabaseAdmin.from('profiles').update({
@@ -2912,8 +3093,7 @@ async function startServer() {
     }
   });
 
-  // ADMIN: List all Clients (bypasses RLS with service role + deduplicates against system_admins)
-  app.get('/api/admin/clients', async (req, res) => {
+  app.get('/api/admin/clients', async (_req, res) => {
     try {
       await consolidateDuplicateUsersInSupabase();
 
@@ -2931,7 +3111,6 @@ async function startServer() {
       const adminUsers = new Set((sysAdmins || []).map((a: any) => normalizeUsernameKey(a.username)).filter(Boolean));
       const adminCpfs = new Set((sysAdmins || []).map((a: any) => normalizeCpfKey(a.cpf)).filter(Boolean));
 
-      // Sincronização direta com a tabela relacional public.dependents (Tríade Sync)
       const dependentsByParent: Record<string, any[]> = {};
       try {
         const { data: depData, error: depErr } = await supabaseAdmin
@@ -2961,7 +3140,6 @@ async function startServer() {
         console.warn('[GET /api/admin/clients] Dependents query notice:', depErr);
       }
 
-      // Respostas de Perguntas Secretas configuradas (public.user_security_answers — SQL v5.0)
       const secByClient: Record<string, string[]> = {};
       try {
         const { data: secData } = await supabaseAdmin
@@ -3026,7 +3204,6 @@ async function startServer() {
     }
   });
 
-  // ADMIN: Unlink Dependent (Soft unlink via service role com preservação histórica)
   app.patch('/api/admin/dependents/:id/unlink', async (req, res) => {
     try {
       const { id } = req.params;
@@ -3051,9 +3228,7 @@ async function startServer() {
     }
   });
 
-
-  // ADMIN: List all Professionals (bypasses RLS with service role)
-  app.get('/api/admin/professionals', async (req, res) => {
+  app.get('/api/admin/professionals', async (_req, res) => {
     try {
       const { data, error } = await supabaseAdmin
         .from('professionals')
@@ -3084,12 +3259,11 @@ async function startServer() {
     }
   });
 
-  // ADMIN: List all Salon Users / Managers directly from public.salon_users (Zero Synthetic Rows)
-  app.get('/api/admin/salon-users', async (req, res) => {
+  app.get('/api/admin/salon-users', async (_req, res) => {
     try {
       const { data, error } = await supabaseAdmin
-        .from('salon_users')
-        .select('*, salons(trade_name, slug)')
+        .from('salon_members')
+        .select('*, salons(trade_name, slug), profiles:user_id(full_name, username, email, phone, cpf, avatar_url, created_via)')
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -3098,34 +3272,35 @@ async function startServer() {
       }
 
       const salonUsers = (data || []).map((su: any) => {
-        const fullName = su.full_name || su.name || 'Gestor de Salão';
-        const cleanEmail = su.email || '';
-        const rawUsername = su.username || (cleanEmail ? cleanEmail.split('@')[0] : fullName.toLowerCase().replace(/\s+/g, ''));
+        const profile = su.profiles || {};
+        const fullName = profile.full_name || 'Gestor de Salão';
+        const cleanEmail = profile.email || '';
+        const rawUsername = profile.username || (cleanEmail ? cleanEmail.split('@')[0] : fullName.toLowerCase().replace(/\s+/g, ''));
         return {
           ...su,
-          salon_name: su.salons?.trade_name || su.salon_name || 'Salão Parceiro',
-          salon_slug: su.salons?.slug || su.salon_slug || 'parceiro',
+          salon_name: su.salons?.trade_name || 'Salão Parceiro',
+          salon_slug: su.salons?.slug || 'parceiro',
           full_name: fullName,
           username: String(rawUsername || 'gestor').replace(/^@+/, ''),
           email: cleanEmail,
-          phone_whatsapp: su.phone_whatsapp || su.phone || '—',
-          phone_secondary: su.phone_secondary || '',
-          password: su.password_hash || su.password || '',
-          cpf: su.cpf || '',
+          phone_whatsapp: profile.phone || '—',
+          phone_secondary: '',
+          password: '',
+          cpf: profile.cpf || '',
+          avatar_url: profile.avatar_url || '',
           role: su.role || 'owner',
           access_level:
-            su.access_level ||
-            (su.role === 'owner'
+            su.role === 'owner'
               ? 'Proprietário (Dono)'
               : su.role === 'manager'
               ? 'Gerente Geral'
-              : 'Recepção & Atendimento'),
+              : 'Recepção & Atendimento',
           is_active: su.is_active !== false,
-          can_manage_financial: su.can_manage_financial !== false,
-          can_manage_professionals: su.can_manage_professionals !== false,
-          total_appointments: Number(su.total_appointments) || 0,
-          dependents_count: Number(su.dependents_count) || 0,
-          created_via: su.created_via || null,
+          can_manage_financial: su.role === 'owner' || su.role === 'manager',
+          can_manage_professionals: su.role === 'owner' || su.role === 'manager',
+          total_appointments: 0,
+          dependents_count: 0,
+          created_via: profile.created_via || 'mnvapp',
           created_at: su.created_at || '',
         };
       });
@@ -3136,7 +3311,6 @@ async function startServer() {
     }
   });
 
-  // ADMIN: Exclusão Unificada e Segura de Usuário (Service Role com Limpeza de FKs)
   app.delete('/api/admin/users/:kind/:id', async (req, res) => {
     try {
       const { kind, id } = req.params;
@@ -3145,23 +3319,23 @@ async function startServer() {
       }
 
       if (kind === 'client') {
-        // 1. Limpa registros dependentes e respostas de segurança para evitar violação de FK
+
         try {
           await supabaseAdmin.from('dependents').delete().eq('parent_client_id', id);
           await supabaseAdmin.from('user_security_answers').delete().eq('client_id', String(id));
         } catch (depErr) {
           console.warn('[DELETE /api/admin/users/client] Aviso dependentes:', depErr);
         }
-        // 2. Desvincula histórico de agendamentos
+
         try {
           await supabaseAdmin.from('appointments').update({ client_id: null }).eq('client_id', id);
         } catch {}
-        // 3. Exclui da tabela clients
+
         const { error } = await supabaseAdmin.from('clients').delete().eq('id', id);
         if (error) {
           return res.status(400).json({ success: false, error: error.message });
         }
-        // 4. Limpa profiles se for UUID
+
         if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
           try {
             await supabaseAdmin.from('profiles').delete().eq('id', id);
@@ -3192,7 +3366,7 @@ async function startServer() {
       if (kind === 'salon_user') {
         const cleanId = id.startsWith('su-') ? id.replace(/^su-/, '') : id;
         try {
-          await supabaseAdmin.from('salon_users').delete().eq('id', cleanId);
+          await supabaseAdmin.from('salon_members').delete().eq('id', cleanId);
         } catch {}
         return res.json({ success: true, deletedId: id, kind });
       }
@@ -3212,7 +3386,6 @@ async function startServer() {
     }
   });
 
-  // ADMIN: Exclusão em Massa de Usuários
   app.post('/api/admin/users/batch-delete', async (req, res) => {
     try {
       const { items } = req.body;
@@ -3247,7 +3420,7 @@ async function startServer() {
 
       if (salonUserIds.length > 0) {
         try {
-          await supabaseAdmin.from('salon_users').delete().in('id', salonUserIds);
+          await supabaseAdmin.from('salon_members').delete().in('id', salonUserIds);
         } catch {}
       }
 
@@ -3262,7 +3435,6 @@ async function startServer() {
     }
   });
 
-  // ADMIN: Atualizar Status de Usuário
   app.patch('/api/admin/users/:kind/:id/status', async (req, res) => {
     try {
       const { kind, id } = req.params;
@@ -3272,10 +3444,10 @@ async function startServer() {
       if (kind === 'client') {
         await supabaseAdmin.from('clients').update({ is_active: activeBool }).eq('id', id);
       } else if (kind === 'professional') {
-        await supabaseAdmin.from('professionals').update({ status: activeBool ? 'active' : 'suspended' }).eq('id', id);
+        await supabaseAdmin.from('professionals').update({ is_active: activeBool }).eq('id', id);
       } else if (kind === 'salon_user') {
         const cleanId = id.replace(/^su-/, '');
-        await supabaseAdmin.from('salon_users').update({ is_active: activeBool }).eq('id', cleanId);
+        await supabaseAdmin.from('salon_members').update({ is_active: activeBool }).eq('id', cleanId);
       } else if (kind === 'admin') {
         await supabaseAdmin.from('system_admins').update({ is_active: activeBool }).eq('id', id);
       } else if (kind === 'dependent') {
@@ -3288,8 +3460,7 @@ async function startServer() {
     }
   });
 
-  // ADMIN: List all Salons (bypasses RLS with service role)
-  app.get('/api/admin/salons', async (req, res) => {
+  app.get('/api/admin/salons', async (_req, res) => {
     try {
       const { data, error } = await supabaseAdmin
         .from('salons')
@@ -3306,8 +3477,7 @@ async function startServer() {
     }
   });
 
-  // PUBLIC API for vagouapp.com and external clients to pull data from admin
-  app.get('/api/public/salons', async (req, res) => {
+  app.get('/api/public/salons', async (_req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     try {
       const { data, error } = await supabaseAdmin
@@ -3326,7 +3496,7 @@ async function startServer() {
     }
   });
 
-  app.get('/api/public/services', async (req, res) => {
+  app.get('/api/public/services', async (_req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     try {
       const { data, error } = await supabaseAdmin
@@ -3345,7 +3515,6 @@ async function startServer() {
     }
   });
 
-  // PUBLIC / ADMIN: Verificar disponibilidade de slug personalizado sem hífen em tempo real
   const RESERVED_SYSTEM_SLUGS = new Set([
     'adm', 'admin', 'portal', 'app', 'www', 'api', 'meunegocio', 'seunegocio',
     'mail', 'smtp', 'pop', 'imap', 'ftp', 'vagou', 'vagouapp', 'suporte',
@@ -3441,7 +3610,6 @@ async function startServer() {
     }
   });
 
-  // PUBLIC / ADMIN: Obter dados e identificação visual do estabelecimento por slug
   app.get('/api/admin/salons/by-slug/:slug', async (req, res) => {
     try {
       const { slug } = req.params;
@@ -3478,14 +3646,13 @@ async function startServer() {
     }
   });
 
-  app.options('/api/admin/salons', (req, res) => {
+  app.options('/api/admin/salons', (_req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     return res.sendStatus(204);
   });
 
-  // ADMIN: Create new Salon (Service Role) — Blindado com Geocoding Automático + Persistência Resiliente
   app.post('/api/admin/salons', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -3512,7 +3679,6 @@ async function startServer() {
         });
       }
 
-      // Verifica se já existe outro estabelecimento com o mesmo slug de outro titular
       const { data: existingSlugSalon } = await supabaseAdmin
         .from('salons')
         .select('id, email, trade_name')
@@ -3538,7 +3704,6 @@ async function startServer() {
       const resolvedBrandFont = payload.brand_font?.trim() || 'Poppins';
       const resolvedStatus = String(payload.status || 'active').toLowerCase();
 
-      // Geocodifica o endereço do estabelecimento automaticamente (ou usa as coordenadas cravadas no pino)
       const resolvedGeo = await resolveAddressCoordinatesServerSide(
         {
           cep: payload.cep,
@@ -3570,7 +3735,6 @@ async function startServer() {
       const nowIso = new Date().toISOString();
       const resolvedCreatedVia = payload.created_via || 'admvapp';
 
-      // Prepara objeto limpo com colunas físicas reais de public.salons + metadados ricos em branding JSONB
       const dbInsert: Record<string, any> = {
         name: resolvedTradeName,
         trade_name: resolvedTradeName,
@@ -3667,7 +3831,6 @@ async function startServer() {
         },
       };
 
-      // Upsert resiliente por slug
       const { data, error } = await safeSupabaseWrite('salons', 'upsert', dbInsert, { onConflict: 'slug' });
 
       if (error) {
@@ -3675,7 +3838,6 @@ async function startServer() {
         return res.status(400).json({ success: false, error: `Erro no banco: ${error.message}` });
       }
 
-      // Sincroniza configurações de UI na tabela relacional public.salon_ui_settings (SQL v5.0)
       if (data?.id) {
         try {
           await safeSupabaseWrite(
@@ -3705,7 +3867,6 @@ async function startServer() {
         }
       }
 
-      // Garante vínculo único do Proprietário sem duplicar conta e NUNCA violando salons_owner_id_fkey (auth.users)
       if (data?.id && (payload.email || payload.owner_name || payload.legal_name)) {
         try {
           const ownerName = (payload.owner_name || payload.legal_name || payload.trade_name || 'Proprietário').trim();
@@ -3713,7 +3874,6 @@ async function startServer() {
           const ownerPhone = payload.phone_whatsapp?.trim() || '';
           const ownerUsername = ownerEmail.split('@')[0].replace(/[^a-zA-Z0-9._-]/g, '') || cleanSlug;
 
-          // 0. Verifica se já existe conta real em auth.users (única tabela aceita por salons_owner_id_fkey)
           let verifiedAuthUserId: string | null = null;
           try {
             const { data: authList } = await supabaseAdmin.auth.admin.listUsers();
@@ -3725,14 +3885,12 @@ async function startServer() {
             }
           } catch {}
 
-          // 1. Verifica se o e-mail pertence a um Administrador (system_admins)
           const { data: existingAdmin } = await supabaseAdmin
             .from('system_admins')
             .select('id, email, password_hash')
             .ilike('email', ownerEmail)
             .maybeSingle();
 
-          // 2. Somente consulta/cria em clients se NÃO for Administrador do sistema
           let existingClientRow: any = null;
           if (!existingAdmin) {
             const { data: existingClient } = await supabaseAdmin
@@ -3743,7 +3901,6 @@ async function startServer() {
             existingClientRow = existingClient;
           }
 
-          // Se ainda não possui conta em auth.users e temos e-mail válido, tenta provisionar silenciosamente
           if (!verifiedAuthUserId && ownerEmail.includes('@')) {
             const candidatePassword =
               existingAdmin?.password_hash ||
@@ -3820,7 +3977,6 @@ async function startServer() {
             }
           }
 
-          // 3. Garante registro do Proprietário na equipe do salão (public.professionals) para abrir direto no app
           const { data: existingProf } = await supabaseAdmin
             .from('professionals')
             .select('id')
@@ -3855,7 +4011,6 @@ async function startServer() {
             });
           }
 
-          // 4. Atualiza owner_id no salão SOMENTE se verifiedAuthUserId existir em auth.users
           if (verifiedAuthUserId) {
             await safeSupabaseWrite(
               'salons',
@@ -3899,14 +4054,12 @@ async function startServer() {
     }
   });
 
-  // ADMIN: Update Salon (Service Role) — Blindado contra PGRST204, com Geocoding Automático e Propagação por CPF
   app.patch('/api/admin/salons/:id', async (req, res) => {
     try {
       const { id } = req.params;
       const incoming = { ...req.body };
       const referer = String(req.headers.referer || process.env.APP_URL || 'https://adm.vagouapp.com/');
 
-      // 1. Carrega o registro atual do salão para mesclar branding com segurança sem perder chaves existentes
       const { data: currentSalon } = await supabaseAdmin
         .from('salons')
         .select('*')
@@ -3916,7 +4069,6 @@ async function startServer() {
       const currentBranding =
         currentSalon?.branding && typeof currentSalon.branding === 'object' ? { ...currentSalon.branding } : {};
 
-      // 2. Verifica se houve envio/alteração de endereço ou coordenadas e geocodifica automaticamente
       const hasAddressInPayload =
         incoming.cep !== undefined ||
         incoming.address !== undefined ||
@@ -3943,7 +4095,6 @@ async function startServer() {
       const effectiveCity = incoming.city !== undefined ? incoming.city : currentSalon?.city;
       const effectiveState = incoming.state !== undefined ? incoming.state : currentSalon?.state;
 
-      // Se o endereço mudou e nenhuma coordenada nova explícita foi enviada, força re-geocodificação
       const addressChanged =
         (incoming.cep !== undefined && incoming.cep !== currentSalon?.cep) ||
         (incoming.address !== undefined && incoming.address !== currentSalon?.address) ||
@@ -3983,7 +4134,6 @@ async function startServer() {
         resolvedGeo = geo;
       }
 
-      // 3. Empacota metadados e campos compostos dentro de branding JSONB (evitando erro PGRST204 de coluna inexistente)
       const mergedBranding: Record<string, any> = {
         ...currentBranding,
         ...(incoming.branding && typeof incoming.branding === 'object' ? incoming.branding : {}),
@@ -4021,7 +4171,6 @@ async function startServer() {
         updatedAt: new Date().toISOString(),
       };
 
-      // 4. Monta o objeto de colunas físicas para public.salons
       const physicalUpdates: Record<string, any> = {
         branding: mergedBranding,
         updated_at: new Date().toISOString(),
@@ -4082,7 +4231,6 @@ async function startServer() {
       if (incoming.pix_key !== undefined) physicalUpdates.pix_key = incoming.pix_key;
       if (incoming.pix_keys !== undefined) physicalUpdates.pix_keys = incoming.pix_keys;
 
-      // Campos físicos de Endereço & Coordenadas
       if (incoming.cep !== undefined) physicalUpdates.cep = incoming.cep;
       if (incoming.address !== undefined) physicalUpdates.address = incoming.address;
       if (effectiveStreetNumber !== undefined) physicalUpdates.street_number = effectiveStreetNumber;
@@ -4103,7 +4251,6 @@ async function startServer() {
         physicalUpdates.google_place_id = resolvedGeo.google_place_id;
       }
 
-      // Campos de Identidade Visual & UI
       const visualAndUiFields = [
         'logo_url', 'logo_dark_url', 'logo_light_url', 'favicon_url', 'cover_image_url',
         'facade_photo_url', 'interior_photo_url', 'description', 'slogan', 'brand_font',
@@ -4122,7 +4269,6 @@ async function startServer() {
         }
       });
 
-      // Extrai campos de UI para sincronizar na tabela relacional public.salon_ui_settings
       const uiFields = [
         'default_theme', 'primary_color', 'secondary_color', 'pwa_name', 'show_slogan',
         'logo_text_fallback', 'logo_text_color', 'show_hero_slides', 'welcome_style',
@@ -4141,7 +4287,6 @@ async function startServer() {
         Object.assign(uiPayload, incoming.ui_settings);
       }
 
-      // 5. Executa escrita resiliente na tabela public.salons
       const { data, error } = await safeSupabaseWrite('salons', 'update', physicalUpdates, {
         eqCol: 'id',
         eqVal: id,
@@ -4152,7 +4297,6 @@ async function startServer() {
         return res.status(400).json({ success: false, error: error.message });
       }
 
-      // 6. Sincroniza tabela dedicada public.salon_ui_settings se houver campos de UI
       if (Object.keys(uiPayload).length > 0) {
         try {
           await safeSupabaseWrite(
@@ -4171,7 +4315,6 @@ async function startServer() {
         }
       }
 
-      // 7. Se o endereço foi atualizado, sincroniza com os registros do titular vinculado (clients, professionals, profiles, salon_users)
       if (hasAddressInPayload) {
         await syncAddressAndCoordsAcrossCpfTables({
           cpf: incoming.owner_cpf || data?.owner_cpf || currentSalon?.owner_cpf || currentSalon?.document_number,
@@ -4216,12 +4359,10 @@ async function startServer() {
     }
   });
 
-  // ADMIN: Delete Salon (Service Role)
   app.delete('/api/admin/salons/:id', async (req, res) => {
     try {
       const { id } = req.params;
 
-      // Limpa registros filhos vinculados primeiro para evitar quebra de Chave Estrangeira (FK)
       try {
         await supabaseAdmin.from('appointments').delete().eq('salon_id', id);
         await supabaseAdmin.from('service_offers').delete().eq('salon_id', id);
@@ -4243,7 +4384,6 @@ async function startServer() {
     }
   });
 
-  // ADMIN: Bulk Action on Salons
   app.post('/api/admin/salons/bulk-action', async (req, res) => {
     try {
       const { ids, action, targetStatus } = req.body;
@@ -4285,8 +4425,7 @@ async function startServer() {
     }
   });
 
-  // ADMIN: Database Tables Summary
-  app.get('/api/admin/tables-summary', async (req, res) => {
+  app.get('/api/admin/tables-summary', async (_req, res) => {
     try {
       const tableNames = ['salons', 'appointments', 'professionals', 'service_offers', 'clients'];
       const summary: Record<string, { count: number; accessible: boolean }> = {};
@@ -4311,11 +4450,10 @@ async function startServer() {
     }
   });
 
-  // ADMIN: Dashboard Metrics
-  app.get('/api/admin/metrics', async (req, res) => {
+  app.get('/api/admin/metrics', async (_req, res) => {
     try {
-      // Salons stats
-      const { data: salonsData, error: salonsError } = await supabaseAdmin
+
+      const { data: salonsData } = await supabaseAdmin
         .from('salons')
         .select('id, is_active, is_verified');
 
@@ -4326,7 +4464,6 @@ async function startServer() {
       const incompleteSalons = salons.filter((s: any) => s.is_active === false && s.is_verified === true).length;
       const suspendedSalons = salons.filter((s: any) => s.is_active === false).length;
 
-      // Appointments
       let todayAppointments = 0;
       try {
         const { count } = await supabaseAdmin
@@ -4335,7 +4472,6 @@ async function startServer() {
         todayAppointments = count || 0;
       } catch {}
 
-      // Active flash offers
       let activeFlashOffers = 0;
       try {
         const { count } = await supabaseAdmin
@@ -4362,8 +4498,7 @@ async function startServer() {
     }
   });
 
-  // ADMIN: List Appointments with Billing, Cash Checkout, Swap & Inter-Salon Geotemporal Collision Diagnostics (SQL v5.0)
-  app.get('/api/admin/appointments', async (req, res) => {
+  app.get('/api/admin/appointments', async (_req, res) => {
     try {
       const [{ data: dbAppointments, error }, { data: salonsRows }] = await Promise.all([
         supabaseAdmin
@@ -4428,7 +4563,6 @@ async function startServer() {
         };
       });
 
-      // Agrupa por cliente + data para sinalizar possíveis colisões geotemporais inter-salões
       const activeByClientDay = new Map<string, any[]>();
       normalized.forEach((apt: any) => {
         const clientKey = apt.client_id || (apt.client_phone && apt.client_phone !== '—' ? apt.client_phone.replace(/\D/g, '') : '');
@@ -4489,7 +4623,6 @@ async function startServer() {
     }
   });
 
-  // ADMIN: Check Client Inter-Salon Geotemporal Collision via SQL v5.0 RPC
   app.post('/api/admin/appointments/check-collision', async (req, res) => {
     try {
       const {
@@ -4528,7 +4661,6 @@ async function startServer() {
     }
   });
 
-  // ADMIN: Update Appointment Status
   app.patch('/api/admin/appointments/:id/status', async (req, res) => {
     try {
       const { id } = req.params;
@@ -4549,8 +4681,7 @@ async function startServer() {
     }
   });
 
-  // ADMIN: Bulletins do 7º Mandamento
-  app.get('/api/admin/bulletins', (req, res) => {
+  app.get('/api/admin/bulletins', (_req, res) => {
     res.json({ success: true, bulletins: TRIADE_BULLETINS });
   });
 
@@ -4582,7 +4713,6 @@ async function startServer() {
     }
   });
 
-  // SYSTEM CATEGORIES MANAGEMENT
   let SYSTEM_CATEGORIES = [
     { id: 'cat-salao', name: 'Salão de Beleza', slug: 'salao', icon: 'Scissors', is_default: true },
     { id: 'cat-barbearia', name: 'Barbearia', slug: 'barbearia', icon: 'Scissors', is_default: true },
@@ -4595,7 +4725,7 @@ async function startServer() {
     { id: 'cat-outro', name: 'Outro', slug: 'outro', icon: 'Tag', is_default: true },
   ];
 
-  app.get('/api/admin/categories', (req, res) => {
+  app.get('/api/admin/categories', (_req, res) => {
     return res.json({ success: true, categories: SYSTEM_CATEGORIES });
   });
 
@@ -4649,146 +4779,6 @@ async function startServer() {
     return res.json({ success: true, categories: SYSTEM_CATEGORIES });
   });
 
-  // UNIFIED ALL PORTAL USERS ENDPOINT (Sovereign Service Role)
-  app.get('/api/admin/all-portal-users', async (req, res) => {
-    try {
-      const [
-        { data: profiles },
-        { data: clients },
-        { data: professionals },
-        { data: salonUsers },
-        { data: admins },
-        { data: salons },
-      ] = await Promise.all([
-        supabaseAdmin.from('profiles').select('*').order('created_at', { ascending: false }),
-        supabaseAdmin.from('clients').select('*').order('created_at', { ascending: false }),
-        supabaseAdmin.from('professionals').select('*').order('created_at', { ascending: false }),
-        supabaseAdmin.from('salon_users').select('*').order('created_at', { ascending: false }),
-        supabaseAdmin.from('system_admins').select('*').order('created_at', { ascending: false }),
-        supabaseAdmin.from('salons').select('id, name, trade_name, owner_id, email').order('created_at', { ascending: false }),
-      ]);
-
-      const userMap = new Map<string, any>();
-      const resolveUserMapKey = (row: any) =>
-        normalizeEmailKey(row.email) || normalizeUsernameKey(row.username) || String(row.id || '');
-
-      // 1. Profiles (unified source)
-      (profiles || []).forEach((p: any) => {
-        const key = resolveUserMapKey(p);
-        if (key) {
-          userMap.set(key, {
-            id: p.id,
-            name: p.full_name || p.name || 'Usuário Sem Nome',
-            email: p.email || '',
-            username: p.username || (p.email ? p.email.split('@')[0] : 'usuario'),
-            phone: p.phone_whatsapp || p.phone || '',
-            avatarUrl: p.avatar_url || '',
-            roleType: 'Usuário Portal',
-          });
-        }
-      });
-
-      // 2. Clients
-      (clients || []).forEach((c: any) => {
-        const key = resolveUserMapKey(c);
-        if (key) {
-          const existing = userMap.get(key) || {};
-          userMap.set(key, {
-            id: c.id || existing.id,
-            name: c.name || c.full_name || existing.name || 'Cliente',
-            email: c.email || existing.email || '',
-            username: c.username || existing.username || (c.email ? c.email.split('@')[0] : 'usuario'),
-            phone: c.phone || c.phone_whatsapp || existing.phone || '',
-            avatarUrl: c.avatar_url || existing.avatarUrl || '',
-            roleType: existing.roleType || 'Cliente',
-          });
-        }
-      });
-
-      // 3. Professionals
-      (professionals || []).forEach((pr: any) => {
-        const key = resolveUserMapKey(pr);
-        if (key) {
-          const existing = userMap.get(key) || {};
-          userMap.set(key, {
-            id: pr.id || existing.id,
-            name: pr.name || pr.full_name || existing.name || 'Profissional',
-            email: pr.email || existing.email || '',
-            username: pr.username || pr.nickname || existing.username || (pr.email ? pr.email.split('@')[0] : 'profissional'),
-            phone: pr.phone_whatsapp || pr.phone || existing.phone || '',
-            avatarUrl: pr.avatar_url || existing.avatarUrl || '',
-            roleType: 'Profissional',
-          });
-        }
-      });
-
-      // 4. Salon Users
-      (salonUsers || []).forEach((su: any) => {
-        const key = resolveUserMapKey(su);
-        if (key) {
-          const existing = userMap.get(key) || {};
-          userMap.set(key, {
-            id: su.id || existing.id,
-            name: su.full_name || su.name || existing.name || 'Gestor de Salão',
-            email: su.email || existing.email || '',
-            username: su.username || existing.username || (su.email ? su.email.split('@')[0] : 'gestor'),
-            phone: su.phone_whatsapp || su.phone || existing.phone || '',
-            avatarUrl: su.avatar_url || existing.avatarUrl || '',
-            roleType: 'Gestor / Salão',
-          });
-        }
-      });
-
-      // 5. System Admins (Hierarquia Soberana Máxima)
-      (admins || []).forEach((a: any) => {
-        const key = resolveUserMapKey(a);
-        if (key) {
-          const existing = userMap.get(key) || {};
-          userMap.set(key, {
-            id: a.id || existing.id,
-            name: a.full_name || a.name || existing.name || 'Administrador',
-            email: a.email || existing.email || '',
-            username: a.username || existing.username || (a.email ? a.email.split('@')[0] : 'admin'),
-            phone: a.phone_whatsapp || a.phone || existing.phone || '',
-            avatarUrl: a.avatar_url || existing.avatarUrl || '',
-            roleType: 'Administrador Master',
-          });
-        }
-      });
-
-      // Identifica proprietários existentes de salão
-      const salonOwnerIds = new Set<string>();
-      const salonOwnerEmails = new Set<string>();
-
-      (salons || []).forEach((s: any) => {
-        if (s.owner_id) salonOwnerIds.add(String(s.owner_id));
-        if (s.email) salonOwnerEmails.add(String(s.email).toLowerCase().trim());
-      });
-
-      (professionals || []).forEach((pr: any) => {
-        if (pr.role === 'Proprietário' || pr.is_owner) {
-          if (pr.id) salonOwnerIds.add(String(pr.id));
-          if (pr.email) salonOwnerEmails.add(String(pr.email).toLowerCase().trim());
-        }
-      });
-
-      const usersList = Array.from(userMap.values()).map((u: any) => {
-        const hasSalon =
-          (u.id && salonOwnerIds.has(String(u.id))) ||
-          (u.email && salonOwnerEmails.has(String(u.email).toLowerCase().trim()));
-        return {
-          ...u,
-          hasSalon: !!hasSalon,
-        };
-      });
-      return res.json({ success: true, users: usersList });
-    } catch (err: any) {
-      console.error('[API All Portal Users Error]:', err);
-      return res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  // REAL-TIME USER AVAILABILITY CHECK (Blocks duplicate username, email, phone, CPF at each step)
   app.post('/api/public/check-user-availability', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     try {
@@ -4804,13 +4794,12 @@ async function startServer() {
     }
   });
 
-  // UNIFIED PUBLIC REGISTRATION ENGINE (Sovereign Service Role)
   app.post('/api/public/register-user', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     try {
       const body = req.body || {};
       const {
-        type = 'client', // 'client' | 'professional'
+        type = 'client',
         email,
         password,
         phone = '',
@@ -4819,9 +4808,9 @@ async function startServer() {
         avatarUrl = '',
         origin = 'portal',
         salonId = undefined,
-        // Dependents array
+
         dependents = [],
-        // Salon / Business fields
+
         tradeName = '',
         slug = '',
         category = 'barbearia',
@@ -4877,8 +4866,6 @@ async function startServer() {
         .replace(/[^a-z0-9-]/g, '')
         .slice(0, 30);
 
-      // 0. Trava Soberana Anti-Duplicidade (1 Pessoa = 1 Único Cadastro):
-      // Rejeita imediatamente se username, e-mail, WhatsApp ou CPF já pertencerem a qualquer usuário existente
       const preConflict = await checkUserConflictInSupabase({
         username: cleanUsername,
         email: cleanEmail,
@@ -4909,7 +4896,6 @@ async function startServer() {
         return res.status(400).json({ success: false, error: `O subdomínio "${cleanSlug}" é reservado pelo sistema.` });
       }
 
-      // 1. Create or retrieve auth user via Supabase Admin
       let authUserId: string | null = null;
       const { data: authUserResp, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: cleanEmail,
@@ -4937,7 +4923,6 @@ async function startServer() {
         } catch {}
       }
 
-      // 2. Upsert into public.profiles ONLY if authUserId is a valid auth.users UUID
       if (authUserId) {
         try {
           await supabaseAdmin.from('profiles').upsert({
@@ -4954,7 +4939,6 @@ async function startServer() {
         }
       }
 
-      // 3. Geocodifica endereço do usuário automaticamente e persiste em public.clients + public.profiles
       const referer = String(req.headers.referer || process.env.APP_URL || 'https://adm.vagouapp.com/');
       const userGeo = await resolveAddressCoordinatesServerSide(
         {
@@ -5079,7 +5063,6 @@ async function startServer() {
 
       const effectiveId = savedClient?.id || authUserId || `usr-${Date.now()}`;
 
-      // 4. Save Dependents if present (insere em public.dependents que sincroniza com public.client_family_members)
       if (Array.isArray(dependents) && dependents.length > 0) {
         for (const dep of dependents) {
           if (dep.fullName && dep.fullName.trim()) {
@@ -5101,7 +5084,6 @@ async function startServer() {
         }
       }
 
-      // 5. If professional, create salon entry and professional record
       let createdSalon = null;
       if (type === 'professional') {
         const homeDeliveryEnabled = attendanceType === 'home_only' || attendanceType === 'hybrid';
@@ -5207,17 +5189,10 @@ async function startServer() {
     }
   });
 
-  // ============================================================================
-  // 🏛️ ROTAS UNIFICADAS DE SINCRONIZAÇÃO SOBERANA (ADMVAPP ⇄ MNVAPP)
-  // Garante leitura e escrita em tempo real com Service Role em todas as tabelas
-  // ============================================================================
-
-  // 1. Diagnóstico e Carregamento 360º do Estabelecimento (Serviços, Mídia, Tema, Equipe, Clientes+Dependentes, Utilidades)
   app.get('/api/admin/salons/:salonId/full-sync', async (req, res) => {
     try {
       const { salonId } = req.params;
 
-      // 1.1 Dados do Salão + Branding + UI Settings (public.salons + public.salon_ui_settings)
       const [{ data: salonRow }, { data: uiSettingsRow }] = await Promise.all([
         supabaseAdmin.from('salons').select('*').eq('id', salonId).maybeSingle(),
         supabaseAdmin.from('salon_ui_settings').select('*').eq('salon_id', salonId).maybeSingle(),
@@ -5225,11 +5200,11 @@ async function startServer() {
 
       const branding = salonRow?.branding && typeof salonRow.branding === 'object' ? salonRow.branding : {};
 
-      // 1.2 Serviços (unificando public.services + public.salon_services + branding.customServices)
-      const [{ data: masterServices }, { data: salonServicesRows }] = await Promise.all([
-        supabaseAdmin.from('services').select('*').eq('salon_id', salonId).order('created_at', { ascending: false }),
-        supabaseAdmin.from('salon_services').select('*, services(name, title, category, description)').eq('salon_id', salonId),
-      ]);
+      const { data: masterServices } = await supabaseAdmin
+        .from('services')
+        .select('*')
+        .eq('salon_id', salonId)
+        .order('created_at', { ascending: false });
 
       const unifiedServicesMap = new Map<string, any>();
 
@@ -5237,101 +5212,52 @@ async function startServer() {
         unifiedServicesMap.set(s.id, {
           id: s.id,
           salon_id: salonId,
-          name: s.name || s.title || 'Procedimento',
+          name: s.name || 'Procedimento',
           category: s.category || 'Geral',
           price: Number(s.price) || 0,
-          promotional_price: s.promotional_price !== null && s.promotional_price !== undefined ? Number(s.promotional_price) : null,
+          promotional_price: s.promo_price !== null && s.promo_price !== undefined ? Number(s.promo_price) : null,
           duration_minutes: Number(s.duration_minutes) || 30,
-          duration_estimated: s.duration_estimated || `${Number(s.duration_minutes) || 30} min`,
+          duration_estimated: `${Number(s.duration_minutes) || 30} min`,
           commission_rate: Number(s.commission_rate ?? 50),
           description: s.description || '',
           is_active: s.is_active ?? true,
-          target_audience: s.target_audience || 'all',
+          target_audience: 'all',
           image_url: s.image_url || null,
           video_url: s.video_url || null,
-          photos: Array.isArray(s.photos) ? s.photos : [],
-          videos: Array.isArray(s.videos) ? s.videos : [],
-          slides: Array.isArray(s.slides) ? s.slides : [],
+          photos: Array.isArray(s.gallery_urls) ? s.gallery_urls : [],
+          videos: s.video_url ? [s.video_url] : [],
+          slides: [],
           source_table: 'services',
         });
       });
 
-      (salonServicesRows || []).forEach((ss: any) => {
-        const linked = ss.services || {};
-        const key = ss.service_id || ss.id;
-        if (!unifiedServicesMap.has(key)) {
-          unifiedServicesMap.set(key, {
-            id: ss.id,
-            service_id: ss.service_id,
-            salon_id: salonId,
-            name: ss.custom_name || ss.name || ss.title || linked.name || linked.title || 'Procedimento Customizado',
-            category: ss.category || linked.category || 'Geral',
-            price: Number(ss.price) || 0,
-            promotional_price: ss.promotional_price !== null && ss.promotional_price !== undefined ? Number(ss.promotional_price) : null,
-            duration_minutes: Number(ss.duration_minutes) || 30,
-            duration_estimated: ss.duration_estimated || `${Number(ss.duration_minutes) || 30} min`,
-            commission_rate: Number(ss.commission_rate ?? 50),
-            description: ss.description || linked.description || '',
-            is_active: ss.is_active ?? true,
-            target_audience: 'all',
-            image_url: ss.image_url || null,
-            video_url: ss.video_url || null,
-            photos: Array.isArray(ss.photos) ? ss.photos : [],
-            videos: Array.isArray(ss.videos) ? ss.videos : [],
-            slides: Array.isArray(ss.slides) ? ss.slides : [],
-            source_table: 'salon_services',
-          });
-        }
-      });
-
-      if (Array.isArray(branding.customServices)) {
-        branding.customServices.forEach((cs: any) => {
-          const cid = cs.id || `cs-${cs.name}`;
-          if (!unifiedServicesMap.has(cid)) {
-            unifiedServicesMap.set(cid, {
-              id: cid,
-              salon_id: salonId,
-              name: cs.name || cs.title || 'Serviço Customizado',
-              category: cs.category || 'Geral',
-              price: Number(cs.price) || 0,
-              duration_minutes: Number(cs.durationMinutes || cs.duration_minutes) || 30,
-              commission_rate: Number(cs.commissionRate ?? cs.commission_rate ?? 50),
-              description: cs.description || '',
-              is_active: cs.isActive ?? cs.is_active ?? true,
-              photos: Array.isArray(cs.photos || cs.portfolioPhotos) ? (cs.photos || cs.portfolioPhotos) : [],
-              videos: Array.isArray(cs.videos) ? cs.videos : [],
-              slides: Array.isArray(cs.slides) ? cs.slides : [],
-              source_table: 'branding',
-            });
-          }
-        });
-      }
-
-      // 1.3 Galeria de Mídias (public.salon_media_items + branding.galleryUrls)
       const { data: dbMediaItems } = await supabaseAdmin
-        .from('salon_media_items')
+        .from('media_assets')
         .select('*')
-        .eq('salon_id', salonId)
+        .eq('owner_type', 'salon')
+        .eq('owner_id', salonId)
         .order('created_at', { ascending: false });
 
-      const normalizedMedia = (dbMediaItems || []).map((m: any) => ({
-        id: m.id,
-        title: m.title || m.caption || 'Mídia do Salão',
-        url: m.url || m.media_url || '',
-        type: (m.type || m.media_type) === 'video' ? 'video' : 'image',
-        media_group: m.media_group || ((m.type || m.media_type) === 'video' ? 'videos' : m.category === 'banner' || m.category === 'logotipo' ? 'imagens' : 'fotos'),
-        category: m.category || 'servicos',
-        duration_seconds: m.duration_seconds || 5,
-        slot_index: m.slot_index,
-        is_cover: Boolean(m.is_cover),
-        created_at: m.created_at ? String(m.created_at).slice(0, 10) : new Date().toISOString().slice(0, 10),
-      })).filter((m: any) => Boolean(m.url));
+      const normalizedMedia = (dbMediaItems || []).map((m: any) => {
+        const isVideo = String(m.mime_type || '').startsWith('video/');
+        return {
+          id: m.id,
+          title: m.metadata?.title || m.storage_path?.split('/').pop() || 'Mídia do Salão',
+          url: m.public_url || '',
+          type: isVideo ? 'video' : 'image',
+          media_group: isVideo ? 'videos' : m.purpose === 'cover' || m.purpose === 'logo' ? 'imagens' : 'fotos',
+          category: m.purpose || 'gallery',
+          duration_seconds: m.duration_seconds || 5,
+          slot_index: m.sort_order ?? 0,
+          is_cover: m.purpose === 'cover',
+          created_at: m.created_at ? String(m.created_at).slice(0, 10) : new Date().toISOString().slice(0, 10),
+        };
+      }).filter((m: any) => Boolean(m.url));
 
-      // Mescla galleryUrls salvas pelo mnvapp no branding caso ainda não estejam em salon_media_items
       const existingUrls = new Set(normalizedMedia.map((m: any) => m.url));
       if (Array.isArray(branding.galleryUrls)) {
         branding.galleryUrls.forEach((gUrl: string, idx: number) => {
-          if (gUrl && !existingUrls.has(gUrl)) {
+          if (gUrl && isSafeMediaUrl(gUrl) && !existingUrls.has(gUrl)) {
             existingUrls.add(gUrl);
             normalizedMedia.push({
               id: `brd-gal-${idx}`,
@@ -5339,7 +5265,7 @@ async function startServer() {
               url: gUrl,
               type: gUrl.endsWith('.mp4') ? 'video' : 'image',
               media_group: gUrl.endsWith('.mp4') ? 'videos' : 'fotos',
-              category: 'espaco',
+              category: 'gallery',
               duration_seconds: 5,
               slot_index: idx + 1,
               is_cover: false,
@@ -5349,7 +5275,6 @@ async function startServer() {
         });
       }
 
-      // 1.4 Equipe de Profissionais (public.professionals)
       const { data: prosRows } = await supabaseAdmin
         .from('professionals')
         .select('*')
@@ -5370,7 +5295,6 @@ async function startServer() {
         is_active: p.status ? p.status === 'active' : (p.is_active ?? true),
       }));
 
-      // 1.5 Clientes do Estabelecimento + Conta Família (public.clients + public.dependents)
       const [{ data: directClients }, { data: salonAppts }] = await Promise.all([
         supabaseAdmin.from('clients').select('*').eq('origin_salon_id', salonId).order('created_at', { ascending: false }),
         supabaseAdmin.from('appointments').select('*').eq('salon_id', salonId).order('created_at', { ascending: false }).limit(50),
@@ -5420,7 +5344,6 @@ async function startServer() {
         }
       });
 
-      // Busca dependentes reais na tabela public.dependents
       const validUuidClientIds = Array.from(clientIdsSet).filter((id) =>
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
       );
@@ -5450,7 +5373,6 @@ async function startServer() {
         });
       }
 
-      // 1.6 Utilidades Operacionais (Energia, Água, Equipamentos, DRE e Estoque)
       const { data: utilRow } = await supabaseAdmin
         .from('salon_utilities_records')
         .select('*')
@@ -5494,7 +5416,6 @@ async function startServer() {
         ],
       };
 
-      // 1.7 Vagas Relâmpago / Cadeiras Vazias Ativas no Radar (public.service_offers)
       const { data: activeOffers } = await supabaseAdmin
         .from('service_offers')
         .select('*')
@@ -5519,7 +5440,6 @@ async function startServer() {
     }
   });
 
-  // 1B. Obter e Atualizar Configurações de UI Avançadas (public.salon_ui_settings + public.salons)
   app.get('/api/admin/salons/:salonId/ui-settings', async (req, res) => {
     try {
       const { salonId } = req.params;
@@ -5545,14 +5465,12 @@ async function startServer() {
       delete payload.id;
       delete payload.salon_id;
 
-      // 1. Upsert em public.salon_ui_settings
       const { data: uiData, error: uiErr } = await supabaseAdmin
         .from('salon_ui_settings')
         .upsert({ salon_id: salonId, ...payload, updated_at: new Date().toISOString() }, { onConflict: 'salon_id' })
         .select()
         .single();
 
-      // 2. Espelha colunas físicas diretamente na tabela public.salons
       await supabaseAdmin
         .from('salons')
         .update({ ...payload, updated_at: new Date().toISOString() })
@@ -5568,18 +5486,13 @@ async function startServer() {
     }
   });
 
-  // 2. Sincronizar Serviço (Cria, Atualiza, Promove ou Remove em public.services ⇄ public.salon_services ⇄ public.service_offers)
   app.post('/api/admin/salons/:salonId/services', async (req, res) => {
     try {
       const { salonId } = req.params;
       const { action, service } = req.body;
 
       if (action === 'delete' && service?.id) {
-        await Promise.allSettled([
-          supabaseAdmin.from('services').delete().eq('id', service.id),
-          supabaseAdmin.from('salon_services').delete().eq('id', service.id),
-          supabaseAdmin.from('salon_services').delete().eq('service_id', service.id).eq('salon_id', salonId),
-        ]);
+        await supabaseAdmin.from('services').delete().eq('id', service.id).eq('salon_id', salonId);
         return res.json({ success: true });
       }
 
@@ -5587,32 +5500,30 @@ async function startServer() {
       const promoPrice =
         service.promotional_price !== undefined && service.promotional_price !== null && service.promotional_price !== ''
           ? Number(service.promotional_price)
+          : service.promo_price !== undefined && service.promo_price !== null && service.promo_price !== ''
+          ? Number(service.promo_price)
           : null;
-      const photosArr = Array.isArray(service.photos) ? service.photos : [];
+      const photosArr = (Array.isArray(service.photos) ? service.photos : Array.isArray(service.gallery_urls) ? service.gallery_urls : [])
+        .filter((u: any) => typeof u === 'string' && isSafeMediaUrl(u));
       const videosArr = Array.isArray(service.videos) ? service.videos : [];
       const primaryVideoUrl =
         service.video_url ||
         (videosArr.length > 0 ? (typeof videosArr[0] === 'string' ? videosArr[0] : videosArr[0]?.url) : null) ||
         null;
+      const primaryImageUrl = service.image_url || photosArr[0] || null;
 
       const payload = {
         salon_id: salonId,
-        name: service.name || service.title,
-        title: service.name || service.title,
-        custom_name: service.custom_name || service.name || service.title,
+        name: service.name || service.title || 'Procedimento',
         category: service.category || 'cabelo',
         price: Number(service.price) || 0,
-        promotional_price: promoPrice,
+        promo_price: promoPrice,
         duration_minutes: durationMin,
-        duration_estimated: service.duration_estimated || `${durationMin} min`,
-        commission_rate: Number(service.commission_rate ?? 50),
         description: service.description || '',
         is_active: service.is_active ?? true,
-        image_url: service.image_url || photosArr[0] || null,
-        video_url: primaryVideoUrl,
-        photos: photosArr,
-        videos: videosArr,
-        slides: Array.isArray(service.slides) ? service.slides : [],
+        image_url: primaryImageUrl && isSafeMediaUrl(primaryImageUrl) ? primaryImageUrl : null,
+        video_url: primaryVideoUrl && isSafeMediaUrl(primaryVideoUrl) ? primaryVideoUrl : null,
+        gallery_urls: photosArr,
       };
 
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(service.id || ''));
@@ -5641,7 +5552,6 @@ async function startServer() {
     }
   });
 
-  // 2B. Publicar, Editar ou Encerrar Cadeira Vazia / Vaga Relâmpago no Radar (public.service_offers)
   app.post('/api/admin/salons/:salonId/offers', async (req, res) => {
     try {
       const { salonId } = req.params;
@@ -5658,37 +5568,42 @@ async function startServer() {
       if (action === 'expire' && (offerId || offer?.id)) {
         await supabaseAdmin
           .from('service_offers')
-          .update({ status: 'EXPIRED', updated_at: new Date().toISOString() })
+          .update({ status: 'expired', updated_at: new Date().toISOString() })
           .eq('id', offerId || offer.id);
         return res.json({ success: true });
       }
 
-      const price = Number(offer.price) || 0;
-      const originalPrice = Number(offer.original_price || offer.originalPrice) || Math.round(price * 1.25 * 100) / 100;
-      const gallery = Array.isArray(offer.gallery_images || offer.galleryImages)
+      const offerPrice = Number(offer.offer_price ?? offer.price) || 0;
+      const originalPrice = Number(offer.original_price || offer.originalPrice) || Math.round(offerPrice * 1.25 * 100) / 100;
+      const gallery = (Array.isArray(offer.gallery_images || offer.galleryImages)
         ? (offer.gallery_images || offer.galleryImages)
-        : [];
+        : []).filter((u: any) => typeof u === 'string' && isSafeMediaUrl(u));
       const videoUrl = offer.video_url || offer.videoUrl || null;
-      const mediaLevel = videoUrl ? 3 : gallery.length > 0 ? 2 : Number(offer.media_level) || 1;
+      const coverUrl = offer.cover_image_url || gallery[0] || null;
+      const mediaLevel = videoUrl ? 3 : gallery.length > 0 || coverUrl ? 2 : Number(offer.media_level) || 1;
       const expiresHours = Number(offer.expires_in_hours || offer.expiresInHours) || 6;
+      const rawStatus = String(offer.status || 'active').toLowerCase();
+      const v6Status = ['active', 'booked', 'expired', 'cancelled'].includes(rawStatus)
+        ? rawStatus
+        : rawStatus === 'available'
+        ? 'active'
+        : 'active';
 
       const offerPayload: Record<string, any> = {
         salon_id: salonId,
         professional_id: offer.professional_id || offer.professionalId || null,
         service_id: offer.service_id || offer.serviceId || null,
-        service_title: offer.service_title || offer.serviceTitle || offer.name || 'Cadeira Vazia Promocional',
-        category: (offer.category || 'cabelo').toLowerCase(),
-        price,
-        original_price: originalPrice,
-        date_str: offer.date_str || new Date().toISOString().slice(0, 10),
-        start_time: offer.start_time || offer.startTime || '14:30:00',
-        end_time: offer.end_time || offer.endTime || '15:15:00',
-        status: offer.status || 'AVAILABLE',
-        media_level: mediaLevel,
-        video_url: videoUrl,
-        gallery_images: gallery,
-        is_flash_deal: offer.is_flash_deal ?? true,
+        title: offer.title || offer.service_title || offer.serviceTitle || offer.name || 'Cadeira Vazia Promocional',
         description: offer.description || '',
+        offer_price: offerPrice,
+        original_price: originalPrice,
+        slot_date: offer.slot_date || offer.date_str || new Date().toISOString().slice(0, 10),
+        slot_time: offer.slot_time || offer.start_time || offer.startTime || '14:30:00',
+        duration_minutes: Number(offer.duration_minutes) || 45,
+        status: v6Status,
+        media_level: mediaLevel,
+        cover_image_url: coverUrl && isSafeMediaUrl(coverUrl) ? coverUrl : null,
+        video_url: videoUrl && isSafeMediaUrl(videoUrl) ? videoUrl : null,
         expires_at: offer.expires_at || new Date(Date.now() + expiresHours * 3600000).toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -5719,7 +5634,6 @@ async function startServer() {
     }
   });
 
-  // 3. Sincronizar Galeria de Mídias (public.salon_media_items + salons.branding.galleryUrls)
   app.post('/api/admin/salons/:salonId/media', async (req, res) => {
     try {
       const { salonId } = req.params;
@@ -5727,33 +5641,62 @@ async function startServer() {
 
       if (action === 'delete' && mediaId) {
         if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(mediaId)) {
-          await supabaseAdmin.from('salon_media_items').delete().eq('id', mediaId);
+          const { data: asset } = await supabaseAdmin
+            .from('media_assets')
+            .select('id, bucket_id, storage_path')
+            .eq('id', mediaId)
+            .maybeSingle();
+          if (asset?.bucket_id && asset?.storage_path) {
+            await supabaseAdmin.storage.from(asset.bucket_id).remove([asset.storage_path]);
+          }
+          await supabaseAdmin.from('media_assets').delete().eq('id', mediaId);
         }
         return res.json({ success: true });
       }
 
+      if (!mediaItem?.url || !isSafeMediaUrl(mediaItem.url)) {
+        return res.status(400).json({
+          success: false,
+          error: 'URL de mídia inválida ou em Base64. Use POST /api/media/upload para enviar o arquivo.',
+        });
+      }
+
+      const purpose = mediaItem.is_cover || mediaItem.category === 'banner'
+        ? 'cover'
+        : mediaItem.category === 'logotipo'
+        ? 'logo'
+        : mediaItem.type === 'video'
+        ? 'video'
+        : 'gallery';
+
+      const storagePath = `salons/${salonId}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
       const rowToInsert: Record<string, any> = {
-        salon_id: salonId,
-        title: mediaItem.title || 'Mídia do Estabelecimento',
-        caption: mediaItem.title || 'Mídia do Estabelecimento',
-        url: mediaItem.url,
-        media_url: mediaItem.url,
-        type: mediaItem.type || 'image',
-        media_type: mediaItem.type || 'image',
-        media_group: mediaItem.media_group || (mediaItem.type === 'video' ? 'videos' : 'fotos'),
-        category: mediaItem.category || 'servicos',
-        duration_seconds: mediaItem.duration_seconds || 5,
-        is_cover: Boolean(mediaItem.is_cover),
+        owner_type: 'salon',
+        owner_id: salonId,
+        bucket_id: 'salon-media',
+        storage_path: mediaItem.storage_path || storagePath,
+        public_url: mediaItem.url,
+        mime_type: mediaItem.mime_type || (mediaItem.type === 'video' ? 'video/mp4' : 'image/webp'),
+        size_bytes: Number(mediaItem.size_bytes) || 0,
+        purpose,
+        metadata: {
+          title: mediaItem.title || 'Mídia do Estabelecimento',
+          category: mediaItem.category || 'gallery',
+        },
       };
 
       const { data: inserted } = await supabaseAdmin
-        .from('salon_media_items')
+        .from('media_assets')
         .insert(rowToInsert)
         .select()
         .maybeSingle();
 
-      // Espelha também no branding.galleryUrls para leitura instantânea no mnvapp
-      const { data: salonRow } = await supabaseAdmin.from('salons').select('branding, cover_image_url, logo_url').eq('id', salonId).maybeSingle();
+      const { data: salonRow } = await supabaseAdmin
+        .from('salons')
+        .select('branding, cover_url, logo_url')
+        .eq('id', salonId)
+        .maybeSingle();
+
       if (salonRow) {
         const currentBranding = salonRow.branding && typeof salonRow.branding === 'object' ? salonRow.branding : {};
         const prevGallery = Array.isArray(currentBranding.galleryUrls) ? currentBranding.galleryUrls : [];
@@ -5764,10 +5707,10 @@ async function startServer() {
             galleryUrls: nextGallery,
           },
         };
-        if (mediaItem.is_cover || mediaItem.category === 'banner') {
-          updates.cover_image_url = mediaItem.url;
+        if (purpose === 'cover') {
+          updates.cover_url = mediaItem.url;
         }
-        if (mediaItem.category === 'logotipo') {
+        if (purpose === 'logo') {
           updates.logo_url = mediaItem.url;
         }
         await supabaseAdmin.from('salons').update(updates).eq('id', salonId);
@@ -5779,8 +5722,6 @@ async function startServer() {
     }
   });
 
-  // 4. Sincronizar Tema Camaleão e Identidade Visual (public.salons + salons.branding)
-  // 4. Sincronizar Tema Camaleão, Identidade Visual & UI Settings (public.salons + public.salon_ui_settings + salons.branding)
   const handleThemeAndUiSync = async (req: any, res: any) => {
     try {
       const { salonId } = req.params;
@@ -5797,7 +5738,7 @@ async function startServer() {
         facadePhotoUrl,
         interiorPhotoUrl,
         slogan,
-        // Novos campos físicos de UI
+
         defaultTheme,
         pwaName,
         showSlogan,
@@ -5870,7 +5811,6 @@ async function startServer() {
       if (interiorPhotoUrl !== undefined) salonUpdatePayload.interior_photo_url = interiorPhotoUrl;
       if (slogan !== undefined) salonUpdatePayload.slogan = slogan;
 
-      // Colunas físicas de UI
       if (defaultTheme !== undefined) salonUpdatePayload.default_theme = defaultTheme;
       if (pwaName !== undefined) salonUpdatePayload.pwa_name = pwaName;
       if (showSlogan !== undefined) salonUpdatePayload.show_slogan = showSlogan;
@@ -5909,7 +5849,6 @@ async function startServer() {
         return res.status(400).json({ success: false, error: upErr.message });
       }
 
-      // Sincroniza também na tabela relacional public.salon_ui_settings (SQL v5.0)
       const uiRowPayload: Record<string, any> = {
         salon_id: salonId,
         branding_snapshot: updatedBranding,
@@ -5955,7 +5894,6 @@ async function startServer() {
   app.post('/api/admin/salons/:salonId/theme', handleThemeAndUiSync);
   app.post('/api/admin/salons/:salonId/branding-theme', handleThemeAndUiSync);
 
-  // 5. Sincronizar Equipe de Profissionais do Salão (public.professionals)
   app.post('/api/admin/salons/:salonId/professionals', async (req, res) => {
     try {
       const { salonId } = req.params;
@@ -6010,7 +5948,6 @@ async function startServer() {
     }
   });
 
-  // 6. Sincronizar Dependentes da Conta Família (public.dependents + clients.dependents_count)
   app.post('/api/admin/clients/:clientId/dependents', async (req, res) => {
     try {
       const { clientId } = req.params;
@@ -6050,13 +5987,11 @@ async function startServer() {
     }
   });
 
-  // 7. Sincronizar Utilidades Operacionais (Energia, Água, Equipamentos, DRE e Estoque)
   app.post('/api/admin/salons/:salonId/utilities', async (req, res) => {
     try {
       const { salonId } = req.params;
       const { utilities } = req.body;
 
-      // Salva em public.salon_utilities_records (se a tabela existir)
       await supabaseAdmin
         .from('salon_utilities_records')
         .upsert({
@@ -6071,7 +6006,6 @@ async function startServer() {
           updated_at: new Date().toISOString(),
         }, { onConflict: 'salon_id' });
 
-      // Espelha também em salons.branding.utilities como fallback resiliente
       const { data: salonRow } = await supabaseAdmin.from('salons').select('branding').eq('id', salonId).maybeSingle();
       const currentBranding = salonRow?.branding && typeof salonRow.branding === 'object' ? salonRow.branding : {};
       await supabaseAdmin
@@ -6092,162 +6026,378 @@ async function startServer() {
     }
   });
 
-  // AI Structure & Screen Analysis endpoint
-  app.post('/api/analyze-design', async (req, res) => {
+  app.post('/api/media/upload', mediaUploadMiddleware.single('file'), async (req, res) => {
     try {
-      const { fileName, fileType, imageBase64, mimeType, additionalContext } = req.body;
+      const file = req.file;
+      if (!file || !file.buffer || file.buffer.length === 0) {
+        return res.status(400).json({ success: false, error: 'Nenhum arquivo enviado.' });
+      }
 
-      if (!ai) {
+      const rawBucket = String(req.body?.bucket || 'salon-media').trim();
+      const bucket = ALLOWED_MEDIA_BUCKETS.has(rawBucket) ? rawBucket : 'salon-media';
+      const rawOwnerType = String(req.body?.owner_type || 'admin_preference').trim();
+      const ownerType = ALLOWED_OWNER_TYPES.has(rawOwnerType) ? rawOwnerType : 'admin_preference';
+      const rawOwnerId = String(req.body?.owner_id || '').trim();
+      const ownerId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawOwnerId)
+        ? rawOwnerId
+        : crypto.randomUUID();
+      const purpose = String(req.body?.purpose || 'gallery').trim().slice(0, 40);
+      const mimeType = String(file.mimetype || '').toLowerCase();
+
+      const isImage = ALLOWED_IMAGE_MIME_TYPES.has(mimeType);
+      const isVideo = ALLOWED_VIDEO_MIME_TYPES.has(mimeType);
+      if (!isImage && !isVideo) {
+        return res.status(400).json({
+          success: false,
+          error: `Tipo de arquivo não permitido (${mimeType || 'desconhecido'}).`,
+        });
+      }
+
+      let uploadBuffer: Buffer = file.buffer;
+      let finalMime = mimeType;
+      let ext = mimeType.split('/')[1]?.replace('+xml', '').replace('quicktime', 'mov') || 'bin';
+      let width: number | null = null;
+      let height: number | null = null;
+
+      if (isImage && !mimeType.includes('svg') && !mimeType.includes('icon')) {
+        const maxDim = bucket === 'avatars' ? 512 : bucket === 'branding' ? 1200 : 1600;
+        const pipeline = sharp(file.buffer).rotate().resize(maxDim, maxDim, {
+          fit: 'inside',
+          withoutEnlargement: true,
+        });
+        const transformed = await pipeline.webp({ quality: 82 }).toBuffer({ resolveWithObject: true });
+        uploadBuffer = transformed.data;
+        finalMime = 'image/webp';
+        ext = 'webp';
+        width = transformed.info.width || null;
+        height = transformed.info.height || null;
+      }
+
+      const safePrefix = purpose.replace(/[^a-z0-9_-]/gi, '_');
+      const storagePath = `${ownerType}/${ownerId}/${safePrefix}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
+
+      const { error: uploadErr } = await supabaseAdmin.storage
+        .from(bucket)
+        .upload(storagePath, uploadBuffer, {
+          contentType: finalMime,
+          cacheControl: '31536000',
+          upsert: true,
+        });
+
+      if (uploadErr) {
         return res.status(500).json({
-          error: 'GEMINI_API_KEY não configurada no servidor. Configure a chave no menu de segredos.',
+          success: false,
+          error: `Falha no upload para o bucket "${bucket}": ${uploadErr.message}`,
         });
       }
 
-      const prompt = `Você é um Arquiteto de Software e Especialista em UI/UX corporativo.
-Analise detalhadamente o arquivo/tela fornecido (Arquivo: ${fileName || 'design/video/tela'}, Tipo: ${fileType || mimeType || 'design'}).
-${additionalContext ? `Contexto adicional do usuário: ${additionalContext}` : ''}
+      const { data: pubData } = supabaseAdmin.storage.from(bucket).getPublicUrl(storagePath);
+      const publicUrl = pubData.publicUrl;
 
-Por favor, forneça uma análise estrutural e técnica completa em formato JSON estrito com o seguinte esquema:
-{
-  "title": "Título descritivo da tela ou fluxo",
-  "summary": "Resumo executivo da finalidade da tela/vídeo e arquitetura geral",
-  "screensIdentified": [
-    {
-      "name": "Nome da tela ou seção",
-      "description": "Explicação do papel desta tela no fluxo",
-      "keyElements": ["Lista de elementos principais, ex: header com busca, card de métricas, tabela paginada"],
-      "purpose": "Objetivo de negócio / interação do usuário"
-    }
-  ],
-  "recommendations": [
-    "Boas práticas de acessibilidade, estados de carregamento, validações e responsividade"
-  ]
-}
-
-Responda APENAS com o JSON válido, sem blocos de código adicionais além do JSON.`;
-
-      const contents: any[] = [];
-
-      if (imageBase64 && (mimeType?.startsWith('image/') || mimeType === 'application/pdf')) {
-        contents.push({
-          inlineData: {
-            data: imageBase64,
-            mimeType: mimeType || 'image/png',
-          },
-        });
-      }
-
-      contents.push({ text: prompt });
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: contents,
-        config: {
-          responseMimeType: 'application/json',
-        },
-      });
-
-      const responseText = response.text || '{}';
-      let parsedData;
+      let assetRecord: any = null;
       try {
-        parsedData = JSON.parse(responseText);
-      } catch (err) {
-        const cleaned = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-        parsedData = JSON.parse(cleaned);
-      }
-
-      return res.json({ success: true, analysis: parsedData });
-    } catch (error: any) {
-      console.error('Erro na análise com Gemini:', error);
-      return res.status(500).json({
-        error: error.message || 'Erro ao processar a análise com IA.',
-      });
-    }
-  });
-
-  // Rota para obter o SQL Master completo v5.0 diretamente via browser ou script
-  app.get('/api/admin/schema/sql', (req, res) => {
-    const schemaPath = path.join(process.cwd(), 'supabase_schema.sql');
-    if (fs.existsSync(schemaPath)) {
-      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-      return res.sendFile(schemaPath);
-    }
-    return res.status(404).send('-- supabase_schema.sql não encontrado');
-  });
-
-  // Rota para obter o Script SQL Mestre de Convergência Soberana da Tríade v5.0 (bol-159 / bol-160)
-  app.get('/api/admin/triade/master-sql', (req, res) => {
-    const masterSqlPath = path.join(process.cwd(), 'supabase', 'migrations', '20261111_master_convergence_v5_0.sql');
-    const fallbackPath = path.join(process.cwd(), 'supabase_schema.sql');
-    const targetPath = fs.existsSync(masterSqlPath) ? masterSqlPath : fallbackPath;
-    if (fs.existsSync(targetPath)) {
-      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-      return res.sendFile(targetPath);
-    }
-    return res.status(404).send('-- 20261111_master_convergence_v5_0.sql não encontrado');
-  });
-
-  // Rota para obter o Relatório Técnico de Convergência da Tríade v5.0 (bol-159 / bol-160)
-  app.get('/api/admin/triade/convergence-report', async (req, res) => {
-    try {
-      let salonsCount = 0;
-      let servicesCount = 0;
-      let clientsCount = 0;
-      let dependentsCount = 0;
-      let appointmentsCount = 0;
-      let securityQuestionsCount = 0;
-      let dbOk = false;
-
-      try {
-        const [salonsRes, servicesRes, clientsRes, depsRes, aptsRes, secQRes] = await Promise.all([
-          supabaseAdmin.from('salons').select('id', { count: 'exact', head: true }),
-          supabaseAdmin.from('services').select('id', { count: 'exact', head: true }),
-          supabaseAdmin.from('clients').select('id', { count: 'exact', head: true }),
-          supabaseAdmin.from('dependents').select('id', { count: 'exact', head: true }),
-          supabaseAdmin.from('appointments').select('id', { count: 'exact', head: true }),
-          supabaseAdmin.from('security_questions').select('code', { count: 'exact', head: true }),
-        ]);
-
-        salonsCount = salonsRes.count || 0;
-        servicesCount = servicesRes.count || 0;
-        clientsCount = clientsRes.count || 0;
-        dependentsCount = depsRes.count || 0;
-        appointmentsCount = aptsRes.count || 0;
-        securityQuestionsCount = secQRes.count || 0;
-        dbOk = true;
-      } catch (err) {
-        console.warn('[convergence-report] Database stats warning:', err);
+        const { data: insertedAsset } = await supabaseAdmin
+          .from('media_assets')
+          .insert({
+            owner_type: ownerType,
+            owner_id: ownerId,
+            bucket_id: bucket,
+            storage_path: storagePath,
+            public_url: publicUrl,
+            mime_type: finalMime,
+            size_bytes: uploadBuffer.length,
+            width,
+            height,
+            purpose,
+          })
+          .select()
+          .maybeSingle();
+        assetRecord = insertedAsset;
+      } catch (metaErr) {
+        console.warn('[POST /api/media/upload] Aviso ao registrar media_assets:', metaErr);
       }
 
       return res.json({
         success: true,
-        bulletinId: 'bol-160-admvapp-v5-convergence-ratification',
-        sqlVersion: 'v5.0',
-        timestamp: new Date().toISOString(),
-        databaseConnected: dbOk,
-        stats: {
-          salonsCount,
-          servicesCount,
-          clientsCount,
-          dependentsCount,
-          appointmentsCount,
-          securityQuestionsCount,
-        },
-        resolutions: [
-          { key: 'zero_mocks_and_seeds', status: 'resolved', description: 'Zero mocks em código/SQL e zero DROP TABLE destrutivo (apenas 3 perguntas de segurança oficiais).' },
-          { key: 'pastel_mint_defaults', status: 'resolved', description: 'Paleta oficial Verde Pastel Clarinho (#10B981 / #065F46 / #D1FAE5 / #ECFDF5 / light / nav_icon_border=none) sincronizada com salon_ui_settings.' },
-          { key: 'unified_billing_fields', status: 'resolved', description: 'fee_per_booking ⇄ billing_fee_value = 2.50, billing_plan = PER_APPOINTMENT e monthly_subscription_fee = 89.90.' },
-          { key: 'chronological_appointments', status: 'resolved', description: 'Ordenação crescente (date_str ASC, start_time ASC), Pago/À pagar, Bloqueado, Permuta (swap_state) e Colisão Geotemporal.' },
-          { key: 'security_questions_support', status: 'resolved', description: 'Indicador e reset administrativo de user_security_answers e senha habilitados.' },
-        ],
-        masterSqlUrl: '/api/admin/triade/master-sql',
+        url: publicUrl,
+        bucket,
+        storage_path: storagePath,
+        asset: assetRecord,
       });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
   });
 
-  // Vite middleware for development
+  app.delete('/api/media/:id', async (req, res) => {
+    try {
+      const auth = await verifyAdminAccess(req);
+      if (!auth.ok && process.env.NODE_ENV === 'production') {
+        return res.status(401).json({ success: false, error: 'Autenticação administrativa necessária.' });
+      }
+
+      const { id } = req.params;
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+        return res.status(400).json({ success: false, error: 'ID de mídia inválido.' });
+      }
+
+      const { data: asset, error: fetchErr } = await supabaseAdmin
+        .from('media_assets')
+        .select('id, bucket_id, storage_path')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (fetchErr || !asset) {
+        return res.status(404).json({ success: false, error: 'Asset não encontrado.' });
+      }
+
+      const { error: rmErr } = await supabaseAdmin.storage
+        .from(asset.bucket_id)
+        .remove([asset.storage_path]);
+
+      if (rmErr) {
+        return res.status(500).json({ success: false, error: `Falha ao remover do Storage: ${rmErr.message}` });
+      }
+
+      await supabaseAdmin.from('media_assets').delete().eq('id', id);
+      return res.json({ success: true, deletedId: id });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/storage/cleanup', async (req, res) => {
+    try {
+      const auth = await verifyAdminAccess(req);
+      if (!auth.ok && process.env.NODE_ENV === 'production') {
+        return res.status(401).json({ success: false, error: 'Autenticação administrativa necessária.' });
+      }
+
+      const { data: queue, error } = await supabaseAdmin
+        .from('storage_cleanup_queue')
+        .select('id, bucket_id, storage_path, attempts')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true })
+        .limit(100);
+
+      if (error) {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+
+      let deletedCount = 0;
+      let failedCount = 0;
+
+      for (const item of queue || []) {
+        const { error: rmErr } = await supabaseAdmin.storage
+          .from(item.bucket_id)
+          .remove([item.storage_path]);
+
+        if (!rmErr) {
+          deletedCount++;
+          await supabaseAdmin
+            .from('storage_cleanup_queue')
+            .update({ status: 'deleted', processed_at: new Date().toISOString() })
+            .eq('id', item.id);
+        } else {
+          failedCount++;
+          await supabaseAdmin
+            .from('storage_cleanup_queue')
+            .update({
+              status: 'failed',
+              attempts: (Number(item.attempts) || 0) + 1,
+              last_error: rmErr.message,
+              processed_at: new Date().toISOString(),
+            })
+            .eq('id', item.id);
+        }
+      }
+
+      return res.json({
+        success: true,
+        processed: (queue || []).length,
+        deleted: deletedCount,
+        failed: failedCount,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.get('/api/push/vapid-public-key', (_req, res) => {
+    return res.json({
+      success: Boolean(VAPID_PUBLIC_KEY),
+      publicKey: VAPID_PUBLIC_KEY || null,
+    });
+  });
+
+  app.post('/api/push/subscribe', async (req, res) => {
+    try {
+      const { subscription, app_origin = 'admvapp', role = 'super_admin' } = req.body || {};
+      const endpoint = String(subscription?.endpoint || '').trim();
+      const p256dh = String(subscription?.keys?.p256dh || '').trim();
+      const authKey = String(subscription?.keys?.auth || '').trim();
+
+      if (!endpoint.startsWith('https://') || !p256dh || !authKey) {
+        return res.status(400).json({ success: false, error: 'Assinatura Web Push inválida.' });
+      }
+
+      const authCheck = await verifyAdminAccess(req);
+      const validOrigin = ['admvapp', 'mnvapp', 'pvapp'].includes(app_origin) ? app_origin : 'admvapp';
+
+      const { error } = await supabaseAdmin.from('push_subscriptions').upsert(
+        {
+          user_id: authCheck.userId || null,
+          app_origin: validOrigin,
+          role: String(role || 'super_admin'),
+          endpoint,
+          p256dh,
+          auth: authKey,
+          user_agent: String(req.headers['user-agent'] || '').slice(0, 250),
+          is_active: true,
+          last_seen_at: new Date().toISOString(),
+        },
+        { onConflict: 'endpoint' }
+      );
+
+      if (error) {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/push/unsubscribe', async (req, res) => {
+    try {
+      const endpoint = String(req.body?.endpoint || '').trim();
+      if (!endpoint) {
+        return res.status(400).json({ success: false, error: 'Endpoint obrigatório.' });
+      }
+
+      await supabaseAdmin
+        .from('push_subscriptions')
+        .update({ is_active: false })
+        .eq('endpoint', endpoint);
+
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/push/dispatch', async (req, res) => {
+    try {
+      if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+        return res.status(503).json({
+          success: false,
+          error: 'Chaves VAPID não configuradas no ambiente do servidor.',
+        });
+      }
+
+      const auth = await verifyAdminAccess(req);
+      if (!auth.ok && process.env.NODE_ENV === 'production') {
+        return res.status(401).json({ success: false, error: 'Autenticação administrativa necessária.' });
+      }
+
+      const { data: outbox, error } = await supabaseAdmin
+        .from('notification_outbox')
+        .select('*')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true })
+        .limit(50);
+
+      if (error) {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+
+      let sentCount = 0;
+      let skippedCount = 0;
+      let failedCount = 0;
+
+      for (const notif of outbox || []) {
+        let query = supabaseAdmin
+          .from('push_subscriptions')
+          .select('id, endpoint, p256dh, auth')
+          .eq('is_active', true);
+
+        if (notif.recipient_user_id) {
+          query = query.eq('user_id', notif.recipient_user_id);
+        } else if (notif.recipient_role) {
+          query = query.eq('role', notif.recipient_role);
+        }
+
+        const { data: subs } = await query;
+        if (!subs || subs.length === 0) {
+          skippedCount++;
+          await supabaseAdmin
+            .from('notification_outbox')
+            .update({ status: 'skipped', sent_at: new Date().toISOString() })
+            .eq('id', notif.id);
+          continue;
+        }
+
+        const payload = JSON.stringify({
+          title: notif.title || 'VagouApp',
+          body: notif.body || '',
+          url: notif.action_url || '/',
+          eventType: notif.event_type,
+          data: notif.payload || {},
+        });
+
+        let delivered = false;
+        let lastError: string | null = null;
+
+        for (const sub of subs) {
+          try {
+            await webpush.sendNotification(
+              {
+                endpoint: sub.endpoint,
+                keys: { p256dh: sub.p256dh, auth: sub.auth },
+              },
+              payload
+            );
+            delivered = true;
+          } catch (pushErr: any) {
+            lastError = pushErr?.message || 'Push delivery error';
+            const statusCode = Number(pushErr?.statusCode);
+            if (statusCode === 404 || statusCode === 410) {
+              await supabaseAdmin
+                .from('push_subscriptions')
+                .update({ is_active: false })
+                .eq('id', sub.id);
+            }
+          }
+        }
+
+        if (delivered) {
+          sentCount++;
+          await supabaseAdmin
+            .from('notification_outbox')
+            .update({ status: 'sent', sent_at: new Date().toISOString() })
+            .eq('id', notif.id);
+        } else {
+          failedCount++;
+          await supabaseAdmin
+            .from('notification_outbox')
+            .update({ status: 'failed', error_message: lastError })
+            .eq('id', notif.id);
+        }
+      }
+
+      return res.json({
+        success: true,
+        processed: (outbox || []).length,
+        sent: sentCount,
+        skipped: skippedCount,
+        failed: failedCount,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: {
@@ -6260,14 +6410,14 @@ Responda APENAS com o JSON válido, sem blocos de código adicionais além do JS
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[Admin Master admvapp] Server running on http://localhost:${PORT}`);
-    console.log(`[Admin Master admvapp] Service Role: ${SUPABASE_SERVICE_ROLE_KEY ? 'ACTIVE' : 'NOT SET (Fallback to Anon)'} | SQL Contract: v5.0 (Zero Mocks)`);
+    console.log(`[Admin Master admvapp] Service Role: ${SUPABASE_SERVICE_ROLE_KEY ? 'ACTIVE (Server-Only)' : 'NOT SET (Anon Fallback)'} | SQL Contract: v6.0 (Zero Base64 & Zero Mirror Tables)`);
   });
 }
 

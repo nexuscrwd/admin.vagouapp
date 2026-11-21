@@ -17,7 +17,7 @@ import { AdminCreateAdminModal } from './AdminCreateAdminModal';
 import { AdminEditAdminModal } from './AdminEditAdminModal';
 import { UserAvatar } from '../common/UserAvatar';
 
-export interface AdminSettingsPanelProps {
+interface AdminSettingsPanelProps {
   onNavigateToPreferences?: () => void;
 }
 
@@ -75,7 +75,7 @@ export const AdminSettingsPanel: React.FC<AdminSettingsPanelProps> = ({
 
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden animate-fadeIn">
-      {/* Subcabeçalho Fixo de Configurações & Governança */}
+
       <div className="admvapp-subheader shrink-0 w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 lg:px-6 py-2.5 z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 shrink-0">
@@ -105,10 +105,9 @@ export const AdminSettingsPanel: React.FC<AdminSettingsPanelProps> = ({
         </div>
       </div>
 
-      {/* Área de Dados com Rolagem Vertical Exclusiva */}
       <div className="flex-1 overflow-y-auto p-0 m-0 min-h-0 custom-scrollbar">
         <div className="p-4 lg:p-6 space-y-6">
-          {/* 🔐 GESTÃO DE ADMINISTRADORES SOBERANOS */}
+
           <div className="admvapp-section p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 shadow-xs dark:shadow-none">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-2.5">
@@ -160,7 +159,6 @@ export const AdminSettingsPanel: React.FC<AdminSettingsPanelProps> = ({
               </div>
             )}
 
-            {/* Tabela de Administradores */}
             <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-100 dark:bg-slate-950/80 text-slate-600 dark:text-slate-400 uppercase tracking-wider text-[10px] border-b border-slate-200 dark:border-slate-800">
@@ -277,7 +275,6 @@ export const AdminSettingsPanel: React.FC<AdminSettingsPanelProps> = ({
             </div>
           </div>
 
-          {/* Modal Dedicado para Cadastrar Novo Administrador */}
           <AdminCreateAdminModal
             isOpen={isCreateAdminModalOpen}
             onClose={() => setIsCreateAdminModalOpen(false)}
@@ -290,7 +287,6 @@ export const AdminSettingsPanel: React.FC<AdminSettingsPanelProps> = ({
             }}
           />
 
-          {/* Modal Dedicado para Editar Administrador Existente */}
           <AdminEditAdminModal
             isOpen={isEditAdminModalOpen}
             admin={editingAdmin}

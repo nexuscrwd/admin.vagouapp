@@ -10,7 +10,10 @@ import {
   getStoredAdmin,
   refreshStoredAdmin,
   logoutAdmin,
+  checkAdminBootstrapStatus,
 } from '../../services/supabaseApi';
+import { subscribeAdminRealtimeHub } from '../../services/realtimeHub';
+import { registerAdminWebPush, unregisterAdminWebPush } from '../../services/webPushClient';
 import {
   AdminSalonItem,
   AdminDashboardMetrics,
@@ -33,7 +36,7 @@ import { AdminCreateAdminModal } from './AdminCreateAdminModal';
 import { AdminPortalManager } from './AdminPortalManager';
 import { AdminCategoryModal } from './AdminCategoryModal';
 
-export interface AdminMasterAppProps {
+interface AdminMasterAppProps {
   onOpenGateway?: () => void;
 }
 
@@ -53,13 +56,12 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Admin User & Auth State
   const [adminUser, setAdminUser] = useState<SystemAdminUser | null>(() => getStoredAdmin());
+  const [needsBootstrap, setNeedsBootstrap] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalInitialTab, setAuthModalInitialTab] = useState<AdminAuthTab>('login');
   const [isCreateAdminModalOpen, setIsCreateAdminModalOpen] = useState(false);
 
-  // Salon Modals
   const [selectedSalonToEdit, setSelectedSalonToEdit] = useState<AdminSalonItem | null>(null);
   const [selectedSalonForDetail, setSelectedSalonForDetail] = useState<AdminSalonItem | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -92,13 +94,24 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
   };
 
   useEffect(() => {
-    // 🔐 Verificação de Sessão Admin (prioriza sessão persistida de system_admins e suporta Supabase Auth)
+
     const checkActiveSession = async () => {
       try {
+        const bootstrapStatus = await checkAdminBootstrapStatus();
+        if (bootstrapStatus.needsBootstrap) {
+          setNeedsBootstrap(true);
+          setAdminUser(null);
+          return;
+        }
+        setNeedsBootstrap(false);
+
         const stored = getStoredAdmin();
         if (stored && stored.id) {
           setAdminUser(stored);
           loadData();
+          if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+            registerAdminWebPush(stored.role || 'super_admin').catch(() => {});
+          }
           return;
         }
 
@@ -108,30 +121,34 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
           return;
         }
 
-        const { data: padmin, error: padminErr } = await supabase
-          .from('platform_admins')
-          .select('user_id')
+        const { data: sysAdmin, error: sysAdminErr } = await supabase
+          .from('system_admins')
+          .select('id, user_id, full_name, username, email, phone_whatsapp, role, is_active, avatar_url')
           .eq('user_id', session.user.id)
+          .eq('is_active', true)
           .maybeSingle();
 
-        if (padminErr || !padmin) {
+        if (sysAdminErr || !sysAdmin) {
           await supabase.auth.signOut();
           setAdminUser(null);
           return;
         }
 
         const verifiedAdmin: SystemAdminUser = {
-          id: session.user.id,
-          full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Administrador Master',
-          username: session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'admin',
-          email: session.user.email || '',
-          phone_whatsapp: session.user.user_metadata?.phone || '',
-          role: 'superadmin',
-          is_active: true,
-          avatar_url: session.user.user_metadata?.avatar_url || '',
+          id: sysAdmin.id,
+          full_name: sysAdmin.full_name || session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Administrador Master',
+          username: sysAdmin.username || session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'admin',
+          email: sysAdmin.email || session.user.email || '',
+          phone_whatsapp: sysAdmin.phone_whatsapp || session.user.user_metadata?.phone || '',
+          role: sysAdmin.role || 'super_admin',
+          is_active: sysAdmin.is_active !== false,
+          avatar_url: sysAdmin.avatar_url || session.user.user_metadata?.avatar_url || '',
         };
         setAdminUser(verifiedAdmin);
         loadData();
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          registerAdminWebPush(verifiedAdmin.role || 'super_admin').catch(() => {});
+        }
       } catch {
         const fallbackStored = getStoredAdmin();
         setAdminUser(fallbackStored || null);
@@ -140,27 +157,23 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
 
     checkActiveSession();
 
-    // 📡 Sincronização em Tempo Real (Realtime) da Tríade com debounce de 700ms:
-    let avatarSyncTimer: ReturnType<typeof setTimeout> | null = null;
-    const scheduleAvatarSync = () => {
-      if (avatarSyncTimer) clearTimeout(avatarSyncTimer);
-      avatarSyncTimer = setTimeout(() => {
+    const unsubscribeHub = subscribeAdminRealtimeHub({
+      onSalonsChange: () => {
+        fetchAdminSalons().then(setSalons).catch(() => {});
+        fetchAdminDashboardMetrics().then(setMetrics).catch(() => {});
+      },
+      onAppointmentsChange: () => {
+        fetchAdminDashboardMetrics().then(setMetrics).catch(() => {});
+      },
+      onAdminChange: () => {
         refreshStoredAdmin().then((fresh) => {
           if (fresh) setAdminUser(fresh);
-        });
-      }, 700);
-    };
-
-    const channel = supabase
-      .channel('admin-avatar-live-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'professionals' }, scheduleAvatarSync)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, scheduleAvatarSync)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'system_admins' }, scheduleAvatarSync)
-      .subscribe();
+        }).catch(() => {});
+      },
+    });
 
     return () => {
-      if (avatarSyncTimer) clearTimeout(avatarSyncTimer);
-      supabase.removeChannel(channel);
+      unsubscribeHub();
     };
   }, []);
 
@@ -231,13 +244,13 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
   };
 
   const handleLogout = async () => {
+    await unregisterAdminWebPush();
     await logoutAdmin();
     setAdminUser(null);
   };
 
   const pendingCount = metrics.pendingSalons + metrics.incompleteSalons;
 
-  // 🔒 GATE DE ACESSO MASTER: Se não autenticado, bloqueia o sistema e exige Login/Cadastro respeitando o Tema/Preferências
   if (!adminUser) {
     return (
       <div
@@ -247,8 +260,10 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
         <AdminAuthModal
           isOpen={true}
           isGate={true}
+          needsBootstrap={needsBootstrap}
           initialTab={authModalInitialTab}
           onSuccess={(admin) => {
+            setNeedsBootstrap(false);
             setAdminUser(admin);
             loadData();
           }}
@@ -262,7 +277,7 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
       className="admvapp-shell flex h-screen w-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans overflow-hidden transition-colors"
       style={{ backgroundColor: 'var(--admin-app-bg)' }}
     >
-      {/* 1. Permanent Fixed Sidebar */}
+
       <div className="shrink-0 h-full">
         <AdminSidebar
           currentScreen={currentScreen}
@@ -273,9 +288,8 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
         />
       </div>
 
-      {/* 2. Main Content Area */}
       <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden bg-slate-100/70 dark:bg-slate-950 transition-colors">
-        {/* Header */}
+
         <AdminHeader
           currentScreen={currentScreen}
           searchQuery={searchQuery}
@@ -289,9 +303,8 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
           onOpenGateway={onOpenGateway}
         />
 
-        {/* Main Content Viewport: Cabeçalhos e subcabeçalhos fixos ao topo sem padding entre si, separados por linhas, com rolagem vertical exclusiva na área de dados */}
         <main className="admvapp-main flex-1 flex flex-col min-h-0 overflow-hidden p-0 m-0 bg-slate-100/70 dark:bg-slate-950 transition-colors">
-          {/* SCREEN: HOME / INÍCIO (PÁGINA INICIAL COM MÓDULOS EM CARDS) */}
+
           {currentScreen === 'dashboard' && (
             <div className="flex-1 overflow-y-auto p-0 m-0 min-h-0 custom-scrollbar">
               <div className="p-4 lg:p-6 space-y-6">
@@ -307,7 +320,6 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
             </div>
           )}
 
-          {/* SCREEN: PORTAL VAPP (Gestão e Criação de Estabelecimentos do Portal) */}
           {currentScreen === 'portal' && (
             <AdminPortalManager
               salons={salons}
@@ -321,7 +333,6 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
             />
           )}
 
-          {/* SCREEN: SALONS */}
           {currentScreen === 'salons' && (
             <AdminSalonsList
               salons={salons}
@@ -338,7 +349,6 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
             />
           )}
 
-          {/* SCREEN: USERS CRUD */}
           {currentScreen === 'users' && (
             <AdminUsersManager
               searchQuery={searchQuery}
@@ -346,24 +356,20 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
             />
           )}
 
-          {/* SCREEN: APPOINTMENTS */}
           {currentScreen === 'appointments' && <AdminAppointmentsMonitor />}
 
-          {/* SCREEN: SETTINGS */}
           {currentScreen === 'settings' && (
             <AdminSettingsPanel
               onNavigateToPreferences={() => setCurrentScreen('preferences')}
             />
           )}
 
-          {/* SCREEN: PREFERENCES (Cores, Temas, Logotipos & Favicon) */}
           {(currentScreen === 'preferences' || currentScreen === 'forms') && (
             <AdminPreferencesPanel />
           )}
         </main>
       </div>
 
-      {/* Admin Auth Modal (Acesso, Recuperar) */}
       <AdminAuthModal
         isOpen={isAuthModalOpen}
         initialTab={authModalInitialTab}
@@ -371,14 +377,12 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
         onSuccess={(admin) => setAdminUser(admin)}
       />
 
-      {/* Dedicated Create Admin Modal (Only for Authenticated Admins) */}
       <AdminCreateAdminModal
         isOpen={isCreateAdminModalOpen}
         onClose={() => setIsCreateAdminModalOpen(false)}
         onSuccess={() => {}}
       />
 
-      {/* Edit Salon Modal */}
       <AdminEditSalonModal
         isOpen={isEditModalOpen}
         salon={selectedSalonToEdit}
@@ -386,7 +390,6 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
         onSave={handleSaveSalonUpdates}
       />
 
-      {/* Create Salon Modal Oficial da Tríade */}
       <TriadeEstablishmentModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
@@ -395,7 +398,6 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
         onSuccess={() => loadData()}
       />
 
-      {/* Category Modal */}
       {isCategoryModalOpen && (
         <AdminCategoryModal
           isOpen={isCategoryModalOpen}

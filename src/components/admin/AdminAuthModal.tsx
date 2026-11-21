@@ -5,6 +5,7 @@ import { AdminAuthTab, SystemAdminUser } from '../../types/admin';
 import { TriadeAdminLoginForm } from './triade-forms/TriadeAdminLoginForm';
 import { TriadeAdminRecoveryForm } from './triade-forms/TriadeAdminRecoveryForm';
 import { TriadeAdminRegisterForm } from './triade-forms/TriadeAdminRegisterForm';
+import { AdminBootstrapForm } from './AdminBootstrapForm';
 
 interface AdminAuthModalProps {
   isOpen: boolean;
@@ -12,6 +13,7 @@ interface AdminAuthModalProps {
   onClose?: () => void;
   onSuccess: (admin: SystemAdminUser) => void;
   isGate?: boolean;
+  needsBootstrap?: boolean;
 }
 
 export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
@@ -20,6 +22,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
   onClose,
   onSuccess,
   isGate = false,
+  needsBootstrap = false,
 }) => {
   const [activeTab, setActiveTab] = useState<AdminAuthTab>(initialTab);
 
@@ -47,7 +50,7 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
       style={isGate ? { backgroundColor: 'var(--admin-app-bg)' } : undefined}
     >
       <div className="relative w-full max-w-md my-auto transition-all duration-200">
-        {/* Botão de Fechar flutuante se não for Gate */}
+
         {!isGate && typeof onClose === 'function' && (
           <button
             type="button"
@@ -60,35 +63,44 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
           </button>
         )}
 
-        {/* TAB 1: LOGIN */}
-        {activeTab === 'login' && (
-          <TriadeAdminLoginForm
+        {needsBootstrap ? (
+          <AdminBootstrapForm
             onSuccess={(admin) => {
               onSuccess(admin);
               safeClose();
             }}
-            onSwitchToRecovery={() => setActiveTab('recovery')}
-            onSwitchToRegister={() => setActiveTab('register')}
           />
-        )}
+        ) : (
+          <>
 
-        {/* TAB 2: RECUPERAÇÃO DE ACESSO */}
-        {activeTab === 'recovery' && (
-          <TriadeAdminRecoveryForm
-            onSuccess={() => {}}
-            onSwitchToLogin={() => setActiveTab('login')}
-          />
-        )}
+            {activeTab === 'login' && (
+              <TriadeAdminLoginForm
+                onSuccess={(admin) => {
+                  onSuccess(admin);
+                  safeClose();
+                }}
+                onSwitchToRecovery={() => setActiveTab('recovery')}
+                onSwitchToRegister={() => setActiveTab('register')}
+              />
+            )}
 
-        {/* TAB 3: CADASTRO DE NOVO ADMINISTRADOR */}
-        {activeTab === 'register' && (
-          <TriadeAdminRegisterForm
-            onSuccess={(newAdmin) => {
-              onSuccess(newAdmin);
-              safeClose();
-            }}
-            onSwitchToLogin={() => setActiveTab('login')}
-          />
+            {activeTab === 'recovery' && (
+              <TriadeAdminRecoveryForm
+                onSuccess={() => {}}
+                onSwitchToLogin={() => setActiveTab('login')}
+              />
+            )}
+
+            {activeTab === 'register' && (
+              <TriadeAdminRegisterForm
+                onSuccess={(newAdmin) => {
+                  onSuccess(newAdmin);
+                  safeClose();
+                }}
+                onSwitchToLogin={() => setActiveTab('login')}
+              />
+            )}
+          </>
         )}
       </div>
     </div>,

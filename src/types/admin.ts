@@ -12,17 +12,15 @@ export type AdminScreenId =
 
 export type SalonFilterStatus = 'all' | 'active' | 'pending' | 'incomplete' | 'suspended';
 
-export type SalonSegmentFilter = 'all' | 'barbearia' | 'salao' | 'estetica' | 'outro';
-
 export interface DayOperatingHour {
   day: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
   label: string;
   isOpen: boolean;
-  openTime: string;  // e.g. "08:00"
-  closeTime: string; // e.g. "19:00"
+  openTime: string;
+  closeTime: string;
   hasBreak?: boolean;
-  breakStart?: string; // e.g. "12:00"
-  breakEnd?: string;   // e.g. "13:00"
+  breakStart?: string;
+  breakEnd?: string;
 }
 
 export type PixKeyType = 'cpf' | 'cnpj' | 'phone' | 'email' | 'evp';
@@ -99,7 +97,7 @@ export interface AdminSalonItem {
   owner_email?: string;
   owner_phone?: string;
   owner_avatar_url?: string;
-  // Colunas físicas de UI / Estilos Avançados da Tríade (mnvapp / pvapp / admvapp)
+
   default_theme?: SalonThemeMode;
   pwa_name?: string;
   show_slogan?: boolean;
@@ -148,7 +146,7 @@ export type SalonSectionHeaderBorder = 'bordered' | 'none';
 export type SalonWelcomeStyle = 'atmospheric' | 'minimal' | 'card';
 export type SalonThemeMode = 'dark' | 'light' | 'system';
 
-export interface SalonUiSettings {
+interface SalonUiSettings {
   id?: string;
   salon_id: string;
   default_theme?: SalonThemeMode;
@@ -190,46 +188,6 @@ export interface AdminDashboardMetrics {
   growthPercent: number;
 }
 
-export interface TechnicalBulletin {
-  id: string;
-  timestamp: string;
-  sourceApp: 'admvapp' | 'pvapp' | 'mnvapp';
-  targetApps: ('pvapp' | 'mnvapp' | 'admvapp')[];
-  title: string;
-  category: 'schema_change' | 'rpc_change' | 'status_enum' | 'env_config' | 'breaking_change';
-  summary: string;
-  impactedTables: string[];
-  sqlMigration?: string;
-  instructions: string;
-  author: string;
-}
-
-export interface TriadeAppInfo {
-  id: 'pvapp' | 'mnvapp' | 'admvapp';
-  name: string;
-  domain: string;
-  role: string;
-  status: 'operational' | 'degraded' | 'maintenance';
-  isCurrent?: boolean;
-  color: string;
-  serviceRolePrivilege?: string;
-}
-
-export interface TriadeStatusResponse {
-  database: {
-    connected: boolean;
-    supabaseUrl: string;
-    serviceRoleActive: boolean;
-    error?: string | null;
-  };
-  apps: TriadeAppInfo[];
-  mandamentoSete: {
-    rule: string;
-    bulletinsCount: number;
-    lastBulletin?: TechnicalBulletin | null;
-  };
-}
-
 export interface SystemAdminUser {
   id: string;
   full_name: string;
@@ -259,7 +217,6 @@ export interface SystemAdminUser {
 }
 
 export type AdminAuthTab = 'login' | 'recovery' | 'register';
-export type AdminRecoveryType = 'access_data' | 'password';
 
 export type AppointmentTransportMode = 'walking' | 'transit' | 'rideshare' | 'driving' | 'motorcycle';
 
@@ -340,7 +297,7 @@ export interface AdminAppointmentItem {
   billing_status: 'unbilled' | 'billed' | 'paid';
   fee_charged: number;
   created_at: string;
-  // Telemetria de Deslocamento Ao Vivo (10s) & Linha de Ruas (Estilo Shopee/Correios)
+
   transport_mode?: AppointmentTransportMode;
   tracking_status?: AppointmentTrackingStatus;
   selected_route_summary?: string;
@@ -356,34 +313,6 @@ export interface AdminAppointmentItem {
   rescheduled_time?: string;
 }
 
-export interface SalonMonthlyInvoice {
-  salon_id: string;
-  salon_name: string;
-  salon_slug: string;
-  owner_name?: string;
-  phone_whatsapp?: string;
-  billing_plan: 'subscription' | 'per_booking' | string;
-  fee_per_booking: number;
-  monthly_subscription_fee: number;
-  billing_due_day: number;
-  pix_key?: string;
-  competence_month: string; // "2026-09"
-  total_bookings: number;
-  billable_bookings: number;
-  cancelled_bookings: number;
-  gross_revenue: number;
-  total_invoice_amount: number;
-  payment_status: 'pending' | 'sent' | 'paid' | 'overdue';
-  items: AdminAppointmentItem[];
-}
-
-// ==========================================
-// 👥 GESTÃO CENTRALIZADA DE USUÁRIOS (CRUD)
-// ==========================================
-
-export type UserCategoryTab = 'admins' | 'clients' | 'salon_users' | 'professionals';
-
-// Dependente da Conta Família
 export interface UserFamilyDependent {
   id: string;
   parent_client_id: string;
@@ -392,13 +321,12 @@ export interface UserFamilyDependent {
   relationship: 'son' | 'daughter' | 'spouse' | 'parent' | 'other';
   birth_date?: string;
   notes?: string;
-  is_unlinked: boolean; // Soft delete / desvinculado pelo titular
+  is_unlinked: boolean;
   unlinked_at?: string;
   created_at: string;
   created_via?: string;
 }
 
-// Usuário Cliente (Titular ou Emancipado)
 export interface UserClientItem {
   id: string;
   full_name: string;
@@ -433,7 +361,6 @@ export interface UserClientItem {
   last_appointment_at?: string;
 }
 
-// Usuário do Salão (Dono, Gerente, Recepção)
 export interface UserSalonAccessItem {
   id: string;
   salon_id: string;
@@ -467,7 +394,6 @@ export interface UserSalonAccessItem {
   last_login_at?: string;
 }
 
-// Prestador de Serviço / Profissional
 export interface UserProfessionalItem {
   id: string;
   full_name: string;
@@ -513,7 +439,6 @@ export interface SalonServiceMediaItem {
   duration_seconds?: number;
 }
 
-// Procedimento / Serviço do Estabelecimento (Tabela 'services' da Tríade)
 export interface SalonServiceRecord {
   id: string;
   salon_id: string;
@@ -529,6 +454,6 @@ export interface SalonServiceRecord {
   created_at?: string;
   photos?: string[];
   videos?: SalonServiceMediaItem[];
-  slides?: string[]; // Slide com limite de 5 imagens
+  slides?: string[];
 }
 

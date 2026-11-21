@@ -9,12 +9,6 @@ import {
   AlertTriangle,
   FolderPlus,
   Loader2,
-  Layers,
-  Scissors,
-  Sparkles,
-  Heart,
-  Palette,
-  ShieldCheck,
 } from 'lucide-react';
 import {
   SalonCategory,
@@ -150,7 +144,7 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
       <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col my-auto max-h-[88vh] overflow-hidden">
-        {/* Header */}
+
         <div className="p-3.5 sm:p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/90">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
@@ -178,7 +172,6 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
           </button>
         </div>
 
-        {/* Feedback Message */}
         {feedback && (
           <div className="px-4 pt-3">
             <div
@@ -198,9 +191,8 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
           </div>
         )}
 
-        {/* Body */}
         <div className="p-4 overflow-y-auto space-y-4 flex-1">
-          {/* Formulário de Criação */}
+
           <form onSubmit={handleCreate} className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
             <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
               <Plus className="w-3.5 h-3.5 text-emerald-400" />
@@ -288,7 +280,6 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
             </div>
           </form>
 
-          {/* Lista de Categorias Existentes */}
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-300 flex items-center justify-between px-1">
               <span>Categorias Ativas ({categories.length})</span>
@@ -346,7 +337,6 @@ export const AdminCategoryModal: React.FC<AdminCategoryModalProps> = ({
           </div>
         </div>
 
-        {/* Footer */}
         <div className="shrink-0 p-3.5 bg-slate-950/90 border-t border-slate-800 flex items-center justify-between text-xs">
           <span className="text-slate-500 text-[11px]">
             Sincronizado com os formulários de cadastro e filtros de catálogo.

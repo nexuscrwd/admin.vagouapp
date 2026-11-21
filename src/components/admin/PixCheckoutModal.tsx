@@ -3,16 +3,9 @@ import { createPortal } from 'react-dom';
 import {
   X,
   MessageCircle,
-  QrCode,
   Copy,
   Check,
-  Store,
   DollarSign,
-  User,
-  Sparkles,
-  Smartphone,
-  Send,
-  ExternalLink,
 } from 'lucide-react';
 import {
   generatePixPayload,
@@ -20,7 +13,7 @@ import {
   buildWhatsAppPixChargeUrl,
 } from '../../services/pixGenerator';
 
-export interface PixCheckoutModalProps {
+interface PixCheckoutModalProps {
   isOpen: boolean;
   onClose: () => void;
   salonName: string;
@@ -90,7 +83,7 @@ export const PixCheckoutModal: React.FC<PixCheckoutModalProps> = ({
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
       <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[92vh] overflow-hidden text-white font-['Poppins']">
-        {/* Cabeçalho */}
+
         <div className="p-3.5 sm:p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-[#20C933]/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
@@ -115,9 +108,8 @@ export const PixCheckoutModal: React.FC<PixCheckoutModalProps> = ({
           </button>
         </div>
 
-        {/* Corpo Rolável */}
         <div className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs">
-          {/* Card Resumo do Atendimento */}
+
           <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
@@ -136,7 +128,6 @@ export const PixCheckoutModal: React.FC<PixCheckoutModalProps> = ({
               </div>
             </div>
 
-            {/* Ajuste de Valor e Telefone do Cliente */}
             <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/80">
               <div>
                 <label className="text-[10px] text-slate-400 block mb-0.5">Valor Total (R$)</label>
@@ -165,7 +156,6 @@ export const PixCheckoutModal: React.FC<PixCheckoutModalProps> = ({
             </div>
           </div>
 
-          {/* QR Code Dinâmico com o Valor em Tela Cheia */}
           <div className="p-4 rounded-2xl bg-white text-slate-900 flex flex-col items-center justify-center text-center space-y-2 border border-slate-200 shadow-md">
             <div className="flex items-center justify-between w-full px-2">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
@@ -190,7 +180,6 @@ export const PixCheckoutModal: React.FC<PixCheckoutModalProps> = ({
             </div>
           </div>
 
-          {/* Botões de Ação Imediata */}
           <div className="space-y-2">
             <button
               type="button"
@@ -241,7 +230,6 @@ export const PixCheckoutModal: React.FC<PixCheckoutModalProps> = ({
           </div>
         </div>
 
-        {/* Rodapé */}
         <div className="p-3 border-t border-slate-800 bg-slate-900 flex justify-end">
           <button
             type="button"

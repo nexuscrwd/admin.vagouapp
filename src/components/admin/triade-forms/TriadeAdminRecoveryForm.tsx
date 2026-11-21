@@ -13,7 +13,7 @@ import {
 import { recoverAdminAccess } from '../../../services/supabaseApi';
 import { VagouOfficialLogo } from '../../common/VagouOfficialLogo';
 
-export interface TriadeAdminRecoveryFormProps {
+interface TriadeAdminRecoveryFormProps {
   onSuccess?: (info: any) => void;
   onSwitchToLogin?: () => void;
   onClose?: () => void;
@@ -26,12 +26,11 @@ export const TriadeAdminRecoveryForm: React.FC<TriadeAdminRecoveryFormProps> = (
   onClose,
   variant = 'card',
 }) => {
-  // Input único: "Usuário" (aceita @usuario, fulano@, e-mail ou celular)
+
   const [identifier, setIdentifier] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Estado de envio com sucesso (código no celular e link no e-mail)
   const [sentSuccess, setSentSuccess] = useState<{
     identifier: string;
     targetEmail?: string;
@@ -90,7 +89,7 @@ export const TriadeAdminRecoveryForm: React.FC<TriadeAdminRecoveryFormProps> = (
           : undefined
       }
     >
-      {/* Top Banner com Logo Oficial do VagouApp e Título Centralizados */}
+
       <div
         className={`${
           isCard
@@ -114,7 +113,6 @@ export const TriadeAdminRecoveryForm: React.FC<TriadeAdminRecoveryFormProps> = (
           Recuperar Acesso
         </h2>
 
-        {/* Botão Fechar Oficial da Tríade */}
         {onClose && (
           <button
             type="button"
@@ -141,7 +139,6 @@ export const TriadeAdminRecoveryForm: React.FC<TriadeAdminRecoveryFormProps> = (
         )}
       </div>
 
-      {/* Alerta de Erro */}
       {errorMessage && (
         <div className="mx-6 sm:mx-7 mt-5 mb-0 p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/80 border border-rose-200 dark:border-rose-800/80 text-rose-700 dark:text-rose-200 text-xs flex items-start gap-2.5 animate-fadeIn">
           <AlertCircle className="w-4 h-4 text-rose-500 dark:text-rose-400 shrink-0 mt-0.5" />
@@ -149,7 +146,6 @@ export const TriadeAdminRecoveryForm: React.FC<TriadeAdminRecoveryFormProps> = (
         </div>
       )}
 
-      {/* TELA DE SUCESSO APÓS SUBMISSÃO */}
       {sentSuccess ? (
         <div className="w-full px-6 pt-5 pb-6 sm:px-7 sm:pt-6 sm:pb-7 space-y-4 animate-fadeIn">
           <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-500/30 text-center space-y-2">
@@ -197,7 +193,7 @@ export const TriadeAdminRecoveryForm: React.FC<TriadeAdminRecoveryFormProps> = (
           </div>
         </div>
       ) : (
-        /* FORMULÁRIO DE RECUPERAÇÃO (APENAS INPUT "USUÁRIO", SEM NOVAS SENHAS) */
+
         <form onSubmit={handleSubmit} autoComplete="off" className="w-full px-6 pt-5 pb-6 sm:px-7 sm:pt-6 sm:pb-7 space-y-5">
           <div>
             <label
@@ -220,7 +216,6 @@ export const TriadeAdminRecoveryForm: React.FC<TriadeAdminRecoveryFormProps> = (
             </div>
           </div>
 
-          {/* Botão de Envio (Fundo Verde = Texto/Ícone Branco Obrigatório) */}
           <div className="pt-1">
             <button
               type="submit"
@@ -238,7 +233,6 @@ export const TriadeAdminRecoveryForm: React.FC<TriadeAdminRecoveryFormProps> = (
             </button>
           </div>
 
-          {/* Voltar para o Login */}
           {onSwitchToLogin && (
             <div className="pt-1 text-center">
               <button

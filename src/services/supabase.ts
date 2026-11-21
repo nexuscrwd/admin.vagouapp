@@ -7,12 +7,10 @@ const DEFAULT_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhlbWVueGRodW9la3l0eWhtZ3l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyMDE2MzAsImV4cCI6MjEwNTc3NzYzMH0.P-q6bQspwuQNhub08hjWmsjLrugr3CVA1NIdznWJxuo';
 
 function resolveSupabaseUrl(): string {
-  const envUrl = metaEnv.VITE_SUPABASE_URL || (typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_URL : undefined);
+  const envUrl = metaEnv.VITE_SUPABASE_URL;
 
   if (typeof envUrl === 'string' && envUrl.trim().length > 0) {
     const trimmed = envUrl.trim();
-
-    // Check if it's a valid HTTP / HTTPS URL
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
       try {
         const parsed = new URL(trimmed);
@@ -20,11 +18,10 @@ function resolveSupabaseUrl(): string {
           return trimmed;
         }
       } catch {
-        // Fall through to other checks
+
       }
     }
 
-    // Se o valor injetado for um token JWT (começa com eyJ...), extrai o ref
     if (trimmed.startsWith('eyJ')) {
       try {
         const parts = trimmed.split('.');
@@ -42,12 +39,11 @@ function resolveSupabaseUrl(): string {
 }
 
 function resolveSupabaseAnonKey(): string {
-  const envKey = metaEnv.VITE_SUPABASE_ANON_KEY || (typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_ANON_KEY : undefined);
+  const envKey = metaEnv.VITE_SUPABASE_ANON_KEY;
   if (typeof envKey === 'string' && envKey.trim().startsWith('eyJ')) {
     return envKey.trim();
   }
 
-  // Caso o usuário tenha colado o token JWT no campo VITE_SUPABASE_URL por engano
   const envUrl = metaEnv.VITE_SUPABASE_URL;
   if (typeof envUrl === 'string' && envUrl.trim().startsWith('eyJ')) {
     return envUrl.trim();
@@ -56,28 +52,8 @@ function resolveSupabaseAnonKey(): string {
   return DEFAULT_ANON_KEY;
 }
 
-declare const __SUPABASE_SERVICE_ROLE_KEY__: string | undefined;
-
-function resolveSupabaseServiceKey(): string {
-  const candidates = [
-    typeof __SUPABASE_SERVICE_ROLE_KEY__ !== 'undefined' ? __SUPABASE_SERVICE_ROLE_KEY__ : undefined,
-    metaEnv.VITE_SUPABASE_SERVICE_ROLE_KEY,
-    typeof process !== 'undefined' ? process.env?.SUPABASE_SERVICE_ROLE_KEY : undefined,
-    typeof process !== 'undefined' ? process.env?.VITE_SUPABASE_SERVICE_ROLE_KEY : undefined,
-  ];
-
-  for (const key of candidates) {
-    if (typeof key === 'string' && key.trim().startsWith('eyJ')) {
-      return key.trim();
-    }
-  }
-
-  return '';
-}
-
-export const SUPABASE_URL = resolveSupabaseUrl();
-export const SUPABASE_ANON_KEY = resolveSupabaseAnonKey();
-export const SUPABASE_SERVICE_KEY = resolveSupabaseServiceKey();
+const SUPABASE_URL = resolveSupabaseUrl();
+const SUPABASE_ANON_KEY = resolveSupabaseAnonKey();
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -87,13 +63,4 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   },
 });
 
-// Cliente Soberano do Admin Master (utiliza Service Role quando disponível para bypass de RLS em deploy estático)
-export const supabaseAdmin = SUPABASE_SERVICE_KEY
-  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
-    })
-  : supabase;
-
+export const supabaseAdmin = supabase;

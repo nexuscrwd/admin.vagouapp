@@ -16,7 +16,7 @@ import {
 import { AdminScreenId, SystemAdminUser, AdminAuthTab } from '../../types/admin';
 import { VagouOfficialLogo } from '../common/VagouOfficialLogo';
 
-export type FormsSubTabId =
+type FormsSubTabId =
   | 'estabelecimento_login'
   | 'estabelecimento_cadastro'
   | 'welcome_modal'
@@ -86,9 +86,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         isCollapsed ? 'w-20' : 'w-[215px]'
       }`}
     >
-      {/* Top Brand & Nav */}
+
       <div className={`p-3.5 space-y-4 ${isCollapsed ? 'px-2.5' : 'p-3.5'}`}>
-        {/* Brand Header */}
+
         <div
           className={`flex items-center ${
             isCollapsed ? 'flex-col gap-3 justify-center' : 'justify-between'
@@ -104,7 +104,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             />
           </div>
 
-          {/* Toggle Button (Desktop & Mobile) */}
           <div className="flex items-center gap-1">
             <button
               onClick={toggleCollapsed}
@@ -130,7 +129,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           </div>
         </div>
 
-        {/* Navigation Items */}
         <nav className="space-y-1 overflow-y-auto max-h-[calc(100vh-90px)] custom-scrollbar pr-1">
           {!isCollapsed && (
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-3 block mb-2 animate-fadeIn">
@@ -202,7 +200,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                   )}
                 </button>
 
-                {/* Subitem Limpo de Configurações -> Preferências */}
                 {isSettingsItem && !isCollapsed && isSettingsMenuOpen && (
                   <div className="pl-2.5 pr-1 py-1 space-y-1 animate-fadeIn border-l-2 border-emerald-500/30 ml-3 my-1">
                     <button

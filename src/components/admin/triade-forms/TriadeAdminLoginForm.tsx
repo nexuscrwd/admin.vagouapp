@@ -12,7 +12,7 @@ import {
 import { loginAdmin } from '../../../services/supabaseApi';
 import { VagouOfficialLogo } from '../../common/VagouOfficialLogo';
 
-export interface TriadeAdminLoginFormProps {
+interface TriadeAdminLoginFormProps {
   onSuccess?: (admin: any) => void;
   onSwitchToRecovery?: () => void;
   onSwitchToRegister?: () => void;
@@ -26,12 +26,11 @@ export const TriadeAdminLoginForm: React.FC<TriadeAdminLoginFormProps> = ({
   onClose,
   variant = 'card',
 }) => {
-  // Identificador aceita: Usuário (@fulano, fulano@, fulano#), E-mail ou Celular
+
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  // Bloqueia o autofill automático do Chrome/Edge ao carregar a página; libera imediatamente ao focar/clicar
   const [inputUnlocked, setInputUnlocked] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -83,7 +82,7 @@ export const TriadeAdminLoginForm: React.FC<TriadeAdminLoginFormProps> = ({
           : undefined
       }
     >
-      {/* Top Banner com Logo Oficial do VagouApp e Título Centralizados */}
+
       <div
         className={`${
           isCard
@@ -107,7 +106,6 @@ export const TriadeAdminLoginForm: React.FC<TriadeAdminLoginFormProps> = ({
           Acesso Admin
         </h2>
 
-        {/* Botão Fechar Oficial da Tríade */}
         {onClose && (
           <button
             type="button"
@@ -134,7 +132,6 @@ export const TriadeAdminLoginForm: React.FC<TriadeAdminLoginFormProps> = ({
         )}
       </div>
 
-      {/* Alertas */}
       {errorMessage && (
         <div className="mx-6 sm:mx-7 mt-5 mb-0 p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/80 border border-rose-200 dark:border-rose-800/80 text-rose-700 dark:text-rose-200 text-xs flex items-start gap-2.5 animate-fadeIn">
           <AlertCircle className="w-4 h-4 text-rose-500 dark:text-rose-400 shrink-0 mt-0.5" />
@@ -149,17 +146,15 @@ export const TriadeAdminLoginForm: React.FC<TriadeAdminLoginFormProps> = ({
         </div>
       )}
 
-      {/* Formulário de Login (autoComplete="off" + inputs 100% em branco sem pontos ou senhas salvas) */}
       <form
         onSubmit={handleSubmit}
         autoComplete="off"
         className="w-full px-6 pt-5 pb-6 sm:px-7 sm:pt-6 sm:pb-7 space-y-5"
       >
-        {/* Campos isca invisíveis para impedir que o gerenciador de senhas do navegador preencha sozinho */}
+
         <input type="text" name="prevent_autofill_user" autoComplete="username" className="hidden" tabIndex={-1} />
         <input type="password" name="prevent_autofill_pass" autoComplete="current-password" className="hidden" tabIndex={-1} />
 
-        {/* Campo Usuário (aceita Usuário @, E-mail ou Celular) */}
         <div>
           <label
             className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2"
@@ -184,7 +179,6 @@ export const TriadeAdminLoginForm: React.FC<TriadeAdminLoginFormProps> = ({
           </div>
         </div>
 
-        {/* Campo Senha 100% em branco (sem pontinhos no placeholder) */}
         <div>
           <label
             className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2"
@@ -215,7 +209,6 @@ export const TriadeAdminLoginForm: React.FC<TriadeAdminLoginFormProps> = ({
             </button>
           </div>
 
-          {/* "Esqueceu a senha?" AO PÉ DO INPUT SENHA */}
           {onSwitchToRecovery && (
             <div className="flex justify-end pt-2">
               <button
@@ -229,7 +222,6 @@ export const TriadeAdminLoginForm: React.FC<TriadeAdminLoginFormProps> = ({
           )}
         </div>
 
-        {/* Botão de Entrar (Fundo Verde = Texto/Ícone Branco Obrigatório) */}
         <div className="pt-1">
           <button
             type="submit"

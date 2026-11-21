@@ -1,5 +1,3 @@
-import { supabaseAdmin } from '../services/supabase';
-
 export interface ServiceGalleryPreset {
   id: string;
   category: 'unhas' | 'cabelo' | 'barba' | 'sobrancelhas' | 'estetica' | 'combos';
@@ -9,12 +7,8 @@ export interface ServiceGalleryPreset {
   keywords: string[];
 }
 
-/**
- * Galeria Oficial Curada de Presets Fotográficos de Serviços (Tríade VagouApp)
- * Utilizada como acervo rápido de 1-toque e fallback automático para procedimentos sem imagem
- */
 export const SERVICE_GALLERY_PRESETS: ServiceGalleryPreset[] = [
-  // 1. UNHAS & MANICURE
+
   {
     id: 'preset-unha-1',
     category: 'unhas',
@@ -40,7 +34,6 @@ export const SERVICE_GALLERY_PRESETS: ServiceGalleryPreset[] = [
     keywords: ['nail art', 'joia', 'decorada', 'esmalte', 'pedraria'],
   },
 
-  // 2. CABELO
   {
     id: 'preset-cabelo-1',
     category: 'cabelo',
@@ -74,7 +67,6 @@ export const SERVICE_GALLERY_PRESETS: ServiceGalleryPreset[] = [
     keywords: ['pompadour', 'social', 'tesoura', 'finalizacao'],
   },
 
-  // 3. BARBA
   {
     id: 'preset-barba-1',
     category: 'barba',
@@ -92,7 +84,6 @@ export const SERVICE_GALLERY_PRESETS: ServiceGalleryPreset[] = [
     keywords: ['alinhamento', 'barba desenhada', 'lamina', 'peeling barba'],
   },
 
-  // 4. SOBRANCELHAS & CÍLIOS
   {
     id: 'preset-sobrancelha-1',
     category: 'sobrancelhas',
@@ -110,7 +101,6 @@ export const SERVICE_GALLERY_PRESETS: ServiceGalleryPreset[] = [
     keywords: ['cilios', 'lash', 'extensao', 'volume russo', 'fio a fio'],
   },
 
-  // 5. ESTÉTICA & SPA
   {
     id: 'preset-estetica-1',
     category: 'estetica',
@@ -128,7 +118,6 @@ export const SERVICE_GALLERY_PRESETS: ServiceGalleryPreset[] = [
     keywords: ['massagem', 'drenagem', 'spa', 'relaxamento', 'corpo'],
   },
 
-  // 6. COMBOS
   {
     id: 'preset-combo-1',
     category: 'combos',
@@ -146,96 +135,3 @@ export const SERVICE_GALLERY_PRESETS: ServiceGalleryPreset[] = [
     keywords: ['pe e mao', 'combo feminino', 'spa dos pes', 'promocional'],
   },
 ];
-
-/**
- * Retorna a foto curada mais recomendada com base na categoria ou título do serviço
- */
-export function getCuratedServiceFallbackPhoto(category: string, title?: string): string {
-  const normCat = (category || '').toLowerCase().trim();
-  const normTitle = (title || '').toLowerCase().trim();
-
-  // 1. Tenta correspondência direta por palavras-chave
-  for (const preset of SERVICE_GALLERY_PRESETS) {
-    if (preset.keywords.some((kw) => normTitle.includes(kw) || normCat.includes(kw))) {
-      return preset.imageUrl;
-    }
-  }
-
-  // 2. Correspondência por categoria primária
-  if (normCat.includes('unha') || normCat.includes('manicure') || normCat.includes('pedicure') || normCat.includes('nail')) {
-    return SERVICE_GALLERY_PRESETS.find((p) => p.category === 'unhas')?.imageUrl || SERVICE_GALLERY_PRESETS[0].imageUrl;
-  }
-  if (normCat.includes('barba') || normCat.includes('barbearia')) {
-    return SERVICE_GALLERY_PRESETS.find((p) => p.category === 'barba')?.imageUrl || SERVICE_GALLERY_PRESETS[4].imageUrl;
-  }
-  if (normCat.includes('sobrancelha') || normCat.includes('cilios') || normCat.includes('olhar')) {
-    return SERVICE_GALLERY_PRESETS.find((p) => p.category === 'sobrancelhas')?.imageUrl || SERVICE_GALLERY_PRESETS[7].imageUrl;
-  }
-  if (normCat.includes('estet') || normCat.includes('spa') || normCat.includes('massag')) {
-    return SERVICE_GALLERY_PRESETS.find((p) => p.category === 'estetica')?.imageUrl || SERVICE_GALLERY_PRESETS[9].imageUrl;
-  }
-  if (normCat.includes('combo') || normCat.includes('pacote')) {
-    return SERVICE_GALLERY_PRESETS.find((p) => p.category === 'combos')?.imageUrl || SERVICE_GALLERY_PRESETS[11].imageUrl;
-  }
-
-  // Fallback padrão para cabelo
-  return SERVICE_GALLERY_PRESETS.find((p) => p.category === 'cabelo')?.imageUrl || SERVICE_GALLERY_PRESETS[3].imageUrl;
-}
-
-/**
- * Upload seguro de mídia para o bucket oficial 'salon-media' do Supabase Storage
- */
-export async function uploadSalonMediaToStorage(
-  fileOrBase64: File | Blob | string,
-  salonId: string,
-  folder: 'services' | 'branding' | 'gallery' = 'services'
-): Promise<{ success: boolean; url?: string; error?: string }> {
-  try {
-    let blob: Blob;
-    let ext = 'jpg';
-    let mimeType = 'image/jpeg';
-
-    if (typeof fileOrBase64 === 'string') {
-      if (!fileOrBase64.startsWith('data:')) {
-        return { success: true, url: fileOrBase64 };
-      }
-      const res = await fetch(fileOrBase64);
-      blob = await res.blob();
-      mimeType = blob.type || 'image/jpeg';
-      ext = mimeType.includes('png') ? 'png' : mimeType.includes('webp') ? 'webp' : 'jpg';
-    } else {
-      blob = fileOrBase64;
-      mimeType = fileOrBase64.type || 'image/jpeg';
-      ext = mimeType.includes('png') ? 'png' : mimeType.includes('webp') ? 'webp' : 'jpg';
-    }
-
-    const cleanSalonId = salonId.slice(0, 12);
-    const fileName = `${folder}/${cleanSalonId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-
-    const { error: upErr } = await supabaseAdmin.storage
-      .from('salon-media')
-      .upload(fileName, blob, {
-        contentType: mimeType,
-        cacheControl: '31536000',
-        upsert: true,
-      });
-
-    if (upErr) {
-      // Fallback para bucket 'avatars' caso 'salon-media' apresente restrição de MIME
-      const { error: fallbackErr } = await supabaseAdmin.storage
-        .from('avatars')
-        .upload(fileName, blob, { contentType: mimeType, cacheControl: '31536000', upsert: true });
-
-      if (fallbackErr) {
-        return { success: false, error: upErr.message };
-      }
-      const { data: pubData } = supabaseAdmin.storage.from('avatars').getPublicUrl(fileName);
-      return { success: true, url: pubData.publicUrl };
-    }
-
-    const { data: pubData } = supabaseAdmin.storage.from('salon-media').getPublicUrl(fileName);
-    return { success: true, url: pubData.publicUrl };
-  } catch (err: any) {
-    return { success: false, error: err.message || 'Falha no upload' };
-  }
-}

@@ -32,15 +32,12 @@ export const AdminAppointmentsMonitor: React.FC = () => {
   const [salons, setSalons] = useState<AdminSalonItem[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Modo de Exibição da Lista (Padrão: Tabela / Tabular)
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
 
-  // Navegação Mestre-Detalhe
   const [selectedSalonId, setSelectedSalonId] = useState<string | null>(null);
 
   const currentCompetence = useMemo(() => new Date().toISOString().slice(0, 7), []);
 
-  // Filtros Globais (Competência dinâmica YYYY-MM ou 'all')
   const [selectedCompetence, setSelectedCompetence] = useState<string>(currentCompetence);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -120,13 +117,11 @@ export const AdminAppointmentsMonitor: React.FC = () => {
     return Array.from(set).sort((a, b) => b.localeCompare(a));
   }, [appointments]);
 
-  // Formatação BRL
   const formatBRL = (val?: number | null) => {
     if (val === undefined || val === null || isNaN(Number(val))) return 'R$ 0,00';
     return `R$ ${Number(val).toFixed(2).replace('.', ',')}`;
   };
 
-  // 1. Resumo Consolidado de cada Salão na Competência Selecionada (Ordem Cronológica ASC)
   const salonsWithMetrics = useMemo(() => {
     return salons.map((salon) => {
       const salonAppointments = appointments
@@ -178,7 +173,6 @@ export const AdminAppointmentsMonitor: React.FC = () => {
     });
   }, [salons, appointments, selectedCompetence]);
 
-  // Totais Globais
   const globalMonthlyTotals = useMemo(() => {
     let totalAppointments = 0;
     let totalBillable = 0;
@@ -203,7 +197,6 @@ export const AdminAppointmentsMonitor: React.FC = () => {
     };
   }, [salonsWithMetrics]);
 
-  // Lista Filtrada de Estabelecimentos (Busca)
   const filteredSalonsList = useMemo(() => {
     if (!search.trim()) return salonsWithMetrics;
     const q = search.toLowerCase();
@@ -215,24 +208,20 @@ export const AdminAppointmentsMonitor: React.FC = () => {
     );
   }, [salonsWithMetrics, search]);
 
-  // Salão Atualmente Selecionado para Detalhamento
   const activeSalonData = useMemo(() => {
     if (!selectedSalonId) return null;
     return salonsWithMetrics.find((item) => item.salon.id === selectedSalonId) || null;
   }, [selectedSalonId, salonsWithMetrics]);
 
-  // Agendamentos Filtrados do Salão Selecionado
   const filteredActiveSalonAppointments = useMemo(() => {
     if (!activeSalonData) return [];
     return activeSalonData.appointments.filter((apt) => {
-      // Status
+
       if (statusFilter !== 'all' && apt.status !== statusFilter) return false;
 
-      // Origem (Radar vs Padrão)
       if (filterType === 'radar' && !apt.is_radar_offer) return false;
       if (filterType === 'standard' && apt.is_radar_offer) return false;
 
-      // Busca texto
       if (search.trim()) {
         const q = search.toLowerCase();
         const matchClient = (apt.client_name?.toLowerCase() || '').includes(q);
@@ -249,7 +238,6 @@ export const AdminAppointmentsMonitor: React.FC = () => {
     });
   }, [activeSalonData, statusFilter, filterType, search]);
 
-  // Exportar CSV
   const handleExportCSV = (salonData?: typeof activeSalonData) => {
     const items = salonData ? salonData.appointments : appointments;
     const headers = [
@@ -294,7 +282,6 @@ export const AdminAppointmentsMonitor: React.FC = () => {
     document.body.removeChild(link);
   };
 
-  // Enviar Fatura WhatsApp
   const handleSendWhatsApp = (item: NonNullable<typeof activeSalonData>) => {
     const cleanPhone = (item.salon.phone_whatsapp || '').replace(/\D/g, '');
     const monthName = formatCompetenceLabel(selectedCompetence);
@@ -335,7 +322,7 @@ export const AdminAppointmentsMonitor: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden">
-      {/* Top Banner Informativo & Seletor de Competência — Fixo ao Topo sem espaçamento com o cabeçalho superior, separado por linha */}
+
       <div className="shrink-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 lg:px-6 py-2.5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 z-10 transition-colors shadow-2xs dark:shadow-none">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 flex items-center justify-center shrink-0">
@@ -351,7 +338,6 @@ export const AdminAppointmentsMonitor: React.FC = () => {
           </div>
         </div>
 
-        {/* Competência Selector */}
         <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 shrink-0 self-start md:self-auto shadow-xs dark:shadow-none">
           <Calendar className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
           <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Período:</span>
@@ -372,26 +358,19 @@ export const AdminAppointmentsMonitor: React.FC = () => {
         </div>
       </div>
 
-      {/* Área de Dados Rolável — Zero espaço no contêiner, rolagem vertical pura */}
       <div className="flex-1 overflow-y-auto p-0 m-0 min-h-0 custom-scrollbar">
         <div className="p-4 lg:p-6 space-y-4">
 
-      {/* ======================================================== */}
-      {/* RADAR DE DESLOCAMENTO AO VIVO (10s) & LINHA SHOPEE       */}
-      {/* ======================================================== */}
       <LiveAppointmentTrackingHub
         appointments={activeSalonData ? activeSalonData.appointments : appointments}
         selectedSalonName={activeSalonData?.salon.trade_name}
       />
 
-      {/* ======================================================== */}
-      {/* NÍVEL 1: LISTAGEM DE ESTABELECIMENTOS                    */}
-      {/* ======================================================== */}
       {!selectedSalonId && (
         <div className="space-y-4 animate-fadeIn">
-          {/* Cards de Resumo Geral da Competência (Incluindo Cancelados) */}
+
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {/* Total Agendamentos */}
+
             <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between shadow-xs dark:shadow-none">
               <div>
                 <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 dark:text-slate-400 block uppercase">
@@ -407,7 +386,6 @@ export const AdminAppointmentsMonitor: React.FC = () => {
               </div>
             </div>
 
-            {/* Atendimentos Concluídos */}
             <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between shadow-xs dark:shadow-none">
               <div>
                 <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 dark:text-slate-400 block uppercase">
@@ -423,7 +401,6 @@ export const AdminAppointmentsMonitor: React.FC = () => {
               </div>
             </div>
 
-            {/* Agendamentos Cancelados */}
             <div className="p-3.5 rounded-xl bg-rose-50/70 dark:bg-slate-900 border border-rose-200 dark:border-rose-500/30 flex items-center justify-between shadow-xs dark:shadow-none">
               <div>
                 <span className="text-[10px] sm:text-[11px] font-bold text-rose-700 dark:text-rose-300 block uppercase">
@@ -439,7 +416,6 @@ export const AdminAppointmentsMonitor: React.FC = () => {
               </div>
             </div>
 
-            {/* Total Fatura VagouApp */}
             <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-500/40 flex items-center justify-between shadow-xs">
               <div>
                 <span className="text-[10px] sm:text-[11px] font-bold text-emerald-800 dark:text-emerald-300 block uppercase">
@@ -456,7 +432,6 @@ export const AdminAppointmentsMonitor: React.FC = () => {
             </div>
           </div>
 
-          {/* Barra de Busca, Alternador de Modo de Exibição & Ações */}
           <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-xs dark:shadow-none">
             <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 flex-1 max-w-md shadow-xs dark:shadow-none">
               <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 mr-2 shrink-0" />
@@ -470,7 +445,7 @@ export const AdminAppointmentsMonitor: React.FC = () => {
             </div>
 
             <div className="flex items-center justify-between sm:justify-end gap-2.5">
-              {/* Botões de Alternância de Visualização (Tabela vs Cards) */}
+
               <div className="flex items-center p-1 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
                 <button
                   type="button"
@@ -515,7 +490,6 @@ export const AdminAppointmentsMonitor: React.FC = () => {
             </div>
           </div>
 
-          {/* MODO 1: LISTA TABULAR (TABELA OFICIAL SOBERANA DA TRÍADE) */}
           {viewMode === 'table' ? (
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden transition-colors flex flex-col">
               <div className="overflow-auto max-h-[600px] custom-scrollbar w-full">
@@ -553,7 +527,7 @@ export const AdminAppointmentsMonitor: React.FC = () => {
                           className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition cursor-pointer group text-slate-800 dark:text-slate-200"
                           title={`Clique para abrir o extrato detalhado de ${item.salon.trade_name}`}
                         >
-                          {/* Estabelecimento */}
+
                           <td className="py-3.5 px-4">
                             <div className="flex items-center gap-3">
                               {item.salon.logo_url ? (
@@ -576,46 +550,38 @@ export const AdminAppointmentsMonitor: React.FC = () => {
                             </div>
                           </td>
 
-                          {/* Subdomínio */}
                           <td className="py-3.5 px-3 whitespace-nowrap">
                             <span className="font-mono text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20 font-medium">
                               {item.salon.slug}.vagouapp.com
                             </span>
                           </td>
 
-                          {/* Agendados */}
                           <td className="py-3.5 px-3 text-center font-bold text-slate-900 dark:text-white">
                             {item.appointmentsCount}
                           </td>
 
-                          {/* Concluídos */}
                           <td className="py-3.5 px-3 text-center font-bold text-emerald-600 dark:text-emerald-400">
                             {item.billableCount}
                           </td>
 
-                          {/* Cancelados */}
                           <td className="py-3.5 px-3 text-center font-bold text-rose-600 dark:text-rose-400">
                             {item.cancelledCount}
                           </td>
 
-                          {/* Volume Transacionado */}
                           <td className="py-3.5 px-3 text-right font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
                             {formatBRL(item.grossRevenue)}
                           </td>
 
-                          {/* Fatura Vagou */}
                           <td className="py-3.5 px-3 text-right font-extrabold text-slate-900 dark:text-white whitespace-nowrap">
                             {formatBRL(item.totalInvoice)}
                           </td>
 
-                          {/* Modelo de Cobrança */}
                           <td className="py-3.5 px-3 text-center whitespace-nowrap">
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20">
                               {item.isSubscription ? 'Assinatura' : 'Pay-per-Booking'}
                             </span>
                           </td>
 
-                          {/* Ação */}
                           <td className="py-3.5 px-4 text-right whitespace-nowrap">
                             <button
                               type="button"
@@ -633,7 +599,7 @@ export const AdminAppointmentsMonitor: React.FC = () => {
               </div>
             </div>
           ) : (
-            /* MODO 2: CARDS GRID (ALTERNATIVA DE VISUALIZAÇÃO) */
+
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
               {filteredSalonsList.map((item) => (
                 <div
@@ -646,7 +612,7 @@ export const AdminAppointmentsMonitor: React.FC = () => {
                   }}
                   className="group p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-500/60 transition cursor-pointer flex flex-col justify-between space-y-3.5 hover:shadow-lg shadow-xs dark:shadow-none"
                 >
-                  {/* Header do Card */}
+
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
                       {item.salon.logo_url ? (
@@ -673,7 +639,6 @@ export const AdminAppointmentsMonitor: React.FC = () => {
                     </span>
                   </div>
 
-                  {/* Métricas do Estabelecimento na Competência: 4 colunas responsivas */}
                   <div className="grid grid-cols-4 gap-1.5 sm:gap-2 bg-slate-50 dark:bg-slate-950/70 p-2 sm:p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800/80 text-center">
                     <div>
                       <span className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 block uppercase font-medium truncate">
@@ -712,7 +677,6 @@ export const AdminAppointmentsMonitor: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Rodapé do Card com CTA */}
                   <div className="pt-2 flex items-center justify-between text-xs border-t border-slate-200 dark:border-slate-800/60">
                     <span className="text-slate-500 dark:text-slate-400 text-[11px]">
                       Volume: <strong className="text-slate-900 dark:text-white">{formatBRL(item.grossRevenue)}</strong>
@@ -728,12 +692,9 @@ export const AdminAppointmentsMonitor: React.FC = () => {
         </div>
       )}
 
-      {/* ======================================================== */}
-      {/* NÍVEL 2: SEÇÃO EXCLUSIVA DO ESTABELECIMENTO SELECIONADO  */}
-      {/* ======================================================== */}
       {selectedSalonId && activeSalonData && (
         <div className="space-y-4 animate-fadeIn">
-          {/* Barra de Voltar & Identidade do Salão */}
+
           <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 shadow-xs dark:shadow-none">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
               <button
@@ -783,7 +744,6 @@ export const AdminAppointmentsMonitor: React.FC = () => {
               </div>
             </div>
 
-            {/* Dados Principais do Salão */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div className="flex items-center gap-3.5">
                 {activeSalonData.salon.logo_url ? (
@@ -811,7 +771,6 @@ export const AdminAppointmentsMonitor: React.FC = () => {
                 </div>
               </div>
 
-              {/* Tag Modelo Comercial */}
               <div className="flex items-center gap-2 self-start lg:self-auto bg-slate-50 dark:bg-slate-950 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-xs shrink-0 shadow-xs dark:shadow-none">
                 <Receipt className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                 <span className="text-slate-500 dark:text-slate-400">Acordo Comercial:</span>
@@ -823,7 +782,6 @@ export const AdminAppointmentsMonitor: React.FC = () => {
               </div>
             </div>
 
-            {/* Mini Dashboard de Métricas Deste Salão */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-2">
               <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 shadow-xs dark:shadow-none">
                 <span className="text-[10px] text-slate-500 dark:text-slate-400 block uppercase font-medium">Total Agendados</span>
@@ -837,7 +795,6 @@ export const AdminAppointmentsMonitor: React.FC = () => {
                 <span className="text-[10px] text-emerald-600/80 dark:text-emerald-500/80">Atendidos com sucesso</span>
               </div>
 
-              {/* Card Cancelados do Salão */}
               <div className="p-3 rounded-xl bg-rose-50/80 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-500/30 shadow-xs dark:shadow-none">
                 <span className="text-[10px] font-bold text-rose-700 dark:text-rose-300 block uppercase">Cancelados / Isentos</span>
                 <span className="text-lg font-extrabold text-rose-600 dark:text-rose-400 mt-0.5 block">{activeSalonData.cancelledCount}</span>
@@ -860,7 +817,6 @@ export const AdminAppointmentsMonitor: React.FC = () => {
             </div>
           </div>
 
-          {/* Filtros da Tabela Exclusiva */}
           <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-xs dark:shadow-none">
             <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 flex-1 max-w-md shadow-xs dark:shadow-none">
               <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 mr-2 shrink-0" />
@@ -874,7 +830,7 @@ export const AdminAppointmentsMonitor: React.FC = () => {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {/* Status Select */}
+
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
@@ -890,7 +846,6 @@ export const AdminAppointmentsMonitor: React.FC = () => {
                 <option value="BLOQUEADO">Bloqueado / Pausa</option>
               </select>
 
-              {/* Origem */}
               <div className="flex items-center bg-slate-50 dark:bg-slate-950 p-1 rounded-lg border border-slate-200 dark:border-slate-800">
                 <button
                   onClick={() => setFilterType('all')}
@@ -921,7 +876,6 @@ export const AdminAppointmentsMonitor: React.FC = () => {
             </div>
           </div>
 
-          {/* Tabela do Histórico Completo de Agendamentos do Salão */}
           <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs dark:shadow-none">
             <div className="overflow-auto max-h-[600px] custom-scrollbar w-full">
               <table className="w-full text-left text-xs min-w-[700px] border-separate border-spacing-0">
@@ -956,14 +910,13 @@ export const AdminAppointmentsMonitor: React.FC = () => {
 
                       return (
                         <tr key={apt.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
-                          {/* Protocolo */}
+
                           <td className="py-3 px-3.5">
                             <span className="font-mono text-emerald-700 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20 text-[11px]">
                               {apt.protocol}
                             </span>
                           </td>
 
-                          {/* Titular e Atendido (Family Support + Pausa / Bloqueio) */}
                           <td className="py-3 px-3">
                             {isBlocked ? (
                               <div>
@@ -998,7 +951,6 @@ export const AdminAppointmentsMonitor: React.FC = () => {
                             )}
                           </td>
 
-                          {/* Serviço e Especialista */}
                           <td className="py-3 px-3">
                             <span className="text-slate-800 dark:text-slate-200 font-medium block truncate max-w-[190px]">
                               {apt.service_title}
@@ -1008,7 +960,6 @@ export const AdminAppointmentsMonitor: React.FC = () => {
                             </span>
                           </td>
 
-                          {/* Data / Horário (Mais próximo -> Mais distante) */}
                           <td className="py-3 px-3">
                             <span className="text-slate-800 dark:text-slate-200 font-mono text-[11px] font-semibold block">
                               {apt.start_time || apt.time_slot}
@@ -1018,7 +969,6 @@ export const AdminAppointmentsMonitor: React.FC = () => {
                             </span>
                           </td>
 
-                          {/* Valor & Baixa de Caixa Real (Pago vs À pagar) */}
                           <td className="py-3 px-3">
                             <span className="font-mono font-bold text-slate-900 dark:text-white text-xs block">
                               {isBlocked ? '—' : formatBRL(apt.price)}
@@ -1037,7 +987,6 @@ export const AdminAppointmentsMonitor: React.FC = () => {
                             )}
                           </td>
 
-                          {/* Taxa Vagou */}
                           <td className="py-3 px-3">
                             <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400 text-xs bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20">
                               {apt.status === 'cancelado' || apt.status === 'no_show' || isBlocked
@@ -1046,7 +995,6 @@ export const AdminAppointmentsMonitor: React.FC = () => {
                             </span>
                           </td>
 
-                          {/* Origem, Alertas (Permuta / Colisão Geotemporal) & Status */}
                           <td className="py-3 px-4 text-right">
                             <div className="flex flex-wrap items-center justify-end gap-1.5">
                               {hasCollision && (
@@ -1080,7 +1028,6 @@ export const AdminAppointmentsMonitor: React.FC = () => {
                                 {isBlocked ? 'Bloqueado' : apt.status.replace('_', ' ')}
                               </span>
 
-                              {/* Botão de Cobrança / Enviar PIX Pós-Serviço */}
                               {apt.status !== 'cancelado' && !isBlocked && (
                                 <button
                                   type="button"
@@ -1125,7 +1072,6 @@ export const AdminAppointmentsMonitor: React.FC = () => {
         </div>
       )}
 
-      {/* 📲 Modal de Cobrança PIX Pós-Serviço (WhatsApp / QR Code na Tela) */}
       {selectedPixCheckout && (
         <PixCheckoutModal
           isOpen={Boolean(selectedPixCheckout)}

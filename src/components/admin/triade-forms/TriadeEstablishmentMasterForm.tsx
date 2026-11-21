@@ -32,7 +32,6 @@ import {
   Star,
   Printer,
   QrCode,
-  MessageCircle,
   Send,
 } from 'lucide-react';
 import {
@@ -43,9 +42,10 @@ import {
   formatPixKeyByType,
   detectPixKeyType,
   lookupPixKeyHolder,
+  uploadBinaryMediaFile,
 } from '../../../services/supabaseApi';
 import { AdminSalonItem, PixKeyType, SalonPixKeyItem } from '../../../types/admin';
-import { getPixQrCodeUrl, generatePixPayload } from '../../../services/pixGenerator';
+import { getPixQrCodeUrl } from '../../../services/pixGenerator';
 import { SalonPixPrintModal } from '../SalonPixPrintModal';
 import { PixCheckoutModal } from '../PixCheckoutModal';
 import { VagouOfficialLogo } from '../../common/VagouOfficialLogo';
@@ -56,30 +56,26 @@ import { GoogleAddressPinPicker } from '../GoogleAddressPinPicker';
 import { useDeviceViewport } from '../../../hooks/useDeviceViewport';
 
 export interface EstablishmentMasterPayload {
-  // Titular / Proprietário (Dados Pessoais — CPF pertence exclusivamente à Pessoa Física)
+
   ownerName: string;
   ownerWhatsapp: string;
   ownerEmail: string;
   ownerCpf?: string;
 
-  // Dados Comerciais (Isolados)
   tradeName: string;
   category: string;
   slug: string;
 
-  // Dados Fiscais (Pessoa Jurídica — Opcional)
   hasCnpj?: boolean;
   legalName: string;
   documentType: 'CNPJ' | 'CPF';
   documentNumber: string;
 
-  // Dados de Faturamento (Múltiplas Chaves PIX)
   pixKey: string;
   pixKeys?: SalonPixKeyItem[];
   operationalModel: string;
   platformPlan: string;
 
-  // Localização & Endereço
   address: {
     cep: string;
     street: string;
@@ -92,19 +88,18 @@ export interface EstablishmentMasterPayload {
     longitude?: number | null;
   };
 
-  // Identidade Visual (Essenciais de Marca & PWA — Sincronizado com mnvapp e pvapp)
   logoUrl: string;
   faviconUrl: string;
   primaryColor: string;
   slogan: string;
   brandFont: 'Poppins' | 'Cormorant Garamond' | 'Oswald' | 'Plus Jakarta Sans' | string;
-  // Campos complementares preenchidos pós-cadastro no painel do salão (mnvapp)
+
   bannerUrl?: string;
   bio?: string;
   instagram?: string;
 }
 
-export type EstabMasterPhase =
+type EstabMasterPhase =
   | 'user_check'
   | 'commercial'
   | 'fiscal'
@@ -114,10 +109,10 @@ export type EstabMasterPhase =
   | 'review'
   | 'welcome';
 
-export type EstabUserAuthSubFlow = 'none' | 'login' | 'register';
-export type EstabAddressSubPhase = 'same_address_modal' | 'cep_modal' | 'address_form';
+type EstabUserAuthSubFlow = 'none' | 'login' | 'register';
+type EstabAddressSubPhase = 'same_address_modal' | 'cep_modal' | 'address_form';
 
-export interface TriadeEstablishmentMasterFormProps {
+interface TriadeEstablishmentMasterFormProps {
   initialData?: Partial<EstablishmentMasterPayload>;
   onSuccess?: (data: EstablishmentMasterPayload, createdSalon?: AdminSalonItem) => void;
   onClose?: () => void;
@@ -146,24 +141,18 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
 }) => {
   const { device } = useDeviceViewport();
 
-  // Passos do Fluxo Inicial de Cadastramento (Regra de Negócio VagouApp)
   const [flowStep, setFlowStep] = useState<'user_check' | 'establishment_details'>(
     (forcedStep || initialStep) === 'user_check' ? 'user_check' : 'establishment_details'
   );
 
-  // Sub-rotina transitória de Login/Cadastro de Usuário dentro de 1. Identificação (Sim/Não)
   const [userAuthSubFlow, setUserAuthSubFlowState] = useState<EstabUserAuthSubFlow>('none');
   const setUserAuthSubFlow = (next: EstabUserAuthSubFlow) => {
     setUserAuthSubFlowState(next);
     onUserAuthSubFlowChange?.(next);
   };
 
-  // Abas do formulário de dados do salão (Comercial, Fiscal e PIX totalmente isolados)
   const [activeSection, setActiveSection] = useState<'commercial' | 'fiscal' | 'pix_billing' | 'address' | 'visual'>('commercial');
-  // Sub-fases do Endereço do Estabelecimento:
-  // 1) 'same_address_modal' ("O salão fica no mesmo endereço do proprietário?")
-  // 2) 'cep_modal' (Modal isolado de CEP idêntico ao cadastro de usuário)
-  // 3) 'address_form' (Campos de endereço completados para conferência e número)
+
   const [addressSubPhase, setAddressSubPhaseState] = useState<EstabAddressSubPhase>('same_address_modal');
   const setAddressSubPhase = (next: EstabAddressSubPhase) => {
     setAddressSubPhaseState(next);
@@ -227,9 +216,8 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
     }
   }, [forcedAddressSubPhase]);
 
-  // Estados do Proprietário Autenticado
-  const [isAuthenticatedOwner, setIsAuthenticatedOwner] = useState<boolean>(false);
-  const [selectedUser, setSelectedUser] = useState<{
+  const [, setIsAuthenticatedOwner] = useState<boolean>(false);
+  const [, setSelectedUser] = useState<{
     id: string;
     name: string;
     email: string;
@@ -237,7 +225,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
     username: string;
   } | null>(null);
 
-  // Estados de Vínculo de Endereço (Salão no mesmo endereço residencial do proprietário)
   const [isSameAddressChosen, setIsSameAddressChosen] = useState<boolean | null>(null);
   const [ownerAddressData, setOwnerAddressData] = useState<{
     cep: string;
@@ -257,7 +244,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
     state: initialData?.address?.state || '',
   });
 
-  // Dados Pessoais do Proprietário no Formulário do Salão (CPF pertence ao cadastro pessoal do titular)
   const [ownerName, setOwnerName] = useState(initialData?.ownerName || '');
   const [ownerWhatsapp, setOwnerWhatsapp] = useState(initialData?.ownerWhatsapp || '');
   const [ownerEmail, setOwnerEmail] = useState(initialData?.ownerEmail || '');
@@ -266,7 +252,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
       (initialData?.documentType === 'CPF' ? initialData?.documentNumber || '' : '')
   );
 
-  // 1. Dados Comerciais (Isolados)
   const [tradeName, setTradeName] = useState(initialData?.tradeName || '');
   const [category, setCategory] = useState(initialData?.category || 'Barbearia');
   const [slug, setSlug] = useState(
@@ -279,7 +264,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
   const [slugSuggestions, setSlugSuggestions] = useState<string[]>([]);
   const [takenByTradeName, setTakenByTradeName] = useState<string>('');
 
-  // 2. Dados Fiscais (Pessoa Jurídica — CNPJ Opcional; CPF não aparece aqui)
   const [hasCnpj, setHasCnpj] = useState<boolean>(
     initialData?.hasCnpj ?? (initialData?.documentType === 'CNPJ' && Boolean(initialData?.documentNumber))
   );
@@ -289,7 +273,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
   const [legalName, setLegalName] = useState(initialData?.legalName || '');
   const [isSearchingCnpj, setIsSearchingCnpj] = useState(false);
 
-  // 3. Dados de Faturamento & Recebimento (Múltiplas Chaves PIX com Auto-Preenchimento)
   const [pixKeys, setPixKeys] = useState<SalonPixKeyItem[]>(() => {
     if (Array.isArray(initialData?.pixKeys) && initialData.pixKeys.length > 0) {
       return initialData.pixKeys;
@@ -325,7 +308,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
   const operationalModel = initialData?.operationalModel || 'Espaço Físico & Delivery';
   const platformPlan = initialData?.platformPlan || 'PER_APPOINTMENT';
 
-  // Endereço do Salão com ViaCEP + Coordenadas Google Maps
   const [cep, setCep] = useState(initialData?.address?.cep || '');
   const [street, setStreet] = useState(initialData?.address?.street || '');
   const [number, setNumber] = useState(initialData?.address?.number || '');
@@ -339,12 +321,10 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
   const [isSearchingCep, setIsSearchingCep] = useState(false);
   const [isSearchingCepByAddress, setIsSearchingCepByAddress] = useState(false);
 
-  // Máscara dinâmica de CPF (11 dígitos) e CNPJ (14 dígitos)
   const formatFiscalDocument = (value: string, type: 'CNPJ' | 'CPF') => {
     return formatPixKeyByType(value, type === 'CPF' ? 'cpf' : 'cnpj');
   };
 
-  // Busca automática de Razão Social / Nome Fantasia ao informar CNPJ de 14 dígitos (BrasilAPI)
   const handleCnpjLookup = async (rawCnpj: string) => {
     const clean = rawCnpj.replace(/\D/g, '');
     if (clean.length !== 14) return;
@@ -360,7 +340,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         handleTradeNameChange(data.nome_fantasia);
       }
     } catch {
-      // Falha silenciosa caso offline ou CNPJ de teste
+
     } finally {
       setIsSearchingCnpj(false);
     }
@@ -374,11 +354,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
     }
   };
 
-  const handleOwnerCpfChange = (val: string) => {
-    setOwnerCpf(formatFiscalDocument(val, 'CPF'));
-  };
-
-  // Funções de Gerenciamento de Múltiplas Chaves PIX & Consulta Automática de Titular
   const triggerPixAutoLookup = async (id: string, keyVal: string, keyType: PixKeyType) => {
     setLookingUpPixId(id);
     try {
@@ -502,7 +477,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
     );
   };
 
-  // Identidade Visual & Branding (Essenciais: Logotipo, Favicon, Cor, Slogan e Fonte da Marca)
   const [logoUrl, setLogoUrl] = useState(initialData?.logoUrl || '');
   const [faviconUrl, setFaviconUrl] = useState(initialData?.faviconUrl || '');
   const [useLogoAsFavicon, setUseLogoAsFavicon] = useState(true);
@@ -540,34 +514,43 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
   const activeBrandFontFamily =
     BRAND_FONT_PRESETS.find((f) => f.id === brandFont)?.fontFamily || "'Poppins', sans-serif";
 
-  // Upload local de Logotipo e Favicon (Galeria do celular ou computador)
-  const handleImageUpload = (
+  const handleImageUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
     target: 'logo' | 'favicon'
   ) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = typeof reader.result === 'string' ? reader.result : '';
+
+    setFeedback(null);
+    const uploadRes = await uploadBinaryMediaFile(file, {
+      bucket: 'branding',
+      ownerType: target === 'logo' ? 'salon_logo_light' : 'salon_icon',
+      title: `${tradeName || slug || 'estabelecimento'}-${target}`,
+    });
+
+    if (uploadRes.success && uploadRes.url) {
       if (target === 'logo') {
-        setLogoUrl(result);
+        setLogoUrl(uploadRes.url);
         if (useLogoAsFavicon) {
-          setFaviconUrl(result);
+          setFaviconUrl(uploadRes.url);
         }
       } else {
-        setFaviconUrl(result);
+        setFaviconUrl(uploadRes.url);
         setUseLogoAsFavicon(false);
       }
-    };
-    reader.readAsDataURL(file);
+      setFeedback({ type: 'success', message: 'Imagem salva no Supabase Storage com sucesso!' });
+    } else {
+      setFeedback({
+        type: 'error',
+        message: uploadRes.error || 'Falha ao enviar imagem para o Storage.',
+      });
+    }
   };
 
-  // Estados de Submissão
   const [isLoading, setIsLoading] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // Formatações e Busca de CEP (Idêntica à lógica do Cadastro de Usuário)
   const formatCep = (value: string) => {
     const raw = value.replace(/\D/g, '').slice(0, 8);
     if (raw.length <= 5) return raw;
@@ -627,13 +610,11 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
     }
   };
 
-  // Pular CEP quando o usuário clica em "Não sei meu CEP"
   const handleSkipSalonCep = () => {
     setFeedback(null);
     setAddressSubPhase('address_form');
   };
 
-  // Avançar manualmente a partir do Modal de CEP
   const handleNextFromSalonCep = () => {
     setFeedback(null);
     const cleanCep = cep.replace(/\D/g, '');
@@ -647,7 +628,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
     }
   };
 
-  // Busca Reversa Silenciosa de CEP pelos dados básicos do endereço (ViaCEP)
   const searchSalonCepByAddress = async () => {
     const cleanCep = cep.replace(/\D/g, '');
     if (cleanCep.length === 8) return;
@@ -702,7 +682,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         }
       }
     } catch {
-      // Falha silenciosa em background
+
     } finally {
       setIsSearchingCepByAddress(false);
     }
@@ -726,7 +706,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
     setSlug(sanitizeSalonSlug(tradeName));
   };
 
-  // Pesquisa automática em tempo real para impedir repetição de slug no banco Supabase
   useEffect(() => {
     const clean = sanitizeSalonSlug(slug);
     if (!clean || clean.length < 3) {
@@ -765,7 +744,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
     };
   }, [slug, ownerEmail]);
 
-  // Função para Copiar Endereço Residencial do Proprietário e Avançar para Próxima Fase
   const applyOwnerAddressToSalon = (addrData?: typeof ownerAddressData) => {
     const source = addrData || ownerAddressData;
     if (!source.street && !source.cep) {
@@ -788,7 +766,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
     updatePhase('visual');
   };
 
-  // Sucesso na autenticação via formulário canônico de login de usuário
   const handleUserLoginSuccess = async (data: TriadeUserLoginPayload) => {
     try {
       const term = data.identifier.toLowerCase().trim();
@@ -845,7 +822,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
           }
         }
       } catch {
-        // Continua com os dados retornados pelo payload de login
+
       }
 
       setSelectedUser(matchedUser);
@@ -855,7 +832,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
       setOwnerAddressData(resolvedOwnerAddr);
       setIsAuthenticatedOwner(true);
 
-      // Limpa qualquer dado residual e vincula dados pessoais reais do titular autenticado
       setTradeName('');
       setSlug('');
       setIsCustomSlug(false);
@@ -926,7 +902,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
     }
   };
 
-  // Submissão Final do Estabelecimento Comercial (Persistência Real no Supabase)
   const handleConfirmCreateSalon = async () => {
     setFeedback(null);
 
@@ -1117,7 +1092,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
       setCreatedSalonResult({ payload, salon: res.salon });
       setIsReviewModalOpen(false);
 
-      // Se estiver apenas no Estúdio de Formulários do Admin (forcedStep controlado), exibe preview
       if (forcedStep !== undefined) {
         setIsWelcomeModalOpen(true);
         onStepChange?.('welcome');
@@ -1129,7 +1103,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         return;
       }
 
-      // Fluxo Real (Embed, Gateway vagouapp.com ou Modal): Fecha o modal imediatamente e já abre o app do estabelecimento criado para o profissional
       onSuccess?.(enrichedPayload as any, res.salon);
       onClose?.();
 
@@ -1242,12 +1215,9 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         </button>
       )}
 
-      {/* ========================================================================= */}
-      {/* ETAPA 1: IDENTIFICAÇÃO (SIM/NÃO) + SUB-ROTINA TRANSITÓRIA DE USUÁRIO      */}
-      {/* ========================================================================= */}
       {flowStep === 'user_check' && userAuthSubFlow === 'none' && (
         <div className="w-full px-5 py-6 sm:p-7 space-y-5 text-center animate-fadeIn">
-          {/* Logo Oficial do VagouApp na Etapa 1 */}
+
           <VagouOfficialLogo size="xl" variant="full" className="h-9 sm:h-10 w-auto object-contain mx-auto" />
 
           <div className="space-y-1.5">
@@ -1257,7 +1227,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
           </div>
 
           <div className="flex flex-col items-center gap-3 pt-1">
-            {/* Opção SIM -> Chama Form Canônico de Login de Usuário e retorna aos Dados do Salão */}
+
             <button
               type="button"
               onClick={() => setUserAuthSubFlow('login')}
@@ -1267,7 +1237,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
               <Check className="w-4 h-4 text-emerald-400 shrink-0" />
             </button>
 
-            {/* Opção NÃO -> Chama Form Canônico de Cadastro de Usuário e retorna aos Dados do Salão */}
             <button
               type="button"
               onClick={() => setUserAuthSubFlow('register')}
@@ -1315,7 +1284,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         </div>
       )}
 
-      {/* SUB-ROTINA TRANSITÓRIA (OPÇÃO NÃO): CADASTRO DE USUÁRIO E RETORNO AO SALÃO */}
       {flowStep === 'user_check' && userAuthSubFlow === 'register' && (
         <div className="w-full px-5 py-5 sm:p-6 space-y-4 animate-fadeIn">
           <div className="pt-1 text-center">
@@ -1357,7 +1325,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
               };
               setOwnerAddressData(newOwnerAddr);
 
-              // Limpa dados comerciais e fiscais para que o novo proprietário cadastre seu próprio estabelecimento
               setTradeName('');
               setSlug('');
               setIsCustomSlug(false);
@@ -1438,13 +1405,10 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* ETAPAS DO ESTABELECIMENTO COMERCIAL (COMPACTO & PROPORCIONAL)             */}
-      {/* ========================================================================= */}
       {flowStep === 'establishment_details' && (
         <div className="w-full animate-fadeIn">
           <form onSubmit={handleSubmit} className="w-full px-5 py-5 sm:p-6 space-y-4">
-            {/* Logo Oficial do VagouApp integrado dentro do <form> */}
+
             <div className="pb-1 text-center">
               <VagouOfficialLogo size="xl" variant="full" className="h-9 sm:h-10 w-auto object-contain mx-auto" />
             </div>
@@ -1466,12 +1430,9 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
               </div>
             )}
 
-            {/* ========================================================================= */}
-            {/* ETAPA 1 DO SALÃO: DADOS PESSOAIS DO TITULAR + DADOS COMERCIAIS (ISOLADOS) */}
-            {/* ========================================================================= */}
             {activeSection === 'commercial' && (
               <div className="w-full space-y-4 animate-fadeIn">
-                {/* BLOCO 1: DADOS PESSOAIS DO PROPRIETÁRIO (Plano no mobile, card proporcional no tablet/desktop) */}
+
                 <div className="w-full bg-transparent sm:bg-slate-950/70 border-0 sm:border sm:border-slate-800 rounded-none sm:rounded-xl p-0 sm:p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800 flex-wrap">
                     <div className="flex items-center gap-1.5">
@@ -1502,7 +1463,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                   </div>
                 </div>
 
-                {/* BLOCO 2: DADOS COMERCIAIS DO ESTABELECIMENTO (ISOLADO DE FISCAL E PIX) */}
                 <div className="w-full bg-transparent sm:bg-slate-950/70 border-0 sm:border sm:border-slate-800 rounded-none sm:rounded-xl p-0 sm:p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800 flex-wrap">
                     <div className="flex items-center gap-1.5">
@@ -1517,7 +1477,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-                    {/* 1. Nome Fantasia (7 colunas no tablet/desktop, 100% no mobile) */}
+
                     <div className="sm:col-span-7">
                       <label className="block text-[11px] font-semibold text-slate-300 mb-1">
                         Nome Fantasia <span className="text-emerald-400">*</span>
@@ -1532,7 +1492,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                       />
                     </div>
 
-                    {/* 2. Categoria do Estabelecimento (5 colunas no tablet/desktop, 100% no mobile) */}
                     <div className="sm:col-span-5">
                       <label className="block text-[11px] font-semibold text-slate-300 mb-1">
                         Categoria <span className="text-emerald-400">*</span>
@@ -1551,7 +1510,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                       </select>
                     </div>
 
-                    {/* 3. Link Personalizado do App (Sem hífen) */}
                     <div className="sm:col-span-12 pt-0.5">
                       <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
                         <label className="block text-[11px] font-semibold text-slate-300">
@@ -1673,9 +1631,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
               </div>
             )}
 
-            {/* ========================================================================= */}
-            {/* ETAPA 2 DO SALÃO: DADOS FISCAIS (ISOLADO — APENAS CNPJ / AUTÔNOMO)        */}
-            {/* ========================================================================= */}
             {activeSection === 'fiscal' && (
               <div className="w-full space-y-3.5 animate-fadeIn">
                 <div className="w-full bg-transparent sm:bg-slate-950/70 border-0 sm:border sm:border-slate-800 rounded-none sm:rounded-xl p-0 sm:p-4 space-y-3">
@@ -1691,7 +1646,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                     </span>
                   </div>
 
-                  {/* Seletor: Opera sem CNPJ vs Possui CNPJ (1 coluna fullwidth no mobile, 2 colunas no tablet/desktop) */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <button
                       type="button"
@@ -1773,9 +1727,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
               </div>
             )}
 
-            {/* ========================================================================= */}
-            {/* ETAPA 3 DO SALÃO: FATURAMENTO & CHAVES PIX + QR CODE AUTOMÁTICO          */}
-            {/* ========================================================================= */}
             {activeSection === 'pix_billing' && (
               <div className="w-full space-y-3.5 animate-fadeIn">
                 <div className="w-full bg-transparent sm:bg-slate-950/70 border-0 sm:border sm:border-slate-800 rounded-none sm:rounded-xl p-0 sm:p-4 space-y-3">
@@ -1796,7 +1747,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                     </button>
                   </div>
 
-                  {/* Atalhos Rápidos para Inserir Chaves PIX com 1 Clique */}
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-[10px] text-slate-400 font-semibold mr-1">
                       Inserir rápido:
@@ -1839,7 +1789,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                     )}
                   </div>
 
-                  {/* Lista Dinâmica de Múltiplas Chaves PIX */}
                   <div className="space-y-2.5">
                     {pixKeys.map((item, idx) => (
                       <div
@@ -1927,7 +1876,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                           </div>
                         </div>
 
-                        {/* Confirmação Automática de Titularidade (Estilo App Bancário) */}
                         {item.verified && item.holderName && (
                           <div className="flex items-center justify-between gap-2 pt-0.5 px-1 text-[10px] text-emerald-400 animate-fadeIn">
                             <span className="flex items-center gap-1 font-semibold truncate">
@@ -1945,7 +1893,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                     ))}
                   </div>
 
-                  {/* PREVIEW DO QR CODE OFICIAL EM TEMPO REAL & AÇÕES DE IMPRESSÃO / COBRANÇA */}
                   {pixKeys.some((k) => k.key.trim().length > 0) && (
                     <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-3 pt-3 animate-fadeIn">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -1979,7 +1926,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                         </div>
                       </div>
 
-                      {/* Botões de Ação: Imprimir Plaquinha & Testar Cobrança */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                         <button
                           type="button"
@@ -2005,12 +1951,9 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
               </div>
             )}
 
-            {/* ========================================================================= */}
-            {/* ETAPA 3 DO SALÃO: ENDEREÇO EM 2 MODAIS SEQUENCIAIS + DADOS COMPLETOS      */}
-            {/* ========================================================================= */}
             {activeSection === 'address' && (
               <div className="w-full space-y-3.5 animate-fadeIn">
-                {/* MODAL 1 — PERGUNTA: "O salão fica no mesmo endereço do proprietário?" */}
+
                 {addressSubPhase === 'same_address_modal' && (
                   <div className="w-full bg-transparent sm:bg-slate-950/80 border-0 sm:border sm:border-slate-800 rounded-none sm:rounded-2xl p-0 sm:p-5 space-y-4 text-center animate-fadeIn">
                     <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto">
@@ -2092,7 +2035,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                   </div>
                 )}
 
-                {/* MODAL 2 — BUSCA DE CEP ISOLADA */}
                 {addressSubPhase === 'cep_modal' && (
                   <div className="w-full max-w-none sm:max-w-sm mx-auto space-y-3.5 animate-fadeIn">
                     <div className="w-full bg-transparent sm:bg-slate-950/80 border-0 sm:border sm:border-slate-800 rounded-none sm:rounded-2xl p-0 sm:p-4 space-y-3">
@@ -2162,7 +2104,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                   </div>
                 )}
 
-                {/* TELA DE DADOS DO ENDEREÇO COMPLETADOS (Fullwidth Mobile / Proporcional Tablet & Desktop) */}
                 {addressSubPhase === 'address_form' && (
                   <div className="w-full bg-transparent sm:bg-slate-950/70 border-0 sm:border sm:border-slate-800 rounded-none sm:rounded-xl p-0 sm:p-4 space-y-3 animate-fadeIn">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-800 flex-wrap gap-2">
@@ -2191,7 +2132,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                     </div>
 
                     <div className="space-y-3">
-                      {/* 1. Rua / Logradouro * (Amplo) e 2. Número * */}
+
                       <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
                         <div className="sm:col-span-9">
                           <label className="block text-[11px] font-semibold text-slate-400 mb-1">
@@ -2224,7 +2165,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                         </div>
                       </div>
 
-                      {/* 3. Complemento (4 cols) e 4. Bairro * (8 cols) */}
                       <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
                         <div className="sm:col-span-4">
                           <label className="block text-[11px] font-semibold text-slate-400 mb-1">
@@ -2255,7 +2195,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                         </div>
                       </div>
 
-                      {/* 5. Cidade * (6 cols), 6. UF * (2 cols) e 7. CEP * (4 cols) */}
                       <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
                         <div className="sm:col-span-6">
                           <label className="block text-[11px] font-semibold text-slate-400 mb-1">
@@ -2312,7 +2251,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                         </div>
                       </div>
 
-                      {/* Geocodificação Automática + Ajuste de Pino no Mapa */}
                       <GoogleAddressPinPicker
                         cep={cep}
                         address={street}
@@ -2353,7 +2291,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
               </div>
             )}
 
-            {/* ETAPA 4 DO SALÃO: IDENTIDADE VISUAL & BRANDING (Fullwidth Mobile / Proporcional Tablet & Desktop) */}
             {activeSection === 'visual' && (
               <div className="w-full bg-transparent sm:bg-slate-950/70 border-0 sm:border sm:border-slate-800 rounded-none sm:rounded-xl p-0 sm:p-4 space-y-4 animate-fadeIn">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-800 flex-wrap gap-2">
@@ -2368,9 +2305,8 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                   </span>
                 </div>
 
-                {/* 1. LOGOTIPO & 2. FAVICON */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Pilar 1: Logotipo Principal */}
+
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <label className="block text-[11px] font-semibold text-slate-200">
@@ -2425,7 +2361,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                     </label>
                   </div>
 
-                  {/* Pilar 2: Favicon / Ícone do App */}
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between gap-1">
                       <label className="block text-[11px] font-semibold text-slate-200">
@@ -2492,7 +2427,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                   </div>
                 </div>
 
-                {/* 3. COR DA MARCA (5 cols) & 4. SLOGAN (7 cols) */}
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-0.5">
                   <div className="sm:col-span-5 space-y-1.5">
                     <label className="block text-[11px] font-semibold text-slate-200">
@@ -2557,7 +2491,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                   </div>
                 </div>
 
-                {/* 5. ESTILO DA FONTE DA MARCA */}
                 <div className="space-y-2 pt-0.5">
                   <div className="flex items-center justify-between flex-wrap gap-1">
                     <label className="block text-[11px] font-semibold text-slate-200 flex items-center gap-1">
@@ -2603,7 +2536,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                   </div>
                 </div>
 
-                {/* SIMULADOR VISUAL EM TEMPO REAL */}
                 <div className="pt-2.5 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div className="flex items-center gap-2 bg-slate-900/90 px-3 py-2.5 rounded-xl">
                     <Globe className="w-3.5 h-3.5 text-slate-500 shrink-0" />
@@ -2673,7 +2605,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
               </div>
             )}
 
-            {/* RODAPÉ FIXO DE NAVEGAÇÃO PROGRESSIVA (Comercial, Fiscal, PIX & Visual) */}
             {activeSection !== 'address' && (
               <div className="pt-2 flex items-center justify-between gap-2.5">
                 <button
@@ -2762,15 +2693,12 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
             )}
           </form>
 
-          {/* ========================================================================= */}
-          {/* 📋 MODAL FINAL DE CONFIRMAÇÃO: FICHA COMPLETA DO ESTABELECIMENTO         */}
-          {/* ========================================================================= */}
           {isReviewModalOpen &&
             (() => {
               const reviewDialog = (
                 <div className="fixed inset-0 z-[9999] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fadeIn font-['Poppins']">
                   <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
-                    {/* Cabeçalho do Modal de Revisão */}
+
                     <div className="p-3.5 sm:p-4 border-b border-slate-800 flex items-center justify-between shrink-0 bg-slate-900">
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
@@ -2794,7 +2722,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                       </button>
                     </div>
 
-                    {/* Corpo Rolável da Ficha Completa */}
                     <div className="p-4 overflow-y-auto space-y-4 divide-y divide-slate-800/80 text-xs">
                       {feedback && (
                         <div
@@ -2812,7 +2739,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                           <span className="font-medium">{feedback.message}</span>
                         </div>
                       )}
-                  {/* Resumo 1: Titular Vinculado (Dados Pessoais + CPF) */}
+
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5 text-[11px]">
@@ -2848,7 +2775,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                     </div>
                   </div>
 
-                  {/* Resumo 2: Dados Comerciais */}
                   <div className="pt-4 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5 text-[11px]">
@@ -2880,7 +2806,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                     </div>
                   </div>
 
-                  {/* Resumo 3: Dados Fiscais */}
                   <div className="pt-4 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5 text-[11px]">
@@ -2912,7 +2837,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                     </div>
                   </div>
 
-                  {/* Resumo 4: Faturamento & Chaves PIX */}
                   <div className="pt-4 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5 text-[11px]">
@@ -2947,7 +2871,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                     </div>
                   </div>
 
-                  {/* Resumo 5: Endereço & Localização */}
                   <div className="pt-4 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5 text-[11px]">
@@ -2975,7 +2898,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                     </div>
                   </div>
 
-                  {/* Resumo 6: Identidade Visual & Branding */}
                   <div className="pt-4 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5 text-[11px]">
@@ -3025,7 +2947,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                   </div>
                 </div>
 
-                {/* Rodapé Fixo de Ação Final (sticky bottom-0 z-20) */}
                 <div className="sticky bottom-0 z-20 p-4 sm:p-5 bg-slate-900 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
                   <button
                     type="button"
@@ -3062,9 +2983,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* ETAPA 6: MODAL DE BOAS-VINDAS, LINK, QR CODE DE BALCÃO & ACESSO AO APP    */}
-      {/* ========================================================================= */}
       <SalonWelcomeModal
         isOpen={isWelcomeModalOpen}
         onClose={() => {
@@ -3109,9 +3027,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         }}
       />
 
-      {/* ========================================================================= */}
-      {/* 🖨️ MODAL DE IMPRESSÃO DA PLAQUINHA PIX DE BALCÃO / BANCADA                */}
-      {/* ========================================================================= */}
       <SalonPixPrintModal
         isOpen={isPrintPlaqueOpen}
         onClose={() => setIsPrintPlaqueOpen(false)}
@@ -3128,9 +3043,6 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         city={city || 'São Paulo'}
       />
 
-      {/* ========================================================================= */}
-      {/* 📲 MODAL DE COBRANÇA PIX PÓS-SERVIÇO (QR CODE NA TELA / ENVIAR WHATSAPP)  */}
-      {/* ========================================================================= */}
       <PixCheckoutModal
         isOpen={isCheckoutModalOpen}
         onClose={() => setIsCheckoutModalOpen(false)}

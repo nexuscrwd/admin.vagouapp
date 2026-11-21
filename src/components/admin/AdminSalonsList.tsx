@@ -57,7 +57,6 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
   onBulkDeleteSalons,
   onOpenNewSalon,
   searchQuery = '',
-  onSearchChange,
   selectedSalonDetail: propSelectedSalonDetail,
   onSelectSalonDetail,
 }) => {
@@ -65,8 +64,7 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
   const [statusFilter, setStatusFilter] = useState<SalonFilterStatus>('all');
   const [segmentFilter, setSegmentFilter] = useState<string>('all');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  
-  // Categorias Dinâmicas & Modal de Gestão
+
   const [categories, setCategories] = useState<SalonCategory[]>([]);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
@@ -76,13 +74,11 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
     return () => unsubscribe();
   }, []);
 
-  // Modal de Exclusão e Modal de QR Code & Link
   const [salonToDelete, setSalonToDelete] = useState<AdminSalonItem | null>(null);
   const [salonForQrModal, setSalonForQrModal] = useState<AdminSalonItem | null>(null);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Detalhes Soberanos do Estabelecimento (Interno + Sincronização com Prop)
   const [internalSelectedSalonDetail, setInternalSelectedSalonDetail] = useState<AdminSalonItem | null>(null);
 
   useEffect(() => {
@@ -103,7 +99,7 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
 
   const filteredSalons = useMemo(() => {
     return salons.filter((salon) => {
-      // Search
+
       if (activeSearch.trim()) {
         const query = activeSearch.toLowerCase();
         const matchName = salon.trade_name?.toLowerCase().includes(query);
@@ -116,12 +112,10 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
         }
       }
 
-      // Status
       if (statusFilter !== 'all') {
         if (salon.status !== statusFilter) return false;
       }
 
-      // Segment / Category Filter
       if (segmentFilter !== 'all') {
         const salonCat = (salon.category || '').toLowerCase().trim();
         const filterSlug = segmentFilter.toLowerCase().trim();
@@ -304,9 +298,9 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
 
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden">
-      {/* Unified Header & Control Bar — Fixo ao Topo sem espaçamento com cabeçalho superior, separado por linha */}
+
       <div className="shrink-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 lg:px-6 py-2.5 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5 z-10 transition-colors shadow-2xs dark:shadow-none">
-        {/* Left Side: Title & Compact Filters */}
+
         <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0">
           <div className="flex items-center gap-2 mr-1">
             <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 flex items-center justify-center shrink-0">
@@ -317,7 +311,6 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
 
           <div className="h-5 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block mx-0.5" />
 
-          {/* Filtro de Categoria (Lista suspensa compacta) */}
           <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 focus-within:border-emerald-500 transition shadow-xs dark:shadow-none">
             <Tag className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 mr-1.5 shrink-0" />
             <select
@@ -361,7 +354,6 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
             </select>
           </div>
 
-          {/* Filtro de Status (Lista suspensa compacta) */}
           <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 focus-within:border-emerald-500 transition shadow-xs dark:shadow-none">
             <Filter className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 mr-1.5 shrink-0" />
             <select
@@ -389,7 +381,6 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
           </div>
         </div>
 
-        {/* Right Side: Export, New Category, New Salon, View Switcher */}
         <div className="flex items-center justify-between lg:justify-end gap-2 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-200 dark:border-slate-800">
           <button
             onClick={handleExportCSV}
@@ -441,9 +432,8 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
         </div>
       </div>
 
-      {/* Área de Dados — Container Mestre com Zero Espaço */}
       <div className="flex-1 flex flex-col min-h-0 p-0 m-0 overflow-hidden">
-        {/* Bulk Actions Banner when items are selected */}
+
         {selectedIds.length > 0 && (
           <div className="shrink-0 p-3 bg-emerald-50 dark:bg-emerald-950/90 border-b border-emerald-300 dark:border-emerald-500/50 flex flex-wrap items-center justify-between gap-2.5 animate-fadeIn">
             <div className="flex items-center gap-2">
@@ -486,7 +476,6 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
           </div>
         )}
 
-        {/* VIEW 1: DATA TABLE — Cabeçalho das colunas 100% fixo ao topo (sticky top-0), rolando SOMENTE os dados */}
         {viewMode === 'table' && (
           <div className="flex-1 overflow-auto min-h-0 custom-scrollbar w-full bg-white dark:bg-slate-950 border-t border-slate-200/80 dark:border-slate-800/80">
             <table className="w-full text-left text-xs border-separate border-spacing-0">
@@ -555,7 +544,7 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                         }`}
                         title={`Clique para abrir a página completa de ${salon.trade_name}`}
                       >
-                        {/* Checkbox */}
+
                         <td
                           className="py-2.5 px-3 text-center border-b border-r border-slate-200/70 dark:border-slate-800/75"
                           onClick={(e) => {
@@ -572,7 +561,6 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                           </button>
                         </td>
 
-                        {/* Name & Logo */}
                         <td className="py-2.5 px-3 border-b border-r border-slate-200/70 dark:border-slate-800/75">
                           <div className="flex items-center gap-3">
                             <SalonLogo
@@ -597,31 +585,26 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                           </div>
                         </td>
 
-                        {/* Subdomain */}
                         <td className="py-2.5 px-3 border-b border-r border-slate-200/70 dark:border-slate-800/75">
                           <span className="font-mono text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20 font-medium">
                             {salon.slug}.vagouapp.com
                           </span>
                         </td>
 
-                        {/* Category */}
                         <td className="py-2.5 px-3 border-b border-r border-slate-200/70 dark:border-slate-800/75">
                           <span className="text-slate-700 dark:text-slate-300 font-medium">{getCategoryLabel(salon.category)}</span>
                         </td>
 
-                        {/* Location */}
                         <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300 border-b border-r border-slate-200/70 dark:border-slate-800/75">
                           <span className="block truncate max-w-[130px] font-medium">{salon.neighborhood || salon.city}</span>
                           <span className="text-[10px] text-slate-500 dark:text-slate-400 block">{salon.state || 'SP'}</span>
                         </td>
 
-                        {/* Contact */}
                         <td className="py-2.5 px-3 border-b border-r border-slate-200/70 dark:border-slate-800/75">
                           <span className="font-mono text-[11px] text-slate-700 dark:text-slate-300 block">{salon.phone_whatsapp || '—'}</span>
                           <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate max-w-[120px]">{salon.email || ''}</span>
                         </td>
 
-                        {/* Criado em (Data + Hora + Origem) */}
                         <td
                           className="py-2.5 px-3 border-b border-r border-slate-200/70 dark:border-slate-800/75 whitespace-nowrap"
                           title={`Criado em: ${createdParts.fullLabel} • Origem: ${originInfo.label}`}
@@ -642,7 +625,6 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                           )}
                         </td>
 
-                        {/* Status Badge */}
                         <td className="py-2.5 px-3 text-center border-b border-r border-slate-200/70 dark:border-slate-800/75">
                           <span
                             className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusBadge.className}`}
@@ -652,7 +634,6 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                           </span>
                         </td>
 
-                        {/* Actions */}
                         <td className="py-2.5 px-4 text-right border-b border-slate-200/70 dark:border-slate-800/75">
                           <div className="flex items-center justify-end gap-1.5">
                             {salon.status === 'pending' && (
@@ -735,7 +716,6 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
           </div>
         )}
 
-          {/* VIEW 2: CARDS GRID */}
           {viewMode === 'cards' && (
             <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar p-4 lg:p-6 space-y-4">
               {filteredSalons.length === 0 ? (
@@ -757,7 +737,7 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                     title={`Clique para abrir a página completa de ${salon.trade_name}`}
                   >
                     <div>
-                      {/* Top card header */}
+
                       <div className="flex items-start justify-between gap-2 mb-3">
                         <div className="relative">
                           <SalonLogo
@@ -794,7 +774,6 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                         </div>
                       </div>
 
-                      {/* Salon Title & Category */}
                       <h3 className="font-bold text-sm text-slate-900 dark:text-white tracking-tight line-clamp-1 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition">
                         {salon.trade_name}
                       </h3>
@@ -802,14 +781,12 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                         {getCategoryLabel(salon.category)} • {salon.city || 'São Paulo'}
                       </span>
 
-                      {/* Subdomain pill */}
                       <div className="mt-2.5">
                         <span className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-500/20 block truncate">
                           {salon.slug}.vagouapp.com
                         </span>
                       </div>
 
-                      {/* Details summary */}
                       <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-800 space-y-1 text-[11px] text-slate-500 dark:text-slate-400">
                         <div className="flex items-center justify-between">
                           <span>WhatsApp:</span>
@@ -828,7 +805,6 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
                       </div>
                     </div>
 
-                    {/* Bottom Quick Action */}
                     <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
                       <button
                         onClick={(e) => {
@@ -872,7 +848,6 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
             </div>
           )}
 
-          {/* MODAL: Confirmação de Exclusão Individual */}
           {salonToDelete && createPortal(
             <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
               <div className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4 relative">
@@ -925,7 +900,6 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
             document.body
           )}
 
-          {/* MODAL: Confirmação de Exclusão em Massa */}
           {isBulkDeleting && createPortal(
             <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 bg-slate-950/85 backdrop-blur-md animate-fadeIn">
               <div className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4 relative">
@@ -978,7 +952,6 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
             document.body
           )}
 
-          {/* Modal de Gestão e Criação de Categorias */}
           <AdminCategoryModal
             isOpen={isCategoryModalOpen}
             onClose={() => setIsCategoryModalOpen(false)}
@@ -988,7 +961,6 @@ export const AdminSalonsList: React.FC<AdminSalonsListProps> = ({
             }}
           />
 
-          {/* Modal de Link do App & QR Code de Balcão */}
           <SalonWelcomeModal
             isOpen={Boolean(salonForQrModal)}
             onClose={() => setSalonForQrModal(null)}

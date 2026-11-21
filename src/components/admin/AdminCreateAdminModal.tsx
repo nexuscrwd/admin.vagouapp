@@ -44,7 +44,6 @@ export const AdminCreateAdminModal: React.FC<AdminCreateAdminModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Phone mask
   const formatPhone = (val: string) => {
     const raw = val.replace(/\D/g, '').slice(0, 11);
     if (raw.length <= 2) return raw;
@@ -52,7 +51,6 @@ export const AdminCreateAdminModal: React.FC<AdminCreateAdminModalProps> = ({
     return `(${raw.slice(0, 2)}) ${raw.slice(2, 7)}-${raw.slice(7)}`;
   };
 
-  // Validations
   const cleanUsername = username.replace(/^@+/, '');
   const hasUppercase = /[A-Z]/.test(cleanUsername);
   const hasLowercase = /[a-z]/.test(cleanUsername);
@@ -150,7 +148,7 @@ export const AdminCreateAdminModal: React.FC<AdminCreateAdminModalProps> = ({
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
       <div className="relative w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[90vh] flex flex-col transition-colors">
-        {/* Header */}
+
         <div className="p-3.5 sm:p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/80 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
@@ -183,11 +181,10 @@ export const AdminCreateAdminModal: React.FC<AdminCreateAdminModalProps> = ({
           </button>
         </div>
 
-        {/* Form Container */}
         <form onSubmit={handleRegister} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-          {/* Scrollable Form Body */}
+
           <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 min-h-0 text-xs">
-            {/* Feedback Messages */}
+
             {errorMessage && (
               <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 flex items-center gap-2 text-xs text-rose-700 dark:text-rose-400">
                 <AlertCircle className="w-4 h-4 shrink-0" />
@@ -202,7 +199,6 @@ export const AdminCreateAdminModal: React.FC<AdminCreateAdminModalProps> = ({
             </div>
           )}
 
-          {/* Grid: Nome Completo & Nome de Usuário */}
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
             <div className="sm:col-span-7 space-y-1">
               <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
@@ -248,7 +244,6 @@ export const AdminCreateAdminModal: React.FC<AdminCreateAdminModalProps> = ({
             </div>
           </div>
 
-          {/* Badges de validação */}
           <div className="flex flex-wrap items-center gap-1.5 -mt-1">
             <span
               className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition ${
@@ -279,7 +274,6 @@ export const AdminCreateAdminModal: React.FC<AdminCreateAdminModalProps> = ({
             </span>
           </div>
 
-          {/* Grid: E-mail e Confirmação */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
@@ -325,7 +319,6 @@ export const AdminCreateAdminModal: React.FC<AdminCreateAdminModalProps> = ({
             </div>
           </div>
 
-          {/* Grid: WhatsApp e Nível de Acesso */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
@@ -359,7 +352,6 @@ export const AdminCreateAdminModal: React.FC<AdminCreateAdminModalProps> = ({
             </div>
           </div>
 
-          {/* Grid: Senha e Confirmação */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
@@ -403,7 +395,6 @@ export const AdminCreateAdminModal: React.FC<AdminCreateAdminModalProps> = ({
 
           </div>
 
-          {/* Fixed Footer Actions */}
           <div className="shrink-0 p-4 px-5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex items-center justify-end gap-2.5">
             <button
               type="button"

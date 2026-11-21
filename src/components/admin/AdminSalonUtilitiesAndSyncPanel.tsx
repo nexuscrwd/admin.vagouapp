@@ -6,7 +6,6 @@ import {
   DollarSign,
   Package,
   Plus,
-  Trash2,
   Check,
   Copy,
   RefreshCw,
@@ -113,13 +112,11 @@ export const AdminSalonUtilitiesAndSyncPanel: React.FC<AdminSalonUtilitiesAndSyn
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
 
-  // Formulários rápidos de adição
   const [newEnergyReading, setNewEnergyReading] = useState({ kwh: '', cost: '', notes: '' });
   const [newWaterReading, setNewWaterReading] = useState({ m3: '', cost: '', notes: '' });
   const [newAppliance, setNewAppliance] = useState({ name: '', category: 'Bancada', watts: '', hours: '' });
   const [newInventory, setNewInventory] = useState({ name: '', category: 'Finalizadores', qty: '', minQty: '5', cost: '' });
 
-  // Estado editável do DRE
   const [dreForm, setDreForm] = useState({
     grossRevenue: String(utilities.financialDre?.grossRevenue ?? 18450),
     commissionsPaid: String(utilities.financialDre?.commissionsPaid ?? 7380),
@@ -159,7 +156,7 @@ export const AdminSalonUtilitiesAndSyncPanel: React.FC<AdminSalonUtilitiesAndSyn
           { onConflict: 'salon_id' }
         );
       } catch {
-        // Fallback já tratado pela rota Express e branding.utilities
+
       }
       showToast(successText);
     } finally {
@@ -167,7 +164,6 @@ export const AdminSalonUtilitiesAndSyncPanel: React.FC<AdminSalonUtilitiesAndSyn
     }
   };
 
-  // Handlers de Energia
   const handleAddEnergyReading = async (e: React.FormEvent) => {
     e.preventDefault();
     const kwh = parseFloat(newEnergyReading.kwh.replace(',', '.'));
@@ -194,7 +190,6 @@ export const AdminSalonUtilitiesAndSyncPanel: React.FC<AdminSalonUtilitiesAndSyn
     await persistUtilities(nextUtils, 'Leitura de energia (kWh) sincronizada no Supabase!');
   };
 
-  // Handlers de Água
   const handleAddWaterReading = async (e: React.FormEvent) => {
     e.preventDefault();
     const m3 = parseFloat(newWaterReading.m3.replace(',', '.'));
@@ -221,7 +216,6 @@ export const AdminSalonUtilitiesAndSyncPanel: React.FC<AdminSalonUtilitiesAndSyn
     await persistUtilities(nextUtils, 'Leitura de água (m³) sincronizada no Supabase!');
   };
 
-  // Handlers de Equipamentos
   const handleAddAppliance = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAppliance.name.trim()) return;
@@ -246,7 +240,6 @@ export const AdminSalonUtilitiesAndSyncPanel: React.FC<AdminSalonUtilitiesAndSyn
     await persistUtilities(nextUtils, 'Equipamento elétrico salvo no Supabase!');
   };
 
-  // Handler de DRE
   const handleSaveDre = async (e: React.FormEvent) => {
     e.preventDefault();
     const gross = parseFloat(dreForm.grossRevenue) || 0;
@@ -271,7 +264,6 @@ export const AdminSalonUtilitiesAndSyncPanel: React.FC<AdminSalonUtilitiesAndSyn
     await persistUtilities(nextUtils, 'DRE Financeiro atualizado e sincronizado no Supabase!');
   };
 
-  // Handler de Estoque / Insumos
   const handleAddInventoryItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newInventory.name.trim()) return;
@@ -299,9 +291,6 @@ export const AdminSalonUtilitiesAndSyncPanel: React.FC<AdminSalonUtilitiesAndSyn
     await persistUtilities({ ...utilities, inventoryItems: nextItems }, 'Quantidade de estoque atualizada!');
   };
 
-  // ============================================================================
-  // MODO 1: PAINEL DE UTILIDADES OPERACIONAIS (ENERGIA, ÁGUA, EQUIPAMENTOS, DRE, ESTOQUE)
-  // ============================================================================
   if (mode === 'utilities') {
     const totalMonthlyKwh = utilities.appliances.reduce((acc, a) => acc + (a.monthlyKwh || 0), 0);
     const lowStockCount = utilities.inventoryItems.filter((i) => i.stockQty <= i.minQty).length;
@@ -315,7 +304,6 @@ export const AdminSalonUtilitiesAndSyncPanel: React.FC<AdminSalonUtilitiesAndSyn
           </div>
         )}
 
-        {/* Barra Superior de Sub-módulos Utilities */}
         <div className="p-4 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
             <div>
@@ -339,7 +327,6 @@ export const AdminSalonUtilitiesAndSyncPanel: React.FC<AdminSalonUtilitiesAndSyn
             </button>
           </div>
 
-          {/* 5 Sub-abas de Utilidades */}
           <div className="flex items-center gap-2 overflow-x-auto pb-1">
             <button
               type="button"
@@ -412,7 +399,6 @@ export const AdminSalonUtilitiesAndSyncPanel: React.FC<AdminSalonUtilitiesAndSyn
             </button>
           </div>
 
-          {/* CONTEÚDO 1: ENERGIA ELÉTRICA */}
           {utilSubTab === 'energy' && (
             <div className="space-y-4 pt-2">
               <form onSubmit={handleAddEnergyReading} className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
@@ -480,7 +466,6 @@ export const AdminSalonUtilitiesAndSyncPanel: React.FC<AdminSalonUtilitiesAndSyn
             </div>
           )}
 
-          {/* CONTEÚDO 2: ÁGUA & HIDRÔMETRO */}
           {utilSubTab === 'water' && (
             <div className="space-y-4 pt-2">
               <form onSubmit={handleAddWaterReading} className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
@@ -548,7 +533,6 @@ export const AdminSalonUtilitiesAndSyncPanel: React.FC<AdminSalonUtilitiesAndSyn
             </div>
           )}
 
-          {/* CONTEÚDO 3: EQUIPAMENTOS ELÉTRICOS */}
           {utilSubTab === 'appliances' && (
             <div className="space-y-4 pt-2">
               <div className="flex items-center justify-between text-xs text-slate-400 pb-1">
@@ -621,7 +605,6 @@ export const AdminSalonUtilitiesAndSyncPanel: React.FC<AdminSalonUtilitiesAndSyn
             </div>
           )}
 
-          {/* CONTEÚDO 4: DRE FINANCEIRO & FLUXO DE CAIXA */}
           {utilSubTab === 'dre' && (
             <form onSubmit={handleSaveDre} className="space-y-4 pt-2">
               <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -707,7 +690,6 @@ export const AdminSalonUtilitiesAndSyncPanel: React.FC<AdminSalonUtilitiesAndSyn
             </form>
           )}
 
-          {/* CONTEÚDO 5: INSUMOS & ESTOQUE */}
           {utilSubTab === 'inventory' && (
             <div className="space-y-4 pt-2">
               <form onSubmit={handleAddInventoryItem} className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
@@ -807,9 +789,6 @@ export const AdminSalonUtilitiesAndSyncPanel: React.FC<AdminSalonUtilitiesAndSyn
     );
   }
 
-  // ============================================================================
-  // MODO 2: DIAGNÓSTICO DE PARIDADE & GUIA DE SINCRONIZAÇÃO PARA O MNVAPP
-  // ============================================================================
   const mnvConnectorCode = `// ============================================================================
 // ARQUIVO: src/lib/mnvSupabaseSync.ts (COLAR NO REPOSITÓRIO MEU NEGÓCIO - mnvapp)
 // Amarra 100% das ferramentas do estabelecimento diretamente ao Supabase (admvapp)
@@ -842,45 +821,26 @@ export async function syncSalonServiceToDb(salonId: string, service: {
   };
 
   const { data: srv } = await supabase.from('services').upsert(payload).select().maybeSingle();
-  if (srv?.id) {
-    await supabase.from('salon_services').upsert({
-      salon_id: salonId,
-      service_id: srv.id,
-      custom_name: payload.name,
-      category: payload.category,
-      price: payload.price,
-      duration_minutes: payload.duration_minutes,
-      commission_rate: payload.commission_rate,
-      description: payload.description,
-      photos: payload.photos,
-      is_active: payload.is_active,
-    });
-  }
   return srv;
 }
 
-// 2. ADICIONAR FOTO / VÍDEO À GALERIA (Grava em public.salon_media_items + salons.branding)
+// 2. ADICIONAR FOTO / VÍDEO À GALERIA (v6.0: public.media_assets via public_url)
 export async function syncSalonMediaToDb(salonId: string, media: {
   title: string;
   url: string;
+  storagePath: string;
   type?: 'image' | 'video';
-  category?: 'servicos' | 'profissionais' | 'espaco' | 'banner' | 'logotipo';
-  slotIndex?: number;
-  isCover?: boolean;
+  purpose?: 'gallery' | 'cover' | 'logo' | 'video';
 }) {
-  const { data } = await supabase.from('salon_media_items').insert({
-    salon_id: salonId,
-    title: media.title,
-    caption: media.title,
-    url: media.url,
-    media_url: media.url,
-    type: media.type || 'image',
-    media_type: media.type || 'image',
-    media_group: media.type === 'video' ? 'videos' : (media.category === 'banner' || media.category === 'logotipo' ? 'imagens' : 'fotos'),
-    category: media.category || 'espaco',
-    slot_index: media.slotIndex || 1,
-    is_cover: Boolean(media.isCover),
-    is_active: true,
+  const { data } = await supabase.from('media_assets').insert({
+    owner_type: 'salon',
+    owner_id: salonId,
+    bucket_id: 'salon-media',
+    storage_path: media.storagePath,
+    public_url: media.url,
+    mime_type: media.type === 'video' ? 'video/mp4' : 'image/webp',
+    purpose: media.purpose || 'gallery',
+    metadata: { title: media.title },
   }).select().maybeSingle();
   return data;
 }
@@ -1014,7 +974,7 @@ Preciso que você amarre 100% das operações locais do mnvapp ao banco de dados
 
   return (
     <div className="space-y-5">
-      {/* Matriz de Paridade dos 7 Módulos */}
+
       <div className="p-5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
           <div>
@@ -1107,7 +1067,6 @@ Preciso que você amarre 100% das operações locais do mnvapp ao banco de dados
         </div>
       </div>
 
-      {/* Bloco 1: Prompt / Comunicado Oficial para colar no Agente do mnvapp */}
       <div className="p-5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -1139,7 +1098,6 @@ Preciso que você amarre 100% das operações locais do mnvapp ao banco de dados
         </pre>
       </div>
 
-      {/* Bloco 2: Conector TypeScript Pronto para o mnvapp */}
       <div className="p-5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center gap-2">

@@ -16,15 +16,12 @@ import {
   ShieldCheck,
   X,
   KeyRound,
-  MessageSquare,
-  Smartphone,
   RefreshCw,
   Search,
   HelpCircle,
-  FileText,
 } from 'lucide-react';
 import { VagouOfficialLogo } from '../../common/VagouOfficialLogo';
-import { registerTriadeUser, checkTriadeUserConflict, formatPixKeyByType } from '../../../services/supabaseApi';
+import { registerTriadeUser, checkTriadeUserConflict } from '../../../services/supabaseApi';
 import { GoogleAddressPinPicker } from '../GoogleAddressPinPicker';
 
 export interface TriadeUserData {
@@ -51,7 +48,7 @@ export interface TriadeUserData {
   salonName?: string;
 }
 
-export type UserRegisterPhase =
+type UserRegisterPhase =
   | 'all'
   | 'identification'
   | 'contacts'
@@ -60,7 +57,7 @@ export type UserRegisterPhase =
   | 'cep'
   | 'address';
 
-export interface TriadeUserRegisterFormProps {
+interface TriadeUserRegisterFormProps {
   onSuccess?: (userData: TriadeUserData) => void;
   onSwitchToLogin?: () => void;
   onClose?: () => void;
@@ -83,12 +80,10 @@ export interface TriadeUserRegisterFormProps {
 
 export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
   onSuccess,
-  onSwitchToLogin,
   onClose,
   showHeader = true,
   variant = 'card',
   title,
-  subtitle,
   activePhase,
   onPhaseChange,
   origin = 'portal',
@@ -97,18 +92,14 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
   salonLogoUrl,
   salonAccentColor = '#20C933',
   showPhaseStepper = false,
-  showSwitchToLogin = false,
   suppressParentPostMessage = false,
-  requireCpf = false,
 }) => {
   const isEstablishmentMode = origin === 'establishment' || !!salonId;
   const effectiveSalonName = salonName || (isEstablishmentMode ? 'Estabelecimento Parceiro' : 'VagouApp');
   const effectiveTitle = title || (isEstablishmentMode ? `Cadastro • ${effectiveSalonName}` : 'Cadastro de Usuário');
-  const effectiveSubtitle = subtitle || (isEstablishmentMode ? `Seja cliente exclusivo de ${effectiveSalonName}` : 'Crie sua conta de acesso');
   const [logoLoadError, setLogoLoadError] = useState(false);
   const primaryBgStyle = isEstablishmentMode && salonAccentColor ? { backgroundColor: salonAccentColor } : undefined;
 
-  // Controle de Fases do Formulário (Padrão: identification quando em fluxo passo a passo)
   const [internalPhase, setInternalPhase] = useState<UserRegisterPhase>('identification');
   const currentPhase = activePhase ?? internalPhase;
   const setPhase = (p: UserRegisterPhase) => {
@@ -116,32 +107,27 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     onPhaseChange?.(p);
   };
 
-  // Fase 1: Identificação (Dados Pessoais)
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
-  const [cpf, setCpf] = useState('');
+  const cpf = '';
 
-  // Fase 2: Contatos & Canal de Verificação
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [confirmEmail, setConfirmEmail] = useState('');
   const [otpChannel, setOtpChannel] = useState<'whatsapp' | 'sms' | 'email'>('whatsapp');
 
-  // Fase 3: Código de 6 Dígitos (OTP)
   const [otpCode, setOtpCode] = useState('');
   const [sentOtp, setSentOtp] = useState<string>('749215');
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [otpCountdown, setOtpCountdown] = useState(60);
-  const [isOtpVerified, setIsOtpVerified] = useState(false);
+  const [, setIsOtpVerified] = useState(false);
 
-  // Fase 4: Senha Segura
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Fase 5: Endereço Residencial & Coordenadas
   const [cep, setCep] = useState('');
   const [showManualAddress, setShowManualAddress] = useState(false);
   const [street, setStreet] = useState('');
@@ -155,7 +141,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
   const [isLoadingCep, setIsLoadingCep] = useState(false);
   const [isSearchingCepByAddress, setIsSearchingCepByAddress] = useState(false);
 
-  // Estados Gerais & Verificação de Unicidade em Tempo Real (Anti-Duplicidade)
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCheckingIdentification, setIsCheckingIdentification] = useState(false);
   const [usernameCheckStatus, setUsernameCheckStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
@@ -164,7 +149,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
   const [emailConflictMessage, setEmailConflictMessage] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // Verificação em tempo real (debounce 250ms) do Nome de Usuário na Fase 1
   useEffect(() => {
     const cleanUser = username.trim().replace(/^@+/, '');
     const baseUser = cleanUser.replace(/@+$/g, '').trim();
@@ -202,7 +186,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     };
   }, [username]);
 
-  // Verificação em tempo real (debounce 280ms) de WhatsApp e E-mail na Fase 2
   useEffect(() => {
     const cleanPhone = phone.replace(/\D/g, '');
     const cleanMail = email.trim().toLowerCase();
@@ -237,7 +220,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     };
   }, [phone, email]);
 
-  // Contador de reenvio de OTP
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (otpCountdown > 0) {
@@ -246,7 +228,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     return () => clearTimeout(timer);
   }, [otpCountdown]);
 
-  // Regras de Validação de Nome de Usuário em Tempo Real (1 Maiúscula, 1 Minúscula e 1 Caractere Especial)
   const cleanUsernameRule = username.trim().replace(/^@+/, '');
   const userRules = {
     hasUpper: /[A-Z]/.test(cleanUsernameRule),
@@ -259,7 +240,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     userRules.hasLower &&
     userRules.hasSpecial;
 
-  // Regras de Validação de Senha em Tempo Real
   const passRules = {
     hasMin: password.length >= 6,
     hasUpper: /[A-Z]/.test(password),
@@ -273,12 +253,10 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     passRules.hasSpecial &&
     passRules.matches;
 
-  // Atualiza apenas o nome completo (sem injetar @ ou caracteres automáticos no nome de usuário)
   const handleFullNameChange = (val: string) => {
     setFullName(val);
   };
 
-  // Máscara estrita de Telefone/WhatsApp: (11) 98765-4321
   const handlePhoneChange = (val: string) => {
     const raw = val.replace(/\D/g, '').slice(0, 11);
     let formatted = raw;
@@ -288,7 +266,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     setPhone(formatted);
   };
 
-  // Máscara estrita de CEP: 12345-678
   const handleCepChange = (val: string) => {
     const raw = val.replace(/\D/g, '').slice(0, 8);
     let formatted = raw;
@@ -300,7 +277,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     }
   };
 
-  // Máscara de Código OTP: XXX - XXX
   const handleOtpChange = (val: string) => {
     const raw = val.replace(/\D/g, '').slice(0, 6);
     let formatted = raw;
@@ -324,7 +300,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
           type: 'success',
           message: '✓ Endereço localizado! Confira os dados e informe o número.',
         });
-        // Avanço automático suave para a fase 6 (Endereço Completo)
+
         setTimeout(() => {
           setPhase('address');
         }, 350);
@@ -352,14 +328,12 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     }
   };
 
-  // Pular CEP quando o usuário clica em "Não sei meu CEP"
   const handleSkipCep = () => {
     setFeedback(null);
     setShowManualAddress(true);
     setPhase('address');
   };
 
-  // Avançar manualmente a partir do CEP
   const handleNextFromCep = () => {
     setFeedback(null);
     const cleanCep = cep.replace(/\D/g, '');
@@ -373,9 +347,8 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     }
   };
 
-  // Busca Reversa Silenciosa de CEP pelos dados básicos do endereço (ViaCEP)
   const searchCepByAddress = async () => {
-    // Se o CEP já estiver preenchido com 8 dígitos, não sobrescreve
+
     const cleanCep = cep.replace(/\D/g, '');
     if (cleanCep.length === 8) return;
 
@@ -389,12 +362,11 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
 
     setIsSearchingCepByAddress(true);
     try {
-      // 1ª Tentativa: busca com o logradouro completo digitado
+
       let url = `https://viacep.com.br/ws/${cleanUf}/${encodeURIComponent(cleanCity)}/${encodeURIComponent(cleanStreet)}/json/`;
       let res = await fetch(url);
       let data = await res.json();
 
-      // 2ª Tentativa de fallback: se não encontrou, remove prefixos usuais (Avenida, Rua, etc.)
       if ((!Array.isArray(data) || data.length === 0) && cleanStreet.includes(' ')) {
         const withoutPrefix = cleanStreet
           .replace(/^(rua|avenida|travessa|alameda|rodovia|praça|praca|av\.|r\.)\s+/i, '')
@@ -408,7 +380,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
 
       if (Array.isArray(data) && data.length > 0) {
         let match = data[0];
-        // Se houver múltiplos trechos, refina pelo bairro informado
+
         if (data.length > 1 && neighborhood.trim()) {
           const normNeighborhood = neighborhood
             .toLowerCase()
@@ -426,20 +398,18 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
           }
         }
 
-        // Preenche apenas no input de CEP onde o usuário pode visualizar e anotar
         setCep(match.cep);
         if (!neighborhood.trim() && match.bairro) {
           setNeighborhood(match.bairro);
         }
       }
     } catch {
-      // Falha silenciosa em background para não interromper a digitação do usuário
+
     } finally {
       setIsSearchingCepByAddress(false);
     }
   };
 
-  // Ação 1: Avançar da Fase 1 para a Fase 2 (Identificação — Com Trava Anti-Duplicidade no Banco)
   const handleNextFromIdentification = async () => {
     setFeedback(null);
     if (!fullName.trim()) {
@@ -498,7 +468,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     }
   };
 
-  // Ação 2: Enviar Código e Avançar para a Fase 3 (Contatos — Com Trava Anti-Duplicidade de WhatsApp e E-mail)
   const handleSendOtp = async () => {
     setFeedback(null);
     const cleanPhone = phone.replace(/\D/g, '');
@@ -541,7 +510,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
       }
     } catch {}
 
-    // Gera código simulado de 6 dígitos
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     setSentOtp(code);
 
@@ -558,7 +526,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     }, 500);
   };
 
-  // Ação 3: Verificar Código OTP e Avançar para Fase 4 (Senha)
   const handleVerifyOtp = () => {
     setFeedback(null);
     const cleanCode = otpCode.replace(/\D/g, '');
@@ -586,7 +553,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     }, 600);
   };
 
-  // Ação 4: Validar Senha e Avançar para Fase 5 (CEP Isolado)
   const handleNextFromPassword = () => {
     setFeedback(null);
     if (!passRules.hasMin) {
@@ -608,12 +574,10 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     setPhase('cep');
   };
 
-  // Ação 5: Submissão Final do Cadastro (Persistência Real no Supabase)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFeedback(null);
 
-    // Validação geral de integridade
     if (!fullName.trim() || !username.trim()) {
       setFeedback({ type: 'error', message: 'Preencha seu nome e nome de usuário.' });
       setPhase('identification');
@@ -709,7 +673,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
           : `Usuário "${finalPayload.fullName}" cadastrado e salvo no Supabase com sucesso!`,
       });
 
-      // Dispara evento global de interoperabilidade da Tríade
       if (typeof window !== 'undefined' && !suppressParentPostMessage) {
         const messagePayload = {
           source: 'VAGOUAPP_FORM',
@@ -748,7 +711,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
           '*'
         );
 
-        // Se o cadastro foi via estabelecimento, emite também evento de cliente do salão
         if (isEstablishmentMode) {
           window.parent?.postMessage(
             {
@@ -784,7 +746,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
           : 'w-full bg-transparent'
       } animate-fadeIn`}
     >
-      {/* Cabeçalho Soberano Centralizado (Logo no topo, Título abaixo, Sem Badges Redundantes) */}
+
       {showHeader && (
         <div
           className={`px-6 pt-6 pb-4 sm:px-7 sm:pt-6 sm:pb-5 ${
@@ -833,14 +795,13 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
         </div>
       )}
 
-      {/* Formulário Plano (Flat & Clean — Espaçamento Equilibrado e Profissional) */}
       <form
         onSubmit={handleSubmit}
         className={`w-full ${
           isCard || showHeader ? 'px-6 pt-5 pb-6 sm:px-7 sm:pt-6 sm:pb-7' : 'px-4 py-4 sm:p-6'
         } space-y-4`}
       >
-        {/* Alerta de Feedback */}
+
         {feedback && (
           <div
             className={`p-3 rounded-xl text-xs flex items-center gap-2 animate-fadeIn ${
@@ -858,7 +819,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
           </div>
         )}
 
-        {/* Barra Superior de Fases / Sub-abas do Cadastro (Exibido apenas em modo inspeção/admin) */}
         {showPhaseStepper && currentPhase !== 'all' && (
           <div className="pb-3 border-b border-slate-800/80">
             <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 sm:gap-1.5">
@@ -893,9 +853,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* TELA 1 — IDENTIFICAÇÃO (Nome Completo e Nome de Usuário)                   */}
-        {/* ========================================================================= */}
         {(currentPhase === 'all' || currentPhase === 'identification') && (
           <div className="space-y-4 animate-fadeIn">
             {currentPhase === 'all' && (
@@ -1042,9 +999,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* TELA 2 — CONTATOS & CANAL DE VERIFICAÇÃO (WhatsApp, E-mail, Confirm E-mail) */}
-        {/* ========================================================================= */}
         {(currentPhase === 'all' || currentPhase === 'contacts') && (
           <div className="space-y-4 animate-fadeIn pt-1">
             {currentPhase === 'all' && (
@@ -1141,7 +1095,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
               </div>
             </div>
 
-            {/* Canal de Verificação fixado em E-mail */}
             <div className="hidden">
               <button type="button" onClick={() => setOtpChannel('email')}>E-MAIL</button>
             </div>
@@ -1177,9 +1130,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* TELA 3 — MODAL / FASE: CÓDIGO DE 6 DÍGITOS "XXX - XXX"                      */}
-        {/* ========================================================================= */}
         {(currentPhase === 'all' || currentPhase === 'verification') && (
           <div className="space-y-4 animate-fadeIn pt-1">
             {currentPhase === 'all' && (
@@ -1201,7 +1151,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                 </p>
               </div>
 
-              {/* Input formatado XXX - XXX */}
               <div className="w-full sm:max-w-xs mx-auto">
                 <input
                   type="text"
@@ -1262,9 +1211,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* TELA 4 — CADASTRO DE SENHA COM REGRAS E CHECKLIST VISUAL                   */}
-        {/* ========================================================================= */}
         {(currentPhase === 'all' || currentPhase === 'password') && (
           <div className="space-y-4 animate-fadeIn pt-1">
             {currentPhase === 'all' && (
@@ -1324,7 +1270,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
               </div>
             </div>
 
-            {/* Checklist Visual de Regras de Senha */}
             <div className="p-3 bg-slate-950/60 border border-slate-800/80 rounded-xl space-y-1.5 text-[11px]">
               <span className="font-bold text-slate-400 block mb-1">Requisitos de Segurança da Senha:</span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
@@ -1371,9 +1316,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* TELA 5 — BUSCA DE CEP ISOLADA                                             */}
-        {/* ========================================================================= */}
         {(currentPhase === 'all' || currentPhase === 'cep') && (
           <div className="space-y-4 animate-fadeIn pt-1">
             {currentPhase === 'all' && (
@@ -1383,7 +1325,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
               </div>
             )}
 
-            {/* Campo CEP Aparecendo de Forma 100% Isolada e Fullwidth no Mobile */}
             <div className="w-full bg-transparent sm:bg-slate-950/70 border-0 sm:border sm:border-slate-800 rounded-none sm:rounded-2xl p-0 sm:p-4 space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <div>
@@ -1454,9 +1395,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* TELA 6 — FORMULÁRIO DE ENDEREÇO COMPLETO                                  */}
-        {/* ========================================================================= */}
         {(currentPhase === 'all' || currentPhase === 'address') && (
           <div className="space-y-4 animate-fadeIn pt-1">
             {currentPhase === 'all' && (
@@ -1480,7 +1418,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
             )}
 
             <div className="space-y-2.5">
-              {/* 1. Rua / Logradouro * (9 cols) e 2. Número * (3 cols compacto) */}
+
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
                 <div className="sm:col-span-9">
                   <label className="block text-[11px] font-semibold text-slate-400 mb-1">
@@ -1491,7 +1429,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                     value={street}
                     onChange={(e) => setStreet(e.target.value)}
                     onBlur={searchCepByAddress}
-                    placeholder="Ex: Avenida Paulista"
+                    placeholder="Nome da rua ou avenida"
                     className="w-full min-h-[44px] bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500"
                     required
                   />
@@ -1513,7 +1451,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                 </div>
               </div>
 
-              {/* 3. Complemento (4 cols) e 4. Bairro * (8 cols) */}
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
                 <div className="sm:col-span-4">
                   <label className="block text-[11px] font-semibold text-slate-400 mb-1">
@@ -1544,7 +1481,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                 </div>
               </div>
 
-              {/* 5. Cidade * (6 cols), 6. UF * (2 cols: 2 letras) e 7. CEP * (4 cols: 8 caracteres) */}
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
                 <div className="sm:col-span-6">
                   <label className="block text-[11px] font-semibold text-slate-400 mb-1">
@@ -1601,7 +1537,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                 </div>
               </div>
 
-              {/* Geocodificação Automática + Pino Ajustável Google Maps */}
               <div className="pt-1">
                 <GoogleAddressPinPicker
                   cep={cep}
@@ -1622,7 +1557,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
               </div>
             </div>
 
-            {/* Ação de Conclusão Final */}
             <div className="pt-2">
               {currentPhase === 'address' ? (
                 <div className="flex items-center gap-2.5">
@@ -1670,7 +1604,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
             </div>
           </div>
         )}
-
 
       </form>
     </div>

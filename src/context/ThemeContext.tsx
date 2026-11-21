@@ -13,7 +13,7 @@ export interface AdminThemeColorTokens {
   sectionText: string;
 }
 
-export interface AdminSystemPreferences {
+interface AdminSystemPreferences {
   logoDarkUrl: string;
   logoLightUrl: string;
   mobileAppIconUrl: string;
@@ -54,53 +54,28 @@ export const DEFAULT_ADMIN_PREFERENCES: AdminSystemPreferences = {
   },
 };
 
-export const ADMIN_PREFERENCES_STORAGE_KEY = 'vagou_admin_system_preferences_v1';
+const ADMIN_PREFERENCES_STORAGE_KEY = 'vagou_admin_system_preferences_v1';
 
 const ADMIN_PREFERENCES_ROW_ID = 'global';
 
-/**
- * Envia imagem Base64 (data:image/...) ao Supabase Storage (bucket público "salon-media" com fallback "avatars")
- * usando cache CDN de 1 ano (cacheControl: '31536000'), erradicando gravação de strings Base64 gigantes no PostgreSQL.
- */
-async function uploadPreferenceImage(raw: string | undefined, prefix: string): Promise<string> {
+function sanitizePreferenceMediaUrl(raw: string | undefined): string {
   const value = (raw || '').trim();
-  if (!value.startsWith('data:image/')) return value;
-  try {
-    const blob = await (await fetch(value)).blob();
-    const ext = blob.type.includes('svg')
-      ? 'svg'
-      : blob.type.includes('jpeg') || blob.type.includes('jpg')
-        ? 'jpg'
-        : blob.type.includes('webp')
-          ? 'webp'
-          : 'png';
-    const path = `admin/${prefix}-${Date.now()}.${ext}`;
-    const contentType = blob.type || 'image/png';
-
-    for (const bucketName of ['salon-media', 'avatars'] as const) {
-      const { error } = await supabase.storage
-        .from(bucketName)
-        .upload(path, blob, { contentType, cacheControl: '31536000', upsert: true });
-      if (!error) {
-        const { data } = supabase.storage.from(bucketName).getPublicUrl(path);
-        if (data?.publicUrl) return data.publicUrl;
-      }
-    }
-    return value;
-  } catch {
-    return value;
+  if (!value) return '';
+  if (/^data:/i.test(value) || /^javascript:/i.test(value) || /^vbscript:/i.test(value)) {
+    return '';
   }
+  return /^https?:\/\//i.test(value) || value.startsWith('/') ? value : '';
 }
 
-export function normalizeRemotePreferences(
+function normalizeRemotePreferences(
   remote: Partial<AdminSystemPreferences>,
   updatedAt?: string
 ): AdminSystemPreferences {
   return {
-    logoDarkUrl: typeof remote.logoDarkUrl === 'string' ? remote.logoDarkUrl : '',
-    logoLightUrl: typeof remote.logoLightUrl === 'string' ? remote.logoLightUrl : '',
-    mobileAppIconUrl: typeof remote.mobileAppIconUrl === 'string' ? remote.mobileAppIconUrl : '',
-    faviconUrl: typeof remote.faviconUrl === 'string' ? remote.faviconUrl : '',
+    logoDarkUrl: sanitizePreferenceMediaUrl(remote.logoDarkUrl),
+    logoLightUrl: sanitizePreferenceMediaUrl(remote.logoLightUrl),
+    mobileAppIconUrl: sanitizePreferenceMediaUrl(remote.mobileAppIconUrl),
+    faviconUrl: sanitizePreferenceMediaUrl(remote.faviconUrl),
     activeTheme:
       remote.activeTheme === 'light' || remote.activeTheme === 'dark'
         ? remote.activeTheme
@@ -111,7 +86,7 @@ export function normalizeRemotePreferences(
   };
 }
 
-export function loadStoredAdminPreferences(): AdminSystemPreferences {
+function loadStoredAdminPreferences(): AdminSystemPreferences {
   try {
     const raw = localStorage.getItem(ADMIN_PREFERENCES_STORAGE_KEY);
     if (raw) {
@@ -122,7 +97,7 @@ export function loadStoredAdminPreferences(): AdminSystemPreferences {
   return DEFAULT_ADMIN_PREFERENCES;
 }
 
-export interface ThemeContextType {
+interface ThemeContextType {
   theme: 'dark' | 'light';
   isDark: boolean;
   toggleTheme: () => void;
@@ -137,7 +112,7 @@ export interface ThemeContextType {
   resetPreferences: () => Promise<void>;
 }
 
-export const ThemeContext = createContext<ThemeContextType>({
+const ThemeContext = createContext<ThemeContextType>({
   theme: 'dark',
   isDark: true,
   toggleTheme: () => {},
@@ -150,7 +125,7 @@ export const ThemeContext = createContext<ThemeContextType>({
   resetPreferences: async () => {},
 });
 
-export const applyAccentColorToDom = (color: string) => {
+const applyAccentColorToDom = (color: string) => {
   if (!color) return;
   const hex = color.startsWith('#') ? color : '#20C933';
 
@@ -180,7 +155,7 @@ export const applyAccentColorToDom = (color: string) => {
   }
 };
 
-export const applySystemPreferencesToDom = (
+const applySystemPreferencesToDom = (
   prefs: AdminSystemPreferences,
   activeTheme: 'dark' | 'light'
 ) => {
@@ -211,7 +186,6 @@ export const applySystemPreferencesToDom = (
     root.style.setProperty('--admin-section-bg', tokens.sectionBg);
     root.style.setProperty('--admin-section-text', tokens.sectionText);
 
-    // Atualiza Favicon do navegador e Ícone Mobile (apple-touch-icon)
     const effectiveFavicon = prefs.faviconUrl || prefs.mobileAppIconUrl || '/icon.svg';
     const effectiveMobileIcon = prefs.mobileAppIconUrl || prefs.faviconUrl || '/icon.svg';
 
@@ -408,17 +382,14 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     applyAccentColorToDom(accentColor);
   }, [accentColor]);
 
-  // Função central que persiste diretamente na tabela public.admin_preferences do Supabase (sem exigir sessão Auth JWT, pois o Admin usa system_admins)
   const persistPreferencesToSupabase = async (
     target: AdminSystemPreferences
   ): Promise<{ success: boolean; error?: string }> => {
     try {
-      const [logoDarkUrl, logoLightUrl, mobileAppIconUrl, faviconUrl] = await Promise.all([
-        uploadPreferenceImage(target.logoDarkUrl, 'logo-dark'),
-        uploadPreferenceImage(target.logoLightUrl, 'logo-light'),
-        uploadPreferenceImage(target.mobileAppIconUrl, 'mobile-icon'),
-        uploadPreferenceImage(target.faviconUrl, 'favicon'),
-      ]);
+      const logoDarkUrl = sanitizePreferenceMediaUrl(target.logoDarkUrl);
+      const logoLightUrl = sanitizePreferenceMediaUrl(target.logoLightUrl);
+      const mobileAppIconUrl = sanitizePreferenceMediaUrl(target.mobileAppIconUrl);
+      const faviconUrl = sanitizePreferenceMediaUrl(target.faviconUrl);
 
       const updatedAt = new Date().toISOString();
       const toSave: AdminSystemPreferences = {
@@ -431,26 +402,37 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         updatedAt,
       };
 
-      const { error } = await supabase
-        .from('admin_preferences')
-        .upsert(
-          {
-            id: ADMIN_PREFERENCES_ROW_ID,
-            preferences: toSave,
-            updated_at: updatedAt,
-          },
-          { onConflict: 'id' }
-        );
+      let apiSaved = false;
+      try {
+        const resp = await fetch('/api/admin/preferences', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(toSave),
+        });
+        if (resp.ok) {
+          const json = await resp.json();
+          if (json?.success) apiSaved = true;
+        }
+      } catch {}
 
-      // Também sincroniza com a rota de servidor quando disponível
-      fetch('/api/admin/preferences', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(toSave),
-      }).catch(() => {});
-
-      if (error) {
-        return { success: false, error: `Não foi possível salvar no banco: ${error.message}` };
+      if (!apiSaved) {
+        const { error } = await supabase
+          .from('admin_preferences')
+          .upsert(
+            {
+              id: ADMIN_PREFERENCES_ROW_ID,
+              logo_dark_url: logoDarkUrl || null,
+              logo_light_url: logoLightUrl || null,
+              mobile_app_icon_url: mobileAppIconUrl || null,
+              favicon_url: faviconUrl || null,
+              preferences: toSave,
+              updated_at: updatedAt,
+            },
+            { onConflict: 'id' }
+          );
+        if (error) {
+          return { success: false, error: `Não foi possível salvar no banco: ${error.message}` };
+        }
       }
 
       lastKnownUpdatedAtRef.current = updatedAt;
@@ -465,7 +447,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  // Carrega as preferências salvas no banco (Supabase) ao iniciar, ao focar a janela (checando updated_at primeiro) e via Realtime
   useEffect(() => {
     let active = true;
 
@@ -480,20 +461,27 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
           if (!active || metaErr || !meta?.updated_at) return;
           if (meta.updated_at === lastKnownUpdatedAtRef.current) {
-            return; // Zero Egress desnecessário: nada mudou desde a última sincronização
+            return;
           }
         }
 
         const { data, error } = await supabase
           .from('admin_preferences')
-          .select('preferences, updated_at')
+          .select('logo_dark_url, logo_light_url, mobile_app_icon_url, favicon_url, preferences, updated_at')
           .eq('id', ADMIN_PREFERENCES_ROW_ID)
           .maybeSingle();
 
-        if (!active || error || !data?.preferences) return;
+        if (!active || error || !data) return;
 
-        const remoteObj = data.preferences as Partial<AdminSystemPreferences>;
-        // Ignora linha vazia caso ainda nunca tenha sido preenchida
+        const prefJson = (data.preferences || {}) as Partial<AdminSystemPreferences>;
+        const remoteObj: Partial<AdminSystemPreferences> = {
+          ...prefJson,
+          logoDarkUrl: data.logo_dark_url || prefJson.logoDarkUrl || '',
+          logoLightUrl: data.logo_light_url || prefJson.logoLightUrl || '',
+          mobileAppIconUrl: data.mobile_app_icon_url || prefJson.mobileAppIconUrl || '',
+          faviconUrl: data.favicon_url || prefJson.faviconUrl || '',
+        };
+
         const hasRemoteContent =
           Boolean(remoteObj.logoDarkUrl) ||
           Boolean(remoteObj.logoLightUrl) ||

@@ -1,17 +1,11 @@
-/**
- * Utilitário Oficial de Auditoria Temporal e Origem Cadastral — Tríade VagouApp
- * Fuso Horário Canônico: America/Sao_Paulo (pt-BR)
- * Regra Zero Mocks: Jamais inventa timestamps ("new Date()") na ausência de created_at real no banco.
- */
-
-export interface FormattedCreatedAtParts {
+interface FormattedCreatedAtParts {
   valid: boolean;
   timestampMs: number;
-  dateShort: string;      // dd/mm/aa
-  timeShort: string;      // HH:mm
-  compactLabel: string;   // dd/mm/aa • HH:mm
-  fullLabel: string;      // dd/mm/aaaa às HH:mm:ss
-  csvLabel: string;       // dd/mm/aaaa HH:mm:ss
+  dateShort: string;
+  timeShort: string;
+  compactLabel: string;
+  fullLabel: string;
+  csvLabel: string;
 }
 
 export function formatCreatedAtParts(iso?: string | null): FormattedCreatedAtParts {
@@ -92,7 +86,7 @@ export function formatCreatedAtParts(iso?: string | null): FormattedCreatedAtPar
   }
 }
 
-export interface RecordOriginBadgeInfo {
+interface RecordOriginBadgeInfo {
   code: string;
   label: string;
   badgeClass: string;
@@ -140,7 +134,6 @@ export function resolveRecordOriginInfo(
     };
   }
 
-  // Registros históricos sem coluna created_via gravados em outubro/2026 nos primeiros testes SQL
   if (fallbackCreatedAt && String(fallbackCreatedAt).startsWith('2026-10-24T17:21:0')) {
     return {
       code: 'seed',

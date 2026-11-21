@@ -33,10 +33,10 @@ import {
 import { UnifiedUserRow } from './AdminUsersManager';
 import { GoogleAddressPinPicker } from './GoogleAddressPinPicker';
 import { UserAvatar } from '../common/UserAvatar';
-import { resetUserSecurityAdmin } from '../../services/supabaseApi';
+import { resetUserSecurityAdmin, uploadBinaryMediaFile } from '../../services/supabaseApi';
 import { formatCreatedAtParts } from '../../utils/dateTimeFormat';
 
-export interface AdminUserGeneralDataModalProps {
+interface AdminUserGeneralDataModalProps {
   user: UnifiedUserRow;
   isOpen: boolean;
   onClose: () => void;
@@ -55,7 +55,7 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
   onDelete,
   onSecurityReset,
 }) => {
-  // Form state
+
   const [name, setName] = useState(user.name || '');
   const [username, setUsername] = useState((user.username || '').replace(/^@+/, ''));
   const [cpf, setCpf] = useState(user.cpf || '');
@@ -92,14 +92,13 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
   const [isSaving, setIsSaving] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
-  // Avatar state & upload
   const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl || '');
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
-  // Manipulador de upload de avatar (Câmera ou Galeria do Usuário)
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
@@ -107,24 +106,18 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
       return;
     }
 
-    if (file.size > 12 * 1024 * 1024) {
-      setFeedbackMsg({ text: 'A imagem deve ter no máximo 12 MB.', type: 'error' });
+    if (file.size > 5 * 1024 * 1024) {
+      setFeedbackMsg({ text: 'A imagem deve ter no máximo 5 MB.', type: 'error' });
       return;
     }
 
     setIsUploadingAvatar(true);
+    const objectUrl = URL.createObjectURL(file);
     try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const base64 = event.target?.result as string;
-        if (!base64) {
-          setIsUploadingAvatar(false);
-          return;
-        }
-
+      const optimizedFile = await new Promise<File>((resolve) => {
         const img = new window.Image();
-        img.onload = async () => {
-          const maxDim = 1000;
+        img.onload = () => {
+          const maxDim = 800;
           let width = img.width;
           let height = img.height;
           if (width > maxDim || height > maxDim) {
@@ -141,49 +134,61 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
           canvas.width = width;
           canvas.height = height;
           const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height);
-            const optimizedBase64 = canvas.toDataURL('image/jpeg', 0.88);
-
-            try {
-              const res = await fetch('/api/admin/upload-avatar', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  imageBase64: optimizedBase64,
-                  prefix: `usr-${user.originalId}`,
-                  userId: user.originalId,
-                  kind,
-                }),
-              });
-              const json = await res.json();
-              if (res.ok && json.success && json.url) {
-                setAvatarUrl(json.url);
-                setFeedbackMsg({ text: 'Foto enviada e salva no Supabase Storage com sucesso!', type: 'success' });
-                setTimeout(() => setFeedbackMsg(null), 3500);
-              } else {
-                setAvatarUrl(optimizedBase64);
-                setFeedbackMsg({ text: 'Foto anexada com sucesso.', type: 'success' });
-                setTimeout(() => setFeedbackMsg(null), 3000);
-              }
-            } catch {
-              setAvatarUrl(optimizedBase64);
-              setFeedbackMsg({ text: 'Foto carregada localmente.', type: 'success' });
-              setTimeout(() => setFeedbackMsg(null), 3000);
-            }
+          if (!ctx) {
+            resolve(file);
+            return;
           }
-          setIsUploadingAvatar(false);
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              if (blob) {
+                resolve(new File([blob], `avatar-${user.originalId}.webp`, { type: 'image/webp' }));
+              } else {
+                resolve(file);
+              }
+            },
+            'image/webp',
+            0.86
+          );
         };
-        img.src = base64;
-      };
-      reader.readAsDataURL(file);
+        img.onerror = () => resolve(file);
+        img.src = objectUrl;
+      });
+
+      const ownerType =
+        kind === 'professional'
+          ? 'professional_avatar'
+          : kind === 'dependent'
+          ? 'dependent_avatar'
+          : kind === 'client'
+          ? 'client_avatar'
+          : 'profile_avatar';
+
+      const uploadRes = await uploadBinaryMediaFile(optimizedFile, {
+        bucket: 'avatars',
+        ownerType,
+        ownerId: user.originalId,
+        title: `Avatar ${name || user.name}`,
+      });
+
+      if (uploadRes.success && uploadRes.url) {
+        setAvatarUrl(uploadRes.url);
+        setFeedbackMsg({ text: 'Foto enviada e salva no Supabase Storage com sucesso!', type: 'success' });
+        setTimeout(() => setFeedbackMsg(null), 3500);
+      } else {
+        setFeedbackMsg({
+          text: uploadRes.error || 'Falha ao salvar imagem no Supabase Storage.',
+          type: 'error',
+        });
+      }
     } catch {
+      setFeedbackMsg({ text: 'Falha ao processar arquivo binário.', type: 'error' });
+    } finally {
+      URL.revokeObjectURL(objectUrl);
       setIsUploadingAvatar(false);
-      setFeedbackMsg({ text: 'Falha ao processar arquivo.', type: 'error' });
     }
   };
 
-  // Trava a rolagem da página quando o modal estiver aberto
   useEffect(() => {
     if (isOpen) {
       const originalOverflow = document.body.style.overflow;
@@ -194,7 +199,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
     }
   }, [isOpen]);
 
-  // Sincroniza estado com o usuário selecionado
   useEffect(() => {
     setName(user.name || '');
     setUsername((user.username || '').replace(/^@+/, ''));
@@ -242,7 +246,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
     }
   }
 
-  // Ao alterar o Tipo, atualiza as opções coerentes de Nível de Acesso
   const handleKindChange = (
     newKind: 'client' | 'professional' | 'salon_user' | 'admin' | 'dependent'
   ) => {
@@ -250,7 +253,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
     setAccessLevel(getDefaultAccessLevel(newKind));
   };
 
-  // Consulta e auto-completar de CEP via ViaCEP
   const handleLookupCep = async () => {
     const cleanCep = cep.replace(/\D/g, '');
     if (cleanCep.length !== 8) {
@@ -289,7 +291,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
   const isUsernameRuleValid =
     cleanUsernameRule.length >= 3 && hasUpperUsername && hasLowerUsername && hasSpecialUsername;
 
-  // Salvar formulário
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
@@ -373,7 +374,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
     }
   };
 
-  // Alternar status
   const handleToggleCurrentStatus = async () => {
     const next = !isActive;
     setIsActive(next);
@@ -385,7 +385,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
     setTimeout(() => setFeedbackMsg(null), 3000);
   };
 
-  // Excluir usuário (confirmação em 2 toques sem window.confirm)
   const handleDeleteUser = async () => {
     if (!confirmingDelete) {
       setConfirmingDelete(true);
@@ -401,7 +400,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
     }
   };
 
-  // Reset administrativo de Pergunta Secreta (user_security_answers + clients)
   const handleResetSecurityQuestion = async () => {
     setIsResettingSecurity(true);
     try {
@@ -427,7 +425,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
     }
   };
 
-  // Reset administrativo direto de Senha
   const handleSupportPasswordReset = async () => {
     const cleanPass = supportNewPassword.trim();
     if (cleanPass.length < 4) {
@@ -473,17 +470,12 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
       className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6 bg-slate-950/85 backdrop-blur-md animate-fadeIn overflow-hidden"
       onClick={onClose}
     >
-      {/* 
-        Container do Modal:
-        - Altura estrita: h-[90vh] max-h-[90vh]
-        - Flexbox com isolamento completo de rolagem
-        - A rolagem NÃO passa por trás dos botões do rodapé
-      */}
+
       <div
         className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-scaleIn text-slate-900 dark:text-slate-100"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* CABEÇALHO DO MODAL (ESTÁTICO NO TOPO) */}
+
         <div className="shrink-0 p-3.5 sm:p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 bg-slate-50 dark:bg-slate-950/90 select-none">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="relative group shrink-0">
@@ -533,7 +525,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
           </button>
         </div>
 
-        {/* FEEDBACK BANNER (CASO EXISTA) */}
         {feedbackMsg && (
           <div
             className={`px-4 py-2 text-xs font-semibold flex items-center gap-2 shrink-0 ${
@@ -551,18 +542,16 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
           </div>
         )}
 
-        {/* FORMULÁRIO PRINCIPAL */}
         <form onSubmit={handleSave} className="flex-1 min-h-0 flex flex-col overflow-hidden">
-          {/* CORPO ROLANTE */}
+
           <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-5 space-y-4 text-xs bg-white dark:bg-slate-900">
-            {/* SEÇÃO 1: Identificação & Autenticação */}
+
             <div>
               <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2.5 flex items-center gap-1.5">
                 <User className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                 <span>Identificação & Acesso</span>
               </h3>
 
-              {/* Card de Foto do Usuário / Avatar */}
               <div className="flex items-center gap-3.5 p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 mb-3">
                 <div className="relative group shrink-0">
                   <UserAvatar photoUrl={avatarUrl} name={name} size="xl" />
@@ -623,7 +612,7 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
-                {/* 1. Nome Completo */}
+
                 <div className="sm:col-span-7">
                   <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     Nome Completo <span className="text-rose-500">*</span>
@@ -641,7 +630,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                   </div>
                 </div>
 
-                {/* 2. Nome de Usuário */}
                 <div className="sm:col-span-5">
                   <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     Usuário {kind !== 'dependent' && <span className="text-rose-500">*</span>}
@@ -703,7 +691,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                   )}
                 </div>
 
-                {/* 3. CPF Pessoal (Opcional - Obrigatório apenas após integração com Gateway de Pagamento) */}
                 <div className="sm:col-span-4">
                   <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     CPF Pessoal <span className="text-slate-400 font-normal text-[10px]">(Opcional)</span>
@@ -728,7 +715,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                   </div>
                 </div>
 
-                {/* 4. WhatsApp (Principal) */}
                 <div className="sm:col-span-4">
                   <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     WhatsApp <span className="text-rose-500">*</span>
@@ -746,7 +732,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                   </div>
                 </div>
 
-                {/* 5. WhatsApp (Secundário) */}
                 <div className="sm:col-span-4">
                   <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     WhatsApp 2
@@ -763,7 +748,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                   </div>
                 </div>
 
-                {/* 6. E-mail */}
                 <div className="sm:col-span-7">
                   <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     E-mail <span className="text-rose-500">*</span>
@@ -781,7 +765,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                   </div>
                 </div>
 
-                {/* 7. Senha */}
                 <div className="sm:col-span-5">
                   <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     Senha de Acesso
@@ -806,7 +789,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                   </div>
                 </div>
 
-                {/* 8. Tipo (Lista Suspensa Editável) */}
                 <div className="sm:col-span-6">
                   <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     Tipo de Conta
@@ -841,7 +823,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                   </div>
                 </div>
 
-                {/* 9. Nível de Acesso */}
                 <div className="sm:col-span-6">
                   <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     Nível de Acesso
@@ -911,7 +892,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
               </div>
             </div>
 
-            {/* SEÇÃO 2: Endereço & Localização */}
             <div>
               <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2.5 flex items-center gap-1.5">
                 <MapPin className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -919,7 +899,7 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
               </h3>
 
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
-                {/* CEP com Busca Automática ViaCEP */}
+
                 <div className="sm:col-span-4">
                   <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     CEP
@@ -944,7 +924,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                   </div>
                 </div>
 
-                {/* Endereço / Logradouro */}
                 <div className="sm:col-span-6">
                   <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     Logradouro (Rua / Av.)
@@ -961,7 +940,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                   </div>
                 </div>
 
-                {/* Número */}
                 <div className="sm:col-span-2">
                   <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     Nº
@@ -977,7 +955,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                   </div>
                 </div>
 
-                {/* Complemento */}
                 <div className="sm:col-span-4">
                   <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     Complemento
@@ -994,7 +971,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                   </div>
                 </div>
 
-                {/* Bairro */}
                 <div className="sm:col-span-3">
                   <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     Bairro
@@ -1010,7 +986,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                   </div>
                 </div>
 
-                {/* Cidade */}
                 <div className="sm:col-span-3">
                   <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     Cidade
@@ -1026,7 +1001,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                   </div>
                 </div>
 
-                {/* UF */}
                 <div className="sm:col-span-2">
                   <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     UF
@@ -1044,7 +1018,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                 </div>
               </div>
 
-              {/* Geocodificação Automática + Pino Ajustável Google Maps (Propaga por CPF) */}
               <div className="mt-3">
                 <GoogleAddressPinPicker
                   cep={cep}
@@ -1065,7 +1038,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
               </div>
             </div>
 
-            {/* SEÇÃO 3: Dependentes, Agendamentos & Status Atual */}
             <div>
               <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2.5 flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -1073,7 +1045,7 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
               </h3>
 
               <div className="grid grid-cols-3 gap-2.5">
-                {/* Dependentes */}
+
                 <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
                   <div>
                     <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 block">
@@ -1090,7 +1062,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                   <Users className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 </div>
 
-                {/* Agendamentos */}
                 <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
                   <div>
                     <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 block">
@@ -1107,7 +1078,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                   <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
                 </div>
 
-                {/* Status */}
                 <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-1">
                   <div>
                     <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 block">
@@ -1149,7 +1119,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
               </div>
             </div>
 
-            {/* SEÇÃO 4: Segurança & Recuperação (SQL v5.0 — Perguntas Secretas & Suporte) */}
             {kind !== 'dependent' && (
               <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
                 <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2.5 flex items-center gap-1.5">
@@ -1158,7 +1127,7 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                 </h3>
 
                 <div className="space-y-2.5">
-                  {/* Status e Reset de Pergunta Secreta */}
+
                   <div className="flex flex-wrap items-center justify-between gap-2 py-2 px-3 rounded-lg bg-slate-50 dark:bg-slate-950">
                     <div className="flex items-center gap-2 min-w-0">
                       <HelpCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -1197,7 +1166,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
                     </button>
                   </div>
 
-                  {/* Redefinição Imediata de Senha */}
                   <div className="flex items-center gap-2">
                     <div className="flex-1 flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 focus-within:border-emerald-500 transition">
                       <Lock className="w-3.5 h-3.5 text-slate-400 mr-1.5 shrink-0" />
@@ -1224,7 +1192,6 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
             )}
           </div>
 
-          {/* RODAPÉ FIXO DE AÇÃO */}
           <div className="shrink-0 sticky bottom-0 z-20 p-3.5 sm:p-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 select-none">
             <div className="flex items-center gap-2">
               <button

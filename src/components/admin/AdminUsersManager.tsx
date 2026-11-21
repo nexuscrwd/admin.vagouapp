@@ -49,8 +49,8 @@ import { AdminUserDetailView, UnifiedUserDetailType } from './AdminUserDetailVie
 import { AdminUserGeneralDataModal } from './AdminUserGeneralDataModal';
 import { formatCreatedAtParts, resolveRecordOriginInfo } from '../../utils/dateTimeFormat';
 
-export type UserCategoryFilter = 'all' | 'admins' | 'clients' | 'dependents' | 'professionals' | 'salon_users';
-export type UserStatusFilter = 'all' | 'active' | 'inactive';
+type UserCategoryFilter = 'all' | 'admins' | 'clients' | 'dependents' | 'professionals' | 'salon_users';
+type UserStatusFilter = 'all' | 'active' | 'inactive';
 
 export interface UnifiedUserRow {
   id: string;
@@ -98,17 +98,14 @@ interface AdminUsersManagerProps {
 export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
   searchQuery = '',
 }) => {
-  // Modo de visualização (Tabela ou Cartões) — Padrão: Tabela (idêntico a Estabelecimentos)
+
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
 
-  // Filtros
   const [categoryFilter, setCategoryFilter] = useState<UserCategoryFilter>('all');
   const [statusFilter, setStatusFilter] = useState<UserStatusFilter>('all');
 
-  // Seleção múltipla para ações em massa
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  // Dados das 4 categorias
   const [admins, setAdmins] = useState<SystemAdminUser[]>([]);
   const [clients, setClients] = useState<UserClientItem[]>([]);
   const [salonUsers, setSalonUsers] = useState<UserSalonAccessItem[]>([]);
@@ -116,23 +113,18 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
 
-  // Modal de Dados Gerais (Aberto ao clicar na linha do usuário ou no botão editar)
   const [isGeneralModalOpen, setIsGeneralModalOpen] = useState(false);
   const [selectedUserForModal, setSelectedUserForModal] = useState<UnifiedUserRow | null>(null);
 
-  // Visualização detalhada de relacionamentos / tela cheia (opcional)
   const [selectedUserDetail, setSelectedUserDetail] = useState<UnifiedUserDetailType | null>(null);
 
-  // Modais de Criação
   const [isCreateAdminModalOpen, setIsCreateAdminModalOpen] = useState(false);
   const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState(false);
 
-  // Modal de Confirmação de Exclusão em Massa e Individual
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [userPendingDelete, setUserPendingDelete] = useState<{ kind: string; id: string; name: string } | null>(null);
 
-  // Carregar dados de todos os usuários
   const loadAll = async () => {
     setIsLoading(true);
     try {
@@ -164,7 +156,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
       }, 700);
     };
 
-    // Sincronização em Tempo Real (Realtime) via Supabase com debounce de 700ms para proteção de Egress
     const channel = supabase
       .channel('admvapp-users-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, scheduleLoadAll)
@@ -186,13 +177,11 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
     setTimeout(() => setActionFeedback(null), 3500);
   };
 
-  // Abrir Modal de Dados Gerais ao clicar na linha
   const handleOpenGeneralModal = (userRow: UnifiedUserRow) => {
     setSelectedUserForModal(userRow);
     setIsGeneralModalOpen(true);
   };
 
-  // Salvar Alterações no Modal de Dados Gerais (incluindo promoção entre categorias/tabelas)
   const handleSaveGeneralModal = async (updatedUser: UnifiedUserRow) => {
     const sourceKind = selectedUserForModal?.kind || updatedUser.kind;
     const res = await updateUnifiedUserData(updatedUser.kind, updatedUser.originalId, {
@@ -354,9 +343,8 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
     triggerFeedback(`Dados de "${updatedUser.name}" atualizados com sucesso.`);
   };
 
-  // Executa exclusão de usuário após confirmação
   const executeDeleteUser = async (kind: string, id: string, userName?: string) => {
-    // 1. Atualização Otimista Imediata (Zero Delay / Realtime na UI)
+
     if (kind === 'client') {
       setClients((prev) => prev.filter((c) => c.id !== id));
     } else if (kind === 'dependent') {
@@ -383,7 +371,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
 
     triggerFeedback(`Usuário "${userName || id}" excluído com sucesso.`);
 
-    // 2. Persistência Resiliente no Supabase / Backend Service Role
     try {
       const res = await deleteUnifiedUserData(kind as any, id);
       if (!res.success && res.error) {
@@ -394,7 +381,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
     }
   };
 
-  // Abre modal de confirmação ou exclui direto quando já confirmado no modal geral
   const handleDeleteUser = async (kind: string, id: string, userName?: string, skipConfirm = false) => {
     if (skipConfirm) {
       await executeDeleteUser(kind, id, userName);
@@ -403,7 +389,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
     setUserPendingDelete({ kind, id, name: userName || id });
   };
 
-  // Alternar status ativo/inativo
   const handleToggleGenericStatus = async (kind: string, id: string, nextStatus: boolean) => {
     await toggleUnifiedUserStatus(kind as any, id, nextStatus);
 
@@ -436,7 +421,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
     }
   };
 
-  // Handlers legados do DetailView
   const handleUnlinkDependent = async (dep: UserFamilyDependent) => {
     const res = await unlinkClientDependent(dep.id);
     if (res.success) {
@@ -475,7 +459,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
     }
   };
 
-  // Mapeamento Unificado de Todas as Contas do Sistema com Desduplicação Soberana (bol-162: 1 Pessoa = 1 Único Cadastro)
   const allUnifiedUsers = useMemo<UnifiedUserRow[]>(() => {
     const list: UnifiedUserRow[] = [];
     const byEmail = new Map<string, UnifiedUserRow>();
@@ -537,7 +520,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
       if (cp) byCpf.set(cp, candidate);
     };
 
-    // 1. Admins do Portal (Prioridade Soberana Máxima)
     (admins || []).forEach((a) => {
       const fullName = a.full_name || (a as any).name || 'Administrador Master';
       const cleanEmail = a.email || '';
@@ -582,7 +564,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
       });
     });
 
-    // 2. Usuários de Salão / Proprietários
     (salonUsers || []).forEach((su) => {
       const fullName = su.full_name || (su as any).name || 'Gestor de Salão';
       const cleanEmail = su.email || '';
@@ -628,7 +609,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
       });
     });
 
-    // 3. Profissionais
     (professionals || []).forEach((p) => {
       const fullName = p.full_name || (p as any).name || 'Profissional';
       const cleanEmail = p.email || '';
@@ -676,7 +656,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
       });
     });
 
-    // 4. Clientes & Dependentes da Conta Família
     (clients || []).forEach((c) => {
       const depCount = Array.isArray(c.dependents) ? c.dependents.length : (Number(c.dependents_count) || 0);
       const fullName = c.full_name || (c as any).name || 'Cliente';
@@ -731,7 +710,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         rawData: { kind: 'client', data: c },
       });
 
-      // 4.1 Dependentes da Conta Família
       const deps = Array.isArray(c.dependents) ? c.dependents : [];
       deps.forEach((d: any) => {
         const relLabel = d.relationship === 'son' ? 'Filho(a)' : d.relationship === 'spouse' ? 'Cônjuge' : d.relationship === 'parent' ? 'Pai/Mãe' : 'Dependente';
@@ -786,7 +764,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
   const isOwnerUser = (u: UnifiedUserRow) =>
     u.kind === 'salon_user' || (u.accessLevel || '').toLowerCase().includes('proprietário');
 
-  // Contadores para os filtros
   const adminsCount = useMemo(() => allUnifiedUsers.filter((u) => u.kind === 'admin').length, [allUnifiedUsers]);
   const clientsCount = useMemo(() => allUnifiedUsers.filter((u) => u.kind === 'client').length, [allUnifiedUsers]);
   const dependentsCount = useMemo(() => allUnifiedUsers.filter((u) => u.kind === 'dependent').length, [allUnifiedUsers]);
@@ -796,13 +773,11 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
   const activeUsersCount = useMemo(() => allUnifiedUsers.filter((u) => u.isActive).length, [allUnifiedUsers]);
   const inactiveUsersCount = useMemo(() => allUnifiedUsers.filter((u) => !u.isActive).length, [allUnifiedUsers]);
 
-  // Busca ativa (integrada à busca global do cabeçalho)
   const activeSearch = searchQuery.trim().toLowerCase();
 
-  // Filtragem
   const filteredUsers = useMemo(() => {
     return allUnifiedUsers.filter((u) => {
-      // 1. Filtro por Categoria
+
       if (categoryFilter !== 'all') {
         if (categoryFilter === 'admins' && u.kind !== 'admin') return false;
         if (categoryFilter === 'clients' && u.kind !== 'client') return false;
@@ -811,13 +786,11 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         if (categoryFilter === 'salon_users' && !isOwnerUser(u)) return false;
       }
 
-      // 2. Filtro por Status
       if (statusFilter !== 'all') {
         if (statusFilter === 'active' && !u.isActive) return false;
         if (statusFilter === 'inactive' && u.isActive) return false;
       }
 
-      // 3. Busca por texto
       if (activeSearch) {
         const matchName = (u.name || '').toLowerCase().includes(activeSearch);
         const matchUser = (u.username || '').toLowerCase().includes(activeSearch);
@@ -835,7 +808,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
     });
   }, [allUnifiedUsers, categoryFilter, statusFilter, activeSearch]);
 
-  // Seleção em massa
   const toggleSelectAll = () => {
     if (selectedIds.length === filteredUsers.length) {
       setSelectedIds([]);
@@ -872,7 +844,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
     triggerFeedback(`${selectedIds.length} contas foram suspensas.`);
   };
 
-  // Exclusão em Massa de Usuários Selecionados
   const handleConfirmBulkDelete = async () => {
     if (selectedIds.length === 0) return;
     setIsBulkDeleting(true);
@@ -904,7 +875,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
     }
   };
 
-  // Exportar CSV
   const handleExportCSV = () => {
     const headers = [
       'ID',
@@ -947,7 +917,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
     document.body.removeChild(link);
   };
 
-  // Status Plano (Sem Bordas / Sem Caixa)
   const getStatusBadge = (isActive: boolean) => {
     if (isActive) {
       return {
@@ -963,7 +932,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
     };
   };
 
-  // Se o usuário clicar em "Ver Perfil Completo": Renderiza visualização detalhada soberana
   if (selectedUserDetail) {
     return (
       <AdminUserDetailView
@@ -979,9 +947,9 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
 
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden">
-      {/* Control Bar & Filtros — Fixo ao Topo sem espaçamento com o cabeçalho superior, separado por linha */}
+
       <div className="shrink-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 lg:px-6 py-2.5 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5 z-10 transition-colors shadow-2xs dark:shadow-none">
-        {/* Left Side: Title & Compact Filters */}
+
         <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0">
           <div className="flex items-center gap-2 mr-1">
             <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 flex items-center justify-center shrink-0">
@@ -994,7 +962,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
 
           <div className="h-5 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block mx-0.5" />
 
-          {/* Filtro de Categoria de Usuário */}
           <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 focus-within:border-emerald-500 transition shadow-xs dark:shadow-none">
             <Tag className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 mr-1.5 shrink-0" />
             <select
@@ -1024,7 +991,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
             </select>
           </div>
 
-          {/* Filtro de Status */}
           <div className="flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 focus-within:border-emerald-500 transition shadow-xs dark:shadow-none">
             <Filter className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 mr-1.5 shrink-0" />
             <select
@@ -1045,10 +1011,8 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
             </select>
           </div>
 
-
         </div>
 
-        {/* Right Side: Ações Principais */}
         <div className="flex items-center justify-between lg:justify-end gap-2 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-200 dark:border-slate-800">
           <button
             onClick={loadAll}
@@ -1113,9 +1077,8 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         </div>
       </div>
 
-      {/* Área de Dados — Container Mestre com Zero Espaço */}
       <div className="flex-1 flex flex-col min-h-0 p-0 m-0 overflow-hidden">
-        {/* Alerta de Feedback de Ações */}
+
         {actionFeedback && (
           <div className="shrink-0 p-3 bg-emerald-50 dark:bg-emerald-500/10 border-b border-emerald-200 dark:border-emerald-500/30 text-xs text-emerald-700 dark:text-emerald-400 font-semibold animate-fadeIn flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
@@ -1123,7 +1086,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
           </div>
         )}
 
-        {/* Banner de Ações em Massa */}
         {selectedIds.length > 0 && (
           <div className="shrink-0 p-3 bg-emerald-50 dark:bg-emerald-950/90 border-b border-emerald-300 dark:border-emerald-500/50 flex flex-wrap items-center justify-between gap-2.5 animate-fadeIn">
             <div className="flex items-center gap-2">
@@ -1168,9 +1130,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
           </div>
         )}
 
-        {/* ======================================================== */}
-        {/* VIEW 1: TABELA REORGANIZADA — Cabeçalho das colunas 100% fixo ao topo (sticky top-0), rolando SOMENTE os dados */}
-        {/* ======================================================== */}
         {viewMode === 'table' && (
           <div className="flex-1 overflow-auto min-h-0 custom-scrollbar w-full bg-white dark:bg-slate-950 border-t border-slate-200/80 dark:border-slate-800/80">
             <table className="w-full text-left text-xs min-w-[780px] border-separate border-spacing-0">
@@ -1224,7 +1183,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                         }`}
                         title="Clique na linha para abrir os Dados Gerais do usuário"
                       >
-                        {/* Checkbox */}
+
                         <td
                           className="py-2.5 px-3 text-center border-b border-r border-slate-200/70 dark:border-slate-800/75"
                           onClick={(e) => {
@@ -1241,7 +1200,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                           </button>
                         </td>
 
-                        {/* 1. Nome */}
                         <td className="py-2.5 px-3 border-b border-r border-slate-200/70 dark:border-slate-800/75">
                           <div className="flex items-center gap-2.5">
                             <UserAvatar name={user.name} photoUrl={user.avatarUrl} size="sm" />
@@ -1258,14 +1216,12 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                           </div>
                         </td>
 
-                        {/* 2. Nome Usuário */}
                         <td className="py-2.5 px-3 border-b border-r border-slate-200/70 dark:border-slate-800/75">
                           <span className="font-mono text-xs font-semibold text-emerald-700 dark:text-emerald-400 truncate block max-w-[140px]">
                             {user.username}
                           </span>
                         </td>
 
-                        {/* 3. WhatsApp (Principal) */}
                         <td className="py-2.5 px-3 border-b border-r border-slate-200/70 dark:border-slate-800/75">
                           <div className="flex items-center gap-1.5 font-mono text-slate-800 dark:text-slate-200">
                             <Phone className="w-3 h-3 text-emerald-500 shrink-0" />
@@ -1273,7 +1229,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                           </div>
                         </td>
 
-                        {/* 4. Tipo + Indicador Compacto de Pergunta Secreta */}
                         <td className="py-2.5 px-3 border-b border-r border-slate-200/70 dark:border-slate-800/75">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className={`inline-flex items-center text-[11px] font-bold whitespace-nowrap ${user.roleBadgeClass}`}>
@@ -1299,14 +1254,12 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                           </div>
                         </td>
 
-                        {/* 5. E-mail */}
                         <td className="py-2.5 px-3 border-b border-r border-slate-200/70 dark:border-slate-800/75">
                           <span className="text-slate-700 dark:text-slate-300 font-mono text-[11px] block truncate max-w-[160px]">
                             {user.email}
                           </span>
                         </td>
 
-                        {/* 8. Depend. (numero de dependentes vinculado ao usuário) */}
                         <td className="py-2.5 px-3 text-center border-b border-r border-slate-200/70 dark:border-slate-800/75">
                           <span
                             className={`inline-block text-[11px] font-bold font-mono ${
@@ -1319,7 +1272,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                           </span>
                         </td>
 
-                        {/* 9. Agend. (numero de agendamentos) */}
                         <td className="py-2.5 px-3 text-center border-b border-r border-slate-200/70 dark:border-slate-800/75">
                           <span
                             className={`inline-block text-[11px] font-bold font-mono ${
@@ -1332,7 +1284,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                           </span>
                         </td>
 
-                        {/* 10. Criado em (Data + Hora + Origem) */}
                         <td
                           className="py-2.5 px-3 whitespace-nowrap border-b border-r border-slate-200/70 dark:border-slate-800/75"
                           title={`Criado em: ${createdParts.fullLabel} • Origem: ${user.originLabel}`}
@@ -1353,7 +1304,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                           )}
                         </td>
 
-                        {/* 11. Status */}
                         <td className="py-2.5 px-3 text-center border-b border-slate-200/70 dark:border-slate-800/75">
                           <span
                             className={`inline-flex items-center gap-1.5 text-[11px] font-bold ${statusBadge.className}`}
@@ -1371,9 +1321,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
           </div>
         )}
 
-      {/* ======================================================== */}
-      {/* VIEW 2: CARDS GRID (Visão em Cartões)                    */}
-      {/* ======================================================== */}
       {viewMode === 'cards' && (
         <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar p-4 lg:p-6 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
@@ -1399,7 +1346,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                   title={`Clique para abrir os dados gerais de ${user.name}`}
                 >
                   <div>
-                    {/* Top card header */}
+
                     <div className="flex items-start justify-between gap-2 mb-3">
                       <div className="flex items-center gap-2.5">
                         <button
@@ -1445,7 +1392,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                       </div>
                     </div>
 
-                    {/* User Name & Username */}
                     <h3 className="font-bold text-sm text-slate-900 dark:text-white tracking-tight line-clamp-1 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition">
                       {user.name}
                     </h3>
@@ -1453,7 +1399,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                       {user.username}
                     </span>
 
-                    {/* Role & Access Level */}
                     <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                       <span className={`text-[10px] px-2 py-0.5 rounded border inline-block ${user.roleBadgeClass}`}>
                         {user.roleLabel}
@@ -1463,7 +1408,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                       </span>
                     </div>
 
-                    {/* Details Summary */}
                     <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-800 space-y-1 text-[11px] text-slate-500 dark:text-slate-400">
                       <div className="flex items-center justify-between">
                         <span>WhatsApp:</span>
@@ -1492,7 +1436,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
                     </div>
                   </div>
 
-                  {/* Bottom Quick Actions */}
                   <div
                     className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2"
                     onClick={(e) => e.stopPropagation()}
@@ -1536,7 +1479,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         </div>
       )}
 
-      {/* MODAL DE DADOS GERAIS (Abre ao clicar na linha do usuário) */}
       {isGeneralModalOpen && selectedUserForModal && (
         <AdminUserGeneralDataModal
           user={selectedUserForModal}
@@ -1555,7 +1497,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         />
       )}
 
-      {/* Modal de Confirmação de Exclusão Individual */}
       {userPendingDelete &&
         createPortal(
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
@@ -1597,7 +1538,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
           document.body
         )}
 
-      {/* Modal Dedicado para Cadastrar Novo Administrador */}
       <AdminCreateAdminModal
         isOpen={isCreateAdminModalOpen}
         onClose={() => setIsCreateAdminModalOpen(false)}
@@ -1607,7 +1547,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         }}
       />
 
-      {/* Modal Dedicado para Cadastro Unificado de Usuários (Oficial da Tríade) */}
       {isRegistrationModalOpen &&
         createPortal(
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-slate-950/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
@@ -1627,7 +1566,6 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
           document.body
         )}
 
-      {/* Modal de Confirmação de Exclusão em Massa (Soberano via Portal) */}
       {isBulkDeleteModalOpen &&
         createPortal(
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">

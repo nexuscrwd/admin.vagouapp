@@ -33,13 +33,6 @@ const roundedClasses = {
   xl: 'rounded-2xl',
 };
 
-/**
- * Componente padrão de Avatar da Tríade VagouApp.
- * Anti-Slop: Erradicação total de fotos genéricas de banco de imagens (Unsplash, Pexels) ou círculos pesados de letras.
- * Modelo Moldura Quadrada (com cantos suavemente arredondados).
- * Em ausência de foto real de upload enviada pelo usuário/prestador (ou se a URL for mock),
- * renderiza exclusivamente o ícone vetorial fino User da biblioteca lucide-react (stroke-[1.8]).
- */
 export const UserAvatar: React.FC<UserAvatarProps> = ({
   photoUrl,
   name,
@@ -48,12 +41,10 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
 }) => {
   const [imageError, setImageError] = useState(false);
 
-  // Reseta estado de erro caso a URL do avatar seja atualizada no banco
   React.useEffect(() => {
     setImageError(false);
   }, [photoUrl]);
 
-  // Validação estrita: renderiza foto apenas se for URL válida de upload real (não mock) e sem erro
   const isValidPhoto = Boolean(
     photoUrl &&
     photoUrl.trim() !== '' &&
@@ -81,7 +72,6 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
     );
   }
 
-  // Fallback padrão homologado pela Tríade: Moldura quadrada com cantos suavemente arredondados e ícone User de traço fino (stroke-[1.8])
   return (
     <div
       className={`${containerSize} ${roundedClass} bg-slate-100 dark:bg-slate-900/90 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 hover:border-emerald-500/40 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0 transition-colors shadow-xs ${className}`}
@@ -91,7 +81,4 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
     </div>
   );
 };
-
-export { resolveTriadeAvatar, isMockAvatarUrl, sanitizeLocalStorageAvatars } from '../../utils/avatarResolver';
-export type { ResolveTriadeAvatarParams } from '../../utils/avatarResolver';
 

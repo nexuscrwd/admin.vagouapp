@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 
-export interface VagouOfficialLogoProps {
+interface VagouOfficialLogoProps {
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
   variant?: 'icon' | 'full' | 'symbol';
   className?: string;
@@ -28,20 +28,14 @@ const fullSizeClasses = {
   '2xl': 'h-14',
 };
 
-// Lista encadeada de fontes oficiais do logotipo no Supabase e em Assets locais
 const LOGO_OFFICIAL_SOURCES = [
   'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/branding/vagou-logo.png',
   'https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/assets/logo.png',
   '/logo.png',
-  '/vagou-logo.png',
   '/logo_light.png',
   '/icon.svg',
 ];
 
-/**
- * Logotipo Oficial do VagouApp (Ícone Squircle, Full Logo Horizontal ou Símbolo Vetorial).
- * Respeita em tempo real os logotipos (Dark/Light) e ícones customizados na ferramenta "Preferências" do Admin Master.
- */
 export const VagouOfficialLogo: React.FC<VagouOfficialLogoProps> = ({
   size = 'md',
   variant = 'icon',

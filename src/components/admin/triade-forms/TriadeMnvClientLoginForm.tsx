@@ -11,13 +11,13 @@ import slideSalonInterior from '../../../assets/images/mnv_slide_salon_interior_
 import slideBarbershopCraft from '../../../assets/images/mnv_slide_barbershop_craft_1794764500496.jpg';
 import slideAestheticSpa from '../../../assets/images/mnv_slide_aesthetic_spa_1794764501452.jpg';
 
-export const DEFAULT_MNV_EDITORIAL_SLIDES: string[] = [
+const DEFAULT_MNV_EDITORIAL_SLIDES: string[] = [
   slideSalonInterior,
   slideBarbershopCraft,
   slideAestheticSpa,
 ];
 
-export interface TriadeMnvClientLoginFormProps {
+interface TriadeMnvClientLoginFormProps {
   salonId?: string;
   salonSlug?: string;
   salonName?: string;
@@ -36,12 +36,6 @@ export interface TriadeMnvClientLoginFormProps {
   showHeader?: boolean;
 }
 
-/**
- * TriadeMnvClientLoginForm (Entrada Cinematográfica Oficial do mnvapp / *.vagouapp.com)
- * - Palco em Slideshow Inteligente de 2 Níveis (Fotos reais do salão -> Fallback Editorial P&B curado)
- * - Card Flutuante em Vidro Jateado (Glassmorphism Dark idêntico ao vagouapp.com)
- * - Alternância suave Login <-> Criar Conta <-> Recuperar Senha dentro do mesmo vidro
- */
 export const TriadeMnvClientLoginForm: React.FC<TriadeMnvClientLoginFormProps> = ({
   salonId,
   salonSlug,
@@ -92,7 +86,6 @@ export const TriadeMnvClientLoginForm: React.FC<TriadeMnvClientLoginFormProps> =
     }));
   }, [salonId, salonSlug, salonName, salonLogoUrl, salonSlogan, salonSlides]);
 
-  // Busca dados White-Label reais do salão e fotos do acervo (Nível 1 do Slideshow)
   useEffect(() => {
     if (!salonSlug && !salonId) return;
     let cancelled = false;
@@ -101,7 +94,7 @@ export const TriadeMnvClientLoginForm: React.FC<TriadeMnvClientLoginFormProps> =
       try {
         let query = supabaseAdmin
           .from('salons')
-          .select('id, trade_name, name, slug, logo_url, slogan, cover_image_url, branding');
+          .select('id, trade_name, slug, logo_url, slogan, cover_url, branding');
 
         if (salonId) {
           query = query.eq('id', salonId);
@@ -113,22 +106,23 @@ export const TriadeMnvClientLoginForm: React.FC<TriadeMnvClientLoginFormProps> =
         if (cancelled || !salonRow) return;
 
         const gatheredSlides: string[] = [];
-        if (salonRow.cover_image_url) {
-          gatheredSlides.push(salonRow.cover_image_url);
+        if (salonRow.cover_url) {
+          gatheredSlides.push(salonRow.cover_url);
         }
 
         if (salonRow.id) {
           const { data: mediaRows } = await supabaseAdmin
-            .from('salon_media_items')
-            .select('url, type, media_group')
-            .eq('salon_id', salonRow.id)
-            .eq('type', 'image')
+            .from('media_assets')
+            .select('public_url, mime_type, purpose')
+            .eq('owner_type', 'salon')
+            .eq('owner_id', salonRow.id)
+            .ilike('mime_type', 'image/%')
             .limit(5);
 
           if (Array.isArray(mediaRows)) {
             mediaRows.forEach((m: any) => {
-              if (m?.url && !gatheredSlides.includes(m.url)) {
-                gatheredSlides.push(m.url);
+              if (m?.public_url && !gatheredSlides.includes(m.public_url)) {
+                gatheredSlides.push(m.public_url);
               }
             });
           }
@@ -137,7 +131,7 @@ export const TriadeMnvClientLoginForm: React.FC<TriadeMnvClientLoginFormProps> =
         if (!cancelled) {
           setResolvedSalon({
             id: salonRow.id,
-            name: salonRow.trade_name || salonRow.name || salonName,
+            name: salonRow.trade_name || salonName,
             slug: salonRow.slug || salonSlug,
             logoUrl: salonRow.logo_url || salonLogoUrl,
             slogan: salonRow.slogan || salonRow.branding?.slogan || salonSlogan,
@@ -179,7 +173,6 @@ export const TriadeMnvClientLoginForm: React.FC<TriadeMnvClientLoginFormProps> =
     }
   };
 
-  // Modo inline (quando o contêiner pai já provê o vidro jateado e o fundo, ex: UniversalFormEmbedView)
   if (stageMode === 'inline') {
     return (
       <TriadeUserLoginForm
@@ -203,10 +196,9 @@ export const TriadeMnvClientLoginForm: React.FC<TriadeMnvClientLoginFormProps> =
     );
   }
 
-  // Modo Palco Completo Cinematográfico (Slideshow Editorial + Card Flutuante em Vidro Jateado)
   return (
     <div className="relative w-full min-h-[620px] h-full flex flex-col items-center justify-center p-4 sm:p-8 overflow-hidden bg-slate-950 rounded-2xl select-none">
-      {/* Camada 1: Slideshow Editorial em Crossfade Suave */}
+
       <div className="absolute inset-0 z-0 overflow-hidden bg-slate-950">
         {activeSlides.map((slideUrl, idx) => {
           const isCurrent = idx === currentSlideIndex % Math.max(activeSlides.length, 1);
@@ -229,11 +221,9 @@ export const TriadeMnvClientLoginForm: React.FC<TriadeMnvClientLoginFormProps> =
           );
         })}
 
-        {/* Película Escura Editorial (Garante contraste >= 4.5:1 em qualquer foto do salão) */}
         <div className="absolute inset-0 bg-gradient-to-b from-slate-950/65 via-slate-950/55 to-slate-950/85" />
       </div>
 
-      {/* Camada 2: Card Central em Vidro Jateado (Login <-> Cadastro Unificados) */}
       <div className="relative z-10 w-full max-w-md mx-auto my-auto">
         {viewMode === 'login' ? (
           <TriadeUserLoginForm
@@ -283,7 +273,6 @@ export const TriadeMnvClientLoginForm: React.FC<TriadeMnvClientLoginFormProps> =
           </div>
         )}
 
-        {/* Indicadores discretos de slides no rodapé do palco */}
         {activeSlides.length > 1 && (
           <div className="mt-5 flex items-center justify-center gap-2">
             {activeSlides.map((slideUrl, idx) => {

@@ -59,69 +59,69 @@ interface GoogleMapsRouteOption {
 const GOOGLE_MAPS_ROUTE_OPTIONS: Record<'in_salon' | 'home_delivery', GoogleMapsRouteOption[]> = {
   in_salon: [
     {
-      id: 'route-reboucas-fast',
-      label: 'Rota 1 • Mais Rápida (Google Maps)',
+      id: 'route-primary-fast',
+      label: 'Rota 1 • Principal (Google Maps)',
       badge: 'Recomendada',
-      summary: 'Via R. dos Pinheiros ➔ Av. Rebouças ➔ R. Oscar Freire',
+      summary: 'Via Corredor Principal ➔ Avenida Central ➔ Destino',
       baseDistanceKm: 4.5,
       baseEtaMinutes: 25,
       trafficCondition: 'moderate',
       streets: [
-        { street: 'Rua dos Pinheiros, 410 (Partida)', neighborhood: 'Pinheiros', distanceFromStartKm: 0.0, xPercent: 14, yPercent: 78, lat: -23.5653, lng: -46.6821 },
-        { street: 'Av. Henrique Schaumann, 280', neighborhood: 'Pinheiros', distanceFromStartKm: 1.1, xPercent: 30, yPercent: 64, lat: -23.5618, lng: -46.6778 },
-        { street: 'Av. Rebouças, 1900', neighborhood: 'Jardins', distanceFromStartKm: 2.4, xPercent: 50, yPercent: 48, lat: -23.5639, lng: -46.6728 },
-        { street: 'Rua Bela Cintra, 1450', neighborhood: 'Jardins', distanceFromStartKm: 3.6, xPercent: 70, yPercent: 34, lat: -23.5608, lng: -46.6669 },
-        { street: 'Rua Oscar Freire, 820 (Destino Salão)', neighborhood: 'Jardins', distanceFromStartKm: 4.5, xPercent: 86, yPercent: 20, lat: -23.5616, lng: -46.6691 },
+        { street: 'Ponto de Partida (Origem GPS)', neighborhood: 'Origem', distanceFromStartKm: 0.0, xPercent: 14, yPercent: 78, lat: -23.5505, lng: -46.6333 },
+        { street: 'Via Arterial 1 (Trecho Inicial)', neighborhood: 'Percurso', distanceFromStartKm: 1.1, xPercent: 30, yPercent: 64, lat: -23.5515, lng: -46.6365 },
+        { street: 'Avenida Central (Trecho Médio)', neighborhood: 'Percurso', distanceFromStartKm: 2.4, xPercent: 50, yPercent: 48, lat: -23.5535, lng: -46.6405 },
+        { street: 'Via de Acesso Local', neighborhood: 'Aproximação', distanceFromStartKm: 3.6, xPercent: 70, yPercent: 34, lat: -23.5555, lng: -46.6445 },
+        { street: 'Endereço do Estabelecimento (Destino)', neighborhood: 'Destino', distanceFromStartKm: 4.5, xPercent: 86, yPercent: 20, lat: -23.5575, lng: -46.6485 },
       ],
     },
     {
-      id: 'route-paulista-alt',
-      label: 'Rota 2 • Alternativa sem Pedágio/Obras',
+      id: 'route-secondary-alt',
+      label: 'Rota 2 • Alternativa',
       badge: 'Alternativa',
-      summary: 'Via Av. Faria Lima ➔ Av. Paulista ➔ R. Augusta',
+      summary: 'Via Corredor Alternativo ➔ Destino',
       baseDistanceKm: 5.4,
       baseEtaMinutes: 31,
       trafficCondition: 'normal',
       streets: [
-        { street: 'Rua dos Pinheiros, 410 (Partida)', neighborhood: 'Pinheiros', distanceFromStartKm: 0.0, xPercent: 14, yPercent: 78, lat: -23.5653, lng: -46.6821 },
-        { street: 'Av. Brig. Faria Lima, 1800', neighborhood: 'Jardim Paulistano', distanceFromStartKm: 1.5, xPercent: 28, yPercent: 36, lat: -23.5705, lng: -46.6879 },
-        { street: 'Av. Paulista, 2100', neighborhood: 'Consolação', distanceFromStartKm: 3.2, xPercent: 54, yPercent: 26, lat: -23.5578, lng: -46.6602 },
-        { street: 'Rua Augusta, 2400', neighborhood: 'Jardins', distanceFromStartKm: 4.4, xPercent: 72, yPercent: 24, lat: -23.5629, lng: -46.6656 },
-        { street: 'Rua Oscar Freire, 820 (Destino Salão)', neighborhood: 'Jardins', distanceFromStartKm: 5.4, xPercent: 86, yPercent: 20, lat: -23.5616, lng: -46.6691 },
+        { street: 'Ponto de Partida (Origem GPS)', neighborhood: 'Origem', distanceFromStartKm: 0.0, xPercent: 14, yPercent: 78, lat: -23.5505, lng: -46.6333 },
+        { street: 'Corredor Expressa (Trecho 1)', neighborhood: 'Percurso', distanceFromStartKm: 1.5, xPercent: 28, yPercent: 36, lat: -23.5522, lng: -46.6380 },
+        { street: 'Via Secundária (Trecho 2)', neighborhood: 'Percurso', distanceFromStartKm: 3.2, xPercent: 54, yPercent: 26, lat: -23.5542, lng: -46.6420 },
+        { street: 'Via de Aproximação', neighborhood: 'Aproximação', distanceFromStartKm: 4.4, xPercent: 72, yPercent: 24, lat: -23.5562, lng: -46.6460 },
+        { street: 'Endereço do Estabelecimento (Destino)', neighborhood: 'Destino', distanceFromStartKm: 5.4, xPercent: 86, yPercent: 20, lat: -23.5575, lng: -46.6485 },
       ],
     },
   ],
   home_delivery: [
     {
       id: 'route-delivery-fast',
-      label: 'Rota 1 • Mais Rápida até o Cliente (Google Maps)',
+      label: 'Rota 1 • Principal até o Cliente (Google Maps)',
       badge: 'Recomendada',
-      summary: 'Via R. Oscar Freire ➔ Av. Brasil ➔ Al. Santos (Residência)',
+      summary: 'Via Estabelecimento ➔ Corredor Principal ➔ Residência',
       baseDistanceKm: 3.8,
       baseEtaMinutes: 20,
       trafficCondition: 'moderate',
       streets: [
-        { street: 'Studio Prime • R. Oscar Freire, 820 (Saída Profissional)', neighborhood: 'Jardins', distanceFromStartKm: 0.0, xPercent: 16, yPercent: 22, lat: -23.5616, lng: -46.6691 },
-        { street: 'Av. Brasil, 1250', neighborhood: 'Jardim América', distanceFromStartKm: 1.0, xPercent: 35, yPercent: 38, lat: -23.5692, lng: -46.6698 },
-        { street: 'Alameda Joaquim Eugênio de Lima, 600', neighborhood: 'Bela Vista', distanceFromStartKm: 2.2, xPercent: 55, yPercent: 54, lat: -23.5665, lng: -46.6525 },
-        { street: 'Alameda Jaú, 1100', neighborhood: 'Jardins', distanceFromStartKm: 3.1, xPercent: 72, yPercent: 68, lat: -23.5626, lng: -46.6594 },
-        { street: 'Alameda Santos, 1780 • Apto 82 (Casa do Cliente)', neighborhood: 'Cerqueira César', distanceFromStartKm: 3.8, xPercent: 86, yPercent: 80, lat: -23.5611, lng: -46.6579 },
+        { street: 'Estabelecimento (Saída Profissional)', neighborhood: 'Origem', distanceFromStartKm: 0.0, xPercent: 16, yPercent: 22, lat: -23.5575, lng: -46.6485 },
+        { street: 'Via Principal (Trecho 1)', neighborhood: 'Percurso', distanceFromStartKm: 1.0, xPercent: 35, yPercent: 38, lat: -23.5558, lng: -46.6448 },
+        { street: 'Avenida de Ligação (Trecho 2)', neighborhood: 'Percurso', distanceFromStartKm: 2.2, xPercent: 55, yPercent: 54, lat: -23.5538, lng: -46.6410 },
+        { street: 'Via Residencial (Aproximação)', neighborhood: 'Aproximação', distanceFromStartKm: 3.1, xPercent: 72, yPercent: 68, lat: -23.5518, lng: -46.6370 },
+        { street: 'Endereço do Cliente (Destino)', neighborhood: 'Destino', distanceFromStartKm: 3.8, xPercent: 86, yPercent: 80, lat: -23.5505, lng: -46.6333 },
       ],
     },
     {
       id: 'route-delivery-alt',
-      label: 'Rota 2 • Via Nove de Julho',
+      label: 'Rota 2 • Alternativa',
       badge: 'Alternativa',
-      summary: 'Via Av. Nove de Julho ➔ R. Pamplona ➔ Al. Santos',
+      summary: 'Via Corredor Alternativo ➔ Residência',
       baseDistanceKm: 4.3,
       baseEtaMinutes: 24,
       trafficCondition: 'normal',
       streets: [
-        { street: 'Studio Prime • R. Oscar Freire, 820 (Saída Profissional)', neighborhood: 'Jardins', distanceFromStartKm: 0.0, xPercent: 16, yPercent: 22, lat: -23.5616, lng: -46.6691 },
-        { street: 'Av. Nove de Julho, 3400', neighborhood: 'Jardim Paulista', distanceFromStartKm: 1.4, xPercent: 32, yPercent: 60, lat: -23.5697, lng: -46.6634 },
-        { street: 'Rua Pamplona, 900', neighborhood: 'Jardim Paulista', distanceFromStartKm: 2.7, xPercent: 56, yPercent: 72, lat: -23.5648, lng: -46.6558 },
-        { street: 'Rua Campinas, 420', neighborhood: 'Jardim Paulista', distanceFromStartKm: 3.5, xPercent: 72, yPercent: 76, lat: -23.5632, lng: -46.6562 },
-        { street: 'Alameda Santos, 1780 • Apto 82 (Casa do Cliente)', neighborhood: 'Cerqueira César', distanceFromStartKm: 4.3, xPercent: 86, yPercent: 80, lat: -23.5611, lng: -46.6579 },
+        { street: 'Estabelecimento (Saída Profissional)', neighborhood: 'Origem', distanceFromStartKm: 0.0, xPercent: 16, yPercent: 22, lat: -23.5575, lng: -46.6485 },
+        { street: 'Via Lateral (Trecho 1)', neighborhood: 'Percurso', distanceFromStartKm: 1.4, xPercent: 32, yPercent: 60, lat: -23.5552, lng: -46.6442 },
+        { street: 'Corredor Intermediário (Trecho 2)', neighborhood: 'Percurso', distanceFromStartKm: 2.7, xPercent: 56, yPercent: 72, lat: -23.5530, lng: -46.6395 },
+        { street: 'Via de Acesso (Aproximação)', neighborhood: 'Aproximação', distanceFromStartKm: 3.5, xPercent: 72, yPercent: 76, lat: -23.5514, lng: -46.6360 },
+        { street: 'Endereço do Cliente (Destino)', neighborhood: 'Destino', distanceFromStartKm: 4.3, xPercent: 86, yPercent: 80, lat: -23.5505, lng: -46.6333 },
       ],
     },
   ],
@@ -161,61 +161,49 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
   appointments,
   selectedSalonName,
 }) => {
-  // Contexto: No Salão (Cliente -> Salão) vs Delivery (Profissional -> Casa do Cliente)
+
   const [serviceLocationType, setServiceLocationType] = useState<'in_salon' | 'home_delivery'>('in_salon');
 
-  // Meio de transporte selecionado
   const [transportMode, setTransportMode] = useState<AppointmentTransportMode>('driving');
 
-  // Rota traçada no Google Maps In-App
-  const [selectedRouteId, setSelectedRouteId] = useState<string>('route-reboucas-fast');
+  const [selectedRouteId, setSelectedRouteId] = useState<string>('route-primary-fast');
 
-  // Modo de visualização do receptor (Linha de Ruas estilo Shopee/Correios vs Mapa 10s)
   const [trackingViewMode, setTrackingViewMode] = useState<'street_timeline' | 'live_map'>('street_timeline');
 
-  // Sub-modo do Mapa (Opção 1 Completo com Rota vs Opção 2 Simplificado apenas Pinos)
   const [mapDetailLevel, setMapDetailLevel] = useState<'full' | 'simplified'>('full');
 
-  // Estado da árvore de decisão do Modal Pré-Partida (ETA + 10 min)
   const [decisionStep, setDecisionStep] = useState<
-    | 'initial_question' // "Restam X min. Você já está de partida?" (Sim / Não)
-    | 'no_branch_attend_or_reschedule' // "Irá comparecer ou remanejar?"
-    | 'no_branch_hurry_alert' // "Percurso leva X min! Apresse-se!"
-    | 'no_branch_not_attending_choice' // "Cancelar ou Remanejar?"
-    | 'cancel_reason_box' // Box obrigatório de motivo do cancelamento
-    | 'reschedule_calendar' // Agenda do estabelecimento para escolher nova data/hora
-    | 'yes_branch_route_and_share' // Traçar Rota Google Maps + "Compartilhar trajeto ao vivo?"
+    | 'initial_question'
+    | 'no_branch_attend_or_reschedule'
+    | 'no_branch_hurry_alert'
+    | 'no_branch_not_attending_choice'
+    | 'cancel_reason_box'
+    | 'reschedule_calendar'
+    | 'yes_branch_route_and_share'
   >('initial_question');
 
-  // Status atual do rastreamento
   const [trackingStatus, setTrackingStatus] = useState<AppointmentTrackingStatus>('live_sharing');
 
-  // Índice da rua atual na rota traçada (0 a 4)
   const [currentStreetIndex, setCurrentStreetIndex] = useState<number>(2);
 
-  // Ciclo automático de 10 segundos
   const [secondsToNextRefresh, setSecondsToNextRefresh] = useState<number>(10);
   const [isAutoSimulating10s, setIsAutoSimulating10s] = useState<boolean>(true);
 
-  // Adversidade ativa na rua atual (ex: +7 min de trânsito)
   const [activeAdversity, setActiveAdversity] = useState<RouteAdversityEvent | null>({
     type: 'traffic',
     label: 'Trânsito inesperado na via',
-    street: 'Av. Rebouças, 1900',
+    street: 'Avenida Central (Trecho Médio)',
     addedMinutes: 7,
     reportedAt: '14:29',
   });
 
-  // Dados de Cancelamento e Remanejamento
   const [cancellationReason, setCancellationReason] = useState<string>('');
   const [cancellationError, setCancellationError] = useState<string>('');
   const [rescheduleDate, setRescheduleDate] = useState<string>('2026-09-25');
   const [rescheduleTime, setRescheduleTime] = useState<string>('16:30');
 
-  // Modal de Simulação da Partida aberto/fechado
   const [isDepartureModalOpen, setIsDepartureModalOpen] = useState<boolean>(false);
 
-  // Atualiza rota padrão ao trocar entre No Salão e Delivery
   useEffect(() => {
     const routes = GOOGLE_MAPS_ROUTE_OPTIONS[serviceLocationType];
     setSelectedRouteId(routes[0].id);
@@ -238,7 +226,6 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
     return TRANSPORT_MODES.find((t) => t.id === transportMode) || TRANSPORT_MODES[0];
   }, [transportMode]);
 
-  // Cálculo oficial: Tempo estimado da rota conforme transporte + 10 min de preparo
   const calculatedRouteMinutes = useMemo(() => {
     return Math.max(5, Math.round(currentRoute.baseEtaMinutes * activeTransport.speedMultiplier));
   }, [currentRoute, activeTransport]);
@@ -246,7 +233,6 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
   const prepBufferMinutes = 10;
   const preAlertMinutesBeforeAppointment = calculatedRouteMinutes + prepBufferMinutes;
 
-  // Distância e ETA restantes baseados na rua atual + adversidade ativa
   const totalStreets = currentRoute.streets.length;
   const remainingFraction = Math.max(0, (totalStreets - 1 - currentStreetIndex) / (totalStreets - 1));
   const remainingDistanceKm = Number((currentRoute.baseDistanceKm * remainingFraction).toFixed(1));
@@ -261,13 +247,11 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
     return baseRemaining + addedDelayMinutes;
   }, [trackingStatus, currentStreetIndex, totalStreets, calculatedRouteMinutes, remainingFraction, addedDelayMinutes]);
 
-  // Alerta automático quando ETA <= 5 min
   const isFiveMinAlertActive =
     (trackingStatus === 'live_sharing' || trackingStatus === 'arriving_5min') &&
     currentEtaMinutes > 0 &&
     currentEtaMinutes <= 5;
 
-  // Ciclo de 10 segundos (atualiza contador e avança marcador quando ativo)
   useEffect(() => {
     if (!isAutoSimulating10s) return;
     if (trackingStatus !== 'live_sharing' && trackingStatus !== 'arriving_5min') return;
@@ -295,7 +279,6 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
     return () => clearInterval(timer);
   }, [isAutoSimulating10s, trackingStatus, totalStreets]);
 
-  // Constrói a lista de checkpoints de ruas (Estilo Correios / Shopee)
   const streetCheckpoints: RouteStreetCheckpoint[] = useMemo(() => {
     const baseTimes = ['14:15', '14:22', '14:29', '14:35', '14:41'];
     return currentRoute.streets.map((s, idx) => {
@@ -370,7 +353,7 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden text-white">
-      {/* Cabeçalho Principal: Contexto Bidirecional (Salão vs Delivery) + Disparo do Modal Pré-Partida */}
+
       <div className="p-4 sm:p-5 border-b border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-950/60">
         <div className="flex items-start sm:items-center gap-3.5">
           <div className="w-10 h-10 rounded-xl bg-[#20C933] text-white flex items-center justify-center shrink-0">
@@ -391,7 +374,6 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
           </div>
         </div>
 
-        {/* Alternador Bidirecional: No Salão vs Delivery + Botão Abrir Modal Pré-Partida */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800">
             <button
@@ -434,7 +416,6 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
         </div>
       </div>
 
-      {/* BANNER AUTOMÁTICO DE GEOFENCING / ALERTA DE 5 MINUTOS */}
       {isFiveMinAlertActive && (
         <div className="px-4 py-3 bg-[#20C933] text-white flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-400/30">
           <div className="flex items-center gap-2.5">
@@ -451,9 +432,8 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
         </div>
       )}
 
-      {/* BARRA DE TELEMETRIA RÁPIDA: Transporte, Rota Traçada, Ciclo 10s e ETA */}
       <div className="p-4 border-b border-slate-800 grid grid-cols-1 lg:grid-cols-12 gap-4 items-center bg-slate-900">
-        {/* Coluna 1: Seletor de Modalidade de Transporte */}
+
         <div className="lg:col-span-5 space-y-1.5">
           <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold uppercase">
             <span>1. Modalidade de Deslocamento</span>
@@ -484,7 +464,6 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
           </div>
         </div>
 
-        {/* Coluna 2: Seletor de Rota Traçada no Google Maps In-App */}
         <div className="lg:col-span-4 space-y-1.5">
           <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold uppercase">
             <span>2. Rota Traçada no App (Google Maps)</span>
@@ -516,7 +495,6 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
           </div>
         </div>
 
-        {/* Coluna 3: Controles do Ciclo de 10 Segundos & Gatilho 5 Min */}
         <div className="lg:col-span-3 flex flex-wrap items-center justify-between lg:justify-end gap-2">
           <div className="px-3 py-1.5 rounded-lg bg-slate-950 flex items-center gap-2">
             <Clock className="w-3.5 h-3.5 text-emerald-400" />
@@ -555,11 +533,10 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
         </div>
       </div>
 
-      {/* CORPO PRINCIPAL: Alternador dos 2 Modos (Linha Shopee/Correios vs Mapa 10s) + Painel de Adversidades */}
       <div className="grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-slate-800">
-        {/* LADO ESQUERDO (8 COLUNAS): Visualizador Principal (Modo Linha de Ruas Shopee/Correios OU Mapa 10s) */}
+
         <div className="lg:col-span-8 p-4 sm:p-5 space-y-4">
-          {/* Topo do Visualizador: Quem está acompanhando + Botões dos 2 Modos */}
+
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block">
@@ -583,7 +560,6 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
               </div>
             </div>
 
-            {/* Alternador dos 2 Modos exigidos pelo usuário */}
             <div className="flex items-center bg-slate-950 p-1 rounded-xl">
               <button
                 type="button"
@@ -612,7 +588,6 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
             </div>
           </div>
 
-          {/* Avisos de Status Especial (Sem Mapa, Cancelado, Remanejado, Apresse-se) */}
           {trackingStatus === 'on_way_no_map' && (
             <div className="p-3.5 rounded-xl bg-slate-950 text-slate-200 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
@@ -685,9 +660,6 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
             </div>
           )}
 
-          {/* ============================================================== */}
-          {/* MODO 1: LINHA DE RASTREAMENTO POR RUAS (ESTILO SHOPEE/CORREIOS)*/}
-          {/* ============================================================== */}
           {trackingViewMode === 'street_timeline' ? (
             <div className="bg-slate-950 rounded-xl p-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-800/80">
@@ -702,7 +674,6 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
                 </span>
               </div>
 
-              {/* Stepper Vertical das Ruas da Rota Traçada */}
               <div className="space-y-0">
                 {streetCheckpoints.map((chk, idx) => {
                   const isPassed = chk.status === 'passed';
@@ -724,7 +695,7 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
                       }}
                       className="flex items-start gap-3.5 cursor-pointer group py-2"
                     >
-                      {/* Coluna do Indicador e Linha Vertical */}
+
                       <div className="flex flex-col items-center shrink-0 mt-0.5">
                         {isPassed ? (
                           <div className="w-6 h-6 rounded-full bg-[#20C933] text-white flex items-center justify-center">
@@ -748,7 +719,6 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
                         )}
                       </div>
 
-                      {/* Dados da Rua / Checkpoint */}
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0">
@@ -792,7 +762,6 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
                           )}
                         </div>
 
-                        {/* Marcador de Adversidade na Linha do Tempo (sem precisar ligar) */}
                         {isCurrent && activeAdversity && (
                           <div className="mt-2 p-2.5 rounded-lg bg-amber-500/15 text-amber-200 flex items-start justify-between gap-2">
                             <div className="flex items-start gap-2">
@@ -823,11 +792,9 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
               </div>
             </div>
           ) : (
-            /* ============================================================== */
-            /* MODO 2: MAPA DE RASTREAMENTO AO VIVO (10s - COMPLETO E SIMPLES)*/
-            /* ============================================================== */
+
             <div className="bg-slate-950 rounded-xl p-4 space-y-3">
-              {/* Sub-barra do Mapa: Alternar Opção 1 (Completo c/ Rota) vs Opção 2 (Simplificado apenas Pinos) */}
+
               <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-800">
                 <div className="flex items-center gap-2">
                   <Compass className="w-4 h-4 text-emerald-400" />
@@ -862,7 +829,6 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
                 </div>
               </div>
 
-              {/* Canvas Interativo Real Google Maps (Zero Flicker & Polilinha Viária em 3 Camadas - bol-023) */}
               <InteractiveGoogleRouteMap
                 routeId={`${currentRoute.id}-${serviceLocationType}`}
                 originLat={currentRoute.streets[0].lat}
@@ -888,7 +854,6 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
                 }
               />
 
-              {/* Seletor Rápido de Checkpoints da Rota e HUD Inferior */}
               <div className="p-3 rounded-xl bg-slate-900 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                 <div className="flex items-center gap-2 min-w-0">
                   <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -905,7 +870,6 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
           )}
         </div>
 
-        {/* LADO DIREITO (4 COLUNAS): Radar de Adversidades Sem Ligações & Controles Rápidos */}
         <div className="lg:col-span-4 p-4 sm:p-5 space-y-4 bg-slate-950/40">
           <div>
             <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 block">
@@ -946,7 +910,6 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
             })}
           </div>
 
-          {/* Controle de Avanço Manual de Ruas para Teste */}
           <div className="pt-3 border-t border-slate-800 space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className="text-slate-400 font-semibold">Posição na Rota ({currentStreetIndex + 1}/{totalStreets}):</span>
@@ -980,7 +943,6 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
             </div>
           </div>
 
-          {/* Nota de Conformidade e Implantação no mnvapp */}
           <div className="p-3 rounded-xl bg-slate-900 text-[11px] text-slate-300 space-y-1">
             <div className="flex items-center gap-1.5 font-bold text-emerald-400">
               <ShieldCheck className="w-3.5 h-3.5" />
@@ -993,13 +955,10 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
         </div>
       </div>
 
-      {/* ===================================================================== */}
-      {/* MODAL INTERATIVO: ÁRVORE DE DECISÃO DE PARTIDA (ETA + 10 MIN BUFFER)  */}
-      {/* ===================================================================== */}
       {isDepartureModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="w-full max-w-lg rounded-2xl bg-slate-900 border border-slate-800 text-white overflow-hidden flex flex-col max-h-[90vh]">
-            {/* Header do Modal */}
+
             <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-[#20C933] text-white flex items-center justify-center">
@@ -1023,9 +982,8 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
               </button>
             </div>
 
-            {/* Corpo Rolável do Modal */}
             <div className="p-5 overflow-y-auto space-y-4">
-              {/* PASSO 1: Pergunta Inicial ("Restam X min. Você já está de partida?") */}
+
               {decisionStep === 'initial_question' && (
                 <div className="space-y-4">
                   <div className="p-3.5 rounded-xl bg-slate-950 space-y-1">
@@ -1061,7 +1019,6 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
                 </div>
               )}
 
-              {/* RAMO NÃO -> Pergunta se irá comparecer ou remanejar */}
               {decisionStep === 'no_branch_attend_or_reschedule' && (
                 <div className="space-y-4">
                   <p className="text-sm font-bold text-white">
@@ -1091,7 +1048,6 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
                 </div>
               )}
 
-              {/* RAMO NÃO -> VOU COMPARECER (Alerta de Pressa com tempo estimado) */}
               {decisionStep === 'no_branch_hurry_alert' && (
                 <div className="space-y-4">
                   <div className="p-4 rounded-xl bg-amber-500/15 text-amber-200 space-y-2">
@@ -1106,7 +1062,6 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
                 </div>
               )}
 
-              {/* RAMO NÃO -> NÃO VOU COMPARECER (Escolher Cancelar ou Remanejar) */}
               {decisionStep === 'no_branch_not_attending_choice' && (
                 <div className="space-y-4">
                   <p className="text-sm font-bold text-white">
@@ -1136,7 +1091,6 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
                 </div>
               )}
 
-              {/* RAMO CANCELAR: Input Box Obrigatório do Porquê do Cancelamento */}
               {decisionStep === 'cancel_reason_box' && (
                 <div className="space-y-3">
                   <label className="block text-xs font-bold text-white">
@@ -1155,7 +1109,6 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
                 </div>
               )}
 
-              {/* RAMO REMANEJAR: Abre a Agenda do Estabelecimento */}
               {decisionStep === 'reschedule_calendar' && (
                 <div className="space-y-3">
                   <span className="block text-xs font-bold text-emerald-400 uppercase">
@@ -1188,7 +1141,6 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
                 </div>
               )}
 
-              {/* RAMO SIM: Traçador de Rota Google Maps In-App + Opção de Compartilhar Trajeto */}
               {decisionStep === 'yes_branch_route_and_share' && (
                 <div className="space-y-4">
                   <div className="space-y-2">
@@ -1254,7 +1206,6 @@ export const LiveAppointmentTrackingHub: React.FC<LiveAppointmentTrackingHubProp
               )}
             </div>
 
-            {/* Rodapé Fixo de Ação (sticky bottom-0 z-20 conforme diretriz Vagou) */}
             <div className="sticky bottom-0 z-20 p-3.5 bg-slate-950 border-t border-slate-800 flex items-center justify-between gap-2">
               {decisionStep !== 'initial_question' ? (
                 <button

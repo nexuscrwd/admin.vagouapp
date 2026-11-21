@@ -13,13 +13,12 @@ import {
   CheckCircle2,
   Lock,
   Store,
-  HelpCircle,
   Phone,
 } from 'lucide-react';
 import { TriadeEstablishmentMasterForm } from '../admin/triade-forms/TriadeEstablishmentMasterForm';
 import { VagouOfficialLogo } from '../common/VagouOfficialLogo';
 
-export interface VagouGatewayHubProps {
+interface VagouGatewayHubProps {
   onOpenAdmin?: () => void;
 }
 
@@ -28,12 +27,10 @@ export const VagouGatewayHub: React.FC<VagouGatewayHubProps> = ({ onOpenAdmin })
 
   return (
     <div className="min-h-screen w-full bg-slate-950 text-slate-100 font-['Poppins'] flex flex-col justify-between selection:bg-[#20C933] selection:text-white">
-      {/* ========================================================================= */}
-      {/* 🧭 BARRA SUPERIOR DO GATEWAY HUB (vagouapp.com) */}
-      {/* ========================================================================= */}
+
       <header className="w-full border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md sticky top-0 z-40 px-4 sm:px-8 py-3.5">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-          {/* Marca Oficial VagouApp */}
+
           <div className="flex items-center gap-3">
             <VagouOfficialLogo size="lg" />
             <div>
@@ -49,7 +46,6 @@ export const VagouGatewayHub: React.FC<VagouGatewayHubProps> = ({ onOpenAdmin })
             </div>
           </div>
 
-          {/* Links Rápidos de Acesso */}
           <div className="flex items-center gap-2 sm:gap-3">
             <a
               href="https://seunegocio.vagouapp.com"
@@ -77,11 +73,8 @@ export const VagouGatewayHub: React.FC<VagouGatewayHubProps> = ({ onOpenAdmin })
         </div>
       </header>
 
-      {/* ========================================================================= */}
-      {/* 🚀 CONTEÚDO PRINCIPAL (HERO BILATERAL: CLIENTE vs ESTABELECIMENTO) */}
-      {/* ========================================================================= */}
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-10 sm:py-16 flex flex-col justify-center">
-        {/* Título Principal & Síntese */}
+
         <div className="text-center space-y-3 mb-10 sm:mb-14 max-w-2xl mx-auto">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold">
             <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
@@ -97,14 +90,11 @@ export const VagouGatewayHub: React.FC<VagouGatewayHubProps> = ({ onOpenAdmin })
           </p>
         </div>
 
-        {/* Os 2 Grandes Cards de Ação */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8 items-stretch">
-          {/* ===================================================================== */}
-          {/* CARD 1: CLIENTES & CONSUMIDORES (PORTAL VAGOUAPP) */}
-          {/* ===================================================================== */}
+
           <div className="bg-slate-900 border border-slate-800 hover:border-emerald-500/40 rounded-3xl p-6 sm:p-8 flex flex-col justify-between transition-all duration-200 group relative overflow-hidden shadow-2xl">
             <div className="space-y-6">
-              {/* Badge & Ícone */}
+
               <div className="flex items-center justify-between">
                 <div className="w-14 h-14 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-500/10 group-hover:scale-105 transition">
                   <CalendarCheck2 className="w-7 h-7 text-emerald-400" />
@@ -114,7 +104,6 @@ export const VagouGatewayHub: React.FC<VagouGatewayHubProps> = ({ onOpenAdmin })
                 </span>
               </div>
 
-              {/* Título & Descrição */}
               <div className="space-y-2">
                 <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
                   Quero Agendar um Horário
@@ -124,7 +113,6 @@ export const VagouGatewayHub: React.FC<VagouGatewayHubProps> = ({ onOpenAdmin })
                 </p>
               </div>
 
-              {/* Benefícios Rápidos em Ícones */}
               <div className="space-y-2.5 pt-2 border-t border-slate-800/80">
                 <div className="flex items-center gap-2.5 text-xs text-slate-300 font-medium">
                   <Clock className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -141,7 +129,6 @@ export const VagouGatewayHub: React.FC<VagouGatewayHubProps> = ({ onOpenAdmin })
               </div>
             </div>
 
-            {/* Botão de Ação */}
             <div className="pt-8">
               <a
                 href="https://portal.vagouapp.com"
@@ -155,12 +142,9 @@ export const VagouGatewayHub: React.FC<VagouGatewayHubProps> = ({ onOpenAdmin })
             </div>
           </div>
 
-          {/* ===================================================================== */}
-          {/* CARD 2: PARCEIROS & ESTABELECIMENTOS (MEU NEGÓCIO VAGOUAPP) */}
-          {/* ===================================================================== */}
           <div className="bg-slate-900 border border-slate-800 hover:border-emerald-500/40 rounded-3xl p-6 sm:p-8 flex flex-col justify-between transition-all duration-200 group relative overflow-hidden shadow-2xl">
             <div className="space-y-6">
-              {/* Badge & Ícone */}
+
               <div className="flex items-center justify-between">
                 <div className="w-14 h-14 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-500/10 group-hover:scale-105 transition">
                   <Building2 className="w-7 h-7 text-emerald-400" />
@@ -170,7 +154,6 @@ export const VagouGatewayHub: React.FC<VagouGatewayHubProps> = ({ onOpenAdmin })
                 </span>
               </div>
 
-              {/* Título & Descrição */}
               <div className="space-y-2">
                 <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
                   Cadastrar Meu Estabelecimento
@@ -180,7 +163,6 @@ export const VagouGatewayHub: React.FC<VagouGatewayHubProps> = ({ onOpenAdmin })
                 </p>
               </div>
 
-              {/* Benefícios Rápidos em Ícones */}
               <div className="space-y-2.5 pt-2 border-t border-slate-800/80">
                 <div className="flex items-center gap-2.5 text-xs text-slate-300 font-medium">
                   <TrendingUp className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -197,7 +179,6 @@ export const VagouGatewayHub: React.FC<VagouGatewayHubProps> = ({ onOpenAdmin })
               </div>
             </div>
 
-            {/* Botão de Ação */}
             <div className="pt-8 space-y-2">
               <button
                 type="button"
@@ -224,9 +205,6 @@ export const VagouGatewayHub: React.FC<VagouGatewayHubProps> = ({ onOpenAdmin })
         </div>
       </main>
 
-      {/* ========================================================================= */}
-      {/* 🛡️ RODAPÉ INSTITUCIONAL MÍNIMO */}
-      {/* ========================================================================= */}
       <footer className="w-full border-t border-slate-800/80 bg-slate-950 py-6 px-4 sm:px-8">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
           <div className="flex items-center gap-2">
@@ -252,9 +230,6 @@ export const VagouGatewayHub: React.FC<VagouGatewayHubProps> = ({ onOpenAdmin })
         </div>
       </footer>
 
-      {/* ========================================================================= */}
-      {/* 🏢 MODAL DEDICADO: CADASTRO MASTER DO ESTABELECIMENTO (LAYOUT PLANO) */}
-      {/* ========================================================================= */}
       {isRegisterModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-fadeIn overflow-y-auto">
           <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[92vh] overflow-y-auto">

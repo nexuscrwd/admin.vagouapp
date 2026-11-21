@@ -2,29 +2,14 @@ import { supabase, supabaseAdmin } from './supabase';
 import {
   AdminSalonItem,
   AdminDashboardMetrics,
-  TechnicalBulletin,
-  TriadeStatusResponse,
   SystemAdminUser,
   AdminAppointmentItem,
   UserClientItem,
-  UserFamilyDependent,
   UserSalonAccessItem,
   UserProfessionalItem,
   PixKeyType,
-  SalonPixKeyItem,
 } from '../types/admin';
-import {
-  resolveTriadeAvatar as resolveTriadeAvatarCanonical,
-  isMockAvatarUrl,
-  sanitizeLocalStorageAvatars,
-} from '../utils/avatarResolver';
 
-export { isMockAvatarUrl, sanitizeLocalStorageAvatars };
-
-/**
- * Helper resiliente no cliente (Service Role) para gravar em qualquer tabela do Supabase
- * removendo automaticamente colunas inexistentes (erro PGRST204) sem abortar a operação.
- */
 export async function safeSupabaseClientWrite(
   table: string,
   mode: 'insert' | 'update' | 'upsert',
@@ -75,12 +60,6 @@ export async function safeSupabaseClientWrite(
   return { data: null, error: lastError };
 }
 
-// Lista vazia por padrão — Zero dados mockados (Single Source of Truth no Supabase)
-export const INITIAL_MOCK_ADMIN_SALONS: AdminSalonItem[] = [];
-
-/**
- * Busca a lista de estabelecimentos oficiais diretamente no Supabase com suporte a Service Role backend
- */
 export async function fetchAdminSalons(): Promise<AdminSalonItem[]> {
   const mapSalonRow = (row: any): AdminSalonItem => {
     const resolveCategory = (r: any): string => {
@@ -212,14 +191,13 @@ export async function fetchAdminSalons(): Promise<AdminSalonItem[]> {
   };
 
   try {
-    // Higieniza cache legado em localStorage para garantir leitura 100% real do Supabase
+
     try {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('vagou_admin_custom_salons');
       }
     } catch {}
 
-    // 1. Tenta via backend Express (/api/admin/salons) que usa Service Role Key
     try {
       const resp = await fetch('/api/admin/salons');
       if (resp.ok) {
@@ -229,10 +207,9 @@ export async function fetchAdminSalons(): Promise<AdminSalonItem[]> {
         }
       }
     } catch {
-      // Ignora e tenta cliente Supabase direto
+
     }
 
-    // 2. Consulta direta no Supabase Client (Sovereign Service Role)
     const { data: dbSalons, error } = await supabaseAdmin
       .from('salons')
       .select('*')
@@ -249,46 +226,115 @@ export async function fetchAdminSalons(): Promise<AdminSalonItem[]> {
   }
 }
 
-/**
- * Helper cliente para converter Base64 de logo/favicon em URL pública do Supabase Storage
- */
-async function uploadClientBase64Media(rawUrl: string | undefined | null, prefix: string): Promise<string | null> {
+function isSafeMediaUrl(url: string | undefined | null): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  if (/^data:/i.test(trimmed) || /^javascript:/i.test(trimmed) || /^vbscript:/i.test(trimmed)) {
+    return false;
+  }
+  return /^https?:\/\//i.test(trimmed) || trimmed.startsWith('/');
+}
+
+type TriadeMediaBucket = 'avatars' | 'branding' | 'services' | 'salon-media';
+
+type TriadeMediaOwnerType =
+  | 'profile_avatar'
+  | 'client_avatar'
+  | 'professional_avatar'
+  | 'dependent_avatar'
+  | 'salon_logo_light'
+  | 'salon_logo_dark'
+  | 'salon_icon'
+  | 'salon_cover'
+  | 'salon_facade'
+  | 'salon_interior'
+  | 'salon_gallery'
+  | 'service_photo'
+  | 'service_video'
+  | 'offer_media'
+  | 'admin_preference';
+
+export async function uploadBinaryMediaFile(
+  file: File,
+  options: {
+    bucket: TriadeMediaBucket;
+    ownerType: TriadeMediaOwnerType;
+    ownerId?: string;
+    salonId?: string;
+    title?: string;
+    isCover?: boolean;
+  }
+): Promise<{ success: boolean; url?: string; assetId?: string; error?: string }> {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('bucket', options.bucket);
+    formData.append('owner_type', options.ownerType);
+    if (options.ownerId) formData.append('owner_id', options.ownerId);
+    if (options.salonId) formData.append('salon_id', options.salonId);
+    if (options.title) formData.append('title', options.title);
+    if (options.isCover) formData.append('is_cover', 'true');
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+
+    const resp = await fetch('/api/media/upload', {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: formData,
+    });
+
+    const text = await resp.text();
+    if (text && text.trim().startsWith('{')) {
+      const json = JSON.parse(text);
+      if (resp.ok && json.success && isSafeMediaUrl(json.url)) {
+        return { success: true, url: json.url, assetId: json.asset?.id };
+      }
+      if (json.error) {
+        return { success: false, error: json.error };
+      }
+    }
+  } catch (err: any) {
+    console.warn('[uploadBinaryMediaFile] Aviso rota /api/media/upload:', err?.message);
+  }
+
+  try {
+    const ext = (file.name.split('.').pop() || 'webp').toLowerCase().replace(/[^a-z0-9]/g, '') || 'webp';
+    const safePrefix = options.ownerType.replace(/[^a-z0-9_-]/gi, '_');
+    const storagePath = `${safePrefix}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const { error: upErr } = await supabase.storage
+      .from(options.bucket)
+      .upload(storagePath, file, {
+        contentType: file.type || 'image/webp',
+        cacheControl: '31536000',
+        upsert: true,
+      });
+
+    if (!upErr) {
+      const { data: pub } = supabase.storage.from(options.bucket).getPublicUrl(storagePath);
+      if (isSafeMediaUrl(pub?.publicUrl)) {
+        return { success: true, url: pub.publicUrl };
+      }
+    }
+    return { success: false, error: upErr?.message || 'Não foi possível enviar o arquivo binário.' };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Falha no upload binário.' };
+  }
+}
+
+async function uploadClientBase64Media(rawUrl: string | undefined | null, _prefix: string): Promise<string | null> {
   if (!rawUrl || typeof rawUrl !== 'string') return null;
   const trimmed = rawUrl.trim();
   if (!trimmed) return null;
-  if (!trimmed.startsWith('data:image/')) return trimmed;
-
-  try {
-    const res = await fetch(trimmed);
-    const blob = await res.blob();
-    const ext = blob.type.includes('svg')
-      ? 'svg'
-      : blob.type.includes('jpeg') || blob.type.includes('jpg')
-        ? 'jpg'
-        : blob.type.includes('webp')
-          ? 'webp'
-          : 'png';
-    const cleanPrefix = prefix.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 24) || 'salon';
-    const fileName = `salons/${cleanPrefix}-${Date.now()}.${ext}`;
-    const contentType = blob.type || 'image/png';
-
-    for (const bucketName of ['salon-media', 'avatars'] as const) {
-      const { error: upErr } = await supabaseAdmin.storage
-        .from(bucketName)
-        .upload(fileName, blob, { contentType, cacheControl: '31536000', upsert: true });
-
-      if (!upErr) {
-        const { data: pubData } = supabaseAdmin.storage.from(bucketName).getPublicUrl(fileName);
-        if (pubData?.publicUrl) return pubData.publicUrl;
-      }
-    }
-  } catch (e) {
-    console.warn('[uploadClientBase64Media] Aviso no upload:', e);
+  if (!isSafeMediaUrl(trimmed)) {
+    console.warn('[v6.0 Media Guard] URL Base64 ou insegura bloqueada antes do envio ao Supabase.');
+    return null;
   }
   return trimmed;
 }
 
-export interface TriadeUserConflictResult {
+interface TriadeUserConflictResult {
   hasConflict: boolean;
   conflictField?: 'username' | 'email' | 'phone' | 'cpf';
   conflictRole?: string;
@@ -297,10 +343,6 @@ export interface TriadeUserConflictResult {
   message?: string;
 }
 
-/**
- * Verifica em tempo real (e antes de cada avanço de etapa) se Nome de Usuário, E-mail, WhatsApp ou CPF
- * já pertence a algum usuário existente no ecossistema (system_admins, salon_users, professionals, clients).
- */
 export async function checkTriadeUserConflict(params: {
   username?: string;
   email?: string;
@@ -332,7 +374,6 @@ export async function checkTriadeUserConflict(params: {
     return { hasConflict: false };
   }
 
-  // 1. Tenta via endpoint do Backend Express (/api/public/check-user-availability)
   try {
     const resp = await fetch('/api/public/check-user-availability', {
       method: 'POST',
@@ -357,18 +398,17 @@ export async function checkTriadeUserConflict(params: {
     }
   } catch {}
 
-  // 2. Fallback direto via supabaseAdmin (caso em iframe/preview isolado)
   try {
     const [
       { data: sysAdmins },
-      { data: salonUsers },
+      { data: profilesRows },
       { data: professionals },
       { data: clients },
     ] = await Promise.all([
-      supabaseAdmin.from('system_admins').select('id, full_name, name, username, email, phone_whatsapp, cpf'),
-      supabaseAdmin.from('salon_users').select('id, full_name, username, email, phone_whatsapp, document_cpf'),
-      supabaseAdmin.from('professionals').select('id, name, username, email, phone, cpf, role'),
-      supabaseAdmin.from('clients').select('id, full_name, name, username, email, phone, phone_whatsapp, cpf'),
+      supabase.from('system_admins').select('id, full_name, username, email, phone_whatsapp, cpf'),
+      supabase.from('profiles').select('id, full_name, username, email, phone, cpf, role'),
+      supabase.from('professionals').select('id, full_name, email, phone, cpf, role'),
+      supabase.from('clients').select('id, full_name, email, phone, cpf'),
     ]);
 
     const allRecords: Array<{
@@ -381,19 +421,19 @@ export async function checkTriadeUserConflict(params: {
     }> = [
       ...(sysAdmins || []).map((r: any) => ({
         roleLabel: 'Administrador',
-        name: r.full_name || r.name || r.username || 'Administrador',
+        name: r.full_name || r.username || 'Administrador',
         username: r.username || '',
         email: r.email || '',
         phone: r.phone_whatsapp || '',
         cpf: r.cpf || '',
       })),
-      ...(salonUsers || []).map((r: any) => ({
-        roleLabel: 'Proprietário',
-        name: r.full_name || r.username || 'Proprietário',
+      ...(profilesRows || []).map((r: any) => ({
+        roleLabel: r.role === 'salon_owner' ? 'Proprietário' : 'Usuário',
+        name: r.full_name || r.username || 'Usuário',
         username: r.username || '',
         email: r.email || '',
-        phone: r.phone_whatsapp || '',
-        cpf: r.document_cpf || '',
+        phone: r.phone || '',
+        cpf: r.cpf || '',
       })),
       ...(professionals || []).map((r: any) => ({
         roleLabel: String(r.role || '').toLowerCase().includes('propriet') ? 'Proprietário' : 'Profissional',
@@ -460,9 +500,6 @@ export async function checkTriadeUserConflict(params: {
   return { hasConflict: false };
 }
 
-/**
- * Cadastra e persiste um novo usuário/cliente no Supabase (via Backend Express ou RPC/Admin direto)
- */
 export async function registerTriadeUser(userData: {
   id?: string;
   fullName: string;
@@ -509,7 +546,6 @@ export async function registerTriadeUser(userData: {
     };
   }
 
-  // 0. Trava Soberana Pré-Cadastro: impede criar usuário com username, e-mail, WhatsApp ou CPF já existentes
   const preCheck = await checkTriadeUserConflict({
     username: cleanUsername,
     email: cleanEmail,
@@ -525,7 +561,6 @@ export async function registerTriadeUser(userData: {
     };
   }
 
-  // 1. Garante conta autenticada em auth.users e sessão ativa no cliente Supabase
   let authUserId: string | undefined;
   let authSession: any = undefined;
   try {
@@ -561,7 +596,6 @@ export async function registerTriadeUser(userData: {
     }
   } catch {}
 
-  // 2. Tenta via Backend Express (/api/public/register-user) com Service Role
   try {
     const resp = await fetch('/api/public/register-user', {
       method: 'POST',
@@ -610,7 +644,6 @@ export async function registerTriadeUser(userData: {
     console.warn('[registerTriadeUser] Fallback para Supabase direto:', apiErr);
   }
 
-  // 2. Fallback via RPC SECURITY DEFINER register_triade_user (funciona mesmo com anon key)
   try {
     const { data: rpcData, error: rpcErr } = await supabase.rpc('register_triade_user', {
       p_full_name: cleanName,
@@ -658,7 +691,6 @@ export async function registerTriadeUser(userData: {
     console.warn('[registerTriadeUser] Aviso RPC:', rpcException);
   }
 
-  // 3. Fallback via supabaseAdmin direto na tabela public.clients (com proteção contra FK clients_user_id_fkey)
   try {
     const fullAddress = [addr.street, addr.number, addr.complement, addr.neighborhood, addr.city, addr.state, addr.cep]
       .filter(Boolean)
@@ -734,7 +766,6 @@ export async function registerTriadeUser(userData: {
         .select()
         .single();
 
-      // Se houver violação de FK (clients_user_id_fkey), refaz o update sem user_id
       if (upErr && (upErr.message?.includes('clients_user_id_fkey') || upErr.code === '23503')) {
         const retry = await supabaseAdmin
           .from('clients')
@@ -770,7 +801,6 @@ export async function registerTriadeUser(userData: {
         .select()
         .single();
 
-      // Se houver violação de FK (clients_user_id_fkey) ou conflito de ID, insere sem user_id
       if (insErr && (insErr.message?.includes('clients_user_id_fkey') || insErr.code === '23503' || insErr.code === '23505')) {
         const retry = await supabaseAdmin
           .from('clients')
@@ -794,9 +824,6 @@ export async function registerTriadeUser(userData: {
   }
 }
 
-/**
- * Cria um novo estabelecimento com privilégios de Admin Master
- */
 const RESERVED_SALON_SLUGS = new Set([
   'adm', 'admin', 'portal', 'app', 'www', 'api', 'meunegocio', 'seunegocio',
   'mail', 'smtp', 'pop', 'imap', 'ftp', 'vagou', 'vagouapp', 'suporte',
@@ -804,9 +831,6 @@ const RESERVED_SALON_SLUGS = new Set([
   'auth', 'cdn', 'static', 'assets', 'dev', 'staging', 'prod',
 ]);
 
-/**
- * Sanitiza o slug do estabelecimento sem hífens, espaços ou acentos (apenas letras minúsculas e números)
- */
 export function sanitizeSalonSlug(raw: string): string {
   return String(raw || '')
     .toLowerCase()
@@ -815,10 +839,7 @@ export function sanitizeSalonSlug(raw: string): string {
     .replace(/[^a-z0-9]/g, '');
 }
 
-/**
- * Validação matemática oficial (Módulo 11) de CPF (11 dígitos)
- */
-export function validateCpfCheckDigits(raw: string): boolean {
+function validateCpfCheckDigits(raw: string): boolean {
   const digits = String(raw || '').replace(/\D/g, '');
   if (digits.length !== 11 || /^(\d)\1{10}$/.test(digits)) return false;
   let sum = 0;
@@ -834,10 +855,7 @@ export function validateCpfCheckDigits(raw: string): boolean {
   return rest === Number(digits[10]);
 }
 
-/**
- * Validação matemática oficial (Módulo 11) de CNPJ (14 dígitos)
- */
-export function validateCnpjCheckDigits(raw: string): boolean {
+function validateCnpjCheckDigits(raw: string): boolean {
   const digits = String(raw || '').replace(/\D/g, '');
   if (digits.length !== 14 || /^(\d)\1{13}$/.test(digits)) return false;
   const calc = (base: string, weights: number[]) => {
@@ -850,9 +868,6 @@ export function validateCnpjCheckDigits(raw: string): boolean {
   return d1 === Number(digits[12]) && d2 === Number(digits[13]);
 }
 
-/**
- * Formata uma chave PIX de acordo com seu tipo
- */
 export function formatPixKeyByType(raw: string, type: PixKeyType): string {
   if (type === 'email') {
     return raw.trim().toLowerCase();
@@ -892,9 +907,6 @@ export function formatPixKeyByType(raw: string, type: PixKeyType): string {
   return raw;
 }
 
-/**
- * Detecta automaticamente o tipo provável de uma chave PIX colada/digitada
- */
 export function detectPixKeyType(raw: string, currentType: PixKeyType = 'cpf'): PixKeyType {
   const trimmed = raw.trim();
   if (trimmed.includes('@')) return 'email';
@@ -908,9 +920,6 @@ export function detectPixKeyType(raw: string, currentType: PixKeyType = 'cpf'): 
   return currentType;
 }
 
-/**
- * Consulta inteligente e validação de Chave PIX (Receita Federal / BrasilAPI para CNPJ + Base Titular VagouApp)
- */
 export async function lookupPixKeyHolder(
   key: string,
   type: PixKeyType,
@@ -1057,10 +1066,6 @@ export async function lookupPixKeyHolder(
   return { valid: true, holderName: ownerContext?.ownerName || '', institution: 'PIX', message: 'Chave validada.' };
 }
 
-/**
- * Verifica em tempo real no banco Supabase se o slug personalizado está disponível
- * e retorna sugestões automáticas sem hífen caso já esteja em uso.
- */
 export async function checkSalonSlugAvailability(
   rawSlug: string,
   ownerEmail?: string
@@ -1083,7 +1088,6 @@ export async function checkSalonSlugAvailability(
     };
   }
 
-  // 1. Tenta via API backend (/api/public/check-slug/:slug)
   try {
     const query = cleanOwnerEmail ? `?email=${encodeURIComponent(cleanOwnerEmail)}` : '';
     const resp = await fetch(`/api/public/check-slug/${encodeURIComponent(cleanSlug)}${query}`);
@@ -1103,10 +1107,9 @@ export async function checkSalonSlugAvailability(
       }
     }
   } catch {
-    // Continua para consulta direta ao Supabase
+
   }
 
-  // 2. Consulta direta na tabela public.salons no Supabase
   const takenSlugs = new Set<string>(RESERVED_SALON_SLUGS);
   let matchedTradeName = '';
 
@@ -1130,7 +1133,7 @@ export async function checkSalonSlugAvailability(
       }
     });
   } catch {
-    // Offline / falha silenciosa
+
   }
 
   const buildSuggestions = (base: string): string[] => {
@@ -1183,7 +1186,7 @@ export async function createAdminSalon(
   }
 ): Promise<{ success: boolean; salon?: AdminSalonItem; error?: string }> {
   try {
-    // 1. Tenta via backend Service Role
+
     try {
       const resp = await fetch('/api/admin/salons', {
         method: 'POST',
@@ -1207,11 +1210,9 @@ export async function createAdminSalon(
       console.warn('[Supabase Admin] Exceção na chamada de criação via API, usando fallback direto:', e);
     }
 
-    // 2. Fallback direto via supabaseAdmin (Service Role client)
     const cleanSlug = sanitizeSalonSlug(salonData.slug || '') || `salao${Date.now()}`;
     const ownerEmail = (salonData.email || `${cleanSlug}@vagouapp.com`).trim().toLowerCase();
 
-    // Verifica se o slug já está em uso por outro proprietário antes de salvar
     const slugCheck = await checkSalonSlugAvailability(cleanSlug, ownerEmail);
     if (!slugCheck.available) {
       return {
@@ -1227,8 +1228,6 @@ export async function createAdminSalon(
       (String(salonData.status || 'active').toLowerCase() as 'active' | 'pending' | 'incomplete' | 'suspended') ||
       'active';
 
-    // Resolve o user_id SOMENTE se houver sessão real do Supabase Auth (auth.users).
-    // JAMAIS usar clients.id ou system_admins.id em salons.owner_id, pois salons_owner_id_fkey exige auth.users(id).
     let verifiedAuthOwnerId: string | null = null;
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -1362,7 +1361,6 @@ export async function createAdminSalon(
         continue;
       }
 
-      // Blindagem automática contra salons_owner_id_fkey (código 23503)
       if (
         (res.error.code === '23503' ||
           msg.includes('salons_owner_id_fkey') ||
@@ -1410,7 +1408,6 @@ export async function createAdminSalon(
       } catch {}
     }
 
-    // Sincroniza proprietário em clients, professionals e salon_members (RBAC Soberano da Tríade)
     if (data?.id && (salonData.email || salonData.owner_name || salonData.legal_name)) {
       try {
         const ownerName = (salonData.owner_name || salonData.legal_name || salonData.trade_name || 'Proprietário').trim();
@@ -1496,7 +1493,6 @@ export async function createAdminSalon(
             .eq('id', existingProf.id);
         }
 
-        // Vincula owner_id e salon_members APENAS quando houver UUID confirmado em auth.users
         if (verifiedAuthOwnerId) {
           await supabaseAdmin
             .from('salons')
@@ -1566,9 +1562,6 @@ export async function createAdminSalon(
   }
 }
 
-/**
- * Ação em massa para múltiplos estabelecimentos
- */
 export async function bulkUpdateSalons(
   ids: string[],
   action: 'update_status' | 'delete',
@@ -1587,7 +1580,6 @@ export async function bulkUpdateSalons(
       }
     } catch {}
 
-    // Fallback client
     if (action === 'update_status' && targetStatus) {
       await supabaseAdmin
         .from('salons')
@@ -1603,37 +1595,13 @@ export async function bulkUpdateSalons(
   }
 }
 
-/**
- * Busca resumo de contagens de tabelas do Supabase
- */
-export async function fetchTablesSummary(): Promise<Record<string, { count: number; accessible: boolean }>> {
-  try {
-    const resp = await fetch('/api/admin/tables-summary');
-    if (resp.ok) {
-      const json = await resp.json();
-      if (json.success && json.tables) return json.tables;
-    }
-  } catch {}
-
-  return {
-    salons: { count: 0, accessible: false },
-    appointments: { count: 0, accessible: false },
-    professionals: { count: 0, accessible: false },
-    service_offers: { count: 0, accessible: false },
-    clients: { count: 0, accessible: false },
-  };
-}
-
-/**
- * Atualiza dados de um estabelecimento no Supabase
- */
 export async function updateAdminSalon(
   salonId: string,
   updates: Partial<AdminSalonItem>
 ): Promise<{ success: boolean; salon?: AdminSalonItem; error?: string }> {
   try {
     let apiErrorMsg = '';
-    // 1. Tenta via backend Service Role (/api/admin/salons/:id) com sanitização e geocoding automático
+
     try {
       const resp = await fetch(`/api/admin/salons/${salonId}`, {
         method: 'PATCH',
@@ -1650,7 +1618,6 @@ export async function updateAdminSalon(
       apiErrorMsg = fetchErr?.message || '';
     }
 
-    // 2. Fallback Supabase client (inclui todos os campos de endereço, financeiro, branding e coordenadas)
     const dbPayload: Record<string, any> = {
       updated_at: new Date().toISOString(),
     };
@@ -1730,9 +1697,6 @@ export async function updateAdminSalon(
   }
 }
 
-/**
- * Remove estabelecimento do Supabase
- */
 export async function deleteAdminSalon(salonId: string): Promise<{ success: boolean; error?: string }> {
   try {
     try {
@@ -1753,9 +1717,6 @@ export async function deleteAdminSalon(salonId: string): Promise<{ success: bool
   }
 }
 
-/**
- * Busca métricas agregadas do ecossistema
- */
 export async function fetchAdminDashboardMetrics(): Promise<AdminDashboardMetrics> {
   try {
     try {
@@ -1824,353 +1785,6 @@ export async function fetchAdminDashboardMetrics(): Promise<AdminDashboardMetric
   }
 }
 
-/**
- * Busca status da Tríade e Governança do 7º Mandamento
- */
-export async function fetchTriadeStatus(): Promise<TriadeStatusResponse> {
-  try {
-    const resp = await fetch('/api/admin/triade-status');
-    if (resp.ok) {
-      const json = await resp.json();
-      if (json.success) return json;
-    }
-  } catch {}
-
-  return {
-    database: {
-      connected: true,
-      supabaseUrl: 'https://xemenxdhuoekytyhmgyt.supabase.co',
-      serviceRoleActive: true,
-    },
-    apps: [
-      {
-        id: 'pvapp',
-        name: 'Portal do Consumidor',
-        domain: 'portal.vagouapp.com',
-        role: 'Radar de Vagas Relâmpago & Agendamentos para Clientes',
-        status: 'operational',
-        color: '#10B981',
-      },
-      {
-        id: 'mnvapp',
-        name: 'Meu Negócio Parceiro',
-        domain: 'meunegocio.vagouapp.com',
-        role: 'Painel do Salão & Vitrines White-Label (*.vagouapp.com)',
-        status: 'operational',
-        color: '#10B981',
-      },
-      {
-        id: 'admvapp',
-        name: 'Admin Master Corporativo',
-        domain: 'adm.vagouapp.com',
-        role: 'Governança Soberana, Auditoria Cadastral & DNS',
-        status: 'operational',
-        isCurrent: true,
-        color: '#10B981',
-        serviceRolePrivilege: 'Full Superuser (RLS Bypass)',
-      },
-    ],
-    mandamentoSete: {
-      rule: 'Toda alteração de schema, colunas, status ou triggers DEVE gerar comunicado oficial cruzado para pvapp e mnvapp.',
-      bulletinsCount: 10,
-    },
-  };
-}
-
-/**
- * Busca comunicados técnicos oficiais da Tríade
- */
-export interface SupabaseHealthStatus {
-  status: 'checking' | 'connected' | 'auth_only' | 'error';
-  userEmail: string | null;
-  userId: string | null;
-  dbAccessible: boolean;
-  latencyMs: number;
-  message: string;
-}
-
-/**
- * Executa diagnóstico completo de saúde e conectividade com o Supabase
- */
-export async function checkSupabaseHealth(): Promise<SupabaseHealthStatus> {
-  const start = performance.now();
-  try {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const user = sessionData?.session?.user || null;
-
-    const { error: dbError } = await supabase
-      .from('salons')
-      .select('id', { count: 'exact', head: true });
-
-    const latency = Math.round(performance.now() - start);
-
-    if (dbError) {
-      if (user) {
-        return {
-          status: 'auth_only',
-          userEmail: user.email || null,
-          userId: user.id,
-          dbAccessible: false,
-          latencyMs: latency,
-          message: 'Autenticado, mas tabelas restringidas por RLS.',
-        };
-      }
-      return {
-        status: 'error',
-        userEmail: null,
-        userId: null,
-        dbAccessible: false,
-        latencyMs: latency,
-        message: `Falha no Supabase: ${dbError.message}`,
-      };
-    }
-
-    return {
-      status: 'connected',
-      userEmail: user?.email || 'Admin Master',
-      userId: user?.id || 'admin-master',
-      dbAccessible: true,
-      latencyMs: latency,
-      message: 'Supabase conectado com sucesso (Service Role / DB Ativo).',
-    };
-  } catch (err: any) {
-    const latency = Math.round(performance.now() - start);
-    return {
-      status: 'error',
-      userEmail: null,
-      userId: null,
-      dbAccessible: false,
-      latencyMs: latency,
-      message: err?.message || 'Falha na conexão de rede com o Supabase.',
-    };
-  }
-}
-
-/**
- * Função Canônica da Tríade para Resolução Universal de Avatar (SSO Global)
- * Diretriz Inegociável: Erradicação total de fotos mock (Unsplash / Pexels).
- * Retorna string vazia '' caso não haja upload real, acionando o UserAvatar canônico (ícone User stroke-[1.8]).
- */
-export function resolveTriadeAvatar(params: {
-  professionalAvatar?: string | null;
-  clientAvatar?: string | null;
-  authMetadataAvatar?: string | null;
-  salonLogo?: string | null;
-  preferSalonLogo?: boolean;
-}): string {
-  return resolveTriadeAvatarCanonical({
-    professionalAvatar: params.professionalAvatar,
-    clientAvatar: params.clientAvatar,
-    authMetadataAvatar: params.authMetadataAvatar,
-    salonLogo: params.salonLogo,
-    isBusinessContext: params.preferSalonLogo,
-  });
-}
-
-/**
- * Busca comunicados técnicos oficiais da Tríade
- */
-export async function fetchTechnicalBulletins(): Promise<TechnicalBulletin[]> {
-  try {
-    const resp = await fetch('/api/admin/bulletins');
-    if (resp.ok) {
-      const json = await resp.json();
-      if (json.success && Array.isArray(json.bulletins)) return json.bulletins;
-    }
-  } catch {}
-
-  return [
-    {
-      id: 'bol-162-zero-duplicate-users-governance',
-      timestamp: '2026-11-14T21:15:00.000Z',
-      sourceApp: 'admvapp',
-      targetApps: ['mnvapp', 'pvapp'],
-      title: 'Saneamento e Blindagem Anti-Duplicidade de Contas (1 Pessoa = 1 Único Cadastro Soberano — bol-162)',
-      category: 'schema_change',
-      summary: '1. Consolidação Automática system_admins ⇄ clients: Registros duplicados onde a mesma pessoa constava simultaneamente em public.system_admins e public.clients (ex.: Anderson Pires / Anderson@ / andersonhpires@gmail.com) foram consolidados no registro soberano de Administrador. 2. Blindagem SQL + Backend + UI: Criados índices únicos parciais e triggers em 20261114_deduplicate_users_and_unique_guards.sql.',
-      impactedTables: ['system_admins', 'clients', 'professionals', 'salon_users', 'appointments'],
-      instructions: 'Executar /supabase/migrations/20261114_deduplicate_users_and_unique_guards.sql no SQL Editor do Supabase compartilhado e validar unicidade cruzada por e-mail/username antes de inserir em public.clients.',
-      author: 'Super Administrador Master (admvapp)',
-    },
-    {
-      id: 'bol-161-audit-created-at-and-phantom-eradication',
-      timestamp: '2026-11-14T20:45:00.000Z',
-      sourceApp: 'admvapp',
-      targetApps: ['mnvapp', 'pvapp'],
-      title: 'Auditoria de Data/Hora de Criação (created_at + created_via) & Erradicação de Linhas Sintéticas em salon-users (bol-161)',
-      category: 'schema_change',
-      summary: '1. Registro e exibição obrigatória de Data e Hora exatas de criação (America/Sao_Paulo) e canal de origem (created_via / origin_type) para todos os Usuários e Estabelecimentos. 2. Erradicação de linhas sintéticas su-<salon.id> em GET /api/admin/salon-users, consultando exclusivamente public.salon_users. 3. Migração aditiva 100% idempotente (20261114_audit_created_at_origin.sql).',
-      impactedTables: ['salons', 'clients', 'dependents', 'professionals', 'salon_users', 'system_admins'],
-      instructions: 'mnvapp e pvapp: Gravar created_via ("mnvapp" / "pvapp") em novos cadastros e aplicar 20261114_audit_created_at_origin.sql no Supabase.',
-      author: 'Super Administrador • admvapp (adm.vagouapp.com)',
-    },
-    {
-      id: 'bol-160-admvapp-master-convergence-v5',
-      timestamp: '2026-11-11T19:45:00.000Z',
-      sourceApp: 'admvapp',
-      targetApps: ['mnvapp', 'pvapp'],
-      title: 'Convergência Soberana Admin Master (admvapp) & Supabase SQL v5.0 (bol-160)',
-      category: 'schema_change',
-      summary: '1. Expurgo total de mocks, seeds automáticos e SQL destrutivo (zero DROP TABLE). 2. Paleta default Verde Pastel Clarinho (#10B981 / #065F46 / #D1FAE5 / #ECFDF5 / nav_icon_border=none) sincronizada com public.salon_ui_settings. 3. Faturamento unificado fee_per_booking ⇄ billing_fee_value (R$ 2,50) e planos PER_APPOINTMENT / SUBSCRIPTION. 4. Monitor cronológico (date_str ASC, start_time ASC) com Pago/À pagar, Horário Bloqueado, Permuta (swap_state) e Alerta de Colisão Geotemporal Inter-Salões. 5. Suporte administrativo de reset de Pergunta Secreta e Senha.',
-      impactedTables: ['salons', 'salon_ui_settings', 'appointments', 'clients', 'security_questions', 'user_security_answers'],
-      instructions: 'mnvapp e pvapp: Consumir branding/salon_ui_settings unificados, respeitar is_paid/is_blocked_slot/swap_state e acionar RPC check_client_inter_salon_collision.',
-      author: 'Super Administrador • admvapp (adm.vagouapp.com)',
-    },
-    {
-      id: 'bol-009-single-source-of-truth-avatar-realtime-sync',
-      timestamp: '2026-09-27T19:25:00.000Z',
-      sourceApp: 'admvapp',
-      targetApps: ['pvapp', 'mnvapp'],
-      title: 'Arquitetura de Fonte Única da Verdade para Avatares & Sincronização em Tempo Real (Realtime)',
-      category: 'breaking_change',
-      summary: 'Princípio Inegociável: 1 Usuário = 1 Único Cadastro no Supabase. Os dados de pessoa física (nome, email, avatar) são compartilhados universalmente entre contas de cliente, profissional e administrador.',
-      impactedTables: ['professionals', 'clients', 'system_admins', 'auth.users', 'storage.buckets'],
-      instructions: 'pvapp e mnvapp: 1. Adotar fetchUserProfileFromDb com fallback ordenado por updated_at DESC. 2. Usar referrerPolicy="no-referrer" nas tags <img> de avatar.',
-      author: 'Super Administrador • admvapp (adm.vagouapp.com)',
-    },
-    {
-      id: 'bol-008-mobile-avatar-sync-storage-resolution',
-      timestamp: '2026-09-27T18:40:00.000Z',
-      sourceApp: 'admvapp',
-      targetApps: ['pvapp', 'mnvapp'],
-      title: 'Diagnóstico & Correção Global do Upload Mobile: Criação do Bucket "avatars" no Storage e Bypass do Erro 413 (>1MB)',
-      category: 'breaking_change',
-      summary: 'Causa Raiz: Upload direto de câmera de celular gerou string Base64 não-comprimida de 1.66MB, rejeitada pelo GoTrue Auth (limite 1MB, erro HTTP 413 Payload Too Large) e bloqueada por RLS em clients, ficando isolada em professionals. Solução Homologada: 1. Provisionado bucket público oficial "avatars" no Supabase Storage. 2. A foto real enviada do celular de Elisa Pires foi hospedada com CDN pública permanente: https://xemenxdhuoekytyhmgyt.supabase.co/storage/v1/object/public/avatars/elisa-pires-1790534282569.jpg. 3. Sincronizadas todas as tabelas (professionals, clients, system_admins e auth.users.user_metadata). 4. Componentes UserAvatar atualizados com passagem de photoUrl e sincronização automática de sessão.',
-      impactedTables: ['professionals', 'clients', 'system_admins', 'auth.users', 'storage.buckets'],
-      instructions: 'pvapp e mnvapp: 1. No upload de fotos via celular, enviar o arquivo binário diretamente para o bucket "avatars" no Supabase Storage e salvar a URL pública gerada no perfil (nunca injetar Base64 > 1MB em auth.users). 2. Garantir que UserAvatar receba photoUrl={resolvedAvatar}. 3. Consumir a URL canônica pública de Elisa Pires para exibi-la imediatamente nos 3 apps.',
-      author: 'Super Administrador • admvapp (adm.vagouapp.com)',
-    },
-    {
-      id: 'bol-007-eradication-mock-avatars-canonical-user',
-      timestamp: '2026-09-27T18:25:00.000Z',
-      sourceApp: 'mnvapp',
-      targetApps: ['pvapp', 'admvapp'],
-      title: 'Erradicação Definitiva de Fotos Mock (Unsplash/Pexels) e Aplicação do Avatar Provisório Canônico',
-      category: 'status_enum',
-      summary: 'Diretriz Inegociável de Design & UX da Tríade: 1. Zero Mocks — Proibição definitiva de URLs de modelos (Unsplash/Pexels) ou arrays pré-definidos (PRESET_AVATARS). 2. Avatar Provisório Canônico — Na ausência de upload real (avatar_url), renderiza exclusivamente o ícone vetorial fino User (stroke-[1.8]) da lucide-react. 3. Upload Real Exclusivo — Fotos só existem se enviadas pelo usuário via câmera/arquivo. Higienização de localStorage implementada.',
-      impactedTables: ['clients', 'professionals', 'auth.users'],
-      instructions: 'pvapp e admvapp: Remover arrays PRESET_AVATARS, limpar fallbacks estáticos em consultas do Supabase e higienizar o localStorage contra links legados.',
-      author: 'Equipe de Engenharia • mnvapp (seunegocio.vagouapp.com)',
-    },
-    {
-      id: 'bol-006-universal-profile-architecture',
-      timestamp: '2026-09-27T18:15:00.000Z',
-      sourceApp: 'mnvapp',
-      targetApps: ['pvapp', 'admvapp'],
-      title: 'Arquitetura Universal de Perfis & Identidade Dinâmica: SSO Dinâmico para Todos os Usuários',
-      category: 'status_enum',
-      summary: 'Homologação da regra universal de perfis agnóstica de usuário: 1 Usuário = 1 Único Cadastro no Supabase. O fluxo dinâmico grava avatar_url e dados em auth.users.user_metadata e reflete nas tabelas relacionais sem filtros restritivos de domínio. Utilitário canônico resolveTriadeAvatar criado e disponibilizado.',
-      impactedTables: ['auth.users', 'clients', 'professionals', 'salon_users'],
-      instructions: 'pvapp e admvapp: Utilizar a função resolveTriadeAvatar para resolução agnóstica de foto pessoal e garantir que o componente UserAvatar renderize qualquer URL válida (CDN, Supabase, Base64).',
-      author: 'Equipe de Engenharia • mnvapp (seunegocio.vagouapp.com)',
-    },
-    {
-      id: 'bol-005-canonical-sql-sync',
-      timestamp: '2026-09-27T18:00:00.000Z',
-      sourceApp: 'mnvapp',
-      targetApps: ['pvapp', 'admvapp'],
-      title: 'Script SQL Supabase Ajustado: Persistência Canônica sem Dependência de Restrições (Zero Erros)',
-      category: 'schema_change',
-      summary: 'Homologação do script SQL com blocos condicionais DO $$ ... $$ para sincronização e atualização de clientes e raw_user_meta_data em auth.users. Garante persistência da foto de perfil (avatar_url), nome e telefone sem falhas de duplicate key constraint.',
-      impactedTables: ['clients', 'auth.users', 'professionals'],
-      sqlMigration: `DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM public.clients WHERE email ILIKE '%elisa%') THEN
-    UPDATE public.clients
-    SET 
-      avatar_url = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80',
-      name = 'Elisa Pires',
-      phone = '(11) 98765-4321',
-      updated_at = NOW()
-    WHERE email ILIKE '%elisa%';
-  ELSE
-    INSERT INTO public.clients (name, email, phone, avatar_url, updated_at)
-    VALUES (
-      'Elisa Pires',
-      'elisa.pires@gmail.com',
-      '(11) 98765-4321',
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80',
-      NOW()
-    );
-  END IF;
-END $$;
-
-UPDATE auth.users
-SET raw_user_meta_data = COALESCE(raw_user_meta_data, '{}'::jsonb) || 
-  jsonb_build_object(
-    'full_name', 'Elisa Pires',
-    'phone', '(11) 98765-4321',
-    'avatar_url', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80'
-  )
-WHERE email ILIKE '%elisa%';`,
-      instructions: 'pvapp e admvapp: Sincronizar o avatar_url de Elisa Pires para a foto oficial homologada nas listagens e garantir compatibilidade de colunas name / full_name.',
-      author: 'Equipe de Engenharia • mnvapp (seunegocio.vagouapp.com)',
-    },
-    {
-      id: 'bol-004-avatar-standardization',
-      timestamp: '2026-09-27T15:20:00.000Z',
-      sourceApp: 'mnvapp',
-      targetApps: ['pvapp', 'admvapp'],
-      title: 'Padronização Global do Ícone de Avatar para Usuários e Profissionais Sem Foto',
-      category: 'status_enum',
-      summary: 'Eliminação de fotos genéricas de estoque (Unsplash) e cliparts pesados. Adoção estrita do ícone vetorial User da lucide-react com traçado fino (stroke-[1.8]) e contêiner neutro com bordas suaves para usuários, clientes e profissionais sem foto enviada.',
-      impactedTables: ['professionals', 'clients', 'system_admins'],
-      instructions: 'pvapp e admvapp: Adotar UserAvatar com fallback no ícone User (lucide-react) stroke-[1.8] quando não houver foto real enviada pelo usuário.',
-      author: 'Equipe de Engenharia • mnvapp (seunegocio.vagouapp.com)',
-    },
-    {
-      id: 'bol-003-profile-sync-supabase',
-      timestamp: '2026-09-27T10:00:00.000Z',
-      sourceApp: 'mnvapp',
-      targetApps: ['pvapp', 'admvapp'],
-      title: 'Sincronização de Perfil de Usuário e Dados Cadastrais com o Supabase',
-      category: 'schema_change',
-      summary: 'Criação do padrão de sincronização direta entre o formulário de dados pessoais e as tabelas professionals, salons e clients no Supabase (fetchUserProfileFromDb e updateUserProfileInDb). As chaves de sessão vagou_user_email e vagou_user_phone agora são obrigatórias junto a vagou_user_name. Homologado registro de Elisa Pires com email: elisa.pires@gmail.com e phone: 11987654321.',
-      impactedTables: ['professionals', 'salons', 'clients'],
-      instructions: 'pvapp: Consultar Supabase ao abrir "Meus Dados" caso vagou_user_email ou vagou_user_phone estejam vazios no storage. admvapp: Manter as tabelas clients, professionals e salons sincronizadas nos cadastros mestres.',
-      author: 'Equipe de Engenharia • mnvapp (seunegocio.vagouapp.com)',
-    },
-    {
-      id: 'bol-001-master-governance',
-      timestamp: '2026-09-26T14:00:00.000Z',
-      sourceApp: 'admvapp',
-      targetApps: ['pvapp', 'mnvapp'],
-      title: 'Consolidação Oficial do Painel de Admin Master (adm.vagouapp.com)',
-      category: 'env_config',
-      summary: 'Ativação soberana do Painel de Governança corporativa com chave Service Role ativa e gestão centralizada de cadastros.',
-      impactedTables: ['salons', 'appointments', 'professionals', 'service_offers'],
-      instructions: 'Os subdomínios dos estabelecimentos moderados e ativos no admvapp devem ser respeitados nas rotas do pvapp e mnvapp.',
-      author: 'Super Administrador (adm.vagouapp.com)',
-    },
-  ];
-}
-
-/**
- * Cria e emite um novo Comunicado Técnico Oficial (7º Mandamento)
- */
-export async function createTechnicalBulletin(
-  bulletin: Partial<TechnicalBulletin>
-): Promise<{ success: boolean; bulletin?: TechnicalBulletin; error?: string }> {
-  try {
-    const resp = await fetch('/api/admin/bulletins', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(bulletin),
-    });
-    if (resp.ok) {
-      const json = await resp.json();
-      if (json.success) return { success: true, bulletin: json.bulletin };
-    }
-    return { success: false, error: 'Falha ao emitir comunicado.' };
-  } catch (err: any) {
-    return { success: false, error: err.message };
-  }
-}
-
-// ==============================================================================
-// 🔐 SERVIÇOS DE AUTENTICAÇÃO E GESTÃO DE ADMINISTRADORES
-// ==============================================================================
-
 const ADMIN_STORAGE_KEY = 'vagou_admin_session';
 
 export function getStoredAdmin(): SystemAdminUser | null {
@@ -2186,7 +1800,7 @@ export function getStoredAdmin(): SystemAdminUser | null {
   return null;
 }
 
-export function setStoredAdmin(admin: SystemAdminUser | null): void {
+function setStoredAdmin(admin: SystemAdminUser | null): void {
   try {
     if (admin) {
       localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(admin));
@@ -2196,11 +1810,7 @@ export function setStoredAdmin(admin: SystemAdminUser | null): void {
   } catch {}
 }
 
-/**
- * Busca de perfil unificada no Supabase conforme especificação canônica da Tríade.
- * Permite buscar por email/nome com fallback automático para o registro mais recente com foto.
- */
-export async function fetchUserProfileFromDb(identifier?: { email?: string; name?: string }): Promise<{
+async function fetchUserProfileFromDb(identifier?: { email?: string; name?: string }): Promise<{
   id: string;
   name: string;
   email: string;
@@ -2210,7 +1820,7 @@ export async function fetchUserProfileFromDb(identifier?: { email?: string; name
   const term = (identifier?.email || identifier?.name || '').trim();
 
   try {
-    // 1. Tentar usuário ativo no Supabase Auth (estritamente do usuário)
+
     try {
       const { data: authUserResp } = await supabase.auth.getUser();
       const authUser = authUserResp?.user;
@@ -2226,7 +1836,6 @@ export async function fetchUserProfileFromDb(identifier?: { email?: string; name
 
     const isGenericTerm = !term || term === 'Profissional' || term === 'Usuário' || term === 'Visitante' || term === 'Cliente';
 
-    // 2. Busca estrita por e-mail/nome do PRÓPRIO usuário em professionals / clients
     if (!isGenericTerm) {
       const { data: pros } = await (supabase.from('professionals') as any)
         .select('*')
@@ -2244,7 +1853,6 @@ export async function fetchUserProfileFromDb(identifier?: { email?: string; name
         };
       }
 
-      // 2b. Busca em clients (selecionando apenas colunas necessárias para economizar Egress)
       const { data: cls } = await (supabase.from('clients') as any)
         .select('id, name, email, avatar_url, updated_at')
         .or(`email.ilike.%${term}%,name.ilike.%${term}%`)
@@ -2268,10 +1876,6 @@ export async function fetchUserProfileFromDb(identifier?: { email?: string; name
   return null;
 }
 
-/**
- * Atualiza e sincroniza a sessão do administrador ativo diretamente com o Supabase
- * sem disparar UPDATE automático na leitura (evitando loops de Realtime e consumo de Egress).
- */
 export async function refreshStoredAdmin(): Promise<SystemAdminUser | null> {
   const current = getStoredAdmin();
   if (!current) return null;
@@ -2289,7 +1893,6 @@ export async function refreshStoredAdmin(): Promise<SystemAdminUser | null> {
     const userEmail = (baseAdmin.email || current.email || '').trim().toLowerCase();
     const userName = (baseAdmin.full_name || current.full_name || '').trim();
 
-    // 1. Consulta leve em professionals com ordenação por updated_at DESC
     const { data: profData } = await supabase
       .from('professionals')
       .select('avatar_url, updated_at')
@@ -2299,7 +1902,6 @@ export async function refreshStoredAdmin(): Promise<SystemAdminUser | null> {
       .order('updated_at', { ascending: false })
       .limit(1);
 
-    // 2. Consulta leve em clients com ordenação por updated_at DESC
     const { data: clientData } = await supabase
       .from('clients')
       .select('avatar_url, updated_at')
@@ -2371,7 +1973,6 @@ export async function registerAdmin(payload: {
     };
   }
 
-  // 1. Tenta via backend Express API (/api/admin/auth/register)
   try {
     const resp = await fetch('/api/admin/auth/register', {
       method: 'POST',
@@ -2391,7 +1992,6 @@ export async function registerAdmin(payload: {
     }
   } catch {}
 
-  // 2. Tenta via Supabase RPC (register_system_admin)
   try {
     const { data: rpcData, error: rpcError } = await supabase.rpc('register_system_admin', {
       p_full_name: payload.full_name,
@@ -2422,7 +2022,6 @@ export async function registerAdmin(payload: {
     }
   } catch {}
 
-  // 3. Tenta inserção direta via supabaseAdmin
   try {
     const { data: dbAdmin, error: insertError } = await safeSupabaseClientWrite('system_admins', 'insert', {
       full_name: payload.full_name.trim(),
@@ -2446,6 +2045,51 @@ export async function registerAdmin(payload: {
   return { success: false, error: 'Não foi possível concluir o cadastro. Verifique a conexão com o banco de dados.' };
 }
 
+export async function checkAdminBootstrapStatus(): Promise<{
+  needsBootstrap: boolean;
+}> {
+  try {
+    const res = await fetch('/api/admin/bootstrap/status');
+    const json = await res.json();
+    if (res.ok && json.success) {
+      return { needsBootstrap: Boolean(json.needsBootstrap) };
+    }
+  } catch {}
+  return { needsBootstrap: false };
+}
+
+export async function bootstrapInitialSuperAdmin(payload: {
+  full_name: string;
+  username: string;
+  email: string;
+  password: string;
+  phone_whatsapp?: string;
+}): Promise<{ success: boolean; admin?: SystemAdminUser; error?: string }> {
+  try {
+    const res = await fetch('/api/admin/bootstrap', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+    if (res.ok && json.success && json.admin) {
+      setStoredAdmin(json.admin);
+      if (payload.email && payload.password) {
+        await supabase.auth
+          .signInWithPassword({
+            email: payload.email.trim().toLowerCase(),
+            password: payload.password,
+          })
+          .catch(() => {});
+      }
+      return { success: true, admin: json.admin };
+    }
+    return { success: false, error: json.error || 'Não foi possível concluir o bootstrap inicial.' };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Erro de comunicação ao ativar Super Admin.' };
+  }
+}
+
 export async function loginAdmin(
   identifier: string,
   password: string
@@ -2458,7 +2102,6 @@ export async function loginAdmin(
     };
   }
 
-  // 1. Autenticação primária via rota oficial de autenticação master do ecossistema
   try {
     const res = await fetch('/api/admin/auth/login', {
       method: 'POST',
@@ -2469,57 +2112,55 @@ export async function loginAdmin(
     const data = await res.json();
     if (data.success && data.admin) {
       setStoredAdmin(data.admin);
-      // Tentativa de sincronização em segundo plano no Supabase Auth se houver e-mail
       if (data.admin.email) {
-        supabase.auth.signInWithPassword({
-          email: data.admin.email,
-          password: password,
-        }).catch(() => {});
+        await supabase.auth
+          .signInWithPassword({
+            email: data.admin.email,
+            password: password,
+          })
+          .catch(() => {});
       }
       return { success: true, admin: data.admin };
     } else if (data.error && !data.error.includes('não encontrado')) {
       return { success: false, error: data.error };
     }
   } catch (apiErr) {
-    console.warn('[loginAdmin] Falha na chamada da API master, tentando fallback direto no banco:', apiErr);
+    console.warn('[loginAdmin] Falha na chamada da API master, tentando RPC verify_admin_login:', apiErr);
   }
 
-  // 2. Fallback direto no Supabase: consulta na tabela oficial system_admins
   try {
-    const lowerQuery = cleanQuery.toLowerCase();
-    const strippedQuery = cleanQuery.replace(/[@#]/g, '').toLowerCase();
-    const phoneDigits = cleanQuery.replace(/\D/g, '');
+    const { data: rpcRows, error: rpcErr } = await supabase.rpc('verify_admin_login', {
+      p_identifier: cleanQuery,
+      p_password: password,
+    });
 
-    let filter = `email.ilike.%${lowerQuery}%,username.ilike.%${lowerQuery}%,username.ilike.%${strippedQuery}%`;
-    if (phoneDigits.length >= 8) {
-      filter += `,phone.ilike.%${phoneDigits}%`;
-    }
-
-    const { data: dbAdmins, error: dbError } = await supabase
-      .from('system_admins')
-      .select('*')
-      .or(filter)
-      .limit(1);
-
-    if (!dbError && dbAdmins && dbAdmins.length > 0) {
-      const match = dbAdmins[0];
-      if (match.password_hash && match.password_hash === password) {
-        if (!match.is_active) {
-          return { success: false, error: 'Conta de administrador inativa ou suspensa.' };
-        }
-        const { password_hash, ...safeAdmin } = match;
-        setStoredAdmin(safeAdmin as SystemAdminUser);
-        return { success: true, admin: safeAdmin as SystemAdminUser };
+    const match = Array.isArray(rpcRows) ? rpcRows[0] : rpcRows;
+    if (!rpcErr && match && match.id) {
+      const safeAdmin: SystemAdminUser = {
+        id: match.id,
+        full_name: match.full_name,
+        username: match.username,
+        email: match.email,
+        phone_whatsapp: '',
+        role: match.role === 'super_admin' ? 'superadmin' : match.role || 'superadmin',
+        is_active: true,
+        avatar_url: match.avatar_url || '',
+      };
+      setStoredAdmin(safeAdmin);
+      if (safeAdmin.email) {
+        await supabase.auth
+          .signInWithPassword({ email: safeAdmin.email, password })
+          .catch(() => {});
       }
-      return { success: false, error: 'Senha incorreta para este administrador.' };
+      return { success: true, admin: safeAdmin };
     }
   } catch (fallbackErr) {
-    console.warn('[loginAdmin] Erro no fallback direto:', fallbackErr);
+    console.warn('[loginAdmin] Erro no fallback verify_admin_login:', fallbackErr);
   }
 
   return {
     success: false,
-    error: 'Administrador não encontrado. Verifique seu usuário (ex: Anderson@), e-mail ou celular.',
+    error: 'Administrador não encontrado ou senha incorreta. Verifique seu usuário, e-mail e senha.',
   };
 }
 
@@ -2555,7 +2196,6 @@ export async function recoverAdminAccess(
     }
   } catch {}
 
-  // Fallback direto no Supabase se API não responder
   try {
     const clean = query.trim().toLowerCase();
     const stripped = query.replace(/[@#]/g, '').trim().toLowerCase();
@@ -2612,11 +2252,6 @@ export async function logoutAdmin(): Promise<void> {
   setStoredAdmin(null);
 }
 
-/**
- * Busca a lista de administradores do sistema
- */
-export const DEFAULT_MOCK_SYSTEM_ADMINS: SystemAdminUser[] = [];
-
 export async function fetchSystemAdmins(): Promise<SystemAdminUser[]> {
   try {
     const resp = await fetch('/api/admin/system-admins');
@@ -2650,9 +2285,6 @@ export async function fetchSystemAdmins(): Promise<SystemAdminUser[]> {
   return current ? [current] : [];
 }
 
-/**
- * Altera status ativo/inativo de um administrador
- */
 export async function toggleAdminStatus(
   adminId: string,
   isActive: boolean
@@ -2690,9 +2322,6 @@ export async function toggleAdminStatus(
   }
 }
 
-/**
- * Agendamentos e Relatórios Mensais de Faturamento por Prestador (PS)
- */
 export async function fetchAdminAppointments(): Promise<AdminAppointmentItem[]> {
   const mapAppointmentRow = (row: any): AdminAppointmentItem => {
     const dateStr = row.date_str || row.appointment_date || row.scheduled_date || '';
@@ -2791,15 +2420,6 @@ export async function fetchAdminAppointments(): Promise<AdminAppointmentItem[]> 
   }
 }
 
-// ============================================================================
-// 👥 GESTÃO CENTRALIZADA DE USUÁRIOS (CRUD MULTI-CATEGORIA — ZERO MOCKS v5.0)
-// ============================================================================
-
-export const INITIAL_MOCK_CLIENTS: UserClientItem[] = [];
-export const INITIAL_MOCK_SALON_USERS: UserSalonAccessItem[] = [];
-export const INITIAL_MOCK_PROFESSIONALS: UserProfessionalItem[] = [];
-
-// 1. Clientes (Prioriza API com service role para contornar RLS e ler os clientes reais do Supabase)
 export async function fetchAdminClients(): Promise<UserClientItem[]> {
   try {
     const resp = await fetch('/api/admin/clients');
@@ -2872,7 +2492,6 @@ export async function fetchAdminClients(): Promise<UserClientItem[]> {
   return [];
 }
 
-// 1B. Reset Administrativo de Segurança (Pergunta Secreta e/ou Senha)
 export async function resetUserSecurityAdmin(
   kind: 'client' | 'professional' | 'salon_user' | 'admin' | 'dependent',
   userId: string,
@@ -2894,7 +2513,6 @@ export async function resetUserSecurityAdmin(
   }
 }
 
-// 2. Desvincular Dependente (Soft Unlink com Preservação de Histórico)
 export async function unlinkClientDependent(dependentId: string): Promise<{ success: boolean }> {
   try {
     const resp = await fetch(`/api/admin/dependents/${dependentId}/unlink`, { method: 'PATCH' });
@@ -2921,7 +2539,6 @@ export async function unlinkClientDependent(dependentId: string): Promise<{ succ
   }
 }
 
-// 3. Usuários de Salão (Consulta Exclusiva da Tabela Real public.salon_users — Zero Linhas Sintéticas)
 export async function fetchAdminSalonUsers(): Promise<UserSalonAccessItem[]> {
   try {
     const resp = await fetch('/api/admin/salon-users');
@@ -2935,43 +2552,62 @@ export async function fetchAdminSalonUsers(): Promise<UserSalonAccessItem[]> {
   } catch {}
 
   try {
-    const { data, error } = await supabaseAdmin
-      .from('salon_users')
+    const { data, error } = await supabase
+      .from('salon_members')
       .select('*, salons(trade_name, slug)')
       .order('created_at', { ascending: false });
 
     if (!error && Array.isArray(data)) {
-      return data.map((su: any) => {
-        const fullName = su.full_name || su.name || 'Gestor de Salão';
-        const cleanEmail = su.email || '';
+      const userIds = Array.from(new Set(data.map((m: any) => m.user_id).filter(Boolean)));
+      let profilesById = new Map<string, any>();
+      if (userIds.length > 0) {
+        const { data: profs } = await supabase
+          .from('profiles')
+          .select('id, full_name, username, email, phone, cpf, avatar_url')
+          .in('id', userIds);
+        (profs || []).forEach((p: any) => profilesById.set(p.id, p));
+      }
+
+      return data.map((sm: any) => {
+        const prof = profilesById.get(sm.user_id) || {};
+        const fullName = prof.full_name || 'Gestor de Salão';
+        const cleanEmail = prof.email || '';
         return {
-          ...su,
-          salon_name: su.salons?.trade_name || su.salon_name || 'Salão Parceiro',
-          salon_slug: su.salons?.slug || su.salon_slug || 'parceiro',
+          ...sm,
+          salon_name: sm.salons?.trade_name || 'Salão Parceiro',
+          salon_slug: sm.salons?.slug || 'parceiro',
           full_name: fullName,
-          username: String(su.username || (cleanEmail ? cleanEmail.split('@')[0] : 'gestor')).replace(/^@+/, ''),
+          username: String(prof.username || (cleanEmail ? cleanEmail.split('@')[0] : 'gestor')).replace(/^@+/, ''),
           email: cleanEmail,
-          phone_whatsapp: su.phone_whatsapp || su.phone || '—',
-          phone_secondary: su.phone_secondary || '',
-          password: su.password_hash || su.password || '',
-          role: su.role || 'owner',
-          access_level: su.access_level || 'Proprietário (Dono)',
-          is_active: su.is_active !== false,
-          total_appointments: Number(su.total_appointments) || 0,
-          dependents_count: Number(su.dependents_count) || 0,
-          created_via: su.created_via || undefined,
-          created_at: su.created_at || '',
+          phone_whatsapp: prof.phone || '—',
+          phone_secondary: '',
+          password: '',
+          cpf: prof.cpf || '',
+          avatar_url: prof.avatar_url || '',
+          role: sm.role || 'owner',
+          access_level:
+            sm.role === 'owner'
+              ? 'Proprietário (Dono)'
+              : sm.role === 'manager'
+              ? 'Gerente Geral'
+              : sm.role === 'receptionist'
+              ? 'Recepção'
+              : 'Profissional',
+          is_active: sm.is_active !== false,
+          total_appointments: 0,
+          dependents_count: 0,
+          created_via: sm.created_via || undefined,
+          created_at: sm.created_at || '',
         };
       }) as UserSalonAccessItem[];
     }
   } catch (err) {
-    console.warn('[Supabase Admin] Falha ao buscar salon_users reais:', err);
+    console.warn('[Supabase Admin] Falha ao buscar salon_members reais:', err);
   }
 
   return [];
 }
 
-// 4. Profissionais / Prestadores Reais do Supabase
 export async function fetchAdminProfessionals(): Promise<UserProfessionalItem[]> {
   try {
     const resp = await fetch('/api/admin/professionals');
@@ -3010,7 +2646,6 @@ export async function fetchAdminProfessionals(): Promise<UserProfessionalItem[]>
   return [];
 }
 
-// 5. Desvincular Profissional de Salão (Mantendo Registro no Ecossistema)
 export async function unlinkProfessionalFromSalon(professionalId: string, _salonId?: string): Promise<{ success: boolean }> {
   try {
     const { error } = await supabase
@@ -3032,7 +2667,6 @@ export async function unlinkProfessionalFromSalon(professionalId: string, _salon
   }
 }
 
-// 6. Promover / Alterar Papel ou Atualizar Dados e Senha de Administrador
 export async function updateAdminUser(
   adminId: string,
   updates: Partial<SystemAdminUser> & { password?: string; password_hash?: string }
@@ -3043,7 +2677,6 @@ export async function updateAdminUser(
     delete dbUpdates.password;
   }
 
-  // 1. Tenta atualizar via rota Express com Service Role (supabaseAdmin)
   try {
     const resp = await fetch(`/api/admin/system-admins/${adminId}`, {
       method: 'PUT',
@@ -3064,7 +2697,6 @@ export async function updateAdminUser(
     console.warn('[updateAdminUser] Falha na rota Express, tentando fallback direto no Supabase:', apiErr);
   }
 
-  // 2. Fallback via client Supabase Service Role (safeSupabaseClientWrite)
   try {
     if (dbUpdates.role && !dbUpdates.access_level) {
       dbUpdates.access_level =
@@ -3101,10 +2733,6 @@ export async function updateAdminUser(
 export async function updateAdminRole(adminId: string, newRole: SystemAdminUser['role']): Promise<{ success: boolean }> {
   return updateAdminUser(adminId, { role: newRole });
 }
-
-// ============================================================================
-// 👥 FUNÇÕES DE GERENCIAMENTO UNIFICADO DE USUÁRIOS (CRUD GERAL)
-// ============================================================================
 
 export async function geocodeAddressViaApi(params: {
   cep?: string;
@@ -3172,7 +2800,6 @@ export async function updateUnifiedUserData(
     console.warn('[updateUnifiedUserData] Fallback direto via Supabase:', err);
   }
 
-  // Fallback direto via Supabase Service Role com suporte a promoção entre tabelas (Ex: client ➔ system_admins)
   try {
     if (id.startsWith('su-')) {
       const realSalonId = id.replace(/^su-/, '');
@@ -3204,7 +2831,7 @@ export async function updateUnifiedUserData(
 
     const kindToTable = (k?: string) => {
       if (k === 'professional') return 'professionals';
-      if (k === 'salon_user') return 'salon_users';
+      if (k === 'salon_user') return 'salon_members';
       if (k === 'admin') return 'system_admins';
       if (k === 'dependent') return 'dependents';
       return 'clients';
@@ -3215,8 +2842,7 @@ export async function updateUnifiedUserData(
     let sourceTable = kindToTable(payload.sourceKind || kind);
     let existingRecord: any = null;
 
-    // 1. Localiza o registro existente no banco (na tabela de origem ou em qualquer outra tabela por id)
-    const { data: foundInSource } = await supabaseAdmin
+    const { data: foundInSource } = await supabase
       .from(sourceTable)
       .select('*')
       .eq('id', id)
@@ -3225,9 +2851,9 @@ export async function updateUnifiedUserData(
     if (foundInSource) {
       existingRecord = foundInSource;
     } else {
-      for (const candidateTable of ['system_admins', 'salon_users', 'professionals', 'clients', 'dependents']) {
+      for (const candidateTable of ['system_admins', 'salon_members', 'professionals', 'clients', 'dependents']) {
         if (candidateTable === sourceTable) continue;
-        const { data: foundOther } = await supabaseAdmin
+        const { data: foundOther } = await supabase
           .from(candidateTable)
           .select('*')
           .eq('id', id)
@@ -3320,13 +2946,13 @@ export async function updateUnifiedUserData(
 
     if (targetTable === 'system_admins') {
       const lowerAccess = String(resolvedAccessLevel || '').toLowerCase();
-      dbPayload.role = lowerAccess.includes('moderador')
-        ? 'moderator'
-        : lowerAccess.includes('suporte')
+      dbPayload.role = lowerAccess.includes('suporte')
         ? 'support'
-        : 'superadmin';
+        : lowerAccess.includes('moderador')
+        ? 'admin'
+        : 'super_admin';
       dbPayload.is_active = resolvedIsActive;
-    } else if (targetTable === 'salon_users') {
+    } else if (targetTable === 'salon_members') {
       const lowerAccess = String(resolvedAccessLevel || '').toLowerCase();
       dbPayload.role = lowerAccess.includes('gerente')
         ? 'manager'
@@ -3335,7 +2961,6 @@ export async function updateUnifiedUserData(
         : 'owner';
       dbPayload.is_active = resolvedIsActive;
     } else if (targetTable === 'professionals') {
-      dbPayload.status = resolvedIsActive ? 'active' : 'suspended';
       dbPayload.is_active = resolvedIsActive;
       dbPayload.role = existingRecord?.role || 'Especialista';
     } else if (targetTable === 'clients') {
@@ -3343,10 +2968,7 @@ export async function updateUnifiedUserData(
     }
 
     if (resolvedAvatar !== undefined) {
-      dbPayload.avatar_url = resolvedAvatar || null;
-      if (targetTable === 'professionals') {
-        dbPayload.photo_url = resolvedAvatar || null;
-      }
+      dbPayload.avatar_url = isSafeMediaUrl(resolvedAvatar) ? resolvedAvatar : null;
     }
 
     const isCrossTableMigration = sourceTable !== targetTable;
@@ -3370,7 +2992,6 @@ export async function updateUnifiedUserData(
         return { success: false, error: apiErrorMsg || migErr.message };
       }
 
-      // Remove da tabela antiga após gravar na nova tabela
       try {
         if (sourceTable === 'clients') {
           await supabaseAdmin.from('user_security_answers').delete().eq('client_id', id);
@@ -3412,28 +3033,6 @@ export async function updateUnifiedUserData(
   }
 }
 
-export async function uploadUserAvatarImage(
-  imageBase64: string,
-  prefix: string = 'avatar',
-  userId?: string,
-  kind?: string
-): Promise<{ success: boolean; url?: string; error?: string }> {
-  try {
-    const resp = await fetch('/api/admin/upload-avatar', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageBase64, prefix, userId, kind }),
-    });
-    const json = await resp.json();
-    if (resp.ok && json.success) {
-      return { success: true, url: json.url };
-    }
-    return { success: false, error: json.error || 'Erro ao carregar avatar' };
-  } catch (err: any) {
-    return { success: false, error: err.message || 'Falha na conexão ao enviar foto' };
-  }
-}
-
 export async function deleteUnifiedUserData(
   kind: 'client' | 'professional' | 'salon_user' | 'admin' | 'dependent',
   id: string
@@ -3455,15 +3054,15 @@ export async function deleteUnifiedUserData(
 
   try {
     if (kind === 'dependent') {
-      await supabaseAdmin.from('dependents').delete().eq('id', id);
+      await supabase.from('dependents').delete().eq('id', id);
       return { success: true };
     }
     let table = 'clients';
     if (kind === 'professional') table = 'professionals';
-    else if (kind === 'salon_user') table = 'salon_users';
+    else if (kind === 'salon_user') table = 'salon_members';
     else if (kind === 'admin') table = 'system_admins';
 
-    await supabaseAdmin.from(table).delete().eq('id', id);
+    await supabase.from(table).delete().eq('id', id);
     return { success: true };
   } catch {
     return { success: true };
@@ -3492,28 +3091,27 @@ export async function batchDeleteUnifiedUsers(
     console.warn('[batchDeleteUnifiedUsers] Falha rota Express batch, fallback direto:', err);
   }
 
-  // Fallback direto via Supabase Service Role
   try {
     const clientIds = items.filter((it) => it.kind === 'client').map((it) => it.id);
     const depIds = items.filter((it) => it.kind === 'dependent').map((it) => it.id);
     const profIds = items.filter((it) => it.kind === 'professional').map((it) => it.id);
-    const salonUserIds = items.filter((it) => it.kind === 'salon_user').map((it) => it.id);
+    const salonMemberIds = items.filter((it) => it.kind === 'salon_user').map((it) => it.id);
     const adminIds = items.filter((it) => it.kind === 'admin').map((it) => it.id);
 
     if (clientIds.length > 0) {
-      await supabaseAdmin.from('clients').delete().in('id', clientIds);
+      await supabase.from('clients').delete().in('id', clientIds);
     }
     if (depIds.length > 0) {
-      await supabaseAdmin.from('dependents').delete().in('id', depIds);
+      await supabase.from('dependents').delete().in('id', depIds);
     }
     if (profIds.length > 0) {
-      await supabaseAdmin.from('professionals').delete().in('id', profIds);
+      await supabase.from('professionals').delete().in('id', profIds);
     }
-    if (salonUserIds.length > 0) {
-      await supabaseAdmin.from('salon_users').delete().in('id', salonUserIds);
+    if (salonMemberIds.length > 0) {
+      await supabase.from('salon_members').delete().in('id', salonMemberIds);
     }
     if (adminIds.length > 0) {
-      await supabaseAdmin.from('system_admins').delete().in('id', adminIds);
+      await supabase.from('system_admins').delete().in('id', adminIds);
     }
 
     return { success: true, count: items.length };
@@ -3539,15 +3137,14 @@ export async function toggleUnifiedUserStatus(
   try {
     let table = 'clients';
     if (kind === 'professional') table = 'professionals';
-    else if (kind === 'salon_user') table = 'salon_users';
+    else if (kind === 'salon_user') table = 'salon_members';
     else if (kind === 'admin') table = 'system_admins';
 
-    const updateData = table === 'professionals' ? { status: isActive ? 'active' : 'suspended', is_active: isActive } : { is_active: isActive };
-    await supabaseAdmin.from(table).update(updateData).eq('id', id);
+    const updateData = { is_active: isActive };
+    await supabase.from(table).update(updateData).eq('id', id);
     return { success: true };
   } catch {
     return { success: true };
   }
 }
-
 

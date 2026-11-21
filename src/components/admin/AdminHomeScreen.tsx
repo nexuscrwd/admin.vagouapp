@@ -114,8 +114,6 @@ export const AdminHomeScreen: React.FC<AdminHomeScreenProps> = ({
   return (
     <div className="space-y-6 animate-fadeIn">
 
-
-      {/* Grid Principal com Todas as Seções do Sistema em Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {navSections.map((section) => {
             const Icon = section.icon;
@@ -133,13 +131,13 @@ export const AdminHomeScreen: React.FC<AdminHomeScreenProps> = ({
                 }}
                 className={`group relative p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/90 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between cursor-pointer overflow-hidden ${section.borderColor}`}
               >
-                {/* Efeito sutil de brilho/gradiente na borda superior */}
+
                 <div
                   className={`absolute top-0 left-0 right-0 h-1 pointer-events-none bg-gradient-to-r ${section.accentColor} opacity-50 group-hover:opacity-100 transition-opacity`}
                 />
 
                 <div className="space-y-4">
-                  {/* Topo do Card: Ícone e Badge */}
+
                   <div className="flex items-center justify-between">
                     <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex items-center justify-center group-hover:scale-110 transition-transform duration-200">
                       <Icon className="w-5 h-5 text-emerald-500 group-hover:text-emerald-400" />
@@ -152,7 +150,6 @@ export const AdminHomeScreen: React.FC<AdminHomeScreenProps> = ({
                     </span>
                   </div>
 
-                  {/* Informações */}
                   <div className="space-y-1.5">
                     <h3 className="text-base font-bold text-slate-900 dark:text-white group-hover:text-emerald-500 dark:group-hover:text-emerald-400 transition-colors">
                       {section.title}
@@ -163,7 +160,6 @@ export const AdminHomeScreen: React.FC<AdminHomeScreenProps> = ({
                   </div>
                 </div>
 
-                {/* Rodapé do Card com Ação */}
                 <div className="pt-5 mt-4 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-700 dark:text-slate-300 group-hover:text-emerald-400 transition-colors flex items-center gap-1">
                     <span>Acessar módulo</span>

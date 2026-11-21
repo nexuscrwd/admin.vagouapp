@@ -9,22 +9,15 @@ import {
   AlertCircle,
   Building2,
   Search,
-  Filter,
   Edit,
-  Trash2,
   Sparkles,
   Link as LinkIcon,
   Copy,
   Check,
   FolderPlus,
-  ArrowRight,
-  ShieldAlert,
-  Users,
-  MapPin,
   Phone,
   Eye,
   Ban,
-  CheckSquare,
   List,
   LayoutGrid,
 } from 'lucide-react';
@@ -49,7 +42,6 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
   onSelectSalonDetail,
   onUpdateStatus,
   onUpdateVerified,
-  onDeleteSalon,
   onOpenCategoryModal,
 }) => {
   const [activeTab, setActiveTab] = useState<'pipeline' | 'all' | 'onboarding'>('pipeline');
@@ -58,7 +50,6 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
   const [statusFilter, setStatusFilter] = useState<SalonFilterStatus>('all');
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
 
-  // Métricas calculadas da esteira de estabelecimentos
   const metrics = useMemo(() => {
     const total = salons.length;
     const active = salons.filter((s) => s.status === 'active').length;
@@ -67,7 +58,6 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
     const suspended = salons.filter((s) => s.status === 'suspended').length;
     const verified = salons.filter((s) => s.is_verified).length;
 
-    // Novos estabelecimentos (cadastrados nos últimos 30 dias ou com status pending/incomplete)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -89,10 +79,9 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
     };
   }, [salons]);
 
-  // Lista de estabelecimentos para a esteira (Novos, Pendentes e Incompletos primeiro)
   const pipelineSalons = useMemo(() => {
     return [...salons].sort((a, b) => {
-      // Prioridade 1: Pendentes e incompletos primeiro
+
       const priorityOrder: Record<string, number> = {
         pending: 3,
         incomplete: 2,
@@ -102,14 +91,12 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
       const pDiff = (priorityOrder[b.status] || 0) - (priorityOrder[a.status] || 0);
       if (pDiff !== 0) return pDiff;
 
-      // Prioridade 2: Mais recentes primeiro
       const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
       const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
       return timeB - timeA;
     });
   }, [salons]);
 
-  // Lista filtrada para a visualização geral
   const filteredSalons = useMemo(() => {
     return salons.filter((salon) => {
       const q = searchQuery.toLowerCase().trim();
@@ -171,7 +158,7 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
 
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden animate-fadeIn">
-      {/* Subcabeçalho Fixo do Portal VAPP com Ações Rápidas & Abas */}
+
       <div className="shrink-0 w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 lg:px-6 py-2.5 z-10 space-y-2.5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
@@ -190,7 +177,6 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
             </div>
           </div>
 
-          {/* Botões de Ação do Topo */}
           <div className="flex flex-wrap items-center gap-2">
             {onOpenCategoryModal && (
               <button
@@ -213,7 +199,6 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
               <ExternalLink className="w-3 h-3 text-slate-400" />
             </a>
 
-            {/* BOTÃO MESTRE: CRIAR NOVO ESTABELECIMENTO */}
             <button
               type="button"
               onClick={onOpenNewSalon}
@@ -225,7 +210,6 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
           </div>
         </div>
 
-        {/* Abas de Navegação */}
         <div className="flex items-center gap-1 overflow-x-auto pt-1">
           <button
             type="button"
@@ -277,12 +261,11 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
         </div>
       </div>
 
-      {/* Área de Dados com Rolagem Vertical Exclusiva — Zero espaço no contêiner */}
       <div className="flex-1 overflow-y-auto p-0 m-0 min-h-0 custom-scrollbar">
         <div className="p-4 lg:p-6 space-y-5">
-          {/* KPIs da Esteira de Estabelecimentos do Portal */}
+
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          {/* Total no Portal */}
+
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 sm:p-4 shadow-xs">
             <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
               <span className="text-xs font-medium">Total de Salões</span>
@@ -296,7 +279,6 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
             </span>
           </div>
 
-          {/* Esteira / Novos */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 sm:p-4 shadow-xs">
             <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
               <span className="text-xs font-medium">Esteira de Novos</span>
@@ -310,7 +292,6 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
             </span>
           </div>
 
-          {/* Pendentes de Aprovação */}
           <div
             onClick={() => {
               setActiveTab('all');
@@ -330,7 +311,6 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
             </span>
           </div>
 
-          {/* Selo Verificado */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 sm:p-4 shadow-xs">
             <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1.5">
               <span className="text-xs font-medium">Selo Verificado</span>
@@ -345,17 +325,16 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
           </div>
         </div>
 
-      {/* ABA 1: ESTEIRA DE NOVOS SALÕES & MODERAÇÃO */}
       {activeTab === 'pipeline' && (
         <div className="space-y-4">
-          {/* Barra de Ações & Alternador de Modo de Exibição */}
+
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
             <span className="font-medium">
               Exibindo estabelecimentos em ordem de prioridade de entrada e moderação ({pipelineSalons.length}).
             </span>
 
             <div className="flex items-center gap-2 self-start sm:self-auto">
-              {/* Alternador de Modo: Tabela (padrão) vs Cartões */}
+
               <div className="flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-lg border border-slate-200 dark:border-slate-800">
                 <button
                   type="button"
@@ -394,7 +373,6 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
             </div>
           </div>
 
-          {/* VIEW 1: TABELA (Padrão Corporativo Semelhante à Lista Pai da Seção) */}
           {pipelineViewMode === 'table' ? (
             <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs dark:shadow-none">
               <div className="overflow-x-auto">
@@ -427,7 +405,7 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
                               isPending ? 'bg-amber-50/30 dark:bg-amber-950/10' : ''
                             }`}
                           >
-                            {/* Salão / Marca */}
+
                             <td className="py-3 px-4">
                               <div className="flex items-center gap-3">
                                 <SalonLogo
@@ -455,7 +433,6 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
                               </div>
                             </td>
 
-                            {/* Subdomínio */}
                             <td className="py-3 px-4">
                               <a
                                 href={`https://${salon.slug}.vagouapp.com`}
@@ -468,19 +445,16 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
                               </a>
                             </td>
 
-                            {/* Categoria */}
                             <td className="py-3 px-4">
                               <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-medium capitalize">
                                 {salon.category || 'Geral'}
                               </span>
                             </td>
 
-                            {/* Localização */}
                             <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
                               <span>{salon.city ? `${salon.city}${salon.state ? ` - ${salon.state}` : ''}` : '—'}</span>
                             </td>
 
-                            {/* Contato */}
                             <td className="py-3 px-4">
                               {salon.phone_whatsapp ? (
                                 <a
@@ -497,12 +471,10 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
                               )}
                             </td>
 
-                            {/* Status */}
                             <td className="py-3 px-4">
                               {getStatusBadge(salon.status)}
                             </td>
 
-                            {/* Ações */}
                             <td className="py-3 px-4 text-right">
                               <div className="flex items-center justify-end gap-1.5">
                                 {salon.status !== 'active' ? (
@@ -569,7 +541,7 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
               </div>
             </div>
           ) : (
-            /* VIEW 2: CARTÕES */
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
               {pipelineSalons.map((salon) => {
                 const isPending = salon.status === 'pending' || salon.status === 'incomplete';
@@ -717,10 +689,9 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
         </div>
       )}
 
-      {/* ABA 2: TODOS OS ESTABELECIMENTOS DO PORTAL */}
       {activeTab === 'all' && (
         <div className="space-y-4">
-          {/* Barra de Busca e Filtros */}
+
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 w-full sm:w-80 shadow-xs focus-within:border-emerald-500 transition">
               <Search className="w-4 h-4 text-slate-400 mr-2 shrink-0" />
@@ -763,7 +734,6 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
             </div>
           </div>
 
-          {/* Tabela de Estabelecimentos */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
@@ -881,7 +851,6 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
         </div>
       )}
 
-      {/* ABA 3: ONBOARDING & DOMÍNIOS DO PORTAL */}
       {activeTab === 'onboarding' && (
         <div className="space-y-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
@@ -893,7 +862,7 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
             </p>
 
             <div className="space-y-3">
-              {/* Link 1: Cadastro de Parceiros / Novo Salão */}
+
               <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
@@ -933,7 +902,6 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
                 </button>
               </div>
 
-              {/* Link 2: Portal do Consumidor */}
               <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
@@ -968,7 +936,6 @@ export const AdminPortalManager: React.FC<AdminPortalManagerProps> = ({
                 </button>
               </div>
 
-              {/* Link 3: Rota Wildcard */}
               <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">

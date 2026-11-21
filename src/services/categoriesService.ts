@@ -9,7 +9,7 @@ export interface SalonCategory {
   description?: string;
 }
 
-export const INITIAL_CATEGORIES: SalonCategory[] = [
+const INITIAL_CATEGORIES: SalonCategory[] = [
   { id: 'cat-salao', name: 'Salão de Beleza', slug: 'salao', icon: 'Scissors', is_default: true },
   { id: 'cat-barbearia', name: 'Barbearia', slug: 'barbearia', icon: 'Scissors', is_default: true },
   { id: 'cat-estetica', name: 'Estética & Spa', slug: 'estetica', icon: 'Sparkles', is_default: true },
@@ -25,7 +25,7 @@ const STORAGE_KEY = 'vagou_admin_categories';
 const CATEGORY_CHANGE_EVENT = 'vagou:category-changed';
 const GLOBAL_CATEGORIES_ROW_ID = 'global_categories';
 
-export function getStoredCategories(): SalonCategory[] {
+function getStoredCategories(): SalonCategory[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -40,7 +40,7 @@ export function getStoredCategories(): SalonCategory[] {
   return INITIAL_CATEGORIES;
 }
 
-export function saveStoredCategories(categories: SalonCategory[]) {
+function saveStoredCategories(categories: SalonCategory[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(categories));
     window.dispatchEvent(new CustomEvent(CATEGORY_CHANGE_EVENT, { detail: categories }));

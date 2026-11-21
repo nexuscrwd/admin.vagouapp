@@ -137,7 +137,7 @@ export const AdminUserDetailView: React.FC<AdminUserDetailViewProps> = ({
 
   return (
     <div className="space-y-4 animate-fadeIn">
-      {/* Top Bar com Botão Voltar & Ações Soberanas */}
+
       <div className="p-3 sm:p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 shadow-xs">
         <button
           onClick={onBack}
@@ -148,7 +148,7 @@ export const AdminUserDetailView: React.FC<AdminUserDetailViewProps> = ({
         </button>
 
         <div className="flex items-center gap-2">
-          {/* Badge de Status Ativo/Inativo */}
+
           <span
             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${
               info.isActive
@@ -164,7 +164,6 @@ export const AdminUserDetailView: React.FC<AdminUserDetailViewProps> = ({
             {info.isActive ? 'Conta Ativa' : 'Conta Suspensa'}
           </span>
 
-          {/* Botão de Toggle de Status */}
           <button
             onClick={() => onToggleStatus(user.kind, info.id, !info.isActive)}
             className={`px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer flex items-center gap-1.5 border shadow-xs ${
@@ -188,7 +187,6 @@ export const AdminUserDetailView: React.FC<AdminUserDetailViewProps> = ({
         </div>
       </div>
 
-      {/* Header Profile Banner (Layout Plano & Sem Box Dentro de Box) */}
       <div className="p-4 sm:p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xs">
         <div className="flex items-center gap-4">
           <div className="relative">
@@ -216,7 +214,6 @@ export const AdminUserDetailView: React.FC<AdminUserDetailViewProps> = ({
           </div>
         </div>
 
-        {/* Métricas Rápidas do Usuário */}
         <div className="flex flex-wrap items-center gap-4 text-xs">
           {user.kind === 'client' && (
             <>
@@ -273,7 +270,6 @@ export const AdminUserDetailView: React.FC<AdminUserDetailViewProps> = ({
         </div>
       </div>
 
-      {/* Navegação por Abas Internas */}
       <div className="p-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center gap-1 shadow-xs">
         <button
           onClick={() => setActiveTab('profile')}
@@ -316,7 +312,6 @@ export const AdminUserDetailView: React.FC<AdminUserDetailViewProps> = ({
         </button>
       </div>
 
-      {/* Conteúdo da Aba 1: Perfil & Contatos */}
       {activeTab === 'profile' && (
         <div className="p-4 sm:p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 shadow-xs">
           <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
@@ -459,7 +454,6 @@ export const AdminUserDetailView: React.FC<AdminUserDetailViewProps> = ({
         </div>
       )}
 
-      {/* Conteúdo da Aba 2: Vínculos & Relações */}
       {activeTab === 'relations' && (
         <div className="p-4 sm:p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 shadow-xs">
           {user.kind === 'client' && (

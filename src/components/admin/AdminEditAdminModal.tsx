@@ -38,7 +38,6 @@ export const AdminEditAdminModal: React.FC<AdminEditAdminModalProps> = ({
   const [role, setRole] = useState<'superadmin' | 'moderator' | 'support'>('superadmin');
   const [isActive, setIsActive] = useState(true);
 
-  // Campos de Senha para CRUD de Senhas (Visível por padrão para o Superadmin)
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(true);
@@ -50,7 +49,7 @@ export const AdminEditAdminModal: React.FC<AdminEditAdminModalProps> = ({
   useEffect(() => {
     if (admin) {
       setFullName(admin.full_name || '');
-      // Se o username no banco vier com @ no início, remove para exibição/edição limpa
+
       const cleanUser = (admin.username || '').replace(/^@+/, '');
       setUsername(cleanUser);
       setEmail(admin.email || '');
@@ -68,7 +67,6 @@ export const AdminEditAdminModal: React.FC<AdminEditAdminModalProps> = ({
 
   if (!isOpen || !admin) return null;
 
-  // Phone mask
   const formatPhone = (val: string) => {
     const raw = val.replace(/\D/g, '').slice(0, 11);
     if (raw.length <= 2) return raw;
@@ -76,7 +74,6 @@ export const AdminEditAdminModal: React.FC<AdminEditAdminModalProps> = ({
     return `(${raw.slice(0, 2)}) ${raw.slice(2, 7)}-${raw.slice(7)}`;
   };
 
-  // Sanitização e Validação do Nome de Usuário
   const cleanUsername = username.replace(/^@+/, '');
   const hasUppercase = /[A-Z]/.test(cleanUsername);
   const hasLowercase = /[a-z]/.test(cleanUsername);
@@ -105,7 +102,6 @@ export const AdminEditAdminModal: React.FC<AdminEditAdminModalProps> = ({
       return;
     }
 
-    // Se informou nova senha, valida
     if (newPassword || confirmPassword) {
       if (newPassword.length < 6) {
         setErrorMessage('A nova senha deve conter no mínimo 6 caracteres.');
@@ -163,7 +159,7 @@ export const AdminEditAdminModal: React.FC<AdminEditAdminModalProps> = ({
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
       <div className="relative w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col h-auto max-h-[88vh] my-auto transition-all">
-        {/* Modal Header */}
+
         <div className="shrink-0 flex items-center justify-between p-3.5 px-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
@@ -188,9 +184,8 @@ export const AdminEditAdminModal: React.FC<AdminEditAdminModalProps> = ({
           </button>
         </div>
 
-        {/* Form Container */}
         <form onSubmit={handleSave} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-          {/* Scrollable Form Body */}
+
           <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 text-xs min-h-0">
             {errorMessage && (
               <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-400 flex items-start gap-2 animate-fadeIn">
@@ -206,7 +201,6 @@ export const AdminEditAdminModal: React.FC<AdminEditAdminModalProps> = ({
               </div>
             )}
 
-            {/* Nome Completo & Nome de Usuário */}
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
               <div className="sm:col-span-7 space-y-1">
                 <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
@@ -245,7 +239,6 @@ export const AdminEditAdminModal: React.FC<AdminEditAdminModalProps> = ({
               </div>
             </div>
 
-            {/* Validação visual do Username */}
             <div className="flex flex-wrap items-center gap-1.5 -mt-1">
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition ${
@@ -276,7 +269,6 @@ export const AdminEditAdminModal: React.FC<AdminEditAdminModalProps> = ({
               </span>
             </div>
 
-            {/* E-mail e Telefone */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
@@ -309,7 +301,6 @@ export const AdminEditAdminModal: React.FC<AdminEditAdminModalProps> = ({
               </div>
             </div>
 
-            {/* Nível de Acesso & Status */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
@@ -343,7 +334,6 @@ export const AdminEditAdminModal: React.FC<AdminEditAdminModalProps> = ({
               </div>
             </div>
 
-            {/* 🔐 SEÇÃO DE SENHA DO ADMINISTRADOR */}
             <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -399,7 +389,6 @@ export const AdminEditAdminModal: React.FC<AdminEditAdminModalProps> = ({
             </div>
           </div>
 
-          {/* Fixed Modal Footer */}
           <div className="shrink-0 p-4 px-5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex items-center justify-end gap-2">
             <button
               type="button"

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 
-export type DeviceViewportType = 'mobile' | 'tablet' | 'desktop';
+type DeviceViewportType = 'mobile' | 'tablet' | 'desktop';
 
-export interface DeviceViewportInfo {
+interface DeviceViewportInfo {
   device: DeviceViewportType;
   width: number;
   isMobile: boolean;

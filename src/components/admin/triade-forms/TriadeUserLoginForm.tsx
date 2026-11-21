@@ -42,7 +42,7 @@ export interface TriadeUserLoginPayload {
 
 export type UserLoginPhase = 'credentials' | 'recovery';
 
-export interface TriadeUserLoginFormProps {
+interface TriadeUserLoginFormProps {
   onSuccess?: (data: TriadeUserLoginPayload) => void;
   onSwitchToRegister?: () => void;
   onSwitchToRecovery?: () => void;
@@ -164,7 +164,6 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
       const resolvedPhone = matchedClient?.phone || rawId;
       const resolvedName = matchedClient?.name || matchedClient?.full_name || cleanUsername;
 
-      // IMPORTANTE: verifiedAuthUserId SOMENTE recebe UUID confirmado de auth.users (nunca clients.id), evitando violar salons_owner_id_fkey
       let verifiedAuthUserId: string | undefined = undefined;
       let authSession: { access_token: string; refresh_token: string } | undefined;
 
@@ -401,7 +400,6 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
   const isCard = variant === 'card';
   const isGlass = variant === 'glass';
 
-  // Superfície de input plana (sem borda aninhada quando está dentro de card/vidro jateado)
   const inputSurfaceClass = isGlass
     ? 'flex items-center bg-white/[0.07] hover:bg-white/[0.10] focus-within:bg-white/[0.12] focus-within:ring-1 focus-within:ring-[#20C933] rounded-xl px-3.5 py-3 min-h-[46px] transition'
     : isCard
@@ -418,7 +416,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
             : 'bg-transparent'
       } animate-fadeIn`}
     >
-      {/* Cabeçalho Soberano Centralizado (Logo vazada sobre vidro, sem caixa branca de fundo) */}
+
       {showHeader && (
         <div
           className={`px-6 pt-7 pb-4 sm:px-7 sm:pt-8 sm:pb-5 ${
@@ -474,7 +472,6 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
         </div>
       )}
 
-      {/* FASE 1: ACESSO COM SENHA */}
       {currentPhase === 'credentials' && (
         <form
           onSubmit={handleSubmit}
@@ -499,7 +496,6 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
             </div>
           )}
 
-          {/* Campo Identificador */}
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5">
               Usuário, Celular ou E-mail
@@ -517,7 +513,6 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
             </div>
           </div>
 
-          {/* Campo Senha */}
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1.5">
               Senha
@@ -543,7 +538,6 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
             </div>
           </div>
 
-          {/* Botão Principal (Fundo Verde #20C933 = Texto e Ícone Branco Puro) */}
           <div className="pt-1">
             <button
               type="submit"
@@ -561,7 +555,6 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
             </button>
           </div>
 
-          {/* Acesso Rápido Conta Google */}
           {enableGoogleLogin && (
             <>
               <div className="flex items-center gap-3 py-0.5">
@@ -588,7 +581,6 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
             </>
           )}
 
-          {/* Rodapé Compacto: Esqueci a senha & Criar conta */}
           <div className="pt-3 border-t border-white/10 flex items-center justify-between gap-3 text-xs">
             <button
               type="button"
@@ -614,7 +606,6 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
         </form>
       )}
 
-      {/* FASE 2: RECUPERAÇÃO DE ACESSO */}
       {currentPhase === 'recovery' && (
         <form
           onSubmit={handleRecoverySubmit}

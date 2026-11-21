@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { ShieldAlert, X } from 'lucide-react';
 import { TriadeMnvClientLoginForm } from '../admin/triade-forms/TriadeMnvClientLoginForm';
 import { TriadeEstablishmentMasterForm } from '../admin/triade-forms/TriadeEstablishmentMasterForm';
-import { TriadeAdminLoginForm, TriadeAdminRecoveryForm } from '../admin/triade-forms/TriadeAdminAuthForm';
+import { TriadeAdminLoginForm } from '../admin/triade-forms/TriadeAdminLoginForm';
+import { TriadeAdminRecoveryForm } from '../admin/triade-forms/TriadeAdminRecoveryForm';
 import { TriadeUserRegisterForm } from '../admin/triade-forms/TriadeUserRegisterForm';
 import { TriadeUserLoginForm } from '../admin/triade-forms/TriadeUserLoginForm';
 import { supabaseAdmin } from '../../services/supabase';
@@ -17,7 +18,7 @@ export type EmbedFormType =
   | 'admin_login'
   | 'admin_recovery';
 
-export interface UniversalFormEmbedViewProps {
+interface UniversalFormEmbedViewProps {
   initialForm?: EmbedFormType;
   onExit?: () => void;
 }
@@ -130,7 +131,6 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
       const bg = params.get('bg');
       if (bg === 'transparent') setIsTransparent(true);
 
-      // Trava de Domínio para formulário Admin
       if (formType === 'admin') {
         const host = window.location.hostname.toLowerCase();
         const allowedHosts = [
@@ -306,13 +306,13 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
         isTransparent ? 'bg-transparent is-embed-transparent' : 'bg-slate-950'
       }`}
     >
-      {/* 🔹 Container Oficial do Design System Corporativo — Vidro Jateado (Proporcional Mobile, Tablet & Desktop) */}
+
       <div className="w-full max-w-lg sm:max-w-xl lg:max-w-2xl mx-auto p-2 sm:p-4 lg:p-6 rounded-2xl sm:rounded-3xl bg-slate-950/60 backdrop-blur-xl border border-slate-800/80 sm:border-white/20 shadow-[0_16px_56px_rgba(0,0,0,0.75)] text-slate-100 font-['Poppins'] relative animate-fadeIn">
-        {/* 🔹 Botão de Fechar Padronizado Oficial da Tríade */}
+
         <button
           type="button"
           onClick={() => {
-            // Comunicação universal com a janela pai
+
             window.parent.postMessage({ source: 'VAGOUAPP_EMBED', event: 'CLOSE' }, '*');
             handleClose();
           }}
@@ -322,7 +322,6 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
           <X className="w-5 h-5" />
         </button>
 
-        {/* Formulários Internos em Layout Plano (Flat & Clean — Sem Box Dentro de Box) */}
         {formType === 'usuario' && (
           <div className="w-full">
             <TriadeUserRegisterForm

@@ -23,6 +23,7 @@ import {
   DEFAULT_ADMIN_PREFERENCES,
   AdminThemeColorTokens,
 } from '../../context/ThemeContext';
+import { uploadBinaryMediaFile } from '../../services/supabaseApi';
 
 const THEME_PRESETS: Array<{
   id: string;
@@ -153,20 +154,32 @@ export const AdminPreferencesPanel: React.FC = () => {
     updatePreferences(next);
   };
 
-  const handleFileUpload = (
+  const handleFileUpload = async (
     field: 'logoDarkUrl' | 'logoLightUrl' | 'mobileAppIconUrl' | 'faviconUrl',
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        handleAssetChange(field, reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
     e.target.value = '';
+    if (!file) return;
+
+    setIsSaving(true);
+    try {
+      const uploadRes = await uploadBinaryMediaFile(file, {
+        bucket: 'branding',
+        ownerType: 'admin_preference',
+        title: field,
+      });
+
+      if (uploadRes.success && uploadRes.url) {
+        handleAssetChange(field, uploadRes.url);
+        setFeedback('Imagem otimizada e salva no Supabase Storage (bucket branding)!');
+      } else {
+        setFeedback(uploadRes.error || 'Não foi possível enviar a imagem para o Storage.');
+      }
+    } finally {
+      setIsSaving(false);
+      setTimeout(() => setFeedback(null), 3500);
+    }
   };
 
   const handleApplyPreset = async (preset: (typeof THEME_PRESETS)[number]) => {
@@ -267,7 +280,7 @@ export const AdminPreferencesPanel: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden animate-fadeIn">
-      {/* Subcabeçalho Fixo */}
+
       <div className="admvapp-subheader shrink-0 w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 lg:px-6 py-2.5 z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-[#20C933] text-white flex items-center justify-center shrink-0 shadow-xs">
@@ -284,7 +297,7 @@ export const AdminPreferencesPanel: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Seletor de Tema em Edição */}
+
           <div className="inline-flex items-center bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
             <button
               type="button"
@@ -333,7 +346,6 @@ export const AdminPreferencesPanel: React.FC = () => {
         </div>
       </div>
 
-      {/* Área Rolável Principal */}
       <div className="flex-1 overflow-y-auto p-0 m-0 min-h-0 custom-scrollbar">
         <div className="p-4 lg:p-6 space-y-6">
           {feedback && (
@@ -343,7 +355,6 @@ export const AdminPreferencesPanel: React.FC = () => {
             </div>
           )}
 
-          {/* 1. SEÇÃO: LOGOTIPOS (DARK / LIGHT), ÍCONE MOBILE & FAVICON */}
           <section className="admvapp-section p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-2.5">
@@ -360,7 +371,7 @@ export const AdminPreferencesPanel: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
-              {/* Card 1: Logotipo Tema Dark */}
+
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
@@ -379,7 +390,6 @@ export const AdminPreferencesPanel: React.FC = () => {
                   )}
                 </div>
 
-                {/* Preview em fundo escuro */}
                 <div className="h-24 rounded-xl bg-slate-950 flex items-center justify-center p-3 overflow-hidden">
                   {preferences.logoDarkUrl ? (
                     <img
@@ -422,7 +432,6 @@ export const AdminPreferencesPanel: React.FC = () => {
                 </div>
               </div>
 
-              {/* Card 2: Logotipo Tema Light */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
@@ -441,7 +450,6 @@ export const AdminPreferencesPanel: React.FC = () => {
                   )}
                 </div>
 
-                {/* Preview em fundo claro */}
                 <div className="h-24 rounded-xl bg-slate-100 flex items-center justify-center p-3 overflow-hidden">
                   {preferences.logoLightUrl ? (
                     <img
@@ -487,7 +495,6 @@ export const AdminPreferencesPanel: React.FC = () => {
                 </div>
               </div>
 
-              {/* Card 3: Ícone de Dispositivo Mobile (PWA / App) */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
@@ -546,7 +553,6 @@ export const AdminPreferencesPanel: React.FC = () => {
                 </div>
               </div>
 
-              {/* Card 4: Favicon de Navegador */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
@@ -581,7 +587,6 @@ export const AdminPreferencesPanel: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Simulação de Aba de Navegador */}
                 <div className="h-24 rounded-xl bg-slate-950 flex flex-col justify-center px-3.5">
                   <div className="flex items-center gap-2 px-3 py-2 rounded-t-lg bg-slate-800 w-full max-w-[210px]">
                     <img
@@ -624,11 +629,10 @@ export const AdminPreferencesPanel: React.FC = () => {
             </div>
           </section>
 
-          {/* 2. SEÇÃO: PALETA DE CORES DE SUPERFÍCIE E TIPOGRAFIA + PREVIEW EM TEMPO REAL */}
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-            {/* Coluna Esquerda (7 cols): Controles de Cores de Superfície e Fonte */}
+
             <div className="xl:col-span-7 space-y-6">
-              {/* Predefinições Rápidas */}
+
               <section className="admvapp-section p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
@@ -660,7 +664,6 @@ export const AdminPreferencesPanel: React.FC = () => {
                 </div>
               </section>
 
-              {/* Bloco A: Cores de Superfície / Fundos */}
               <section className="admvapp-section p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-200 dark:border-slate-800">
                   <Layers className="w-4 h-4 text-emerald-500" />
@@ -678,7 +681,6 @@ export const AdminPreferencesPanel: React.FC = () => {
                 </div>
               </section>
 
-              {/* Bloco B: Cores da Fonte / Tipografia */}
               <section className="admvapp-section p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-200 dark:border-slate-800">
                   <Type className="w-4 h-4 text-emerald-500" />
@@ -696,7 +698,6 @@ export const AdminPreferencesPanel: React.FC = () => {
               </section>
             </div>
 
-            {/* Coluna Direita (5 cols): Simulador Visual Ao Vivo */}
             <div className="xl:col-span-5">
               <div className="sticky top-4 space-y-4">
                 <div className="flex items-center justify-between px-1">
@@ -706,12 +707,11 @@ export const AdminPreferencesPanel: React.FC = () => {
                   </span>
                 </div>
 
-                {/* Miniatura Fiel da Estrutura do Admin */}
                 <div
                   className="rounded-2xl overflow-hidden border border-slate-300 dark:border-slate-800 shadow-lg transition-colors"
                   style={{ backgroundColor: activeTokens.appBg }}
                 >
-                  {/* 1. Cabeçalho Simulado */}
+
                   <div
                     className="px-4 py-3 flex items-center justify-between border-b border-white/10"
                     style={{
@@ -740,7 +740,6 @@ export const AdminPreferencesPanel: React.FC = () => {
                     </span>
                   </div>
 
-                  {/* 2. Subcabeçalho Simulado */}
                   <div
                     className="px-4 py-2.5 flex items-center justify-between border-b border-white/10"
                     style={{
@@ -762,9 +761,8 @@ export const AdminPreferencesPanel: React.FC = () => {
                     </span>
                   </div>
 
-                  {/* 3. Área de Fundo do App + Seção + Tabela */}
                   <div className="p-4 space-y-4" style={{ backgroundColor: activeTokens.appBg }}>
-                    {/* Seção de Conteúdo */}
+
                     <div
                       className="p-3.5 rounded-xl space-y-1.5"
                       style={{
@@ -786,7 +784,6 @@ export const AdminPreferencesPanel: React.FC = () => {
                       </p>
                     </div>
 
-                    {/* Tabela Simulada */}
                     <div
                       className="rounded-xl overflow-hidden"
                       style={{ backgroundColor: activeTokens.sectionBg }}

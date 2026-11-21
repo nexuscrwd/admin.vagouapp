@@ -13,7 +13,6 @@ import {
 import { AdminScreenId, SystemAdminUser, AdminAuthTab } from '../../types/admin';
 import { UserAvatar } from '../common/UserAvatar';
 import { useTheme } from '../../context/ThemeContext';
-import { VagouOfficialLogo } from '../common/VagouOfficialLogo';
 
 interface AdminHeaderProps {
   currentScreen: AdminScreenId;
@@ -30,7 +29,6 @@ interface AdminHeaderProps {
 }
 
 export const AdminHeader: React.FC<AdminHeaderProps> = ({
-  currentScreen,
   searchQuery,
   onSearchChange,
   onRefresh,
@@ -44,36 +42,9 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
 }) => {
   const { isDark, toggleTheme } = useTheme();
 
-  const getScreenTitle = (screen: AdminScreenId) => {
-    switch (screen) {
-      case 'dashboard':
-        return 'Visão Geral do Ecossistema';
-      case 'portal':
-        return 'Portal VAPP • Gestão de Estabelecimentos';
-      case 'salons':
-        return 'Gestão de Estabelecimentos';
-      case 'users':
-        return 'Gestão Centralizada de Usuários';
-      case 'moderation':
-        return 'Moderação & Auditoria Cadastral';
-      case 'appointments':
-        return 'Agendamentos & Faturamento';
-      case 'triade':
-        return 'Governança da Tríade & 7º Mandamento';
-      case 'forms':
-        return 'Central de Formulários da Tríade';
-      case 'preferences':
-        return 'Preferências de Cores, Temas & Logotipos';
-      case 'settings':
-        return 'Configurações do Sistema & DNS';
-      default:
-        return 'Painel de Controle';
-    }
-  };
-
   return (
     <header className="admvapp-header h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 lg:px-6 flex items-center justify-between gap-4 sticky top-0 z-20 shadow-xs dark:shadow-none transition-colors">
-      {/* Left: Mobile trigger */}
+
       <div className="flex items-center gap-3">
         {onOpenMobileSidebar && (
           <button
@@ -86,7 +57,6 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
         )}
       </div>
 
-      {/* Center/Right: Search bar, Theme toggle & Quick actions */}
       <div className="flex items-center gap-2 sm:gap-2.5">
         <div className="hidden sm:flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 w-44 lg:w-64 focus-within:border-emerald-500 transition shadow-xs dark:shadow-none">
           <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 mr-2 shrink-0" />
@@ -99,7 +69,6 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
           />
         </div>
 
-        {/* Botão Gateway Oficial vagouapp.com */}
         {onOpenGateway && (
           <button
             type="button"
@@ -112,7 +81,6 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
           </button>
         )}
 
-        {/* Theme Switcher Button */}
         <button
           onClick={toggleTheme}
           title={isDark ? 'Alternar para Tema Claro' : 'Alternar para Tema Escuro'}
@@ -125,7 +93,6 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
           )}
         </button>
 
-        {/* Refresh Supabase Data */}
         <button
           onClick={onRefresh}
           disabled={isRefreshing}
@@ -135,7 +102,6 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
           <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-500' : ''}`} />
         </button>
 
-        {/* Admin Auth Area */}
         {adminUser ? (
           <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-800">
             <button

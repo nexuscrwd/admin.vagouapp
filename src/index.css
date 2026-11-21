@@ -20,14 +20,13 @@
   }
 }
 
-/* Hide scrollbars globally across all elements, browsers and devices (Instagram native style) */
 * {
-  -ms-overflow-style: none;  /* Internet Explorer 10+ */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 *::-webkit-scrollbar {
-  display: none !important; /* Safari, Chrome, Edge, iOS, Android */
+  display: none !important;
   width: 0px !important;
   height: 0px !important;
   background: transparent !important;
@@ -40,7 +39,6 @@ html, body, #root {
   min-height: 100vh;
 }
 
-/* Suporte Oficial a Embed com Fundo Transparente (Vidro Jateado) */
 html.bg-transparent,
 body.bg-transparent,
 #root:has(.is-embed-transparent) {
@@ -61,7 +59,6 @@ body::-webkit-scrollbar,
   scrollbar-width: none !important;
 }
 
-/* Custom Scrollbar com Estilo Dark Theme do VagouApp (Visível para seções com rolagem de dados) */
 .custom-scrollbar,
 main,
 [class*="overflow-y-auto"] {
@@ -114,11 +111,6 @@ main::-webkit-scrollbar-thumb:hover,
   animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* ========================================================================== */
-/* 📱 MOBILE FULL-WIDTH FORM SYSTEM (Media Queries < 640px)                   */
-/* Garante 100% da largura disponível, sem padding lateral excessivo,         */
-/* sem truncamento de elementos e sem barra de rolagem horizontal.            */
-/* ========================================================================== */
 html,
 body,
 #root {

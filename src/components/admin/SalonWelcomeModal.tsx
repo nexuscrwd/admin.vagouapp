@@ -15,7 +15,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 
-export interface SalonWelcomeData {
+interface SalonWelcomeData {
   tradeName: string;
   slug: string;
   slogan?: string;
@@ -24,7 +24,7 @@ export interface SalonWelcomeData {
   ownerName?: string;
 }
 
-export interface SalonWelcomeTemplateConfig {
+interface SalonWelcomeTemplateConfig {
   titleTemplate: string;
   subtitleText: string;
   sectionTitle: string;
@@ -41,9 +41,9 @@ export interface SalonWelcomeTemplateConfig {
   showQrSection: boolean;
 }
 
-export const WELCOME_MODAL_CONFIG_STORAGE_KEY = 'vagou_welcome_modal_config_v1';
+const WELCOME_MODAL_CONFIG_STORAGE_KEY = 'vagou_welcome_modal_config_v1';
 
-export const DEFAULT_WELCOME_MODAL_CONFIG: SalonWelcomeTemplateConfig = {
+const DEFAULT_WELCOME_MODAL_CONFIG: SalonWelcomeTemplateConfig = {
   titleTemplate: 'O {nome} foi criado com sucesso!',
   subtitleText: 'Parabéns por dar este grande passo para o futuro do seu negócio!',
   sectionTitle: 'Sua nova vitrine digital já está ativa',
@@ -63,7 +63,7 @@ export const DEFAULT_WELCOME_MODAL_CONFIG: SalonWelcomeTemplateConfig = {
   showQrSection: true,
 };
 
-export function getWelcomeModalConfig(): SalonWelcomeTemplateConfig {
+function getWelcomeModalConfig(): SalonWelcomeTemplateConfig {
   if (typeof window === 'undefined') return DEFAULT_WELCOME_MODAL_CONFIG;
   try {
     const raw = localStorage.getItem(WELCOME_MODAL_CONFIG_STORAGE_KEY);
@@ -74,14 +74,7 @@ export function getWelcomeModalConfig(): SalonWelcomeTemplateConfig {
   }
 }
 
-export function saveWelcomeModalConfig(config: SalonWelcomeTemplateConfig): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(WELCOME_MODAL_CONFIG_STORAGE_KEY, JSON.stringify(config));
-  } catch {}
-}
-
-export interface SalonWelcomeModalProps {
+interface SalonWelcomeModalProps {
   isOpen: boolean;
   onClose: () => void;
   data: SalonWelcomeData | null;
@@ -141,7 +134,7 @@ export const SalonWelcomeModal: React.FC<SalonWelcomeModalProps> = ({
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     } catch {
-      // Fallback silencioso
+
     }
   };
 
@@ -298,14 +291,14 @@ export const SalonWelcomeModal: React.FC<SalonWelcomeModalProps> = ({
             </div>
             <h1 class="title">${tradeName}</h1>
             ${slogan ? `<p class="slogan">${slogan}</p>` : ''}
-            
+
             <div class="qr-wrapper">
               <img id="qr-img" src="${qrCodeImgUrl}" alt="QR Code" />
             </div>
 
             <p class="instruction">Aponte a câmera do seu celular</p>
             <p class="sub-instruction">Escaneie o código acima para consultar horários disponíveis e agendar online.</p>
-            
+
             <div class="url-badge">${clientUrl}</div>
           </div>
         </body>
@@ -337,7 +330,7 @@ export const SalonWelcomeModal: React.FC<SalonWelcomeModalProps> = ({
 
   const modalCard = (
       <div className={`w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col font-['Poppins'] ${inlinePreview ? 'mx-auto' : 'my-auto max-h-[90vh]'}`}>
-        {/* Cabeçalho de Boas-Vindas */}
+
         <div className="relative p-4 sm:p-5 text-center bg-slate-950/60 border-b border-slate-800 shrink-0">
           <button
             type="button"
@@ -361,9 +354,8 @@ export const SalonWelcomeModal: React.FC<SalonWelcomeModalProps> = ({
           </p>
         </div>
 
-        {/* Corpo Plano (Flat Layout sem Box-dentro-de-Box) */}
         <div className="p-4 sm:p-5 space-y-4 overflow-y-auto divide-y divide-slate-800/80 text-xs">
-          {/* 1. Mensagem Emotiva & Orientação */}
+
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-white font-bold text-xs sm:text-sm">
               <Building2 className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -380,7 +372,6 @@ export const SalonWelcomeModal: React.FC<SalonWelcomeModalProps> = ({
             )}
           </div>
 
-          {/* 2. Link do App para Copiar ou Compartilhar */}
           <div className="pt-3.5 space-y-1.5">
             <label className="block text-[10px] font-bold uppercase tracking-wider text-emerald-400">
               {activeConfig.linkLabel}
@@ -419,7 +410,6 @@ export const SalonWelcomeModal: React.FC<SalonWelcomeModalProps> = ({
             </div>
           </div>
 
-          {/* 3. QR Code para Imprimir (Para Balcão) */}
           {activeConfig.showQrSection && (
             <div className="pt-3.5 flex flex-col sm:flex-row items-center gap-3.5">
               <div className="bg-white p-2 rounded-xl shrink-0 text-center">
@@ -453,7 +443,6 @@ export const SalonWelcomeModal: React.FC<SalonWelcomeModalProps> = ({
             </div>
           )}
 
-          {/* 4. Botões Baixar App & Concluir e Começar (Abre o App criado no lugar do vagouapp.com) */}
           <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {deferredPrompt ? (
               <button

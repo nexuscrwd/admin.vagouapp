@@ -15,6 +15,44 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-11-21] — 🧹 Operação Faxina Forense & Emagrecimento Estrutural Pré-Inauguração v6.0 (`bol-179`)
+- **Tipo:** `[Refactor / Cleanup / Security]`
+- **Motivo / Solicitação:**
+  - Execução completa da Operação Faxina Forense & Emagrecimento Estrutural Pré-Inauguração v6.0 no `admvapp` (espelhando o padrão `mnvapp` `bol-207` + `bol-208`), com captura de baseline ANTES/DEPOIS, remoção de arquivos órfãos, erradicação 100% de Firebase, limpeza de dados fantasmas/rotas mortas, enxugamento de `package.json`/`public/`/`.sql`/`.md`, eliminação de exports mortos, 0 alertas em `tsc --noEmit --noUnusedLocals --noUnusedParameters` e 0 comentários no código-fonte.
+- **Arquivos Impactados:**
+  - **Excluídos (14 módulos órfãos/wrapper):** `src/components/SupabaseDiagnosticToast.tsx`, `src/components/VagouLogo.tsx`, `src/components/admin/AdminKpiCards.tsx`, `src/components/admin/AdminModerationPanel.tsx`, `src/components/admin/AdminTriadeFormsCatalog.tsx`, `src/components/admin/AdminTriadeGovernance.tsx`, `src/components/admin/triade-forms/TriadeAdminAuthForm.tsx`, `src/components/admin/triade-forms/TriadeUserAuthCard.tsx`, `src/services/firebase.ts`, `src/triade-export/*`, `src/types/database.types.ts`, `src/types.ts`, `src/utils/haptics.ts`
+  - **Excluídos (Firebase, lockfile estrangeiro, ativos e docs legados):** `firebase-applet-config.json`, `bun.lock`, `public/assets/aistudio/*` (35 anexos), `public/vagou-logo.png`, 17 arquivos `.sql` pré-v6.0, 7 `.md` redundantes (`DEV_MANUAL.md`, `USER_MANUAL.md`, `PVAPP_MNVAPP_MASTER_SYNC_GUIDE.md`, `README.md`, `README_CONFIGURACOES_APP.md`, `STANDALONE_ESTABELECIMENTO_SOURCE_GUIDE.md`, `src/triade-export/README.md`)
+  - **Consolidados (Fundação Oficial v6.0):** `TRIADE_V6_SYNC_MASTER.md`, `supabase/migrations/20261121_vagou_v6_0_clean_reset.sql`
+  - **Higienizados:** `package.json`, `server.ts`, `vite.config.ts`, `index.html`, `public/sw.js`, `src/index.css` e 100% dos arquivos em `src/`
+- **Resumo Técnico & Resultados Auditados:**
+  - **Workspace limpo:** `161 ➔ 87` arquivos (**-46,0%**) | `19,35 MB ➔ 7,67 MB` (**-60,4%**)
+  - **`node_modules/`:** `341,00 MB ➔ 168,58 MB` (**-50,6%**, 111 pacotes podados via `npm prune`, 0 vulnerabilidades)
+  - **`dist/`:** `17,49 MB ➔ 6,32 MB` (**-63,9%**) | **`public/`:** `12,01 MB ➔ 0,90 MB` (**-92,5%**)
+  - **`.sql`:** `17 ➔ 1` arquivo oficial v6.0 (**-94,1%**, `7.342 ➔ 1.815` linhas) | **`.md`:** `15 ➔ 8` documentos essenciais (**-46,7%**)
+  - **Higiene de Código:** `0` arquivos órfãos, `0` exports mortos (`103` símbolos limpos em 2 ondas), `0` alertas em `tsc --noEmit --noUnusedLocals --noUnusedParameters` (`94 ➔ 0`), `0` comentários (`1.367` blocos removidos via AST), `0` referências a Firebase, `0` Base64 inline.
+
+---
+
+### [2026-11-21] — 🚀 Adaptação Completa do `admvapp` para Arquitetura VagouApp v6.0 (`bol-178`)
+- **Tipo:** `[Feat / Refactor / Security]`
+- **Motivo / Solicitação:**
+  - Convergência integral do `admvapp` com o Comunicado Mestre `TRIADE_V6_SYNC_MASTER.md` (`bol-205` + `bol-206`): Zero Base64 no banco, erradicação de 100% das tabelas espelho legadas, remoção total de `service_role` do frontend, Bootstrap do 1º Super Admin com `pgcrypto` bcrypt + JWT, pipeline binário de mídia com `sharp` + `media_assets` + `storage_cleanup_queue`, Hub Realtime v6.0 e Web Push VAPID.
+- **Arquivos Impactados:**
+  - `/vite.config.ts`, `/.env.example`, `/server.ts`
+  - `/src/services/supabase.ts`, `/src/services/supabaseApi.ts`, `/src/services/realtimeHub.ts`, `/src/services/webPushClient.ts`
+  - `/src/context/ThemeContext.tsx`, `/src/triade-export/mnvSupabaseSync.ts`
+  - `/src/components/admin/AdminBootstrapForm.tsx` (novo), `/src/components/admin/AdminAuthModal.tsx`, `/src/components/admin/AdminMasterApp.tsx`
+  - `/src/components/admin/AdminPreferencesPanel.tsx`, `/src/components/admin/AdminUserGeneralDataModal.tsx`, `/src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`
+  - `/src/components/admin/triade-forms/TriadeMnvClientLoginForm.tsx`, `/src/components/admin/AdminSalonDetailView.tsx`, `/src/components/admin/AdminSalonUtilitiesAndSyncPanel.tsx`
+  - `/CHANGELOG.md`
+- **Resumo Técnico:**
+  - **Zero Base64:** Substituídos 100% dos fluxos `FileReader.readAsDataURL`/`canvas.toDataURL` por upload multipart binário (`POST /api/media/upload` com `multer` + otimização WebP via `sharp` + Supabase Storage + `public.media_assets`), com bloqueio ativo de `data:` em preferências e mídias.
+  - **Zero Tabelas Espelho:** Migradas todas as consultas de `salon_services` ➔ `services`, `client_family_members` ➔ `dependents`, `platform_admins` ➔ `system_admins`, `salon_media_items` ➔ `media_assets` (`public_url`) e `salon_users` ➔ `salon_members` + `profiles`.
+  - **Segurança & Auth v6.0:** Removidas todas as exposições de `VITE_SUPABASE_SERVICE_ROLE_KEY` e `__SUPABASE_SERVICE_ROLE_KEY__` do bundle do cliente; implementadas rotas `GET /api/admin/bootstrap/status`, `POST /api/admin/bootstrap` (`bootstrap_initial_super_admin`), login via RPC `verify_admin_login` (`pgcrypto` bcrypt) e proteção JWT administrativa.
+  - **Storage Cleanup, Realtime & Web Push:** Implementadas rotas `DELETE /api/media/:id`, `POST /api/storage/cleanup` (via Supabase Storage API, sem SQL direto em `storage.objects`), `GET /api/push/vapid-public-key`, `POST /api/push/subscribe`, `POST /api/push/unsubscribe`, `POST /api/push/dispatch` e ativação do Hub Realtime unificado (`src/services/realtimeHub.ts`).
+
+---
+
 ### [2026-11-16] — 🔐 Regra Unificada de Nome de Usuário (1 Maiúscula, 1 Minúscula e 1 Caractere Especial) (`bol-177`)
 - **Tipo:** `[Feat / Validation / Security]`
 - **Motivo / Solicitação:**

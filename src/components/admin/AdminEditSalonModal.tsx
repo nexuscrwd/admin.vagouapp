@@ -20,11 +20,8 @@ import {
   Plus,
   Trash2,
   UserCheck,
-  ShieldAlert,
   Briefcase,
   Store,
-  Calendar,
-  Check,
   Crown,
   User,
   Sparkles,
@@ -58,7 +55,7 @@ interface AdminEditSalonModalProps {
   onSave: (salonId: string, updates: Partial<AdminSalonItem>) => Promise<boolean>;
 }
 
-export interface SalonTeamMember {
+interface SalonTeamMember {
   id: string;
   fullName: string;
   email: string;
@@ -94,13 +91,10 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
   const [isPrintPlaqueOpen, setIsPrintPlaqueOpen] = useState(false);
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
 
-  // Operating hours state
   const [operatingHours, setOperatingHours] = useState<DayOperatingHour[]>(DEFAULT_OPERATING_HOURS);
 
-  // Team state (Zero Mocks — carregado do Supabase /api/admin/salons/:id/full-sync)
   const [teamMembers, setTeamMembers] = useState<SalonTeamMember[]>([]);
 
-  // Form para adicionar novo membro na equipe
   const [showAddMember, setShowAddMember] = useState(false);
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberEmail, setNewMemberEmail] = useState('');
@@ -165,7 +159,6 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
         pix_key: salon.pix_key || '',
       });
 
-      // Carrega profissionais reais vinculados ao salão
       fetch(`/api/admin/salons/${salon.id}/full-sync`)
         .then((r) => (r.ok ? r.json() : null))
         .then((json) => {
@@ -297,7 +290,7 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
         }),
       });
     } catch {
-      // Mantém estado otimista em caso de indisponibilidade temporária
+
     }
   };
 
@@ -310,7 +303,7 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
         body: JSON.stringify({ action: 'delete', professionalId: id }),
       });
     } catch {
-      // Mantém remoção otimista
+
     }
   };
 
@@ -461,11 +454,10 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
       <div className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[90vh] my-auto overflow-hidden transition-colors">
-        
-        {/* HEADER MODAL COM RETÂNGULO DE LOGOTIPO PROVISÓRIO */}
+
         <div className="p-3.5 sm:p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900/90">
           <div className="flex items-center gap-3">
-            {/* RETÂNGULO DA LOGO */}
+
             <div className="w-16 h-11 bg-slate-950 border border-slate-800 rounded-xl overflow-hidden flex flex-col items-center justify-center shrink-0 shadow-md relative group">
               {formData.logo_url && !logoError ? (
                 <img
@@ -504,7 +496,6 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
           </button>
         </div>
 
-        {/* NAVEGAÇÃO DE ABAS INTERNAS */}
         <div className="flex items-center gap-1 p-1.5 bg-slate-100 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 px-3 sm:px-4 overflow-x-auto">
           <button
             type="button"
@@ -575,7 +566,6 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
           </button>
         </div>
 
-        {/* CONTEÚDO DAS ABAS */}
         <form onSubmit={handleSubmit} className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1 bg-transparent">
           {statusMessage && (
             <div
@@ -594,10 +584,9 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
             </div>
           )}
 
-          {/* ABA 1: DADOS COMERCIAIS (ISOLADO DE FISCAL E FATURAMENTO) */}
           {activeTab === 'business' && (
             <div className="space-y-4 animate-fadeIn">
-              {/* Section 1: Identidade Comercial */}
+
               <div className="space-y-2.5">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
                   <Building2 className="w-3.5 h-3.5" />
@@ -678,7 +667,6 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
                   </div>
                 </div>
 
-                {/* Selo Verificado */}
                 <div className="pt-0.5">
                   <label className="flex items-center gap-2 cursor-pointer select-none">
                     <input
@@ -694,7 +682,6 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
                 </div>
               </div>
 
-              {/* Section 2: Contato Comercial */}
               <div className="space-y-2.5 pt-2.5 border-t border-slate-200 dark:border-slate-800">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
                   <Phone className="w-3.5 h-3.5" />
@@ -732,7 +719,6 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
                 </div>
               </div>
 
-              {/* Section 3: Endereço do Salão */}
               <div className="space-y-2.5 pt-2.5 border-t border-slate-200 dark:border-slate-800">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5" />
@@ -778,7 +764,7 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
                       value={formData.address || ''}
                       onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                       className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 dark:text-white outline-none"
-                      placeholder="Av. Paulista"
+                      placeholder="Nome da rua ou avenida"
                     />
                   </div>
 
@@ -837,7 +823,6 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
                   </div>
                 </div>
 
-                {/* Geocodificação Automática + Ajuste de Pino no Mapa */}
                 <GoogleAddressPinPicker
                   cep={formData.cep}
                   address={formData.address}
@@ -859,7 +844,6 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
                 />
               </div>
 
-              {/* Section 4: Branding (Logo) */}
               <div className="space-y-2.5 pt-2.5 border-t border-slate-200 dark:border-slate-800">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
                   <Palette className="w-3.5 h-3.5" />
@@ -903,10 +887,9 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
             </div>
           )}
 
-          {/* ABA 1B: DADOS FISCAIS DO ESTABELECIMENTO (APENAS CNPJ / AUTÔNOMO) */}
           {activeTab === 'fiscal' && (
             <div className="space-y-4 animate-fadeIn">
-              {/* Bloco 1: CPF Pessoal do Proprietário (Vinculado ao Cadastro Pessoal) */}
+
               <div className="space-y-2 pb-3 border-b border-slate-200 dark:border-slate-800">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
                   <UserCheck className="w-3.5 h-3.5" />
@@ -940,7 +923,6 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
                 </div>
               </div>
 
-              {/* Bloco 2: Dados Fiscais da Empresa (Apenas se possuir CNPJ) */}
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
@@ -1027,10 +1009,9 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
             </div>
           )}
 
-          {/* ABA 1C: FATURAMENTO & CHAVES PIX + QR CODE AUTOMÁTICO */}
           {activeTab === 'pix_billing' && (
             <div className="space-y-4 animate-fadeIn">
-              {/* Plano & Taxas Individuais VagouApp (SQL v5.0 — trg_sync_salon_fields) */}
+
               <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
                   <Receipt className="w-3.5 h-3.5" />
@@ -1232,7 +1213,6 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
                   ))}
                 </div>
 
-                {/* QR CODE GERADO AUTOMATICAMENTE & AÇÕES DE IMPRESSÃO / COBRANÇA */}
                 {pixKeys.some((k) => k.key.trim().length > 0) && (
                   <div className="mt-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-3 animate-fadeIn">
                     <div className="flex items-center justify-between">
@@ -1266,7 +1246,6 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
                       </div>
                     </div>
 
-                    {/* Botões de Ação: Imprimir Plaquinha & Testar Cobrança */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                       <button
                         type="button"
@@ -1292,7 +1271,6 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
             </div>
           )}
 
-          {/* ABA 2: EQUIPE & PROFISSIONAIS POR CARGO */}
           {activeTab === 'team' && (
             <div className="space-y-4 animate-fadeIn">
               <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
@@ -1316,11 +1294,10 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
                 </button>
               </div>
 
-              {/* Sub-formulario de Adicionar Profissional */}
               {showAddMember && (
                 <div className="p-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl space-y-3 animate-fadeIn">
                   <span className="text-xs font-bold text-slate-900 dark:text-white block">Cadastrar Novo Membro da Equipe</span>
-                  
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <input
                       type="text"
@@ -1388,7 +1365,6 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
                 </div>
               )}
 
-              {/* Lista de Membros da Equipe por Cargo */}
               <div className="space-y-3">
                 {teamMembers.map((member) => (
                   <div
@@ -1424,7 +1400,6 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
             </div>
           )}
 
-          {/* ABA 3: DIAS & HORÁRIOS DE ATENDIMENTO (GRADE FLEXÍVEL) */}
           {activeTab === 'hours' && (
             <div className="space-y-4 animate-fadeIn">
               <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
@@ -1448,7 +1423,6 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
                 </button>
               </div>
 
-              {/* Tabela Interativa dos Dias da Semana */}
               <div className="space-y-2.5">
                 {operatingHours.map((item, idx) => (
                   <div
@@ -1460,7 +1434,7 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
                     }`}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      {/* Dia & Switch */}
+
                       <div className="flex items-center gap-3">
                         <label className="relative inline-flex items-center cursor-pointer">
                           <input
@@ -1477,7 +1451,6 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
                         </span>
                       </div>
 
-                      {/* Configuração de Horários se Aberto */}
                       {item.isOpen ? (
                         <div className="flex flex-wrap items-center gap-2">
                           <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-lg px-2 py-1">
@@ -1513,7 +1486,6 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
           )}
         </form>
 
-        {/* FOOTER ACTIONS */}
         <div className="shrink-0 p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex items-center justify-end gap-3">
           <button
             type="button"
@@ -1540,7 +1512,6 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
         </div>
       </div>
 
-      {/* Modal Dedicado para Criação de Novas Categorias */}
       <AdminCategoryModal
         isOpen={isCategoryModalOpen}
         onClose={() => setIsCategoryModalOpen(false)}
@@ -1549,7 +1520,6 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
         }}
       />
 
-      {/* 🖨️ Modal de Impressão da Plaquinha PIX */}
       <SalonPixPrintModal
         isOpen={isPrintPlaqueOpen}
         onClose={() => setIsPrintPlaqueOpen(false)}
@@ -1567,7 +1537,6 @@ export const AdminEditSalonModal: React.FC<AdminEditSalonModalProps> = ({
         city={formData.city || salon.city || 'São Paulo'}
       />
 
-      {/* 📲 Modal de Cobrança PIX Pós-Serviço */}
       <PixCheckoutModal
         isOpen={isCheckoutModalOpen}
         onClose={() => setIsCheckoutModalOpen(false)}

@@ -1,10 +1,5 @@
-// ==============================================================================
-// 💈 SERVICE WORKER — PORTAL VAGOU (PWA, BRAND ASSET CACHE & PUSH NOTIFICATIONS)
-// ==============================================================================
-
 const CACHE_NAME = 'vagou-portal-cache-v8';
 
-// Assets essenciais da marca para pré-cache imediato
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -15,10 +10,8 @@ const PRECACHE_ASSETS = [
   '/logo.svg',
   '/logo.png',
   '/logo_light.png',
-  '/vagou-logo.png',
 ];
 
-// 1. Instalação: Pré-cache dos assets essenciais e ativação rápida
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
@@ -32,7 +25,6 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// 2. Ativação: Purgar versões antigas e assumir controle imediato dos clientes
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
@@ -50,7 +42,6 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// 3. Escuta mensagens internas (pular espera ou purga total)
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
@@ -60,15 +51,11 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// 4. Estratégia de Fetch:
-// - Assets da marca / fontes / estáticos: Cache-First com fallback de rede
-// - Navegação e dados dinâmicos: Network-First
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   const url = new URL(event.request.url);
 
-  // Bypass para rotas de desenvolvimento / hot-reload / supabase / APIs externas
   if (
     url.pathname.startsWith('/@') ||
     url.pathname.startsWith('/src/') ||
@@ -81,7 +68,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Navegação (HTML): Network-First para garantir que o bundle mais recente seja carregado
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request)
@@ -99,7 +85,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Assets estáticos da marca (imagens, logos, ícones, fontes Google)
   const isBrandAsset =
     PRECACHE_ASSETS.includes(url.pathname) ||
     url.pathname.endsWith('.png') ||
@@ -112,7 +97,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       caches.match(event.request).then((cachedResponse) => {
         if (cachedResponse) {
-          // Atualiza em segundo plano (Stale-While-Revalidate)
+
           fetch(event.request)
             .then((networkResponse) => {
               if (networkResponse && networkResponse.status === 200) {
@@ -136,7 +121,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Demais requisições: Network-First com fallback para cache
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
@@ -151,10 +135,6 @@ self.addEventListener('fetch', (event) => {
       })
   );
 });
-
-// ==============================================================================
-// 🔔 GERENCIAMENTO DE NOTIFICAÇÕES PUSH (CONFIRMAÇÕES & VAGAS RELÂMPAGO)
-// ==============================================================================
 
 self.addEventListener('push', (event) => {
   let notificationData = {
@@ -226,7 +206,6 @@ self.addEventListener('push', (event) => {
   );
 });
 
-// Manipulação do clique na notificação Push
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const targetUrl = event.notification.data?.url || '/';
@@ -235,7 +214,7 @@ self.addEventListener('notificationclick', (event) => {
     self.clients
       .matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
-        // Se já houver uma janela aberta, foca nela e navega
+
         for (const client of clientList) {
           if ('focus' in client) {
             client.postMessage({
@@ -245,7 +224,7 @@ self.addEventListener('notificationclick', (event) => {
             return client.focus();
           }
         }
-        // Se não houver janela aberta, abre uma nova
+
         if (self.clients.openWindow) {
           return self.clients.openWindow(targetUrl);
         }
