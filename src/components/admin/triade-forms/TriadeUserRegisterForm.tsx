@@ -13,10 +13,7 @@ import {
   ArrowRight,
   ArrowLeft,
   UserCheck,
-  ShieldCheck,
   X,
-  KeyRound,
-  RefreshCw,
   Search,
   HelpCircle,
 } from 'lucide-react';
@@ -52,7 +49,6 @@ type UserRegisterPhase =
   | 'all'
   | 'identification'
   | 'contacts'
-  | 'verification'
   | 'password'
   | 'cep'
   | 'address';
@@ -114,14 +110,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [confirmEmail, setConfirmEmail] = useState('');
-  const [otpChannel, setOtpChannel] = useState<'whatsapp' | 'sms' | 'email'>('whatsapp');
-
-  const [otpCode, setOtpCode] = useState('');
-  const [sentOtp, setSentOtp] = useState<string>('749215');
-  const [isSendingOtp, setIsSendingOtp] = useState(false);
-  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
-  const [otpCountdown, setOtpCountdown] = useState(60);
-  const [, setIsOtpVerified] = useState(false);
+  const [isCheckingContacts, setIsCheckingContacts] = useState(false);
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -220,14 +209,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     };
   }, [phone, email]);
 
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (otpCountdown > 0) {
-      timer = setTimeout(() => setOtpCountdown((prev) => prev - 1), 1000);
-    }
-    return () => clearTimeout(timer);
-  }, [otpCountdown]);
-
   const cleanUsernameRule = username.trim().replace(/^@+/, '');
   const userRules = {
     hasUpper: /[A-Z]/.test(cleanUsernameRule),
@@ -275,13 +256,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     if (raw.length === 8) {
       searchCep(raw);
     }
-  };
-
-  const handleOtpChange = (val: string) => {
-    const raw = val.replace(/\D/g, '').slice(0, 6);
-    let formatted = raw;
-    if (raw.length > 3) formatted = `${raw.slice(0, 3)} - ${raw.slice(3, 6)}`;
-    setOtpCode(formatted);
   };
 
   const searchCep = async (cleanCep: string) => {
@@ -468,33 +442,39 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
     }
   };
 
-  const handleSendOtp = async () => {
+  const handleNextFromContacts = async () => {
     setFeedback(null);
     const cleanPhone = phone.replace(/\D/g, '');
+    const cleanMail = email.trim().toLowerCase();
+    const cleanConfirmMail = confirmEmail.trim().toLowerCase();
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
     if (!cleanPhone || cleanPhone.length < 10) {
       setFeedback({ type: 'error', message: 'Informe um WhatsApp/celular válido com DDD.' });
       return;
     }
-    if (!email.trim() || !email.includes('@')) {
-      setFeedback({ type: 'error', message: 'Informe um e-mail válido.' });
+    if (!cleanMail || !emailPattern.test(cleanMail)) {
+      setFeedback({ type: 'error', message: 'Informe um e-mail principal válido (ex: nome@dominio.com).' });
       return;
     }
-    if (email.trim().toLowerCase() !== confirmEmail.trim().toLowerCase()) {
+    if (cleanMail !== cleanConfirmMail) {
       setFeedback({ type: 'error', message: 'Os e-mails informados não coincidem.' });
       return;
     }
 
-    setIsSendingOtp(true);
+    setEmail(cleanMail);
+    setConfirmEmail(cleanConfirmMail);
+    setIsCheckingContacts(true);
     try {
       const conflict = await checkTriadeUserConflict({
         username: username.trim().replace(/^@+/, ''),
         phone: phone.trim(),
-        email: email.trim().toLowerCase(),
+        email: cleanMail,
         cpf: cpf.trim() || undefined,
       });
 
       if (conflict.hasConflict) {
-        setIsSendingOtp(false);
+        setIsCheckingContacts(false);
         if (conflict.conflictField === 'phone') {
           setPhoneConflictMessage(conflict.message || 'Este WhatsApp já está cadastrado.');
         } else if (conflict.conflictField === 'email') {
@@ -510,47 +490,8 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
       }
     } catch {}
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    setSentOtp(code);
-
-    setTimeout(() => {
-      setIsSendingOtp(false);
-      setOtpCountdown(60);
-      const canalNome =
-        otpChannel === 'whatsapp' ? 'WhatsApp' : otpChannel === 'sms' ? 'SMS' : 'E-mail';
-      setFeedback({
-        type: 'success',
-        message: `Código de verificação enviado via ${canalNome}! (Código de teste: ${code.slice(0, 3)} - ${code.slice(3)})`,
-      });
-      setPhase('verification');
-    }, 500);
-  };
-
-  const handleVerifyOtp = () => {
-    setFeedback(null);
-    const cleanCode = otpCode.replace(/\D/g, '');
-    if (cleanCode.length !== 6) {
-      setFeedback({ type: 'error', message: 'Digite o código de 6 dígitos completo.' });
-      return;
-    }
-
-    setIsVerifyingOtp(true);
-    setTimeout(() => {
-      setIsVerifyingOtp(false);
-      if (cleanCode === sentOtp || cleanCode === '749215' || cleanCode === '123456') {
-        setIsOtpVerified(true);
-        setFeedback({
-          type: 'success',
-          message: '✓ Contato verificado com sucesso!',
-        });
-        setPhase('password');
-      } else {
-        setFeedback({
-          type: 'error',
-          message: 'Código incorreto ou expirado. Verifique os números digitados.',
-        });
-      }
-    }, 600);
+    setIsCheckingContacts(false);
+    setPhase('password');
   };
 
   const handleNextFromPassword = () => {
@@ -821,14 +762,13 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
 
         {showPhaseStepper && currentPhase !== 'all' && (
           <div className="pb-3 border-b border-slate-800/80">
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 sm:gap-1.5">
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-1 sm:gap-1.5">
               {[
                 { id: 'identification', num: '1', label: 'Nome' },
                 { id: 'contacts', num: '2', label: 'Contatos' },
-                { id: 'verification', num: '3', label: 'Código' },
-                { id: 'password', num: '4', label: 'Senha' },
-                { id: 'cep', num: '5', label: 'CEP' },
-                { id: 'address', num: '6', label: 'Endereço' },
+                { id: 'password', num: '3', label: 'Senha' },
+                { id: 'cep', num: '4', label: 'CEP' },
+                { id: 'address', num: '5', label: 'Endereço' },
               ].map((step) => {
                 const isActive = currentPhase === step.id;
                 return (
@@ -870,7 +810,10 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                 <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 min-h-[46px] focus-within:border-emerald-500 transition">
                   <User className="w-4 h-4 text-slate-500 mr-2.5 shrink-0" />
                   <input
+                    id="triade-reg-fullname"
+                    name="fullName"
                     type="text"
+                    autoComplete="name"
                     value={fullName}
                     onChange={(e) => handleFullNameChange(e.target.value)}
                     placeholder="Nome completo"
@@ -927,7 +870,13 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                     }`}
                   />
                   <input
+                    id="triade-reg-username"
+                    name="username"
                     type="text"
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     value={username.replace(/^@+/, '')}
                     onChange={(e) => {
                       setFeedback(null);
@@ -1004,14 +953,14 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
             {currentPhase === 'all' && (
               <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
                 <span className="w-2 h-2 rounded-full bg-[#20C933]"></span>
-                <span className="text-xs font-bold text-emerald-400">2. Contatos & Canal de Código</span>
+                <span className="text-xs font-bold text-emerald-400">2. Contatos</span>
               </div>
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
               <div className="sm:col-span-5">
                 <div className="flex items-center justify-between gap-1 mb-1">
-                  <label className="block text-[11px] font-semibold text-slate-300">
+                  <label htmlFor="triade-reg-phone" className="block text-[11px] font-semibold text-slate-300">
                     WhatsApp <span className="text-emerald-400">*</span>
                   </label>
                   {phoneConflictMessage && (
@@ -1027,10 +976,15 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                 >
                   <Phone className="w-3.5 h-3.5 text-slate-500 mr-1.5 shrink-0" />
                   <input
-                    type="text"
+                    id="triade-reg-phone"
+                    name="phone"
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
                     value={phone}
                     onChange={(e) => {
                       setFeedback(null);
+                      setPhoneConflictMessage(null);
                       handlePhoneChange(e.target.value);
                     }}
                     placeholder="(11) 98765-4321"
@@ -1042,7 +996,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
 
               <div className="sm:col-span-7">
                 <div className="flex items-center justify-between gap-1 mb-1">
-                  <label className="block text-[11px] font-semibold text-slate-300">
+                  <label htmlFor="triade-reg-email" className="block text-[11px] font-semibold text-slate-300">
                     E-mail Principal <span className="text-emerald-400">*</span>
                   </label>
                   {emailConflictMessage && (
@@ -1058,11 +1012,19 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                 >
                   <Mail className="w-3.5 h-3.5 text-slate-500 mr-1.5 shrink-0" />
                   <input
+                    id="triade-reg-email"
+                    name="email"
                     type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     value={email}
                     onChange={(e) => {
                       setFeedback(null);
-                      setEmail(e.target.value);
+                      setEmailConflictMessage(null);
+                      setEmail(e.target.value.replace(/\s+/g, ''));
                     }}
                     placeholder="seu@email.com"
                     className="w-full bg-transparent text-xs text-white placeholder-slate-600 outline-none"
@@ -1072,15 +1034,25 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
               </div>
 
               <div className="sm:col-span-12">
-                <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                <label htmlFor="triade-reg-confirm-email" className="block text-[11px] font-semibold text-slate-300 mb-1">
                   Confirmar E-mail <span className="text-emerald-400">*</span>
                 </label>
                 <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 focus-within:border-emerald-500 transition">
                   <Mail className="w-3.5 h-3.5 text-slate-500 mr-1.5 shrink-0" />
                   <input
+                    id="triade-reg-confirm-email"
+                    name="confirmEmail"
                     type="email"
+                    inputMode="email"
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     value={confirmEmail}
-                    onChange={(e) => setConfirmEmail(e.target.value)}
+                    onChange={(e) => {
+                      setFeedback(null);
+                      setConfirmEmail(e.target.value.replace(/\s+/g, ''));
+                    }}
                     placeholder="repita seu e-mail"
                     className="w-full bg-transparent text-xs text-white placeholder-slate-600 outline-none"
                     required
@@ -1095,10 +1067,6 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
               </div>
             </div>
 
-            <div className="hidden">
-              <button type="button" onClick={() => setOtpChannel('email')}>E-MAIL</button>
-            </div>
-
             {currentPhase === 'contacts' && (
               <div className="pt-2 flex items-center gap-2.5">
                 <button
@@ -1111,98 +1079,17 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                 </button>
                 <button
                   type="button"
-                  disabled={isSendingOtp}
-                  onClick={handleSendOtp}
+                  disabled={isCheckingContacts}
+                  onClick={handleNextFromContacts}
                   style={primaryBgStyle}
                   className="flex-1 py-3.5 px-4 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 disabled:opacity-50"
                 >
-                  {isSendingOtp ? (
+                  {isCheckingContacts ? (
                     <Loader2 className="w-4 h-4 text-white animate-spin" />
                   ) : (
                     <>
-                      <span className="text-white font-bold">Receber Código</span>
+                      <span className="text-white font-bold">Avançar</span>
                       <ArrowRight className="w-4 h-4 text-white" />
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {(currentPhase === 'all' || currentPhase === 'verification') && (
-          <div className="space-y-4 animate-fadeIn pt-1">
-            {currentPhase === 'all' && (
-              <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
-                <span className="w-2 h-2 rounded-full bg-[#20C933]"></span>
-                <span className="text-xs font-bold text-emerald-400">3. Validação OTP (6 Dígitos)</span>
-              </div>
-            )}
-
-            <div className="w-full bg-transparent sm:bg-slate-950/80 border-0 sm:border sm:border-slate-800 rounded-none sm:rounded-2xl px-0 py-3 sm:p-5 text-center space-y-3">
-              <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto">
-                <KeyRound className="w-6 h-6 text-emerald-400" />
-              </div>
-
-              <div>
-                <h3 className="font-bold text-white text-sm">Digite o Código de 6 Dígitos</h3>
-                <p className="text-xs text-slate-400 pt-0.5">
-                  Enviado para seu {otpChannel === 'whatsapp' ? 'WhatsApp' : otpChannel === 'sms' ? 'SMS' : 'E-mail'} ({phone || email})
-                </p>
-              </div>
-
-              <div className="w-full sm:max-w-xs mx-auto">
-                <input
-                  type="text"
-                  value={otpCode}
-                  onChange={(e) => handleOtpChange(e.target.value)}
-                  placeholder="XXX - XXX"
-                  maxLength={9}
-                  className="w-full text-center tracking-widest text-lg font-mono font-bold bg-slate-900 border border-slate-700 rounded-xl py-3 text-white placeholder-slate-600 outline-none focus:border-emerald-500 shadow-inner"
-                />
-              </div>
-
-              <div className="flex items-center justify-center gap-3 text-xs pt-1">
-                {otpCountdown > 0 ? (
-                  <span className="text-slate-400">
-                    Reenviar código em <strong className="text-emerald-400">{otpCountdown}s</strong>
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleSendOtp}
-                    className="text-emerald-400 hover:underline font-bold flex items-center gap-1 cursor-pointer"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Reenviar código</span>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {currentPhase === 'verification' && (
-              <div className="pt-2 flex items-center gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setPhase('contacts')}
-                  className="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs sm:text-sm transition cursor-pointer flex items-center gap-1"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  <span>Voltar</span>
-                </button>
-                <button
-                  type="button"
-                  disabled={isVerifyingOtp}
-                  onClick={handleVerifyOtp}
-                  style={primaryBgStyle}
-                  className="flex-1 py-3.5 px-4 rounded-xl bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 disabled:opacity-50"
-                >
-                  {isVerifyingOtp ? (
-                    <Loader2 className="w-4 h-4 text-white animate-spin" />
-                  ) : (
-                    <>
-                      <ShieldCheck className="w-4 h-4 text-white" />
-                      <span className="text-white font-bold">Verificar</span>
                     </>
                   )}
                 </button>
@@ -1216,7 +1103,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
             {currentPhase === 'all' && (
               <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
                 <span className="w-2 h-2 rounded-full bg-[#20C933]"></span>
-                <span className="text-xs font-bold text-emerald-400">4. Senha Segura</span>
+                <span className="text-xs font-bold text-emerald-400">3. Senha Segura</span>
               </div>
             )}
 
@@ -1228,7 +1115,10 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                 <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 focus-within:border-emerald-500 transition">
                   <Lock className="w-4 h-4 text-slate-500 mr-2 shrink-0" />
                   <input
+                    id="triade-reg-password"
+                    name="new-password"
                     type={showPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Digite sua senha"
@@ -1252,7 +1142,10 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
                 <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 focus-within:border-emerald-500 transition">
                   <Lock className="w-4 h-4 text-slate-500 mr-2 shrink-0" />
                   <input
+                    id="triade-reg-confirm-password"
+                    name="confirm-new-password"
                     type={showConfirmPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Repita sua senha"
@@ -1321,7 +1214,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
             {currentPhase === 'all' && (
               <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
                 <span className="w-2 h-2 rounded-full bg-[#20C933]"></span>
-                <span className="text-xs font-bold text-emerald-400">5. CEP Residencial</span>
+                <span className="text-xs font-bold text-emerald-400">4. CEP Residencial</span>
               </div>
             )}
 
@@ -1400,7 +1293,7 @@ export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
             {currentPhase === 'all' && (
               <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
                 <span className="w-2 h-2 rounded-full bg-[#20C933]"></span>
-                <span className="text-xs font-bold text-emerald-400">6. Endereço Completo</span>
+                <span className="text-xs font-bold text-emerald-400">5. Endereço Completo</span>
               </div>
             )}
 

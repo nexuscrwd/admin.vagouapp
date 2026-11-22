@@ -15,6 +15,37 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-11-22] — 🚨 Correção Emergencial de Cadastro de Usuários & Salões v6.0 + Remoção do Fluxo OTP (`bol-181`)
+- **Tipo:** `[Fix / Refactor]`
+- **Motivo / Solicitação:**
+  - Correção emergencial das falhas no cadastro de usuários (`Could not find the 'access_level' column of 'clients' in the schema cache` e bug de autofill mobile que inseria o telefone no campo de e-mail), remoção definitiva da etapa de código de verificação (`Receber Código` / OTP) no fluxo de cadastro, e correção integral do cadastro/edição de salões no schema Supabase v6.0 (`ON CONFLICT (slug)` incompatível com índice funcional `lower(btrim(slug))`, loop de reinjeção da coluna inexistente `branding` e violações de `CHECK` constraints).
+- **Arquivos Impactados:**
+  - `/src/components/admin/triade-forms/TriadeUserRegisterForm.tsx`
+  - `/server.ts`
+  - `/src/services/supabaseApi.ts`
+  - `/CHANGELOG.md`
+- **Resumo Técnico:**
+  - **Remoção de OTP & Correção de Autofill Mobile (`TriadeUserRegisterForm.tsx`):** Eliminada 100% a etapa `'verification'` (código OTP), seus estados/handlers e o botão `Receber Código`. Fluxo reduzido para 5 etapas diretas (`1. Nome`, `2. Contatos`, `3. Senha`, `4. CEP`, `5. Endereço`). Campos blindados contra mistura de preenchimento automático no Android/Chrome (`type="tel"` + `autoComplete="tel"` no WhatsApp, `type="email"` + `name="email"` + `autoComplete="email"` no E-mail Principal, `autoComplete="off"` na confirmação e `autoComplete="new-password"` na senha) com validação regex estrita de e-mail.
+  - **Cadastro de Usuários 100% Nativo v6.0 (`server.ts` + `supabaseApi.ts`):** Invertida a ordem em `registerTriadeUser` (chama `POST /api/public/register-user` primeiro e depois autentica com `signInWithPassword`, eliminando corrida com o trigger `trg_on_auth_user_created`). Em `POST /api/public/register-user`, substituído `insert` + fallback bruto (que enviava `access_level`, `username`, `name`, `password_hash`, `default_address`, `origin_type`, `origin_salon_id`) por `upsert(..., { onConflict: 'user_id' })` apenas com colunas reais da v6.0 em `public.clients` e `public.profiles` (persistindo `username` corretamente em `profiles`).
+  - **Cadastro/Edição de Salões 100% Nativo v6.0 (`server.ts` + `supabaseApi.ts`):** Removida a reinjeção da coluna inexistente `branding` em `safeSupabaseWrite`, substituído `upsert(..., { onConflict: 'slug' })` (que quebrava no índice único funcional `uq_salons_slug_lower`) por lookup case-insensitive (`ilike('slug', cleanSlug)`) + `insert`/`update`, adicionados normalizadores v6.0 para `status` (`active|pending|suspended|archived`), `billing_plan` (`per_booking|monthly_subscription|enterprise|trial`), `billing_due_day` (`1..28`), `professionals.access_level` (`admin|manager|professional|receptionist`), `dependents.relationship` e flags booleanas de `salon_ui_settings` (removendo `branding_snapshot` e `is_verified`).
+  - **Listagem e Exclusão em Cascata (`server.ts`):** `GET /api/admin/clients` e `GET /api/admin/professionals` agora cruzam `profiles.username` para exibir o username real; `DELETE /api/admin/users/client/:id` e `batch-delete` agora limpam também `profiles` e `auth.users` via `user_id`, impedindo perfis fantasmas bloqueando cadastros futuros.
+  - **Validação E2E:** Bateria completa de 15 testes ao vivo contra o servidor local e o Supabase v6.0 aprovada (`15/15 PASS`), seguida de limpeza integral dos registros de teste.
+
+---
+
+### [2026-11-21] — 🛠️ Correção de `TypeError` em `access_level` Numérico v6.0 na Listagem de Usuários (`bol-180`)
+- **Tipo:** `[Fix]`
+- **Motivo / Solicitação:**
+  - Correção do erro `TypeError: (u.accessLevel || "").toLowerCase is not a function` em `AdminUsersManager.tsx`, ocorrido quando `public.system_admins.access_level` (inteiro v6.0: `100`, `70`, `40`) era lido sem normalização para rótulo textual.
+- **Arquivos Impactados:**
+  - `/src/components/admin/AdminUsersManager.tsx`
+  - `/src/components/admin/triade-forms/TriadeUserLoginForm.tsx`
+  - `/CHANGELOG.md`
+- **Resumo Técnico:**
+  - Normalização de `system_admins.access_level` numérico (`>= 100` ➔ `Superadmin Master`, `>= 70` ➔ `Moderador`, demais ➔ `Suporte Técnico`) e coerção segura `String(...)` antes de `.toLowerCase()` em `isOwnerUser`, busca de usuários e detecção de perfil em `TriadeUserLoginForm`.
+
+---
+
 ### [2026-11-21] — 🧹 Operação Faxina Forense & Emagrecimento Estrutural Pré-Inauguração v6.0 (`bol-179`)
 - **Tipo:** `[Refactor / Cleanup / Security]`
 - **Motivo / Solicitação:**

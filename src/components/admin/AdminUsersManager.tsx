@@ -528,6 +528,14 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         usr = cleanEmail ? cleanEmail.split('@')[0] : fullName.toLowerCase().replace(/\s+/g, '');
       }
       const admOrigin = resolveRecordOriginInfo(a.created_via || 'admvapp', a.created_at);
+      const resolvedAdminAccessLevel =
+        typeof a.access_level === 'string' && a.access_level.trim() && isNaN(Number(a.access_level))
+          ? a.access_level
+          : Number(a.access_level) >= 100 || a.role === 'superadmin'
+          ? 'Superadmin Master'
+          : Number(a.access_level) >= 70 || a.role === 'moderator'
+          ? 'Moderador'
+          : 'Suporte Técnico';
       registerOrMergeCanonicalUser({
         id: `adm-${a.id}`,
         originalId: a.id,
@@ -541,7 +549,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         password: a.password || (a as any).password_hash || '',
         roleLabel: 'Administrador',
         roleBadgeClass: 'text-purple-700 dark:text-purple-400 font-bold',
-        accessLevel: a.access_level || (a.role === 'superadmin' ? 'Superadmin Master' : a.role === 'moderator' ? 'Moderador' : 'Suporte Técnico'),
+        accessLevel: resolvedAdminAccessLevel,
         address: a.address || '',
         streetNumber: a.street_number || '',
         complement: a.complement || '',
@@ -586,7 +594,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         password: su.password || (su as any).password_hash || '',
         roleLabel: 'Proprietário',
         roleBadgeClass: 'text-amber-700 dark:text-amber-400 font-bold',
-        accessLevel: su.access_level || (su.role === 'owner' ? 'Proprietário (Dono)' : su.role === 'manager' ? 'Gerente Geral' : 'Recepção & Atendimento'),
+        accessLevel: String(su.access_level || (su.role === 'owner' ? 'Proprietário (Dono)' : su.role === 'manager' ? 'Gerente Geral' : 'Recepção & Atendimento')),
         address: su.address || '',
         streetNumber: su.street_number || '',
         complement: su.complement || '',
@@ -633,7 +641,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         password: p.password || (p as any).password_hash || '',
         roleLabel: 'Profissional',
         roleBadgeClass: 'text-blue-700 dark:text-blue-400 font-bold',
-        accessLevel: p.access_level || (p.contract_type === 'partner_mei' ? 'MEI Parceiro' : 'CLT Profissional'),
+        accessLevel: String(p.access_level || (p.contract_type === 'partner_mei' ? 'MEI Parceiro' : 'CLT Profissional')),
         address: p.address || '',
         streetNumber: p.street_number || '',
         complement: p.complement || '',
@@ -685,7 +693,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
         password: c.password || (c as any).password_hash || '',
         roleLabel: 'Cliente',
         roleBadgeClass: 'text-emerald-700 dark:text-emerald-400 font-bold',
-        accessLevel: c.access_level || 'Cliente Titular',
+        accessLevel: String(c.access_level || 'Cliente Titular'),
         address: c.address || '',
         streetNumber: c.street_number || '',
         complement: c.complement || '',
@@ -762,7 +770,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
   }, [clients, professionals, salonUsers, admins]);
 
   const isOwnerUser = (u: UnifiedUserRow) =>
-    u.kind === 'salon_user' || (u.accessLevel || '').toLowerCase().includes('proprietário');
+    u.kind === 'salon_user' || String(u.accessLevel || '').toLowerCase().includes('proprietário');
 
   const adminsCount = useMemo(() => allUnifiedUsers.filter((u) => u.kind === 'admin').length, [allUnifiedUsers]);
   const clientsCount = useMemo(() => allUnifiedUsers.filter((u) => u.kind === 'client').length, [allUnifiedUsers]);
@@ -792,13 +800,13 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
       }
 
       if (activeSearch) {
-        const matchName = (u.name || '').toLowerCase().includes(activeSearch);
-        const matchUser = (u.username || '').toLowerCase().includes(activeSearch);
-        const matchEmail = (u.email || '').toLowerCase().includes(activeSearch);
-        const matchPhone = (u.phone || '').includes(activeSearch);
-        const matchSecPhone = (u.phoneSecondary || '').includes(activeSearch);
-        const matchRole = (u.accessLevel || '').toLowerCase().includes(activeSearch);
-        const matchKind = (u.roleLabel || '').toLowerCase().includes(activeSearch);
+        const matchName = String(u.name || '').toLowerCase().includes(activeSearch);
+        const matchUser = String(u.username || '').toLowerCase().includes(activeSearch);
+        const matchEmail = String(u.email || '').toLowerCase().includes(activeSearch);
+        const matchPhone = String(u.phone || '').includes(activeSearch);
+        const matchSecPhone = String(u.phoneSecondary || '').includes(activeSearch);
+        const matchRole = String(u.accessLevel || '').toLowerCase().includes(activeSearch);
+        const matchKind = String(u.roleLabel || '').toLowerCase().includes(activeSearch);
         if (!matchName && !matchUser && !matchEmail && !matchPhone && !matchSecPhone && !matchRole && !matchKind) {
           return false;
         }

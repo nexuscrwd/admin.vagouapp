@@ -815,6 +815,72 @@ async function startServer() {
 
   const KNOWN_MISSING_COLUMNS: Record<string, Set<string>> = {};
 
+  const normalizeV6SalonStatus = (raw: unknown): 'active' | 'pending' | 'suspended' | 'archived' => {
+    const val = String(raw || 'active').trim().toLowerCase();
+    if (val === 'active' || val === 'ativo' || val === 'approved') return 'active';
+    if (val === 'suspended' || val === 'suspenso' || val === 'blocked' || val === 'inactive') return 'suspended';
+    if (val === 'archived' || val === 'arquivado') return 'archived';
+    if (val === 'pending' || val === 'pendente' || val === 'incomplete' || val === 'incompleto') return 'pending';
+    return 'active';
+  };
+
+  const normalizeV6BillingPlan = (raw: unknown): 'per_booking' | 'monthly_subscription' | 'enterprise' | 'trial' => {
+    const val = String(raw || 'per_booking').trim().toLowerCase();
+    if (val === 'monthly_subscription' || val === 'monthly' || val === 'mensal' || val === 'subscription') {
+      return 'monthly_subscription';
+    }
+    if (val === 'enterprise' || val === 'corporate') return 'enterprise';
+    if (val === 'trial' || val === 'free' || val === 'teste') return 'trial';
+    return 'per_booking';
+  };
+
+  const normalizeV6CreatedVia = (raw: unknown): 'admvapp' | 'mnvapp' | 'pvapp' | 'system' => {
+    const val = String(raw || 'admvapp').trim().toLowerCase();
+    if (val === 'admvapp' || val === 'admin') return 'admvapp';
+    if (val === 'mnvapp' || val === 'establishment' || val === 'salon') return 'mnvapp';
+    if (val === 'pvapp' || val === 'portal' || val === 'client') return 'pvapp';
+    if (val === 'system') return 'system';
+    return 'admvapp';
+  };
+
+  const normalizeV6ProfAccessLevel = (raw: unknown): 'admin' | 'manager' | 'professional' | 'receptionist' => {
+    const val = String(raw || 'professional').trim().toLowerCase();
+    if (val.includes('propriet') || val.includes('dono') || val.includes('owner') || val === 'admin') return 'admin';
+    if (val.includes('gerent') || val.includes('manager')) return 'manager';
+    if (val.includes('recep') || val.includes('receptionist')) return 'receptionist';
+    return 'professional';
+  };
+
+  const normalizeV6DependentRel = (
+    raw: unknown
+  ): 'son' | 'daughter' | 'child' | 'spouse' | 'parent' | 'sibling' | 'other' => {
+    const val = String(raw || 'other').trim().toLowerCase();
+    if (val === 'son' || val === 'filho') return 'son';
+    if (val === 'daughter' || val === 'filha') return 'daughter';
+    if (val === 'child' || val.includes('filh') || val.includes('crian')) return 'child';
+    if (val === 'spouse' || val.includes('cônjug') || val.includes('conjug') || val.includes('espos') || val.includes('marid')) return 'spouse';
+    if (val === 'parent' || val === 'pai' || val === 'mãe' || val === 'mae') return 'parent';
+    if (val === 'sibling' || val.includes('irmã') || val.includes('irma')) return 'sibling';
+    return 'other';
+  };
+
+  const toUiBool = (val: unknown, fallback = false): boolean => {
+    if (typeof val === 'boolean') return val;
+    if (typeof val === 'number') return val !== 0;
+    if (typeof val === 'string') {
+      const low = val.trim().toLowerCase();
+      if (!low || low === 'none' || low === 'false' || low === '0' || low === 'off' || low === 'no') return false;
+      return true;
+    }
+    return fallback;
+  };
+
+  const clampBillingDueDay = (raw: unknown): number => {
+    const n = Math.round(Number(raw ?? 10));
+    if (!Number.isFinite(n)) return 10;
+    return Math.min(28, Math.max(1, n));
+  };
+
   async function safeSupabaseWrite(
     table: string,
     mode: 'insert' | 'update' | 'upsert',
@@ -831,17 +897,11 @@ async function startServer() {
     for (const knownMissing of KNOWN_MISSING_COLUMNS[table]) {
       if (workingPayload[knownMissing] !== undefined) {
         strippedColumns.push(knownMissing);
-        if (table === 'salons') {
-          workingPayload.branding = {
-            ...(workingPayload.branding && typeof workingPayload.branding === 'object' ? workingPayload.branding : {}),
-            [knownMissing]: workingPayload[knownMissing],
-          };
-        }
         delete workingPayload[knownMissing];
       }
     }
 
-    for (let attempt = 0; attempt < 50; attempt++) {
+    for (let attempt = 0; attempt < 40; attempt++) {
       let query: any;
       if (mode === 'insert') {
         query = supabaseAdmin.from(table).insert([workingPayload]).select().maybeSingle();
@@ -875,13 +935,6 @@ async function startServer() {
         const missingCol = colMatch[1];
         KNOWN_MISSING_COLUMNS[table].add(missingCol);
         strippedColumns.push(missingCol);
-
-        if (table === 'salons') {
-          workingPayload.branding = {
-            ...(workingPayload.branding && typeof workingPayload.branding === 'object' ? workingPayload.branding : {}),
-            [missingCol]: workingPayload[missingCol],
-          };
-        }
         delete workingPayload[missingCol];
         continue;
       }
@@ -898,14 +951,6 @@ async function startServer() {
           workingPayload.owner_id !== null
         ) {
           strippedColumns.push('owner_id');
-          if (table === 'salons') {
-            workingPayload.branding = {
-              ...(workingPayload.branding && typeof workingPayload.branding === 'object'
-                ? workingPayload.branding
-                : {}),
-              ownerRecordId: workingPayload.owner_id,
-            };
-          }
           if (mode === 'update') {
             workingPayload.owner_id = null;
           } else {
@@ -1757,7 +1802,7 @@ async function startServer() {
       })),
       ...(professionals || []).map((r: any) => ({
         roleLabel: String(r.role || '').toLowerCase().includes('propriet') ? 'Proprietário' : 'Profissional',
-        name: r.name || r.username || 'Profissional',
+        name: r.full_name || r.name || r.username || 'Profissional',
         username: r.username || '',
         email: r.email || '',
         phone: r.phone || '',
@@ -2676,10 +2721,6 @@ async function startServer() {
         body.phone !== undefined && body.phone !== '—'
           ? String(body.phone).trim()
           : existingRecord?.phone_whatsapp || existingRecord?.phone || '';
-      const resolvedPhoneSecondary =
-        body.phoneSecondary !== undefined && body.phoneSecondary !== '—'
-          ? String(body.phoneSecondary).trim()
-          : existingRecord?.phone_secondary || '';
       const resolvedCpf =
         body.cpf !== undefined ? String(body.cpf).trim() : existingRecord?.cpf || '';
       const resolvedPassword =
@@ -2692,26 +2733,23 @@ async function startServer() {
       };
 
       if (targetTable === 'clients') {
-        updatePayload.name = resolvedName;
         updatePayload.full_name = resolvedName;
-        updatePayload.phone = resolvedPhone;
-        updatePayload.phone_whatsapp = resolvedPhone;
+        updatePayload.phone = resolvedPhone || null;
+        if (resolvedEmail) updatePayload.email = resolvedEmail;
+        if (resolvedCpf !== undefined) updatePayload.cpf = resolvedCpf || null;
       } else if (targetTable === 'professionals') {
-        updatePayload.name = resolvedName;
         updatePayload.full_name = resolvedName;
-        updatePayload.phone = resolvedPhone;
-        updatePayload.phone_whatsapp = resolvedPhone;
+        updatePayload.phone = resolvedPhone || null;
+        if (resolvedEmail) updatePayload.email = resolvedEmail;
+        if (resolvedCpf !== undefined) updatePayload.cpf = resolvedCpf || null;
       } else {
         updatePayload.full_name = resolvedName;
-        updatePayload.name = resolvedName;
-        updatePayload.phone_whatsapp = resolvedPhone;
+        updatePayload.phone_whatsapp = resolvedPhone || null;
+        if (resolvedUsername) updatePayload.username = resolvedUsername;
+        if (resolvedEmail) updatePayload.email = resolvedEmail;
+        if (resolvedCpf !== undefined) updatePayload.cpf = resolvedCpf || null;
+        if (resolvedPassword) updatePayload.password_hash = resolvedPassword;
       }
-
-      if (resolvedUsername) updatePayload.username = resolvedUsername;
-      if (resolvedEmail) updatePayload.email = resolvedEmail;
-      if (resolvedPhoneSecondary !== undefined) updatePayload.phone_secondary = resolvedPhoneSecondary;
-      if (resolvedCpf !== undefined) updatePayload.cpf = resolvedCpf;
-      if (resolvedPassword) updatePayload.password_hash = resolvedPassword;
 
       const resolvedAccessLevel =
         body.accessLevel ||
@@ -2719,10 +2757,10 @@ async function startServer() {
         (targetTable === 'system_admins'
           ? 100
           : targetTable === 'professionals'
-          ? 'MEI Parceiro'
+          ? 'professional'
           : targetTable === 'salon_members'
-          ? 'Proprietário (Dono)'
-          : 'Cliente Titular');
+          ? 'owner'
+          : 'client');
 
       if (targetTable === 'system_admins') {
         const lower = String(resolvedAccessLevel).toLowerCase();
@@ -2738,61 +2776,67 @@ async function startServer() {
         }
       } else if (targetTable === 'professionals') {
         updatePayload.role = existingRecord?.role || 'Especialista';
+        updatePayload.access_level = normalizeV6ProfAccessLevel(resolvedAccessLevel);
       } else if (targetTable === 'salon_members') {
         updatePayload.role = existingRecord?.role || 'owner';
-      } else {
-        updatePayload.access_level = resolvedAccessLevel;
       }
 
-      updatePayload.address = body.address !== undefined ? body.address : existingRecord?.address || '';
-      updatePayload.street_number =
-        streetNumberVal !== undefined ? streetNumberVal : existingRecord?.street_number || '';
-      updatePayload.complement =
-        body.complement !== undefined ? body.complement : existingRecord?.complement || '';
-      updatePayload.neighborhood =
-        body.neighborhood !== undefined ? body.neighborhood : existingRecord?.neighborhood || '';
-      updatePayload.city = body.city !== undefined ? body.city : existingRecord?.city || 'São Paulo';
-      updatePayload.state = body.state !== undefined ? body.state : existingRecord?.state || 'SP';
-      updatePayload.cep = body.cep !== undefined ? body.cep : existingRecord?.cep || '';
+      if (targetTable === 'clients' || targetTable === 'professionals') {
+        updatePayload.address = body.address !== undefined ? body.address : existingRecord?.address || null;
+        updatePayload.street_number =
+          streetNumberVal !== undefined ? streetNumberVal : existingRecord?.street_number || null;
+        updatePayload.complement =
+          body.complement !== undefined ? body.complement : existingRecord?.complement || null;
+        updatePayload.neighborhood =
+          body.neighborhood !== undefined ? body.neighborhood : existingRecord?.neighborhood || null;
+        updatePayload.city = body.city !== undefined ? body.city : existingRecord?.city || 'São Paulo';
+        updatePayload.state = body.state !== undefined ? body.state : existingRecord?.state || 'SP';
+        updatePayload.cep = body.cep !== undefined ? body.cep : existingRecord?.cep || null;
 
-      if (resolvedGeo.latitude !== null && Number.isFinite(resolvedGeo.latitude)) {
-        updatePayload.latitude = resolvedGeo.latitude;
-      } else if (existingRecord?.latitude !== undefined && existingRecord?.latitude !== null) {
-        updatePayload.latitude = existingRecord.latitude;
-      }
-      if (resolvedGeo.longitude !== null && Number.isFinite(resolvedGeo.longitude)) {
-        updatePayload.longitude = resolvedGeo.longitude;
-      } else if (existingRecord?.longitude !== undefined && existingRecord?.longitude !== null) {
-        updatePayload.longitude = existingRecord.longitude;
-      }
-      if (resolvedGeo.formatted_address) {
-        updatePayload.formatted_address = resolvedGeo.formatted_address;
-      }
-      if (resolvedGeo.google_place_id) {
-        updatePayload.google_place_id = resolvedGeo.google_place_id;
-      }
-      if (targetTable === 'clients' && hasAddressFields) {
-        const fullAddr = [
-          updatePayload.address,
-          updatePayload.street_number,
-          updatePayload.complement,
-          updatePayload.neighborhood,
-          updatePayload.city,
-          updatePayload.state,
-          updatePayload.cep,
-        ]
-          .filter(Boolean)
-          .join(', ');
-        if (fullAddr) updatePayload.default_address = fullAddr;
+        if (resolvedGeo.latitude !== null && Number.isFinite(resolvedGeo.latitude)) {
+          updatePayload.latitude = resolvedGeo.latitude;
+        } else if (existingRecord?.latitude !== undefined && existingRecord?.latitude !== null) {
+          updatePayload.latitude = existingRecord.latitude;
+        }
+        if (resolvedGeo.longitude !== null && Number.isFinite(resolvedGeo.longitude)) {
+          updatePayload.longitude = resolvedGeo.longitude;
+        } else if (existingRecord?.longitude !== undefined && existingRecord?.longitude !== null) {
+          updatePayload.longitude = existingRecord.longitude;
+        }
+        if (targetTable === 'clients') {
+          if (resolvedGeo.formatted_address) {
+            updatePayload.formatted_address = resolvedGeo.formatted_address;
+          }
+          if (resolvedGeo.google_place_id) {
+            updatePayload.google_place_id = resolvedGeo.google_place_id;
+          }
+        }
       }
 
       const resolvedIsActive =
         body.isActive !== undefined ? !!body.isActive : existingRecord?.is_active !== false;
-      if (targetTable === 'professionals') {
-        updatePayload.status = resolvedIsActive ? 'active' : 'suspended';
-        updatePayload.is_active = resolvedIsActive;
-      } else {
-        updatePayload.is_active = resolvedIsActive;
+      updatePayload.is_active = resolvedIsActive;
+
+      const profileSyncId =
+        existingRecord?.user_id ||
+        (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? id : null);
+      if (profileSyncId && (resolvedUsername || resolvedName || resolvedPhone || resolvedEmail)) {
+        try {
+          await safeSupabaseWrite(
+            'profiles',
+            'update',
+            {
+              full_name: resolvedName,
+              ...(resolvedUsername ? { username: resolvedUsername } : {}),
+              ...(resolvedEmail ? { email: resolvedEmail } : {}),
+              ...(resolvedPhone ? { phone: resolvedPhone } : {}),
+              ...(resolvedCpf ? { cpf: resolvedCpf } : {}),
+              is_active: resolvedIsActive,
+              updated_at: new Date().toISOString(),
+            },
+            { eqCol: 'id', eqVal: profileSyncId }
+          );
+        } catch {}
       }
 
       if (body.avatarUrl !== undefined || body.avatar_url !== undefined) {
@@ -3097,10 +3141,20 @@ async function startServer() {
     try {
       await consolidateDuplicateUsersInSupabase();
 
-      const [{ data, error }, { data: sysAdmins }] = await Promise.all([
+      const [{ data, error }, { data: sysAdmins }, { data: profileRows }] = await Promise.all([
         supabaseAdmin.from('clients').select('*').order('created_at', { ascending: false }),
         supabaseAdmin.from('system_admins').select('id, email, username, cpf'),
+        supabaseAdmin.from('profiles').select('id, username, email'),
       ]);
+
+      const profileUsernameById = new Map<string, string>();
+      const profileUsernameByEmail = new Map<string, string>();
+      (profileRows || []).forEach((pr: any) => {
+        if (pr?.username) {
+          if (pr.id) profileUsernameById.set(String(pr.id), String(pr.username).trim());
+          if (pr.email) profileUsernameByEmail.set(normalizeEmailKey(pr.email), String(pr.username).trim());
+        }
+      });
 
       if (error) {
         console.warn('[GET /api/admin/clients] Supabase error:', error.message);
@@ -3182,10 +3236,20 @@ async function startServer() {
           const combinedDeps = tableDeps.length > 0 ? tableDeps : rawDeps;
           const secList = secByClient[String(c.id)] || (c.security_question_code ? [c.security_question_code] : []);
 
+          const resolvedProfileUsername =
+            (c.user_id && profileUsernameById.get(String(c.user_id))) ||
+            profileUsernameById.get(String(c.id)) ||
+            (c.email && profileUsernameByEmail.get(normalizeEmailKey(c.email))) ||
+            '';
+
           return {
             ...c,
-            full_name: c.name || c.full_name || 'Cliente',
-            username: (c.username || (c.email ? c.email.split('@')[0] : (c.name || 'cliente').toLowerCase().replace(/\s+/g, ''))).replace(/^@+/, ''),
+            full_name: c.full_name || c.name || 'Cliente',
+            username: (
+              c.username ||
+              resolvedProfileUsername ||
+              (c.email ? c.email.split('@')[0] : (c.full_name || c.name || 'cliente').toLowerCase().replace(/\s+/g, ''))
+            ).replace(/^@+/, ''),
             phone: c.phone || c.phone_whatsapp || '—',
             phone_secondary: c.phone_secondary || '',
             password: c.password_hash || c.password || '',
@@ -3230,28 +3294,48 @@ async function startServer() {
 
   app.get('/api/admin/professionals', async (_req, res) => {
     try {
-      const { data, error } = await supabaseAdmin
-        .from('professionals')
-        .select('*, salons(trade_name, slug)')
-        .order('created_at', { ascending: false });
+      const [{ data, error }, { data: profileRows }] = await Promise.all([
+        supabaseAdmin
+          .from('professionals')
+          .select('*, salons(trade_name, slug)')
+          .order('created_at', { ascending: false }),
+        supabaseAdmin.from('profiles').select('id, username, email'),
+      ]);
 
       if (error) {
         console.warn('[GET /api/admin/professionals] Supabase error:', error.message);
         return res.status(400).json({ success: false, error: error.message });
       }
 
-      const professionals = (data || []).map((p: any) => ({
-        ...p,
-        full_name: p.name || p.full_name || 'Profissional',
-        username: (p.username || (p.nickname ? p.nickname.toLowerCase().replace(/\s+/g, '') : (p.email ? p.email.split('@')[0] : (p.name || 'prof').toLowerCase().replace(/\s+/g, '')))).replace(/^@+/, ''),
-        phone_whatsapp: p.phone || p.phone_whatsapp || '—',
-        phone_secondary: p.phone_secondary || '',
-        password: p.password_hash || p.password || '',
-        current_salon_name: p.salons?.trade_name || p.current_salon_name || 'Sem Salão Ativo',
-        current_salon_slug: p.salons?.slug || p.current_salon_slug || '',
-        status: p.status || (p.is_active === false ? 'suspended' : 'active'),
-        access_level: p.access_level || 'MEI Parceiro',
-      }));
+      const profUsernameById = new Map<string, string>();
+      const profUsernameByEmail = new Map<string, string>();
+      (profileRows || []).forEach((pr: any) => {
+        if (pr?.username) {
+          if (pr.id) profUsernameById.set(String(pr.id), String(pr.username).trim());
+          if (pr.email) profUsernameByEmail.set(normalizeEmailKey(pr.email), String(pr.username).trim());
+        }
+      });
+
+      const professionals = (data || []).map((p: any) => {
+        const resolvedUsername =
+          p.username ||
+          (p.user_id && profUsernameById.get(String(p.user_id))) ||
+          (p.email && profUsernameByEmail.get(normalizeEmailKey(p.email))) ||
+          (p.email ? p.email.split('@')[0] : (p.full_name || p.name || 'prof').toLowerCase().replace(/\s+/g, ''));
+
+        return {
+          ...p,
+          full_name: p.full_name || p.name || 'Profissional',
+          username: String(resolvedUsername || 'prof').replace(/^@+/, ''),
+          phone_whatsapp: p.phone || p.phone_whatsapp || '—',
+          phone_secondary: p.phone_secondary || '',
+          password: p.password_hash || p.password || '',
+          current_salon_name: p.salons?.trade_name || p.current_salon_name || 'Sem Salão Ativo',
+          current_salon_slug: p.salons?.slug || p.current_salon_slug || '',
+          status: p.status || (p.is_active === false ? 'suspended' : 'active'),
+          access_level: p.access_level || 'professional',
+        };
+      });
 
       return res.json({ success: true, professionals });
     } catch (err: any) {
@@ -3319,9 +3403,15 @@ async function startServer() {
       }
 
       if (kind === 'client') {
+        const { data: clientSnapshot } = await supabaseAdmin
+          .from('clients')
+          .select('id, user_id, email')
+          .eq('id', id)
+          .maybeSingle();
 
         try {
           await supabaseAdmin.from('dependents').delete().eq('parent_client_id', id);
+          await supabaseAdmin.from('salon_clients').delete().eq('client_id', id);
           await supabaseAdmin.from('user_security_answers').delete().eq('client_id', String(id));
         } catch (depErr) {
           console.warn('[DELETE /api/admin/users/client] Aviso dependentes:', depErr);
@@ -3336,9 +3426,15 @@ async function startServer() {
           return res.status(400).json({ success: false, error: error.message });
         }
 
-        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+        const linkedUserId = clientSnapshot?.user_id || id;
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(linkedUserId))) {
           try {
-            await supabaseAdmin.from('profiles').delete().eq('id', id);
+            await supabaseAdmin.from('profiles').delete().eq('id', linkedUserId);
+            await supabaseAdmin.auth.admin.deleteUser(String(linkedUserId));
+          } catch {}
+        } else if (clientSnapshot?.email) {
+          try {
+            await supabaseAdmin.from('profiles').delete().ilike('email', clientSnapshot.email);
           } catch {}
         }
         return res.json({ success: true, deletedId: id, kind });
@@ -3400,11 +3496,27 @@ async function startServer() {
       const adminIds = items.filter((it: any) => it.kind === 'admin').map((it: any) => it.id);
 
       if (clientIds.length > 0) {
+        const { data: clientsToPurge } = await supabaseAdmin
+          .from('clients')
+          .select('id, user_id')
+          .in('id', clientIds);
         try {
           await supabaseAdmin.from('dependents').delete().in('parent_client_id', clientIds);
+          await supabaseAdmin.from('salon_clients').delete().in('client_id', clientIds);
           await supabaseAdmin.from('appointments').update({ client_id: null }).in('client_id', clientIds);
         } catch {}
         await supabaseAdmin.from('clients').delete().in('id', clientIds);
+        const linkedAuthIds = (clientsToPurge || [])
+          .map((c: any) => c.user_id)
+          .filter((uid: any) => typeof uid === 'string' && uid.length > 0);
+        if (linkedAuthIds.length > 0) {
+          try {
+            await supabaseAdmin.from('profiles').delete().in('id', linkedAuthIds);
+            for (const uid of linkedAuthIds) {
+              await supabaseAdmin.auth.admin.deleteUser(uid);
+            }
+          } catch {}
+        }
       }
 
       if (depIds.length > 0) {
@@ -3682,7 +3794,7 @@ async function startServer() {
       const { data: existingSlugSalon } = await supabaseAdmin
         .from('salons')
         .select('id, email, trade_name')
-        .eq('slug', cleanSlug)
+        .ilike('slug', cleanSlug)
         .maybeSingle();
 
       const incomingEmail = payload.email?.trim().toLowerCase() || '';
@@ -3700,9 +3812,9 @@ async function startServer() {
 
       const resolvedLogo = await uploadBase64MediaIfNeeded(payload.logo_url, `${cleanSlug}-logo`);
       const resolvedFavicon = (await uploadBase64MediaIfNeeded(payload.favicon_url, `${cleanSlug}-favicon`)) || resolvedLogo || null;
-      const resolvedSlogan = payload.slogan?.trim() || '';
+      const resolvedSlogan = payload.slogan?.trim() || null;
       const resolvedBrandFont = payload.brand_font?.trim() || 'Poppins';
-      const resolvedStatus = String(payload.status || 'active').toLowerCase();
+      const resolvedStatus = normalizeV6SalonStatus(payload.status);
 
       const resolvedGeo = await resolveAddressCoordinatesServerSide(
         {
@@ -3720,39 +3832,43 @@ async function startServer() {
 
       const streetNumberVal = String(payload.street_number || payload.streetNumber || payload.number || '').trim() || null;
       const complementVal = String(payload.complement || '').trim() || null;
-      const resolvedPhone = String(payload.phone_whatsapp || payload.phone || '').trim() || null;
-      const resolvedOwnerName = String(payload.owner_name || payload.responsibleName || payload.legal_name || resolvedTradeName).trim();
+      const resolvedWhatsapp = String(payload.whatsapp || payload.phone_whatsapp || payload.phone || '').trim() || null;
+      const resolvedPhone = String(payload.phone_landline || payload.phone || resolvedWhatsapp || '').trim() || null;
       const resolvedOwnerCpf = String(payload.owner_cpf || payload.responsibleCpf || '').trim() || null;
-
-      const resolvedFee = Number(payload.fee_per_booking ?? payload.billing_fee_value ?? 2.5);
-      const resolvedBillingPlan = payload.billing_plan || 'PER_APPOINTMENT';
-      const resolvedMonthlyFee = Number(payload.monthly_subscription_fee ?? 89.9);
-      const resolvedDueDay = Number(payload.billing_due_day ?? 10);
+      const resolvedCnpj =
+        String(payload.cnpj || (payload.document_type !== 'CPF' ? payload.document_number : '') || '').trim() || null;
+      const resolvedFee = Number.isFinite(Number(payload.fee_per_booking ?? payload.billing_fee_value))
+        ? Number(payload.fee_per_booking ?? payload.billing_fee_value ?? 2.5)
+        : 2.5;
+      const resolvedBillingPlan = normalizeV6BillingPlan(payload.billing_plan);
+      const resolvedMonthlyFee = Number.isFinite(Number(payload.monthly_subscription_fee))
+        ? Number(payload.monthly_subscription_fee ?? 89.9)
+        : 89.9;
+      const resolvedDueDay = clampBillingDueDay(payload.billing_due_day);
       const resolvedPrimaryColor = payload.primary_color || '#10B981';
       const resolvedSecondaryColor = payload.secondary_color || '#065F46';
-      const resolvedDefaultTheme = payload.default_theme || 'light';
+      const resolvedDefaultTheme: 'light' | 'dark' =
+        String(payload.default_theme || 'light').toLowerCase() === 'dark' ? 'dark' : 'light';
+      const resolvedHomeDelivery =
+        payload.home_delivery_enabled === true ||
+        payload.operating_model === 'delivery' ||
+        payload.operating_model === 'home_only' ||
+        payload.operating_model === 'hybrid';
 
       const nowIso = new Date().toISOString();
-      const resolvedCreatedVia = payload.created_via || 'admvapp';
+      const resolvedCreatedVia = normalizeV6CreatedVia(payload.created_via || 'admvapp');
 
       const dbInsert: Record<string, any> = {
-        name: resolvedTradeName,
         trade_name: resolvedTradeName,
         legal_name: payload.legal_name?.trim() || resolvedTradeName,
         slug: cleanSlug,
-        subdomain: cleanSlug,
-        category: payload.category || 'Barbearia',
-        document_type: payload.document_type || 'CNPJ',
-        document_number: payload.document_number?.trim() || null,
+        cnpj: resolvedCnpj,
         owner_cpf: resolvedOwnerCpf,
-        pix_key: payload.pix_key?.trim() || null,
-        pix_keys: Array.isArray(payload.pix_keys) ? payload.pix_keys : [],
-        operating_model: payload.operating_model || 'physical',
-        billing_plan: resolvedBillingPlan,
-        billing_fee_value: resolvedFee,
+        category: payload.category || 'Barbearia',
+        description: payload.description?.trim() || null,
+        slogan: resolvedSlogan,
         phone: resolvedPhone,
-        phone_whatsapp: resolvedPhone,
-        phone_landline: payload.phone_landline?.trim() || null,
+        whatsapp: resolvedWhatsapp,
         email: payload.email?.trim().toLowerCase() || null,
         address: (payload.address || payload.street || '').trim() || null,
         street_number: streetNumberVal,
@@ -3769,69 +3885,23 @@ async function startServer() {
         logo_light_url: resolvedLogo,
         logo_dark_url: resolvedLogo,
         favicon_url: resolvedFavicon,
-        pwa_name: resolvedTradeName,
-        slogan: resolvedSlogan,
-        brand_font: resolvedBrandFont,
-        default_theme: resolvedDefaultTheme,
-        primary_color: resolvedPrimaryColor,
-        secondary_color: resolvedSecondaryColor,
-        nav_bg_style: payload.nav_bg_style || 'solid',
-        nav_bg_color: payload.nav_bg_color || '#D1FAE5',
-        nav_active_color: payload.nav_active_color || '#10B981',
-        section_header_bg_style: payload.section_header_bg_style || 'solid',
-        section_header_bg_color: payload.section_header_bg_color || '#ECFDF5',
-        section_header_text_color: payload.section_header_text_color || '#065F46',
-        section_header_icon_color: payload.section_header_icon_color || '#059669',
+        home_delivery_enabled: resolvedHomeDelivery,
+        pix_key: payload.pix_key?.trim() || null,
+        pix_keys: Array.isArray(payload.pix_keys) ? payload.pix_keys : [],
+        billing_plan: resolvedBillingPlan,
+        fee_per_booking: resolvedFee,
+        monthly_subscription_fee: resolvedMonthlyFee,
+        billing_due_day: resolvedDueDay,
         status: resolvedStatus,
-        is_active: resolvedStatus !== 'incomplete' && resolvedStatus !== 'suspended',
-        is_verified: resolvedStatus === 'active' || payload.is_verified === true,
+        is_active: resolvedStatus === 'active',
+        created_via: resolvedCreatedVia,
         ...(existingSlugSalon ? {} : { created_at: nowIso }),
         updated_at: nowIso,
-        branding: {
-          themeMode: resolvedDefaultTheme,
-          defaultTheme: resolvedDefaultTheme,
-          primaryColor: resolvedPrimaryColor,
-          secondaryColor: resolvedSecondaryColor,
-          navBgStyle: payload.nav_bg_style || 'solid',
-          navBgColor: payload.nav_bg_color || '#D1FAE5',
-          navIconBorder: payload.nav_icon_border || 'none',
-          sectionHeaderBgColor: payload.section_header_bg_color || '#ECFDF5',
-          sectionHeaderTextColor: payload.section_header_text_color || '#065F46',
-          sectionHeaderIconColor: payload.section_header_icon_color || '#059669',
-          category: payload.category || 'Barbearia',
-          faviconUrl: resolvedFavicon || '',
-          salonIcon: resolvedFavicon || '',
-          slogan: resolvedSlogan,
-          brandFont: resolvedBrandFont,
-          pwaName: resolvedTradeName,
-          address: (payload.address || payload.street || '').trim(),
-          streetNumber: streetNumberVal || '',
-          complement: complementVal || '',
-          neighborhood: payload.neighborhood?.trim() || '',
-          city: payload.city?.trim() || 'São Paulo',
-          state: payload.state?.trim().toUpperCase() || 'SP',
-          cep: payload.cep?.trim() || '',
-          latitude: resolvedGeo.latitude,
-          longitude: resolvedGeo.longitude,
-          formatted_address: resolvedGeo.formatted_address,
-          google_place_id: resolvedGeo.google_place_id,
-          phoneLandline: payload.phone_landline?.trim() || '',
-          owner_name: resolvedOwnerName,
-          owner_email: payload.email?.trim().toLowerCase() || '',
-          owner_phone: resolvedPhone || '',
-          ownerCpf: resolvedOwnerCpf || '',
-          billing_plan: resolvedBillingPlan,
-          fee_per_booking: resolvedFee,
-          billing_fee_value: resolvedFee,
-          monthly_subscription_fee: resolvedMonthlyFee,
-          billing_due_day: resolvedDueDay,
-          pixKeys: Array.isArray(payload.pix_keys) ? payload.pix_keys : [],
-          created_via: resolvedCreatedVia,
-          created_at_iso: nowIso,
-        },
       };
 
-      const { data, error } = await safeSupabaseWrite('salons', 'upsert', dbInsert, { onConflict: 'slug' });
+      const { data, error } = existingSlugSalon?.id
+        ? await safeSupabaseWrite('salons', 'update', dbInsert, { eqCol: 'id', eqVal: existingSlugSalon.id })
+        : await safeSupabaseWrite('salons', 'insert', dbInsert);
 
       if (error) {
         console.error('[POST /api/admin/salons Supabase Error]:', error);
@@ -3848,17 +3918,17 @@ async function startServer() {
               default_theme: resolvedDefaultTheme,
               primary_color: resolvedPrimaryColor,
               secondary_color: resolvedSecondaryColor,
-              pwa_name: payload.trade_name.trim(),
+              brand_font: resolvedBrandFont,
+              pwa_name: resolvedTradeName,
               section_header_bg_color: payload.section_header_bg_color || '#ECFDF5',
               section_header_text_color: payload.section_header_text_color || '#065F46',
               section_header_icon_color: payload.section_header_icon_color || '#059669',
-              section_header_bg_style: 'solid',
+              section_header_bg_style: payload.section_header_bg_style || 'solid',
               nav_bg_style: payload.nav_bg_style || 'solid',
               nav_bg_color: payload.nav_bg_color || '#D1FAE5',
-              nav_icon_border: payload.nav_icon_border || 'none',
+              nav_icon_border: toUiBool(payload.nav_icon_border, false),
               nav_active_color: payload.nav_active_color || '#10B981',
-              branding_snapshot: dbInsert.branding,
-              updated_at: new Date().toISOString(),
+              updated_at: nowIso,
             },
             { onConflict: 'salon_id' }
           );
@@ -3871,7 +3941,7 @@ async function startServer() {
         try {
           const ownerName = (payload.owner_name || payload.legal_name || payload.trade_name || 'Proprietário').trim();
           const ownerEmail = (payload.email || `${cleanSlug}@vagouapp.com`).trim().toLowerCase();
-          const ownerPhone = payload.phone_whatsapp?.trim() || '';
+          const ownerPhone = resolvedWhatsapp || '';
           const ownerUsername = ownerEmail.split('@')[0].replace(/[^a-zA-Z0-9._-]/g, '') || cleanSlug;
 
           let verifiedAuthUserId: string | null = null;
@@ -3895,17 +3965,14 @@ async function startServer() {
           if (!existingAdmin) {
             const { data: existingClient } = await supabaseAdmin
               .from('clients')
-              .select('id, user_id, password_hash')
+              .select('id, user_id')
               .ilike('email', ownerEmail)
               .maybeSingle();
             existingClientRow = existingClient;
           }
 
           if (!verifiedAuthUserId && ownerEmail.includes('@')) {
-            const candidatePassword =
-              existingAdmin?.password_hash ||
-              existingClientRow?.password_hash ||
-              crypto.randomUUID();
+            const candidatePassword = existingAdmin?.password_hash || crypto.randomUUID();
             try {
               const { data: createdAuth, error: createAuthErr } =
                 await supabaseAdmin.auth.admin.createUser({
@@ -3916,6 +3983,7 @@ async function startServer() {
                     full_name: ownerName,
                     phone: ownerPhone || undefined,
                     username: ownerUsername,
+                    created_via: resolvedCreatedVia,
                   },
                 });
               if (!createAuthErr && createdAuth?.user?.id) {
@@ -3924,16 +3992,18 @@ async function startServer() {
             } catch {}
           }
 
-          if (!existingAdmin) {
-            if (!existingClientRow) {
-              await safeSupabaseWrite('clients', 'insert', {
-                ...(verifiedAuthUserId ? { id: verifiedAuthUserId, user_id: verifiedAuthUserId } : {}),
-                name: ownerName,
+          if (verifiedAuthUserId) {
+            await safeSupabaseWrite(
+              'profiles',
+              'upsert',
+              {
+                id: verifiedAuthUserId,
                 full_name: ownerName,
                 username: ownerUsername,
                 email: ownerEmail,
-                phone: ownerPhone,
-                cpf: payload.owner_cpf?.trim() || null,
+                phone: ownerPhone || null,
+                cpf: resolvedOwnerCpf,
+                role: existingAdmin ? 'super_admin' : 'salon_owner',
                 cep: dbInsert.cep,
                 address: dbInsert.address,
                 street_number: dbInsert.street_number,
@@ -3944,36 +4014,51 @@ async function startServer() {
                 latitude: resolvedGeo.latitude,
                 longitude: resolvedGeo.longitude,
                 formatted_address: resolvedGeo.formatted_address,
-                origin_type: 'establishment',
-                created_via: resolvedCreatedVia,
-                origin_salon_id: data.id,
+                google_place_id: resolvedGeo.google_place_id,
                 is_active: true,
-                access_level: 'Proprietário (Dono)',
-                created_at: nowIso,
+                created_via: resolvedCreatedVia,
                 updated_at: nowIso,
-              });
-            } else {
+              },
+              { onConflict: 'id' }
+            );
+          }
+
+          if (!existingAdmin) {
+            const ownerClientData: Record<string, any> = {
+              full_name: ownerName,
+              email: ownerEmail,
+              phone: ownerPhone || null,
+              cpf: resolvedOwnerCpf,
+              cep: dbInsert.cep,
+              address: dbInsert.address,
+              street_number: dbInsert.street_number,
+              complement: dbInsert.complement,
+              neighborhood: dbInsert.neighborhood,
+              city: dbInsert.city,
+              state: dbInsert.state,
+              latitude: resolvedGeo.latitude,
+              longitude: resolvedGeo.longitude,
+              formatted_address: resolvedGeo.formatted_address,
+              google_place_id: resolvedGeo.google_place_id,
+              is_active: true,
+              created_via: resolvedCreatedVia,
+              updated_at: nowIso,
+            };
+
+            if (verifiedAuthUserId) {
               await safeSupabaseWrite(
                 'clients',
-                'update',
-                {
-                  ...(verifiedAuthUserId ? { user_id: verifiedAuthUserId } : {}),
-                  origin_type: 'establishment',
-                  origin_salon_id: data.id,
-                  access_level: 'Proprietário (Dono)',
-                  cep: dbInsert.cep,
-                  address: dbInsert.address,
-                  street_number: dbInsert.street_number,
-                  complement: dbInsert.complement,
-                  neighborhood: dbInsert.neighborhood,
-                  city: dbInsert.city,
-                  state: dbInsert.state,
-                  latitude: resolvedGeo.latitude,
-                  longitude: resolvedGeo.longitude,
-                  formatted_address: resolvedGeo.formatted_address,
-                },
-                { eqCol: 'id', eqVal: existingClientRow.id }
+                'upsert',
+                { user_id: verifiedAuthUserId, ...ownerClientData },
+                { onConflict: 'user_id' }
               );
+            } else if (existingClientRow?.id) {
+              await safeSupabaseWrite('clients', 'update', ownerClientData, {
+                eqCol: 'id',
+                eqVal: existingClientRow.id,
+              });
+            } else {
+              await safeSupabaseWrite('clients', 'insert', ownerClientData);
             }
           }
 
@@ -3988,16 +4073,12 @@ async function startServer() {
             await safeSupabaseWrite('professionals', 'insert', {
               salon_id: data.id,
               ...(verifiedAuthUserId ? { user_id: verifiedAuthUserId } : {}),
-              name: ownerName,
               full_name: ownerName,
-              username: ownerUsername,
               role: 'Proprietário',
-              access_level: 'Proprietário (Dono)',
+              access_level: 'admin',
               phone: ownerPhone || null,
-              phone_whatsapp: ownerPhone || null,
               email: ownerEmail,
-              cpf: payload.owner_cpf?.trim() || null,
-              status: 'active',
+              cpf: resolvedOwnerCpf,
               is_active: true,
               cep: dbInsert.cep,
               address: dbInsert.address,
@@ -4006,7 +4087,9 @@ async function startServer() {
               neighborhood: dbInsert.neighborhood,
               city: dbInsert.city,
               state: dbInsert.state,
-              created_at: nowIso,
+              latitude: resolvedGeo.latitude,
+              longitude: resolvedGeo.longitude,
+              created_via: resolvedCreatedVia,
               updated_at: nowIso,
             });
           }
@@ -4019,18 +4102,19 @@ async function startServer() {
               { eqCol: 'id', eqVal: data.id }
             );
 
-            const { data: existingMember } = await supabaseAdmin
-              .from('salon_members')
-              .select('id')
-              .eq('salon_id', data.id)
-              .eq('user_id', verifiedAuthUserId)
-              .maybeSingle();
-
-            if (!existingMember) {
-              await supabaseAdmin
-                .from('salon_members')
-                .insert([{ salon_id: data.id, user_id: verifiedAuthUserId, role: 'owner' }]);
-            }
+            await safeSupabaseWrite(
+              'salon_members',
+              'upsert',
+              {
+                salon_id: data.id,
+                user_id: verifiedAuthUserId,
+                role: 'owner',
+                is_active: true,
+                created_via: resolvedCreatedVia,
+                updated_at: nowIso,
+              },
+              { onConflict: 'salon_id,user_id' }
+            );
           }
         } catch (ownerSyncErr) {
           console.warn('[POST /api/admin/salons] Aviso ao sincronizar proprietário:', ownerSyncErr);
@@ -4041,6 +4125,8 @@ async function startServer() {
         success: true,
         salon: {
           ...data,
+          phone_whatsapp: data?.whatsapp || data?.phone || resolvedWhatsapp || '',
+          billing_fee_value: Number(data?.fee_per_booking ?? resolvedFee),
           street_number: streetNumberVal,
           complement: complementVal,
           latitude: resolvedGeo.latitude,
@@ -4065,9 +4151,6 @@ async function startServer() {
         .select('*')
         .eq('id', id)
         .maybeSingle();
-
-      const currentBranding =
-        currentSalon?.branding && typeof currentSalon.branding === 'object' ? { ...currentSalon.branding } : {};
 
       const hasAddressInPayload =
         incoming.cep !== undefined ||
@@ -4105,15 +4188,13 @@ async function startServer() {
         latitude:
           incoming.latitude !== undefined && incoming.latitude !== null
             ? Number(incoming.latitude)
-            : (currentSalon?.latitude ?? currentBranding.latitude ?? null),
+            : (currentSalon?.latitude ?? null),
         longitude:
           incoming.longitude !== undefined && incoming.longitude !== null
             ? Number(incoming.longitude)
-            : (currentSalon?.longitude ?? currentBranding.longitude ?? null),
-        formatted_address:
-          incoming.formatted_address || currentSalon?.formatted_address || currentBranding.formatted_address || null,
-        google_place_id:
-          incoming.google_place_id || currentSalon?.google_place_id || currentBranding.google_place_id || null,
+            : (currentSalon?.longitude ?? null),
+        formatted_address: incoming.formatted_address || currentSalon?.formatted_address || null,
+        google_place_id: incoming.google_place_id || currentSalon?.google_place_id || null,
       };
 
       if (hasAddressInPayload && (addressChanged || !resolvedGeo.latitude || !resolvedGeo.longitude)) {
@@ -4134,102 +4215,72 @@ async function startServer() {
         resolvedGeo = geo;
       }
 
-      const mergedBranding: Record<string, any> = {
-        ...currentBranding,
-        ...(incoming.branding && typeof incoming.branding === 'object' ? incoming.branding : {}),
-        ...(incoming.category !== undefined ? { category: incoming.category } : {}),
-        ...(incoming.pix_keys !== undefined ? { pix_keys: incoming.pix_keys, pixKeys: incoming.pix_keys } : {}),
-        ...(incoming.operating_hours !== undefined
-          ? { operating_hours: incoming.operating_hours, operatingHours: incoming.operating_hours }
-          : {}),
-        ...(incoming.fee_per_booking !== undefined ? { fee_per_booking: incoming.fee_per_booking } : {}),
-        ...(incoming.monthly_subscription_fee !== undefined
-          ? { monthly_subscription_fee: incoming.monthly_subscription_fee }
-          : {}),
-        ...(incoming.billing_due_day !== undefined ? { billing_due_day: incoming.billing_due_day } : {}),
-        ...(incoming.has_cnpj !== undefined ? { has_cnpj: incoming.has_cnpj } : {}),
-        ...(incoming.document_type !== undefined ? { document_type: incoming.document_type } : {}),
-        ...(incoming.operating_model !== undefined ? { operating_model: incoming.operating_model } : {}),
-        ...(incoming.billing_plan !== undefined ? { billing_plan: incoming.billing_plan } : {}),
-        ...(incoming.owner_cpf !== undefined ? { owner_cpf: incoming.owner_cpf, ownerCpf: incoming.owner_cpf } : {}),
-        ...(incoming.phone_landline !== undefined
-          ? { phone_landline: incoming.phone_landline, phoneLandline: incoming.phone_landline }
-          : {}),
-        ...(effectiveCep !== undefined ? { cep: effectiveCep } : {}),
-        ...(effectiveAddress !== undefined ? { address: effectiveAddress } : {}),
-        ...(effectiveStreetNumber !== undefined
-          ? { street_number: effectiveStreetNumber, streetNumber: effectiveStreetNumber }
-          : {}),
-        ...(effectiveComplement !== undefined ? { complement: effectiveComplement } : {}),
-        ...(effectiveNeighborhood !== undefined ? { neighborhood: effectiveNeighborhood } : {}),
-        ...(effectiveCity !== undefined ? { city: effectiveCity } : {}),
-        ...(effectiveState !== undefined ? { state: effectiveState } : {}),
-        ...(resolvedGeo.latitude !== null ? { latitude: resolvedGeo.latitude } : {}),
-        ...(resolvedGeo.longitude !== null ? { longitude: resolvedGeo.longitude } : {}),
-        ...(resolvedGeo.formatted_address ? { formatted_address: resolvedGeo.formatted_address } : {}),
-        ...(resolvedGeo.google_place_id ? { google_place_id: resolvedGeo.google_place_id } : {}),
-        updatedAt: new Date().toISOString(),
-      };
-
+      const nowIso = new Date().toISOString();
       const physicalUpdates: Record<string, any> = {
-        branding: mergedBranding,
-        updated_at: new Date().toISOString(),
+        updated_at: nowIso,
       };
 
-      if (incoming.trade_name !== undefined) {
-        physicalUpdates.trade_name = incoming.trade_name;
-        physicalUpdates.name = incoming.trade_name;
-        physicalUpdates.nome_fantasia = incoming.trade_name;
-      }
+      if (incoming.trade_name !== undefined) physicalUpdates.trade_name = incoming.trade_name;
       if (incoming.legal_name !== undefined) physicalUpdates.legal_name = incoming.legal_name;
-      if (incoming.slug !== undefined) {
-        physicalUpdates.slug = incoming.slug;
-        physicalUpdates.subdomain = incoming.slug;
-      }
+      if (incoming.slug !== undefined) physicalUpdates.slug = incoming.slug;
+      if (incoming.category !== undefined) physicalUpdates.category = incoming.category;
+      if (incoming.description !== undefined) physicalUpdates.description = incoming.description;
+      if (incoming.slogan !== undefined) physicalUpdates.slogan = incoming.slogan;
       if (incoming.status !== undefined) {
-        physicalUpdates.status = incoming.status;
-        physicalUpdates.is_active = incoming.status === 'active';
-        if (incoming.status === 'active') physicalUpdates.is_verified = true;
+        const normalizedSt = normalizeV6SalonStatus(incoming.status);
+        physicalUpdates.status = normalizedSt;
+        physicalUpdates.is_active = normalizedSt === 'active';
       }
-      if (incoming.is_verified !== undefined) physicalUpdates.is_verified = Boolean(incoming.is_verified);
-      if (incoming.phone_whatsapp !== undefined) {
-        physicalUpdates.phone_whatsapp = incoming.phone_whatsapp;
-        physicalUpdates.phone = incoming.phone_whatsapp;
-        physicalUpdates.whatsapp = incoming.phone_whatsapp;
+      if (incoming.is_active !== undefined && incoming.status === undefined) {
+        physicalUpdates.is_active = Boolean(incoming.is_active);
       }
-      if (incoming.phone_landline !== undefined) physicalUpdates.phone_landline = incoming.phone_landline;
+      if (incoming.phone_whatsapp !== undefined || incoming.whatsapp !== undefined) {
+        const w = String(incoming.whatsapp ?? incoming.phone_whatsapp ?? '').trim() || null;
+        physicalUpdates.whatsapp = w;
+        if (incoming.phone === undefined && incoming.phone_landline === undefined) {
+          physicalUpdates.phone = w;
+        }
+      }
+      if (incoming.phone !== undefined || incoming.phone_landline !== undefined) {
+        physicalUpdates.phone = String(incoming.phone ?? incoming.phone_landline ?? '').trim() || null;
+      }
       if (incoming.email !== undefined) physicalUpdates.email = incoming.email;
-      if (incoming.document_type !== undefined) physicalUpdates.document_type = incoming.document_type;
-      if (incoming.document_number !== undefined) {
-        physicalUpdates.document_number = incoming.document_number;
-        physicalUpdates.cpf_cnpj = incoming.document_number;
-        if (incoming.document_type === 'CNPJ') physicalUpdates.cnpj = incoming.document_number;
+      if (incoming.instagram !== undefined) physicalUpdates.instagram = incoming.instagram;
+      if (incoming.facebook !== undefined) physicalUpdates.facebook = incoming.facebook;
+      if (incoming.website !== undefined) physicalUpdates.website = incoming.website;
+      if (incoming.cnpj !== undefined) {
+        physicalUpdates.cnpj = incoming.cnpj;
+      } else if (incoming.document_number !== undefined && incoming.document_type !== 'CPF') {
+        physicalUpdates.cnpj = incoming.document_number;
       }
       if (incoming.owner_cpf !== undefined) physicalUpdates.owner_cpf = incoming.owner_cpf;
-      if (incoming.owner_name !== undefined) physicalUpdates.owner_name = incoming.owner_name;
-      if (incoming.owner_email !== undefined) physicalUpdates.owner_email = incoming.owner_email;
-      if (incoming.owner_phone !== undefined) physicalUpdates.owner_phone = incoming.owner_phone;
-      if (incoming.operating_model !== undefined) physicalUpdates.operating_model = incoming.operating_model;
       if (incoming.home_delivery_enabled !== undefined) {
         physicalUpdates.home_delivery_enabled = Boolean(incoming.home_delivery_enabled);
+      } else if (incoming.operating_model !== undefined) {
+        physicalUpdates.home_delivery_enabled =
+          incoming.operating_model === 'delivery' ||
+          incoming.operating_model === 'home_only' ||
+          incoming.operating_model === 'hybrid';
       }
-      if (incoming.commission_rate !== undefined) physicalUpdates.commission_rate = Number(incoming.commission_rate);
-      if (incoming.billing_plan !== undefined) physicalUpdates.billing_plan = incoming.billing_plan;
+      if (incoming.billing_plan !== undefined) {
+        physicalUpdates.billing_plan = normalizeV6BillingPlan(incoming.billing_plan);
+      }
       if (incoming.fee_per_booking !== undefined || incoming.billing_fee_value !== undefined) {
         const syncedFee = Number(incoming.fee_per_booking ?? incoming.billing_fee_value ?? 2.5);
-        physicalUpdates.fee_per_booking = syncedFee;
-        physicalUpdates.billing_fee_value = syncedFee;
-        mergedBranding.fee_per_booking = syncedFee;
-        mergedBranding.billing_fee_value = syncedFee;
+        if (Number.isFinite(syncedFee)) physicalUpdates.fee_per_booking = syncedFee;
       }
       if (incoming.monthly_subscription_fee !== undefined) {
-        physicalUpdates.monthly_subscription_fee = Number(incoming.monthly_subscription_fee);
+        const mFee = Number(incoming.monthly_subscription_fee);
+        if (Number.isFinite(mFee)) physicalUpdates.monthly_subscription_fee = mFee;
       }
       if (incoming.billing_due_day !== undefined) {
-        physicalUpdates.billing_due_day = Number(incoming.billing_due_day);
+        physicalUpdates.billing_due_day = clampBillingDueDay(incoming.billing_due_day);
       }
       if (incoming.pix_key !== undefined) physicalUpdates.pix_key = incoming.pix_key;
       if (incoming.pix_keys !== undefined) physicalUpdates.pix_keys = incoming.pix_keys;
+      if (incoming.business_hours !== undefined || incoming.operating_hours !== undefined) {
+        physicalUpdates.business_hours = incoming.business_hours ?? incoming.operating_hours;
+      }
 
       if (incoming.cep !== undefined) physicalUpdates.cep = incoming.cep;
       if (incoming.address !== undefined) physicalUpdates.address = incoming.address;
@@ -4251,41 +4302,87 @@ async function startServer() {
         physicalUpdates.google_place_id = resolvedGeo.google_place_id;
       }
 
-      const visualAndUiFields = [
-        'logo_url', 'logo_dark_url', 'logo_light_url', 'favicon_url', 'cover_image_url',
-        'facade_photo_url', 'interior_photo_url', 'description', 'slogan', 'brand_font',
-        'theme_preset_id', 'primary_color', 'secondary_color',
-        'default_theme', 'pwa_name', 'show_slogan', 'logo_text_fallback', 'logo_text_color',
-        'show_hero_slides', 'welcome_style', 'section_header_bg_color', 'section_header_text_color',
-        'section_header_icon_color', 'section_header_bg_style', 'section_header_border',
-        'section_header_btn_bg_color', 'section_header_btn_active_bg_color', 'section_header_btn_border',
-        'section_header_btn_shadow', 'section_header_btn_blur', 'section_header_btn_font',
-        'nav_style', 'nav_shape', 'nav_border', 'nav_icon_border', 'nav_bg_style', 'nav_bg_color',
-        'nav_btn_bg_color', 'nav_btn_active_bg_color', 'nav_active_color', 'nav_text_color'
+      const salonMediaFields = [
+        'logo_url',
+        'logo_dark_url',
+        'logo_light_url',
+        'favicon_url',
+        'cover_url',
+        'facade_photo_url',
+        'interior_photo_url',
       ];
-      visualAndUiFields.forEach((f) => {
-        if (incoming[f] !== undefined) {
-          physicalUpdates[f] = incoming[f];
-        }
+      salonMediaFields.forEach((f) => {
+        if (incoming[f] !== undefined) physicalUpdates[f] = incoming[f];
       });
+      if (incoming.cover_image_url !== undefined && incoming.cover_url === undefined) {
+        physicalUpdates.cover_url = incoming.cover_image_url;
+      }
 
+      const uiBooleanFields = new Set([
+        'show_slogan',
+        'show_hero_slides',
+        'nav_border',
+        'nav_icon_border',
+        'nav_btn_shadow',
+        'nav_btn_blur',
+        'section_header_border',
+        'section_header_btn_border',
+        'section_header_btn_shadow',
+        'section_header_btn_blur',
+      ]);
       const uiFields = [
-        'default_theme', 'primary_color', 'secondary_color', 'pwa_name', 'show_slogan',
-        'logo_text_fallback', 'logo_text_color', 'show_hero_slides', 'welcome_style',
-        'section_header_bg_color', 'section_header_text_color', 'section_header_icon_color',
-        'section_header_bg_style', 'section_header_border',
-        'nav_style', 'nav_shape', 'nav_border', 'nav_icon_border', 'nav_bg_style', 'nav_bg_color',
-        'nav_btn_bg_color', 'nav_btn_active_bg_color', 'nav_active_color', 'nav_text_color'
+        'default_theme',
+        'theme_preset_id',
+        'primary_color',
+        'secondary_color',
+        'brand_font',
+        'pwa_name',
+        'show_slogan',
+        'show_hero_slides',
+        'welcome_style',
+        'logo_text_fallback',
+        'logo_text_color',
+        'section_header_bg_color',
+        'section_header_text_color',
+        'section_header_icon_color',
+        'section_header_bg_style',
+        'section_header_border',
+        'section_header_btn_bg_color',
+        'section_header_btn_active_bg_color',
+        'section_header_btn_border',
+        'section_header_btn_shadow',
+        'section_header_btn_blur',
+        'section_header_btn_font',
+        'nav_style',
+        'nav_shape',
+        'nav_border',
+        'nav_icon_border',
+        'nav_bg_style',
+        'nav_bg_color',
+        'nav_btn_bg_color',
+        'nav_btn_active_bg_color',
+        'nav_active_color',
+        'nav_text_color',
+        'nav_btn_shadow',
+        'nav_btn_blur',
+        'nav_btn_font',
       ];
       const uiPayload: Record<string, any> = {};
+      const uiSource = {
+        ...incoming,
+        ...(incoming.ui_settings && typeof incoming.ui_settings === 'object' ? incoming.ui_settings : {}),
+      };
       uiFields.forEach((field) => {
-        if (incoming[field] !== undefined) {
-          uiPayload[field] = incoming[field];
+        if (uiSource[field] !== undefined) {
+          if (field === 'default_theme') {
+            uiPayload[field] = String(uiSource[field]).toLowerCase() === 'dark' ? 'dark' : 'light';
+          } else if (uiBooleanFields.has(field)) {
+            uiPayload[field] = toUiBool(uiSource[field], false);
+          } else {
+            uiPayload[field] = uiSource[field];
+          }
         }
       });
-      if (incoming.ui_settings && typeof incoming.ui_settings === 'object') {
-        Object.assign(uiPayload, incoming.ui_settings);
-      }
 
       const { data, error } = await safeSupabaseWrite('salons', 'update', physicalUpdates, {
         eqCol: 'id',
@@ -4305,8 +4402,7 @@ async function startServer() {
             {
               salon_id: id,
               ...uiPayload,
-              branding_snapshot: mergedBranding,
-              updated_at: new Date().toISOString(),
+              updated_at: nowIso,
             },
             { onConflict: 'salon_id' }
           );
@@ -4317,7 +4413,7 @@ async function startServer() {
 
       if (hasAddressInPayload) {
         await syncAddressAndCoordsAcrossCpfTables({
-          cpf: incoming.owner_cpf || data?.owner_cpf || currentSalon?.owner_cpf || currentSalon?.document_number,
+          cpf: incoming.owner_cpf || data?.owner_cpf || currentSalon?.owner_cpf || currentSalon?.cnpj,
           email: incoming.email || data?.email || currentSalon?.email,
           userId: data?.owner_id || currentSalon?.owner_id,
           salonId: id,
@@ -4392,11 +4488,14 @@ async function startServer() {
       }
 
       if (action === 'update_status' && targetStatus) {
-        const isActive = targetStatus === 'active';
-        const isVerified = targetStatus === 'active' || targetStatus === 'incomplete';
+        const normalizedSt = normalizeV6SalonStatus(targetStatus);
         const { error } = await supabaseAdmin
           .from('salons')
-          .update({ is_active: isActive, is_verified: isVerified })
+          .update({
+            status: normalizedSt,
+            is_active: normalizedSt === 'active',
+            updated_at: new Date().toISOString(),
+          })
           .in('id', ids);
 
         if (error) return res.status(400).json({ success: false, error: error.message });
@@ -4452,17 +4551,16 @@ async function startServer() {
 
   app.get('/api/admin/metrics', async (_req, res) => {
     try {
-
       const { data: salonsData } = await supabaseAdmin
         .from('salons')
-        .select('id, is_active, is_verified');
+        .select('id, status, is_active');
 
       const salons = salonsData || [];
       const totalSalons = salons.length;
-      const activeSalons = salons.filter((s: any) => s.is_active === true).length;
-      const pendingSalons = salons.filter((s: any) => s.is_active === false && s.is_verified === false).length;
-      const incompleteSalons = salons.filter((s: any) => s.is_active === false && s.is_verified === true).length;
-      const suspendedSalons = salons.filter((s: any) => s.is_active === false).length;
+      const activeSalons = salons.filter((s: any) => s.status === 'active' || s.is_active === true).length;
+      const pendingSalons = salons.filter((s: any) => s.status === 'pending').length;
+      const incompleteSalons = salons.filter((s: any) => s.status === 'archived').length;
+      const suspendedSalons = salons.filter((s: any) => s.status === 'suspended' || s.is_active === false).length;
 
       let todayAppointments = 0;
       try {
@@ -4508,7 +4606,7 @@ async function startServer() {
           .order('start_time', { ascending: true }),
         supabaseAdmin
           .from('salons')
-          .select('id, trade_name, slug, fee_per_booking, billing_fee_value, latitude, longitude'),
+          .select('id, trade_name, slug, fee_per_booking, latitude, longitude'),
       ]);
 
       if (error) {
@@ -4813,7 +4911,7 @@ async function startServer() {
 
         tradeName = '',
         slug = '',
-        category = 'barbearia',
+        category = 'Barbearia',
         attendanceType = 'salon_only',
         salonSameAsPersonalAddress = true,
         salonCep = '',
@@ -4844,7 +4942,13 @@ async function startServer() {
       }
 
       const cleanEmail = String(email).trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(cleanEmail)) {
+        return res.status(400).json({ success: false, error: 'Informe um endereço de e-mail válido.' });
+      }
+
       const cleanName = resolvedName;
+      const cleanCpf = String(documentCpf || body.cpf || '').trim() || null;
+      const cleanPhone = String(phone || '').trim() || null;
       const cleanUsername = (username || cleanEmail.split('@')[0] || 'usuario').trim().replace(/^@+/, '');
       if (
         username &&
@@ -4869,8 +4973,8 @@ async function startServer() {
       const preConflict = await checkUserConflictInSupabase({
         username: cleanUsername,
         email: cleanEmail,
-        phone,
-        cpf: documentCpf || body.cpf,
+        phone: cleanPhone || undefined,
+        cpf: cleanCpf || undefined,
       });
       if (preConflict.hasConflict) {
         return res.status(400).json({
@@ -4885,27 +4989,35 @@ async function startServer() {
       const RESERVED_SUBDOMAINS = [
         'adm', 'admin', 'admvapp', 'portal', 'pvapp', 'meunegocio', 'mnvapp',
         'www', 'api', 'suporte', 'ajuda', 'vagou', 'vagouapp', 'localhost',
-        'app', 'dashboard', 'status', 'auth', 'login', 'signup', 'checkout'
+        'app', 'dashboard', 'status', 'auth', 'login', 'signup', 'checkout',
       ];
 
       if (type === 'professional' && (!tradeName?.trim() || !cleanSlug)) {
-        return res.status(400).json({ success: false, error: 'Nome do Estabelecimento e Subdomínio são obrigatórios para profissionais.' });
+        return res.status(400).json({
+          success: false,
+          error: 'Nome do Estabelecimento e Subdomínio são obrigatórios para profissionais.',
+        });
       }
 
       if (type === 'professional' && RESERVED_SUBDOMAINS.includes(cleanSlug)) {
         return res.status(400).json({ success: false, error: `O subdomínio "${cleanSlug}" é reservado pelo sistema.` });
       }
 
+      const nowUserIso = new Date().toISOString();
+      const resolvedCreatedVia = normalizeV6CreatedVia(origin || 'pvapp');
+
       let authUserId: string | null = null;
       const { data: authUserResp, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: cleanEmail,
-        password: password,
+        password: String(password),
         email_confirm: true,
         user_metadata: {
           full_name: cleanName,
-          phone: phone || undefined,
+          phone: cleanPhone || undefined,
           avatar_url: avatarUrl || undefined,
           username: cleanUsername || undefined,
+          cpf: cleanCpf || undefined,
+          created_via: resolvedCreatedVia,
         },
       });
 
@@ -4919,24 +5031,20 @@ async function startServer() {
           );
           if (matched?.id) {
             authUserId = matched.id;
+            await supabaseAdmin.auth.admin.updateUserById(matched.id, {
+              password: String(password),
+              email_confirm: true,
+              user_metadata: {
+                full_name: cleanName,
+                phone: cleanPhone || undefined,
+                avatar_url: avatarUrl || undefined,
+                username: cleanUsername || undefined,
+                cpf: cleanCpf || undefined,
+                created_via: resolvedCreatedVia,
+              },
+            });
           }
         } catch {}
-      }
-
-      if (authUserId) {
-        try {
-          await supabaseAdmin.from('profiles').upsert({
-            id: authUserId,
-            full_name: cleanName,
-            email: cleanEmail,
-            phone_whatsapp: phone || null,
-            document_number: documentCpf || null,
-            avatar_url: avatarUrl || null,
-            updated_at: new Date().toISOString(),
-          }, { onConflict: 'id' });
-        } catch (profErr) {
-          console.warn('Aviso no upsert de profiles:', profErr);
-        }
       }
 
       const referer = String(req.headers.referer || process.env.APP_URL || 'https://adm.vagouapp.com/');
@@ -4955,60 +5063,46 @@ async function startServer() {
       );
 
       if (authUserId) {
-        try {
-          await safeSupabaseWrite(
-            'profiles',
-            'upsert',
-            {
-              id: authUserId,
-              full_name: cleanName,
-              email: cleanEmail,
-              phone_whatsapp: phone || null,
-              document_number: documentCpf || null,
-              avatar_url: avatarUrl || null,
-              cep: cep || null,
-              address: street || null,
-              street_number: number || null,
-              complement: complement || null,
-              neighborhood: neighborhood || null,
-              city: city || 'São Paulo',
-              state: state || 'SP',
-              latitude: userGeo.latitude,
-              longitude: userGeo.longitude,
-              formatted_address: userGeo.formatted_address,
-              google_place_id: userGeo.google_place_id,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: 'id' }
-          );
-        } catch {}
+        await safeSupabaseWrite(
+          'profiles',
+          'upsert',
+          {
+            id: authUserId,
+            email: cleanEmail,
+            full_name: cleanName,
+            username: cleanUsername,
+            cpf: cleanCpf,
+            phone: cleanPhone,
+            avatar_url: avatarUrl || null,
+            role: type === 'professional' ? 'salon_owner' : 'client',
+            cep: cep || null,
+            address: street || null,
+            street_number: number || null,
+            complement: complement || null,
+            neighborhood: neighborhood || null,
+            city: city || 'São Paulo',
+            state: state || 'SP',
+            latitude: userGeo.latitude,
+            longitude: userGeo.longitude,
+            formatted_address: userGeo.formatted_address,
+            google_place_id: userGeo.google_place_id,
+            is_active: true,
+            created_via: resolvedCreatedVia,
+            updated_at: nowUserIso,
+          },
+          { onConflict: 'id' }
+        );
       }
-
-      const fullAddress = [street, number, complement, neighborhood, city, state, cep]
-        .filter(Boolean)
-        .join(', ');
 
       const isUuid = (val: any) =>
         typeof val === 'string' &&
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
 
-      const nowUserIso = new Date().toISOString();
-      const resolvedUserOrigin = origin || 'portal';
-      const resolvedCreatedVia =
-        resolvedUserOrigin === 'admin' || resolvedUserOrigin === 'admvapp'
-          ? 'admvapp'
-          : resolvedUserOrigin === 'establishment' || resolvedUserOrigin === 'mnvapp'
-          ? 'mnvapp'
-          : 'pvapp';
-
       const clientPayload: Record<string, any> = {
-        name: cleanName,
         full_name: cleanName,
-        username: cleanUsername,
         email: cleanEmail,
-        phone: phone || null,
-        cpf: (documentCpf || body.cpf) || null,
-        password_hash: password,
+        phone: cleanPhone,
+        cpf: cleanCpf,
         avatar_url: avatarUrl || null,
         cep: cep || null,
         address: street || null,
@@ -5021,61 +5115,61 @@ async function startServer() {
         longitude: userGeo.longitude,
         formatted_address: userGeo.formatted_address,
         google_place_id: userGeo.google_place_id,
-        default_address: fullAddress || null,
-        origin_type: resolvedUserOrigin,
-        origin_salon_id: isUuid(salonId) ? salonId : null,
         is_active: true,
-        access_level: 'Cliente Titular',
+        created_via: resolvedCreatedVia,
         updated_at: nowUserIso,
       };
 
-      if (authUserId) {
-        clientPayload.user_id = authUserId;
-      }
-
       let savedClient: any = null;
-      {
-        const insertPayload = {
-          ...(authUserId ? { id: authUserId } : {}),
-          ...clientPayload,
-          created_at: nowUserIso,
-          created_via: resolvedCreatedVia,
-        };
-        let { data: insertedClient, error: insErr } = await safeSupabaseWrite('clients', 'insert', insertPayload);
-
-        if (insErr && (insErr.message?.includes('clients_user_id_fkey') || insErr.code === '23503' || insErr.code === '23505')) {
-          const fallbackPayload: Record<string, any> = { ...clientPayload, user_id: null };
-          const retry = await supabaseAdmin
-            .from('clients')
-            .insert([fallbackPayload])
-            .select()
-            .single();
-          insertedClient = retry.data;
-          insErr = retry.error;
+      if (authUserId) {
+        const upsertRes = await safeSupabaseWrite(
+          'clients',
+          'upsert',
+          { user_id: authUserId, ...clientPayload },
+          { onConflict: 'user_id' }
+        );
+        if (upsertRes.error) {
+          console.error('[register-user] Erro ao salvar client via upsert(user_id):', upsertRes.error);
+          return res.status(400).json({ success: false, error: upsertRes.error.message });
         }
-
-        if (insErr) {
-          console.error('[register-user] Erro ao inserir client:', insErr);
-          return res.status(400).json({ success: false, error: insErr.message });
+        savedClient = upsertRes.data;
+      } else {
+        const insRes = await safeSupabaseWrite('clients', 'insert', clientPayload);
+        if (insRes.error) {
+          console.error('[register-user] Erro ao inserir client:', insRes.error);
+          return res.status(400).json({ success: false, error: insRes.error.message });
         }
-        savedClient = insertedClient;
+        savedClient = insRes.data;
       }
 
-      const effectiveId = savedClient?.id || authUserId || `usr-${Date.now()}`;
+      if (isUuid(salonId) && savedClient?.id) {
+        try {
+          await safeSupabaseWrite(
+            'salon_clients',
+            'upsert',
+            {
+              salon_id: salonId,
+              client_id: savedClient.id,
+              updated_at: nowUserIso,
+            },
+            { onConflict: 'salon_id,client_id' }
+          );
+        } catch {}
+      }
 
-      if (Array.isArray(dependents) && dependents.length > 0) {
+      const effectiveClientId = savedClient?.id || authUserId || `usr-${Date.now()}`;
+
+      if (Array.isArray(dependents) && dependents.length > 0 && isUuid(savedClient?.id)) {
         for (const dep of dependents) {
           if (dep.fullName && dep.fullName.trim()) {
             try {
-              const depName = dep.fullName.trim();
-              await supabaseAdmin.from('dependents').insert({
-                parent_client_id: isUuid(effectiveId) ? effectiveId : null,
-                client_id: isUuid(effectiveId) ? effectiveId : null,
-                full_name: depName,
-                name: depName,
-                relationship: dep.relationship || 'Filho/a',
+              await safeSupabaseWrite('dependents', 'insert', {
+                parent_client_id: savedClient.id,
+                full_name: dep.fullName.trim(),
+                relationship: normalizeV6DependentRel(dep.relationship),
                 notes: dep.notes || (dep.nickname ? `Apelido: ${dep.nickname}` : null),
                 avatar_url: dep.avatarUrl || null,
+                created_via: resolvedCreatedVia,
               });
             } catch (depErr) {
               console.warn('Aviso ao inserir dependente:', depErr);
@@ -5087,73 +5181,107 @@ async function startServer() {
       let createdSalon = null;
       if (type === 'professional') {
         const homeDeliveryEnabled = attendanceType === 'home_only' || attendanceType === 'hybrid';
-        const effSalonCep = (!salonSameAsPersonalAddress && salonCep) ? salonCep : cep;
-        const effSalonStreet = (!salonSameAsPersonalAddress && salonStreet) ? salonStreet : street;
-        const effSalonNumber = (!salonSameAsPersonalAddress && salonNumber) ? salonNumber : number;
-        const effSalonComplement = (!salonSameAsPersonalAddress && salonComplement) ? salonComplement : complement;
-        const effSalonNeighborhood = (!salonSameAsPersonalAddress && salonNeighborhood) ? salonNeighborhood : neighborhood;
-        const effSalonCity = (!salonSameAsPersonalAddress && salonCity) ? salonCity : city;
-        const effSalonState = (!salonSameAsPersonalAddress && salonState) ? salonState : state;
+        const effSalonCep = !salonSameAsPersonalAddress && salonCep ? salonCep : cep;
+        const effSalonStreet = !salonSameAsPersonalAddress && salonStreet ? salonStreet : street;
+        const effSalonNumber = !salonSameAsPersonalAddress && salonNumber ? salonNumber : number;
+        const effSalonComplement = !salonSameAsPersonalAddress && salonComplement ? salonComplement : complement;
+        const effSalonNeighborhood = !salonSameAsPersonalAddress && salonNeighborhood ? salonNeighborhood : neighborhood;
+        const effSalonCity = !salonSameAsPersonalAddress && salonCity ? salonCity : city;
+        const effSalonState = !salonSameAsPersonalAddress && salonState ? salonState : state;
 
-        const effSalonPhoneWhatsapp = (!salonSameAsPersonalAddress && salonPhoneWhatsapp) ? salonPhoneWhatsapp : phone;
-        const effSalonEmail = (!salonSameAsPersonalAddress && salonEmail) ? salonEmail : cleanEmail;
+        const effSalonPhoneWhatsapp = !salonSameAsPersonalAddress && salonPhoneWhatsapp ? salonPhoneWhatsapp : cleanPhone;
+        const effSalonEmail = !salonSameAsPersonalAddress && salonEmail ? salonEmail.trim().toLowerCase() : cleanEmail;
 
-        const { data: salonData, error: salonErr } = await safeSupabaseWrite(
-          'salons',
-          'upsert',
-          {
-            name: tradeName.trim(),
-            trade_name: tradeName.trim(),
-            legal_name: cleanName,
-            slug: cleanSlug,
-            subdomain: cleanSlug,
-            ...(authUserId ? { owner_id: authUserId } : {}),
-            document_number: documentCpf || null,
-            phone_whatsapp: effSalonPhoneWhatsapp || null,
-            phone_landline: salonPhoneLandline || null,
-            email: effSalonEmail,
-            status: 'active',
-            is_verified: true,
-            is_active: true,
-            home_delivery_enabled: homeDeliveryEnabled,
-            operating_model: attendanceType,
-            address: effSalonStreet || null,
-            cep: effSalonCep || null,
-            street_number: effSalonNumber || null,
-            complement: effSalonComplement || null,
-            neighborhood: effSalonNeighborhood || null,
-            city: effSalonCity || 'São Paulo',
-            state: effSalonState || 'SP',
-            branding: {
-              themeMode: 'dark',
-              primaryColor: '#20C933',
-              category: category || 'barbearia',
-              pwaName: tradeName.trim(),
-            },
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'slug' }
-        );
+        const { data: existingProSalon } = await supabaseAdmin
+          .from('salons')
+          .select('id')
+          .ilike('slug', cleanSlug)
+          .maybeSingle();
+
+        const proSalonPayload: Record<string, any> = {
+          trade_name: tradeName.trim(),
+          legal_name: cleanName,
+          slug: cleanSlug,
+          ...(authUserId ? { owner_id: authUserId } : {}),
+          owner_cpf: cleanCpf,
+          category: category || 'Barbearia',
+          phone: salonPhoneLandline || effSalonPhoneWhatsapp || null,
+          whatsapp: effSalonPhoneWhatsapp || null,
+          email: effSalonEmail,
+          status: 'active',
+          is_active: true,
+          home_delivery_enabled: homeDeliveryEnabled,
+          address: effSalonStreet || null,
+          cep: effSalonCep || null,
+          street_number: effSalonNumber || null,
+          complement: effSalonComplement || null,
+          neighborhood: effSalonNeighborhood || null,
+          city: effSalonCity || 'São Paulo',
+          state: effSalonState || 'SP',
+          latitude: userGeo.latitude,
+          longitude: userGeo.longitude,
+          formatted_address: userGeo.formatted_address,
+          google_place_id: userGeo.google_place_id,
+          billing_plan: 'per_booking',
+          fee_per_booking: 2.5,
+          monthly_subscription_fee: 89.9,
+          billing_due_day: 10,
+          created_via: resolvedCreatedVia,
+          updated_at: nowUserIso,
+        };
+
+        const { data: salonData, error: salonErr } = existingProSalon?.id
+          ? await safeSupabaseWrite('salons', 'update', proSalonPayload, { eqCol: 'id', eqVal: existingProSalon.id })
+          : await safeSupabaseWrite('salons', 'insert', proSalonPayload);
 
         if (salonErr) {
           console.warn('Aviso no upsert do salão:', salonErr);
-        } else if (salonData) {
+        } else if (salonData?.id) {
           createdSalon = salonData;
+
+          await safeSupabaseWrite(
+            'salon_ui_settings',
+            'upsert',
+            {
+              salon_id: salonData.id,
+              default_theme: 'dark',
+              primary_color: '#20C933',
+              pwa_name: tradeName.trim(),
+              updated_at: nowUserIso,
+            },
+            { onConflict: 'salon_id' }
+          );
+
           await safeSupabaseWrite('professionals', 'insert', {
             salon_id: salonData.id,
-            name: cleanName,
+            ...(authUserId ? { user_id: authUserId } : {}),
             full_name: cleanName,
-            username: cleanUsername,
             role: 'Proprietário',
-            access_level: 'Proprietário (Dono)',
+            access_level: 'admin',
             email: cleanEmail,
-            phone: phone || null,
-            phone_whatsapp: phone || null,
+            phone: cleanPhone,
+            cpf: cleanCpf,
             avatar_url: avatarUrl || null,
-            status: 'active',
             is_active: true,
-            updated_at: new Date().toISOString(),
+            created_via: resolvedCreatedVia,
+            updated_at: nowUserIso,
           });
+
+          if (authUserId) {
+            await safeSupabaseWrite(
+              'salon_members',
+              'upsert',
+              {
+                salon_id: salonData.id,
+                user_id: authUserId,
+                role: 'owner',
+                is_active: true,
+                created_via: resolvedCreatedVia,
+                updated_at: nowUserIso,
+              },
+              { onConflict: 'salon_id,user_id' }
+            );
+          }
         }
       }
 
@@ -5168,13 +5296,17 @@ async function startServer() {
 
       return res.json({
         success: true,
-        message: type === 'professional' ? 'Estabelecimento e conta criados com sucesso!' : 'Conta de usuário criada com sucesso!',
+        message:
+          type === 'professional'
+            ? 'Estabelecimento e conta criados com sucesso!'
+            : 'Conta de usuário criada com sucesso!',
         user: {
-          id: effectiveId,
+          id: authUserId || effectiveClientId,
+          clientId: savedClient?.id || effectiveClientId,
           name: cleanName,
           email: cleanEmail,
           username: cleanUsername,
-          phone,
+          phone: cleanPhone || '',
           avatarUrl: avatarUrl || null,
           type,
           dependentsCount: dependents.length,
@@ -5811,34 +5943,11 @@ async function startServer() {
       if (interiorPhotoUrl !== undefined) salonUpdatePayload.interior_photo_url = interiorPhotoUrl;
       if (slogan !== undefined) salonUpdatePayload.slogan = slogan;
 
-      if (defaultTheme !== undefined) salonUpdatePayload.default_theme = defaultTheme;
-      if (pwaName !== undefined) salonUpdatePayload.pwa_name = pwaName;
-      if (showSlogan !== undefined) salonUpdatePayload.show_slogan = showSlogan;
-      if (logoTextFallback !== undefined) salonUpdatePayload.logo_text_fallback = logoTextFallback;
-      if (logoTextColor !== undefined) salonUpdatePayload.logo_text_color = logoTextColor;
-      if (showHeroSlides !== undefined) salonUpdatePayload.show_hero_slides = showHeroSlides;
-      if (welcomeStyle !== undefined) salonUpdatePayload.welcome_style = welcomeStyle;
-      if (sectionHeaderBgColor !== undefined) salonUpdatePayload.section_header_bg_color = sectionHeaderBgColor;
-      if (sectionHeaderTextColor !== undefined) salonUpdatePayload.section_header_text_color = sectionHeaderTextColor;
-      if (sectionHeaderIconColor !== undefined) salonUpdatePayload.section_header_icon_color = sectionHeaderIconColor;
-      if (sectionHeaderBgStyle !== undefined) salonUpdatePayload.section_header_bg_style = sectionHeaderBgStyle;
-      if (sectionHeaderBorder !== undefined) salonUpdatePayload.section_header_border = sectionHeaderBorder;
-      if (sectionHeaderBtnBgColor !== undefined) salonUpdatePayload.section_header_btn_bg_color = sectionHeaderBtnBgColor;
-      if (sectionHeaderBtnActiveBgColor !== undefined) salonUpdatePayload.section_header_btn_active_bg_color = sectionHeaderBtnActiveBgColor;
-      if (sectionHeaderBtnBorder !== undefined) salonUpdatePayload.section_header_btn_border = sectionHeaderBtnBorder;
-      if (sectionHeaderBtnShadow !== undefined) salonUpdatePayload.section_header_btn_shadow = sectionHeaderBtnShadow;
-      if (sectionHeaderBtnBlur !== undefined) salonUpdatePayload.section_header_btn_blur = sectionHeaderBtnBlur;
-      if (sectionHeaderBtnFont !== undefined) salonUpdatePayload.section_header_btn_font = sectionHeaderBtnFont;
-      if (navStyle !== undefined) salonUpdatePayload.nav_style = navStyle;
-      if (navShape !== undefined) salonUpdatePayload.nav_shape = navShape;
-      if (navBorder !== undefined) salonUpdatePayload.nav_border = navBorder;
-      if (navIconBorder !== undefined) salonUpdatePayload.nav_icon_border = navIconBorder;
-      if (navBgStyle !== undefined) salonUpdatePayload.nav_bg_style = navBgStyle;
-      if (navBgColor !== undefined) salonUpdatePayload.nav_bg_color = navBgColor;
-      if (navBtnBgColor !== undefined) salonUpdatePayload.nav_btn_bg_color = navBtnBgColor;
-      if (navBtnActiveBgColor !== undefined) salonUpdatePayload.nav_btn_active_bg_color = navBtnActiveBgColor;
-      if (navActiveColor !== undefined) salonUpdatePayload.nav_active_color = navActiveColor;
-      if (navTextColor !== undefined) salonUpdatePayload.nav_text_color = navTextColor;
+      delete salonUpdatePayload.branding;
+      delete salonUpdatePayload.theme_preset_id;
+      delete salonUpdatePayload.primary_color;
+      delete salonUpdatePayload.secondary_color;
+      delete salonUpdatePayload.brand_font;
 
       const { data: updatedSalon, error: upErr } = await safeSupabaseWrite('salons', 'update', salonUpdatePayload, {
         eqCol: 'id',
@@ -5851,27 +5960,34 @@ async function startServer() {
 
       const uiRowPayload: Record<string, any> = {
         salon_id: salonId,
-        branding_snapshot: updatedBranding,
         updated_at: new Date().toISOString(),
       };
-      if (defaultTheme !== undefined) uiRowPayload.default_theme = defaultTheme;
+      if (defaultTheme !== undefined) {
+        uiRowPayload.default_theme = String(defaultTheme).toLowerCase() === 'dark' ? 'dark' : 'light';
+      }
       if (primaryColor !== undefined) uiRowPayload.primary_color = primaryColor;
       if (secondaryColor !== undefined) uiRowPayload.secondary_color = secondaryColor;
       if (pwaName !== undefined) uiRowPayload.pwa_name = pwaName;
-      if (showSlogan !== undefined) uiRowPayload.show_slogan = showSlogan;
+      if (showSlogan !== undefined) uiRowPayload.show_slogan = toUiBool(showSlogan, true);
       if (logoTextFallback !== undefined) uiRowPayload.logo_text_fallback = logoTextFallback;
       if (logoTextColor !== undefined) uiRowPayload.logo_text_color = logoTextColor;
-      if (showHeroSlides !== undefined) uiRowPayload.show_hero_slides = showHeroSlides;
+      if (showHeroSlides !== undefined) uiRowPayload.show_hero_slides = toUiBool(showHeroSlides, true);
       if (welcomeStyle !== undefined) uiRowPayload.welcome_style = welcomeStyle;
       if (sectionHeaderBgColor !== undefined) uiRowPayload.section_header_bg_color = sectionHeaderBgColor;
       if (sectionHeaderTextColor !== undefined) uiRowPayload.section_header_text_color = sectionHeaderTextColor;
       if (sectionHeaderIconColor !== undefined) uiRowPayload.section_header_icon_color = sectionHeaderIconColor;
       if (sectionHeaderBgStyle !== undefined) uiRowPayload.section_header_bg_style = sectionHeaderBgStyle;
-      if (sectionHeaderBorder !== undefined) uiRowPayload.section_header_border = sectionHeaderBorder;
+      if (sectionHeaderBorder !== undefined) uiRowPayload.section_header_border = toUiBool(sectionHeaderBorder, false);
+      if (sectionHeaderBtnBgColor !== undefined) uiRowPayload.section_header_btn_bg_color = sectionHeaderBtnBgColor;
+      if (sectionHeaderBtnActiveBgColor !== undefined) uiRowPayload.section_header_btn_active_bg_color = sectionHeaderBtnActiveBgColor;
+      if (sectionHeaderBtnBorder !== undefined) uiRowPayload.section_header_btn_border = toUiBool(sectionHeaderBtnBorder, false);
+      if (sectionHeaderBtnShadow !== undefined) uiRowPayload.section_header_btn_shadow = toUiBool(sectionHeaderBtnShadow, false);
+      if (sectionHeaderBtnBlur !== undefined) uiRowPayload.section_header_btn_blur = toUiBool(sectionHeaderBtnBlur, false);
+      if (sectionHeaderBtnFont !== undefined) uiRowPayload.section_header_btn_font = sectionHeaderBtnFont;
       if (navStyle !== undefined) uiRowPayload.nav_style = navStyle;
       if (navShape !== undefined) uiRowPayload.nav_shape = navShape;
-      if (navBorder !== undefined) uiRowPayload.nav_border = navBorder;
-      if (navIconBorder !== undefined) uiRowPayload.nav_icon_border = navIconBorder;
+      if (navBorder !== undefined) uiRowPayload.nav_border = toUiBool(navBorder, false);
+      if (navIconBorder !== undefined) uiRowPayload.nav_icon_border = toUiBool(navIconBorder, false);
       if (navBgStyle !== undefined) uiRowPayload.nav_bg_style = navBgStyle;
       if (navBgColor !== undefined) uiRowPayload.nav_bg_color = navBgColor;
       if (navBtnBgColor !== undefined) uiRowPayload.nav_btn_bg_color = navBtnBgColor;
@@ -5906,19 +6022,16 @@ async function startServer() {
 
       const rowPayload: Record<string, any> = {
         salon_id: salonId,
-        name: professional.name,
-        full_name: professional.name,
+        full_name: professional.full_name || professional.name,
         role: professional.role || 'Especialista',
-        access_level: professional.access_level || 'professional',
-        phone: professional.phone || '',
-        phone_whatsapp: professional.phone || '',
+        access_level: normalizeV6ProfAccessLevel(professional.access_level),
+        phone: professional.phone || null,
         email: professional.email || null,
         avatar_url: professional.avatar_url || null,
         commission_rate: Number(professional.commission_rate ?? 50),
         product_commission_rate: Number(professional.product_commission_rate ?? 10),
         specialties: Array.isArray(professional.specialties) ? professional.specialties : [],
         is_active: professional.is_active ?? true,
-        status: (professional.is_active ?? true) ? 'active' : 'suspended',
         updated_at: new Date().toISOString(),
       };
 
@@ -5926,19 +6039,13 @@ async function startServer() {
 
       let savedPro: any = null;
       if (isUuid && action === 'update') {
-        const { data } = await supabaseAdmin
-          .from('professionals')
-          .update(rowPayload)
-          .eq('id', professional.id)
-          .select()
-          .maybeSingle();
+        const { data } = await safeSupabaseWrite('professionals', 'update', rowPayload, {
+          eqCol: 'id',
+          eqVal: professional.id,
+        });
         savedPro = data;
       } else {
-        const { data } = await supabaseAdmin
-          .from('professionals')
-          .insert(rowPayload)
-          .select()
-          .maybeSingle();
+        const { data } = await safeSupabaseWrite('professionals', 'insert', rowPayload);
         savedPro = data;
       }
 

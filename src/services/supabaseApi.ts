@@ -529,10 +529,22 @@ export async function registerTriadeUser(userData: {
   const cleanPhone = userData.phone.trim();
   const cleanCpf = (userData.cpf || '').trim();
   const pass = (userData.password || '').trim();
-  const addr = userData.address || { cep: '', street: '', number: '', complement: '', neighborhood: '', city: 'São Paulo', state: 'SP' };
+  const addr = userData.address || {
+    cep: '',
+    street: '',
+    number: '',
+    complement: '',
+    neighborhood: '',
+    city: 'São Paulo',
+    state: 'SP',
+  };
   const isUuid = (val: any) =>
     typeof val === 'string' &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(cleanEmail)) {
+    return { success: false, error: 'Informe um e-mail válido.' };
+  }
 
   if (
     !/[A-Z]/.test(cleanUsername) ||
@@ -560,41 +572,6 @@ export async function registerTriadeUser(userData: {
         'Já existe um usuário cadastrado com estes dados (Nome de Usuário, E-mail, WhatsApp ou CPF).',
     };
   }
-
-  let authUserId: string | undefined;
-  let authSession: any = undefined;
-  try {
-    const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
-      email: cleanEmail,
-      password: pass,
-      options: {
-        data: {
-          full_name: cleanName,
-          name: cleanName,
-          phone: cleanPhone,
-          username: cleanUsername,
-        },
-      },
-    });
-    const hasRealIdentity =
-      !signUpErr &&
-      signUpData?.user?.id &&
-      (!Array.isArray(signUpData.user.identities) || signUpData.user.identities.length > 0);
-
-    if (hasRealIdentity && signUpData?.user?.id) {
-      authUserId = signUpData.user.id;
-      authSession = signUpData.session || undefined;
-    } else {
-      const { data: signInData } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
-        password: pass,
-      });
-      if (signInData?.user?.id) {
-        authUserId = signInData.user.id;
-        authSession = signInData.session || undefined;
-      }
-    }
-  } catch {}
 
   try {
     const resp = await fetch('/api/public/register-user', {
@@ -626,10 +603,22 @@ export async function registerTriadeUser(userData: {
     if (text && text.trim().startsWith('{')) {
       const json = JSON.parse(text);
       if (resp.ok && json.success) {
+        let authSession: any = undefined;
+        let signedUserId: string | undefined = json.client?.user_id || json.user?.id || json.client?.id;
+        if (pass) {
+          try {
+            const { data: signInData } = await supabase.auth.signInWithPassword({
+              email: cleanEmail,
+              password: pass,
+            });
+            if (signInData?.session) authSession = signInData.session;
+            if (signInData?.user?.id) signedUserId = signInData.user.id;
+          } catch {}
+        }
         return {
           success: true,
           client: json.client || json.user,
-          userId: authUserId || json.client?.user_id || json.client?.id || json.user?.id,
+          userId: signedUserId,
           session: authSession,
         };
       }
@@ -645,81 +634,75 @@ export async function registerTriadeUser(userData: {
   }
 
   try {
-    const { data: rpcData, error: rpcErr } = await supabase.rpc('register_triade_user', {
-      p_full_name: cleanName,
-      p_username: cleanUsername,
-      p_phone: cleanPhone,
-      p_email: cleanEmail,
-      p_password_hash: pass,
-      p_cep: addr.cep || '',
-      p_street: addr.street || '',
-      p_number: addr.number || '',
-      p_complement: addr.complement || '',
-      p_neighborhood: addr.neighborhood || '',
-      p_city: addr.city || 'São Paulo',
-      p_state: addr.state || 'SP',
-      p_origin_type: userData.origin || 'portal',
-      p_origin_salon_id: isUuid(userData.salonId) ? userData.salonId : null,
-    });
+    const resolvedCreatedVia =
+      userData.origin === 'admin' ? 'admvapp' : userData.origin === 'establishment' ? 'mnvapp' : 'pvapp';
 
-    if (!rpcErr && rpcData) {
-      const rpcClientId = rpcData.client_id || rpcData.id;
-      if (rpcClientId) {
-        try {
-          await safeSupabaseClientWrite(
-            'clients',
-            'update',
-            {
-              ...(authUserId ? { user_id: authUserId } : {}),
-              ...(cleanCpf ? { cpf: cleanCpf } : {}),
-              ...(pass ? { password_hash: pass } : {}),
-              ...(addr.latitude !== undefined && addr.latitude !== null ? { latitude: addr.latitude } : {}),
-              ...(addr.longitude !== undefined && addr.longitude !== null ? { longitude: addr.longitude } : {}),
-            },
-            { eqColumn: 'id', eqValue: rpcClientId }
-          );
-        } catch {}
-      }
-      return {
-        success: true,
-        client: rpcData,
-        userId: authUserId || rpcClientId,
-        session: authSession,
-      };
-    }
-  } catch (rpcException) {
-    console.warn('[registerTriadeUser] Aviso RPC:', rpcException);
-  }
-
-  try {
-    const fullAddress = [addr.street, addr.number, addr.complement, addr.neighborhood, addr.city, addr.state, addr.cep]
-      .filter(Boolean)
-      .join(', ');
-
-    if (authUserId) {
-      try {
-        await supabaseAdmin.from('profiles').upsert(
-          {
-            id: authUserId,
+    let authUserId: string | undefined;
+    let authSession: any = undefined;
+    try {
+      const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password: pass,
+        options: {
+          data: {
             full_name: cleanName,
-            email: cleanEmail,
-            phone_whatsapp: cleanPhone || null,
-            document_number: cleanCpf || null,
-            updated_at: new Date().toISOString(),
+            phone: cleanPhone,
+            username: cleanUsername,
+            cpf: cleanCpf || undefined,
+            created_via: resolvedCreatedVia,
           },
-          { onConflict: 'id' }
-        );
-      } catch {}
+        },
+      });
+      if (!signUpErr && signUpData?.user?.id) {
+        authUserId = signUpData.user.id;
+        authSession = signUpData.session || undefined;
+      } else {
+        const { data: signInData } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password: pass,
+        });
+        if (signInData?.user?.id) {
+          authUserId = signInData.user.id;
+          authSession = signInData.session || undefined;
+        }
+      }
+    } catch {}
+
+    const nowIso = new Date().toISOString();
+    if (authUserId) {
+      await safeSupabaseClientWrite(
+        'profiles',
+        'upsert',
+        {
+          id: authUserId,
+          email: cleanEmail,
+          full_name: cleanName,
+          username: cleanUsername,
+          phone: cleanPhone || null,
+          cpf: cleanCpf || null,
+          role: 'client',
+          cep: addr.cep || null,
+          address: addr.street || null,
+          street_number: addr.number || null,
+          complement: addr.complement || null,
+          neighborhood: addr.neighborhood || null,
+          city: addr.city || 'São Paulo',
+          state: addr.state || 'SP',
+          ...(addr.latitude !== undefined && addr.latitude !== null ? { latitude: addr.latitude } : {}),
+          ...(addr.longitude !== undefined && addr.longitude !== null ? { longitude: addr.longitude } : {}),
+          is_active: true,
+          created_via: resolvedCreatedVia,
+          updated_at: nowIso,
+        },
+        { onConflict: 'id' }
+      );
     }
 
     const baseClientRow: Record<string, any> = {
-      name: cleanName,
       full_name: cleanName,
-      username: cleanUsername,
       email: cleanEmail,
-      phone: cleanPhone,
-      ...(cleanCpf ? { cpf: cleanCpf } : {}),
-      password_hash: pass,
+      phone: cleanPhone || null,
+      cpf: cleanCpf || null,
       cep: addr.cep || null,
       address: addr.street || null,
       street_number: addr.number || null,
@@ -727,98 +710,43 @@ export async function registerTriadeUser(userData: {
       neighborhood: addr.neighborhood || null,
       city: addr.city || 'São Paulo',
       state: addr.state || 'SP',
-      default_address: fullAddress || null,
-      origin_type: userData.origin || 'portal',
-      origin_salon_id: isUuid(userData.salonId) ? userData.salonId : null,
+      ...(addr.latitude !== undefined && addr.latitude !== null ? { latitude: addr.latitude } : {}),
+      ...(addr.longitude !== undefined && addr.longitude !== null ? { longitude: addr.longitude } : {}),
       is_active: true,
-      access_level: 'Cliente Titular',
-      updated_at: new Date().toISOString(),
+      created_via: resolvedCreatedVia,
+      updated_at: nowIso,
     };
 
-    const { data: existingSysAdmin } = await supabaseAdmin
-      .from('system_admins')
-      .select('id, email, username')
-      .or(`email.ilike.${cleanEmail},username.ilike.${cleanUsername}`)
-      .limit(1);
+    const writeRes = authUserId
+      ? await safeSupabaseClientWrite(
+          'clients',
+          'upsert',
+          { user_id: authUserId, ...baseClientRow },
+          { onConflict: 'user_id' }
+        )
+      : await safeSupabaseClientWrite('clients', 'insert', baseClientRow);
 
-    if (existingSysAdmin && existingSysAdmin.length > 0) {
-      return {
-        success: false,
-        error: `O usuário "${cleanUsername}" (${cleanEmail}) já está cadastrado como Administrador Master do sistema.`,
-      };
+    if (writeRes.error) {
+      return { success: false, error: writeRes.error.message };
     }
 
-    const { data: existing } = await supabaseAdmin
-      .from('clients')
-      .select('id, user_id')
-      .or(`email.ilike.${cleanEmail},username.ilike.${cleanUsername}`)
-      .maybeSingle();
-
-    if (existing?.id) {
-      const candidateUserId = authUserId || existing.user_id || null;
-      let { data: updated, error: upErr } = await supabaseAdmin
-        .from('clients')
-        .update({
-          ...baseClientRow,
-          ...(candidateUserId ? { user_id: candidateUserId } : {}),
-        })
-        .eq('id', existing.id)
-        .select()
-        .single();
-
-      if (upErr && (upErr.message?.includes('clients_user_id_fkey') || upErr.code === '23503')) {
-        const retry = await supabaseAdmin
-          .from('clients')
-          .update({
-            ...baseClientRow,
-            user_id: null,
-          })
-          .eq('id', existing.id)
-          .select()
-          .single();
-        updated = retry.data;
-        upErr = retry.error;
-      }
-
-      if (upErr) return { success: false, error: upErr.message };
-      return {
-        success: true,
-        client: updated,
-        userId: updated?.user_id || authUserId || updated?.id,
-        session: authSession,
-      };
-    } else {
-      const nowIso = new Date().toISOString();
-      let { data: inserted, error: insErr } = await supabaseAdmin
-        .from('clients')
-        .insert([
-          {
-            ...baseClientRow,
-            created_at: nowIso,
-            ...(authUserId ? { id: authUserId, user_id: authUserId } : {}),
-          },
-        ])
-        .select()
-        .single();
-
-      if (insErr && (insErr.message?.includes('clients_user_id_fkey') || insErr.code === '23503' || insErr.code === '23505')) {
-        const retry = await supabaseAdmin
-          .from('clients')
-          .insert([{ ...baseClientRow, created_at: nowIso, user_id: null }])
-          .select()
-          .single();
-        inserted = retry.data;
-        insErr = retry.error;
-      }
-
-      if (insErr) return { success: false, error: insErr.message };
-      return {
-        success: true,
-        client: inserted,
-        userId: inserted?.user_id || authUserId || inserted?.id,
-        session: authSession,
-      };
+    if (isUuid(userData.salonId) && writeRes.data?.id) {
+      try {
+        await safeSupabaseClientWrite(
+          'salon_clients',
+          'upsert',
+          { salon_id: userData.salonId, client_id: writeRes.data.id, updated_at: nowIso },
+          { onConflict: 'salon_id,client_id' }
+        );
+      } catch {}
     }
+
+    return {
+      success: true,
+      client: writeRes.data,
+      userId: writeRes.data?.user_id || authUserId || writeRes.data?.id,
+      session: authSession,
+    };
   } catch (err: any) {
     return { success: false, error: err?.message || 'Erro ao salvar cadastro no Supabase.' };
   }
@@ -1186,7 +1114,6 @@ export async function createAdminSalon(
   }
 ): Promise<{ success: boolean; salon?: AdminSalonItem; error?: string }> {
   try {
-
     try {
       const resp = await fetch('/api/admin/salons', {
         method: 'POST',
@@ -1199,11 +1126,8 @@ export async function createAdminSalon(
         if (resp.ok && json.success && json.salon) {
           return { success: true, salon: json.salon };
         }
-        if (resp.status === 409 && json.error) {
-          return { success: false, error: json.error };
-        }
         if (json.error) {
-          console.warn('[Supabase Admin] Aviso da API ao criar salão, tentando fallback direto:', json.error);
+          return { success: false, error: json.error };
         }
       }
     } catch (e: any) {
@@ -1224,9 +1148,15 @@ export async function createAdminSalon(
     const resolvedLogo = await uploadClientBase64Media(salonData.logo_url, `${cleanSlug}-logo`);
     const resolvedFavicon =
       (await uploadClientBase64Media(salonData.favicon_url, `${cleanSlug}-favicon`)) || resolvedLogo || null;
-    const resolvedStatus: 'active' | 'pending' | 'incomplete' | 'suspended' =
-      (String(salonData.status || 'active').toLowerCase() as 'active' | 'pending' | 'incomplete' | 'suspended') ||
-      'active';
+    const rawSt = String(salonData.status || 'active').toLowerCase();
+    const dbStatus: 'active' | 'pending' | 'suspended' | 'archived' =
+      rawSt === 'suspended'
+        ? 'suspended'
+        : rawSt === 'archived'
+        ? 'archived'
+        : rawSt === 'pending' || rawSt === 'incomplete'
+        ? 'pending'
+        : 'active';
 
     let verifiedAuthOwnerId: string | null = null;
     try {
@@ -1237,31 +1167,36 @@ export async function createAdminSalon(
     } catch {}
 
     const resolvedFee = Number(salonData.fee_per_booking ?? salonData.billing_fee_value ?? 2.5);
-    const resolvedPlan = salonData.billing_plan || 'PER_APPOINTMENT';
+    const rawPlan = String(salonData.billing_plan || 'per_booking').toLowerCase();
+    const dbBillingPlan: 'per_booking' | 'monthly_subscription' | 'enterprise' | 'trial' =
+      rawPlan === 'monthly_subscription' || rawPlan === 'monthly'
+        ? 'monthly_subscription'
+        : rawPlan === 'enterprise'
+        ? 'enterprise'
+        : rawPlan === 'trial'
+        ? 'trial'
+        : 'per_booking';
     const resolvedMonthlyFee = Number(salonData.monthly_subscription_fee ?? 89.9);
-    const resolvedDueDay = Number(salonData.billing_due_day ?? 10);
+    const resolvedDueDay = Math.min(28, Math.max(1, Math.round(Number(salonData.billing_due_day ?? 10) || 10)));
     const resolvedPrimaryColor = salonData.primary_color || '#10B981';
     const resolvedSecondaryColor = salonData.secondary_color || '#065F46';
     const resolvedTradeName = salonData.trade_name?.trim() || 'Novo Salão';
+    const resolvedWhatsapp = salonData.phone_whatsapp?.trim() || null;
+    const resolvedDefaultTheme: 'light' | 'dark' =
+      String(salonData.default_theme || 'light').toLowerCase() === 'dark' ? 'dark' : 'light';
+    const nowIso = new Date().toISOString();
 
     const dbInsert: Record<string, any> = {
       ...(verifiedAuthOwnerId ? { owner_id: verifiedAuthOwnerId } : {}),
-      name: resolvedTradeName,
       trade_name: resolvedTradeName,
       legal_name: salonData.legal_name?.trim() || resolvedTradeName,
       slug: cleanSlug,
-      subdomain: cleanSlug,
-      category: salonData.category || 'Barbearia',
-      document_type: salonData.document_type || 'CNPJ',
-      document_number: salonData.document_number?.trim() || null,
+      cnpj: salonData.document_type !== 'CPF' ? salonData.document_number?.trim() || null : null,
       owner_cpf: salonData.owner_cpf?.trim() || null,
-      pix_key: salonData.pix_key?.trim() || null,
-      pix_keys: Array.isArray(salonData.pix_keys) ? salonData.pix_keys : [],
-      operating_model: salonData.operating_model || 'physical',
-      billing_plan: resolvedPlan,
-      billing_fee_value: resolvedFee,
-      phone: salonData.phone_whatsapp?.trim() || null,
-      phone_whatsapp: salonData.phone_whatsapp?.trim() || null,
+      category: salonData.category || 'Barbearia',
+      slogan: salonData.slogan?.trim() || null,
+      phone: resolvedWhatsapp,
+      whatsapp: resolvedWhatsapp,
       email: salonData.email?.trim().toLowerCase() || null,
       address: salonData.address?.trim() || null,
       street_number: salonData.street_number?.trim() || null,
@@ -1276,186 +1211,68 @@ export async function createAdminSalon(
       logo_light_url: resolvedLogo,
       logo_dark_url: resolvedLogo,
       favicon_url: resolvedFavicon,
-      pwa_name: resolvedTradeName,
-      slogan: salonData.slogan?.trim() || '',
-      brand_font: salonData.brand_font || 'Poppins',
-      default_theme: salonData.default_theme || 'light',
-      primary_color: resolvedPrimaryColor,
-      secondary_color: resolvedSecondaryColor,
-      nav_bg_style: salonData.nav_bg_style || 'solid',
-      nav_bg_color: salonData.nav_bg_color || '#D1FAE5',
-      nav_active_color: salonData.nav_active_color || '#10B981',
-      section_header_bg_style: salonData.section_header_bg_style || 'solid',
-      section_header_bg_color: salonData.section_header_bg_color || '#ECFDF5',
-      section_header_text_color: salonData.section_header_text_color || '#065F46',
-      section_header_icon_color: salonData.section_header_icon_color || '#059669',
-      status: resolvedStatus,
-      branding: {
-        themeMode: salonData.default_theme || 'light',
-        defaultTheme: salonData.default_theme || 'light',
-        primaryColor: resolvedPrimaryColor,
-        secondaryColor: resolvedSecondaryColor,
-        navBgStyle: salonData.nav_bg_style || 'solid',
-        navBgColor: salonData.nav_bg_color || '#D1FAE5',
-        navIconBorder: salonData.nav_icon_border || 'none',
-        sectionHeaderBgColor: salonData.section_header_bg_color || '#ECFDF5',
-        sectionHeaderTextColor: salonData.section_header_text_color || '#065F46',
-        sectionHeaderIconColor: salonData.section_header_icon_color || '#059669',
-        category: salonData.category || 'Barbearia',
-        faviconUrl: resolvedFavicon || '',
-        salonIcon: resolvedFavicon || '',
-        slogan: salonData.slogan || '',
-        brandFont: salonData.brand_font || 'Poppins',
-        pwaName: resolvedTradeName,
-        owner_name: (salonData.owner_name || salonData.legal_name || resolvedTradeName).trim(),
-        owner_email: ownerEmail,
-        owner_phone: salonData.phone_whatsapp?.trim() || '',
-        ownerCpf: salonData.owner_cpf?.trim() || '',
-        hasCnpj: Boolean(salonData.has_cnpj),
-        billing_plan: resolvedPlan,
-        fee_per_booking: resolvedFee,
-        billing_fee_value: resolvedFee,
-        monthly_subscription_fee: resolvedMonthlyFee,
-        billing_due_day: resolvedDueDay,
-        pixKeys: Array.isArray(salonData.pix_keys) ? salonData.pix_keys : [],
-        created_via: salonData.created_via || 'admvapp',
-        created_at_iso: new Date().toISOString(),
-      },
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      is_active: resolvedStatus !== 'incomplete' && resolvedStatus !== 'suspended',
-      is_verified: resolvedStatus === 'active' || salonData.is_verified === true,
+      home_delivery_enabled:
+        salonData.operating_model === 'delivery' ||
+        salonData.operating_model === 'home_only' ||
+        salonData.operating_model === 'hybrid',
+      pix_key: salonData.pix_key?.trim() || null,
+      pix_keys: Array.isArray(salonData.pix_keys) ? salonData.pix_keys : [],
+      billing_plan: dbBillingPlan,
+      fee_per_booking: resolvedFee,
+      monthly_subscription_fee: resolvedMonthlyFee,
+      billing_due_day: resolvedDueDay,
+      status: dbStatus,
+      is_active: dbStatus === 'active',
+      created_via: 'admvapp',
+      updated_at: nowIso,
     };
 
-    const workingInsert: Record<string, any> = { ...dbInsert };
-    let data: any = null;
-    let lastError: any = null;
+    const { data: existingSlugRow } = await supabaseAdmin
+      .from('salons')
+      .select('id')
+      .ilike('slug', cleanSlug)
+      .maybeSingle();
 
-    for (let attempt = 0; attempt < 35; attempt++) {
-      const res = await supabaseAdmin
-        .from('salons')
-        .upsert([workingInsert], { onConflict: 'slug' })
-        .select()
-        .maybeSingle();
-
-      if (!res.error) {
-        data = res.data;
-        lastError = null;
-        break;
-      }
-
-      lastError = res.error;
-      const msg = String(res.error.message || '');
-      const colMatch =
-        msg.match(/Could not find the '([^']+)' column/i) ||
-        msg.match(/column "([^"]+)" of relation .* does not exist/i) ||
-        msg.match(/column ([a-zA-Z0-9_]+) does not exist/i);
-
-      if (colMatch && colMatch[1] && workingInsert[colMatch[1]] !== undefined) {
-        const missingCol = colMatch[1];
-        workingInsert.branding = {
-          ...(workingInsert.branding && typeof workingInsert.branding === 'object' ? workingInsert.branding : {}),
-          [missingCol]: workingInsert[missingCol],
-        };
-        delete workingInsert[missingCol];
-        continue;
-      }
-
-      if (
-        (res.error.code === '23503' ||
-          msg.includes('salons_owner_id_fkey') ||
-          msg.includes('foreign key constraint')) &&
-        workingInsert.owner_id !== undefined
-      ) {
-        workingInsert.branding = {
-          ...(workingInsert.branding && typeof workingInsert.branding === 'object' ? workingInsert.branding : {}),
-          ownerRecordId: workingInsert.owner_id,
-        };
-        delete workingInsert.owner_id;
-        continue;
-      }
-
-      break;
-    }
+    const { data, error: lastError } = existingSlugRow?.id
+      ? await safeSupabaseClientWrite('salons', 'update', dbInsert, {
+          eqColumn: 'id',
+          eqValue: existingSlugRow.id,
+        })
+      : await safeSupabaseClientWrite('salons', 'insert', dbInsert);
 
     if (lastError) {
-      console.warn('[Supabase Admin] Warning inserção:', lastError.message);
       return { success: false, error: lastError.message };
     }
 
     if (data?.id) {
-      try {
-        await supabaseAdmin.from('salon_ui_settings').upsert(
-          {
-            salon_id: data.id,
-            default_theme: salonData.default_theme || 'light',
-            primary_color: resolvedPrimaryColor,
-            secondary_color: resolvedSecondaryColor,
-            pwa_name: salonData.trade_name?.trim() || 'Novo Salão',
-            section_header_bg_color: salonData.section_header_bg_color || '#ECFDF5',
-            section_header_text_color: salonData.section_header_text_color || '#065F46',
-            section_header_icon_color: salonData.section_header_icon_color || '#059669',
-            section_header_bg_style: 'solid',
-            nav_bg_style: salonData.nav_bg_style || 'solid',
-            nav_bg_color: salonData.nav_bg_color || '#D1FAE5',
-            nav_icon_border: salonData.nav_icon_border || 'none',
-            nav_active_color: salonData.nav_active_color || '#10B981',
-            branding_snapshot: dbInsert.branding,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'salon_id' }
-        );
-      } catch {}
+      await safeSupabaseClientWrite(
+        'salon_ui_settings',
+        'upsert',
+        {
+          salon_id: data.id,
+          default_theme: resolvedDefaultTheme,
+          primary_color: resolvedPrimaryColor,
+          secondary_color: resolvedSecondaryColor,
+          brand_font: salonData.brand_font || 'Poppins',
+          pwa_name: resolvedTradeName,
+          section_header_bg_color: salonData.section_header_bg_color || '#ECFDF5',
+          section_header_text_color: salonData.section_header_text_color || '#065F46',
+          section_header_icon_color: salonData.section_header_icon_color || '#059669',
+          section_header_bg_style: salonData.section_header_bg_style || 'solid',
+          nav_bg_style: salonData.nav_bg_style || 'solid',
+          nav_bg_color: salonData.nav_bg_color || '#D1FAE5',
+          nav_icon_border: Boolean(salonData.nav_icon_border && salonData.nav_icon_border !== 'none'),
+          nav_active_color: salonData.nav_active_color || '#10B981',
+          updated_at: nowIso,
+        },
+        { onConflict: 'salon_id' }
+      );
     }
 
     if (data?.id && (salonData.email || salonData.owner_name || salonData.legal_name)) {
       try {
         const ownerName = (salonData.owner_name || salonData.legal_name || salonData.trade_name || 'Proprietário').trim();
-        const ownerPhone = salonData.phone_whatsapp?.trim() || '';
-        const ownerPersonalCpf = (salonData.owner_cpf || '').trim();
-        const ownerUsername = ownerEmail.split('@')[0].replace(/[^a-zA-Z0-9._-]/g, '') || cleanSlug;
-
-        const { data: existingClient } = await supabaseAdmin
-          .from('clients')
-          .select('id, user_id')
-          .eq('email', ownerEmail)
-          .maybeSingle();
-
-        if (!existingClient) {
-          await supabaseAdmin
-            .from('clients')
-            .insert([{
-              ...(verifiedAuthOwnerId ? { id: verifiedAuthOwnerId, user_id: verifiedAuthOwnerId } : {}),
-              name: ownerName,
-              full_name: ownerName,
-              username: ownerUsername,
-              email: ownerEmail,
-              phone: ownerPhone,
-              ...(ownerPersonalCpf ? { cpf: ownerPersonalCpf } : {}),
-              cep: dbInsert.cep,
-              address: dbInsert.address,
-              street_number: dbInsert.street_number,
-              complement: dbInsert.complement,
-              neighborhood: dbInsert.neighborhood,
-              city: dbInsert.city,
-              state: dbInsert.state,
-              origin_type: 'establishment',
-              origin_salon_id: data.id,
-              is_active: true,
-              access_level: 'Proprietário (Dono)',
-            }]);
-        } else {
-          await supabaseAdmin
-            .from('clients')
-            .update({
-              ...(verifiedAuthOwnerId ? { user_id: verifiedAuthOwnerId } : {}),
-              ...(ownerPersonalCpf ? { cpf: ownerPersonalCpf } : {}),
-              origin_type: 'establishment',
-              origin_salon_id: data.id,
-              access_level: 'Proprietário (Dono)',
-            })
-            .eq('id', existingClient.id);
-        }
+        const ownerPersonalCpf = (salonData.owner_cpf || '').trim() || null;
 
         const { data: existingProf } = await supabaseAdmin
           .from('professionals')
@@ -1465,18 +1282,15 @@ export async function createAdminSalon(
           .maybeSingle();
 
         if (!existingProf) {
-          await supabaseAdmin.from('professionals').insert([{
+          await safeSupabaseClientWrite('professionals', 'insert', {
             salon_id: data.id,
             ...(verifiedAuthOwnerId ? { user_id: verifiedAuthOwnerId } : {}),
-            name: ownerName,
             full_name: ownerName,
-            username: ownerUsername,
             role: 'Proprietário',
-            access_level: 'Proprietário (Dono)',
-            phone: ownerPhone,
-            phone_whatsapp: ownerPhone,
+            access_level: 'admin',
+            phone: resolvedWhatsapp,
             email: ownerEmail,
-            status: 'active',
+            cpf: ownerPersonalCpf,
             is_active: true,
             cep: dbInsert.cep,
             address: dbInsert.address,
@@ -1485,51 +1299,37 @@ export async function createAdminSalon(
             neighborhood: dbInsert.neighborhood,
             city: dbInsert.city,
             state: dbInsert.state,
-          }]);
-        } else if (verifiedAuthOwnerId) {
-          await supabaseAdmin
-            .from('professionals')
-            .update({ user_id: verifiedAuthOwnerId, role: 'Proprietário', access_level: 'Proprietário (Dono)' })
-            .eq('id', existingProf.id);
+            created_via: 'admvapp',
+            updated_at: nowIso,
+          });
         }
 
         if (verifiedAuthOwnerId) {
-          await supabaseAdmin
-            .from('salons')
-            .update({ owner_id: verifiedAuthOwnerId })
-            .eq('id', data.id);
-
-          try {
-            const { data: existingMember } = await supabaseAdmin
-              .from('salon_members')
-              .select('id')
-              .eq('salon_id', data.id)
-              .eq('user_id', verifiedAuthOwnerId)
-              .maybeSingle();
-
-            if (!existingMember) {
-              const { error: memErr } = await supabaseAdmin
-                .from('salon_members')
-                .insert([{ salon_id: data.id, user_id: verifiedAuthOwnerId, role: 'owner' }]);
-              if (memErr) {
-                await supabase
-                  .from('salon_members')
-                  .insert([{ salon_id: data.id, user_id: verifiedAuthOwnerId, role: 'owner' }]);
-              }
-            }
-          } catch {}
+          await safeSupabaseClientWrite(
+            'salon_members',
+            'upsert',
+            {
+              salon_id: data.id,
+              user_id: verifiedAuthOwnerId,
+              role: 'owner',
+              is_active: true,
+              created_via: 'admvapp',
+              updated_at: nowIso,
+            },
+            { onConflict: 'salon_id,user_id' }
+          );
         }
       } catch {}
     }
 
     const newSalon: AdminSalonItem = {
       id: data?.id || `salon-local-${Date.now()}`,
-      trade_name: salonData.trade_name || 'Novo Salão',
+      trade_name: resolvedTradeName,
       slug: cleanSlug,
-      category: salonData.category || 'salao',
-      status: resolvedStatus,
-      is_verified: salonData.is_verified ?? true,
-      phone_whatsapp: salonData.phone_whatsapp || '',
+      category: salonData.category || 'barbearia',
+      status: dbStatus === 'archived' ? 'suspended' : dbStatus,
+      is_verified: dbStatus === 'active',
+      phone_whatsapp: resolvedWhatsapp || '',
       email: salonData.email || '',
       address: salonData.address || '',
       neighborhood: salonData.neighborhood || '',
@@ -1539,16 +1339,16 @@ export async function createAdminSalon(
       favicon_url: resolvedFavicon || '',
       slogan: salonData.slogan || '',
       brand_font: salonData.brand_font || 'Poppins',
-      default_theme: salonData.default_theme || 'light',
+      default_theme: resolvedDefaultTheme,
       primary_color: resolvedPrimaryColor,
       secondary_color: resolvedSecondaryColor,
-      billing_plan: resolvedPlan,
+      billing_plan: dbBillingPlan,
       fee_per_booking: resolvedFee,
       billing_fee_value: resolvedFee,
       monthly_subscription_fee: resolvedMonthlyFee,
       billing_due_day: resolvedDueDay,
-      created_at: data?.created_at || dbInsert.created_at,
-      updated_at: data?.updated_at || dbInsert.updated_at,
+      created_at: data?.created_at || nowIso,
+      updated_at: data?.updated_at || nowIso,
       created_via: data?.created_via || 'admvapp',
       professionals_count: 1,
       active_offers_count: 0,
@@ -1581,9 +1381,10 @@ export async function bulkUpdateSalons(
     } catch {}
 
     if (action === 'update_status' && targetStatus) {
+      const normalizedStatus = targetStatus === 'incomplete' ? 'pending' : targetStatus;
       await supabaseAdmin
         .from('salons')
-        .update({ status: targetStatus, is_verified: targetStatus === 'active' })
+        .update({ status: normalizedStatus, is_active: normalizedStatus === 'active' })
         .in('id', ids);
     } else if (action === 'delete') {
       await supabaseAdmin.from('salons').delete().in('id', ids);

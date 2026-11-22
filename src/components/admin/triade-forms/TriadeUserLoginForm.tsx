@@ -206,7 +206,7 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
 
       let accountType: 'client' | 'professional' | 'owner' =
         matchedClient?.origin_type === 'establishment' ||
-        matchedClient?.access_level?.toLowerCase().includes('propriet')
+        String(matchedClient?.access_level || '').toLowerCase().includes('propriet')
           ? 'owner'
           : 'client';
 
@@ -254,8 +254,8 @@ export const TriadeUserLoginForm: React.FC<TriadeUserLoginFormProps> = ({
           if (profMatches && profMatches.length > 0) {
             const isOwnerProf = profMatches.some(
               (p: any) =>
-                p.role?.toLowerCase().includes('propriet') ||
-                p.access_level?.toLowerCase().includes('propriet')
+                String(p.role || '').toLowerCase().includes('propriet') ||
+                String(p.access_level || '').toLowerCase().includes('propriet')
             );
             accountType = isOwnerProf ? 'owner' : 'professional';
 
