@@ -13,6 +13,8 @@ import {
 import { AdminScreenId, SystemAdminUser, AdminAuthTab } from '../../types/admin';
 import { UserAvatar } from '../common/UserAvatar';
 import { useTheme } from '../../context/ThemeContext';
+import { PWAInstallButton } from './PWAInstallButton';
+import { AdminPushToggle } from './AdminPushToggle';
 
 interface AdminHeaderProps {
   currentScreen: AdminScreenId;
@@ -79,6 +81,12 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
             <Globe className="w-3.5 h-3.5 text-emerald-500" />
             <span>vagouapp.com</span>
           </button>
+        )}
+
+        <PWAInstallButton variant="header" />
+
+        {adminUser && (
+          <AdminPushToggle adminId={adminUser.id} adminRole={adminUser.role} />
         )}
 
         <button

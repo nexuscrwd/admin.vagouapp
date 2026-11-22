@@ -11,15 +11,41 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return outputArray;
 }
 
+export async function getAdminPushStatus(): Promise<{
+  supported: boolean;
+  permission: NotificationPermission | 'unsupported';
+  subscribed: boolean;
+}> {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window) || typeof Notification === 'undefined') {
+    return { supported: false, permission: 'unsupported', subscribed: false };
+  }
+  try {
+    const registration = await navigator.serviceWorker.getRegistration('/sw.js');
+    const subscription = await registration?.pushManager.getSubscription();
+    return {
+      supported: true,
+      permission: Notification.permission,
+      subscribed: Boolean(subscription) && Notification.permission === 'granted',
+    };
+  } catch {
+    return {
+      supported: true,
+      permission: Notification.permission,
+      subscribed: false,
+    };
+  }
+}
+
 export async function registerAdminWebPush(
-  role = 'super_admin'
+  role = 'super_admin',
+  adminId?: string
 ): Promise<{ success: boolean; error?: string }> {
-  if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window) || typeof Notification === 'undefined') {
     return { success: false, error: 'Navegador sem suporte a Web Push.' };
   }
 
   try {
-    const keyRes = await fetch('/api/push/vapid-public-key');
+    const keyRes = await fetch('/api/push/vapid-public-key', { cache: 'no-store' });
     const keyJson = await keyRes.json();
     if (!keyRes.ok || !keyJson.publicKey) {
       return { success: false, error: 'Chave pública VAPID não configurada no servidor.' };
@@ -27,10 +53,10 @@ export async function registerAdminWebPush(
 
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') {
-      return { success: false, error: 'Permissão de notificação não concedida.' };
+      return { success: false, error: 'Permissão de notificação negada no dispositivo.' };
     }
 
-    const registration = await navigator.serviceWorker.register('/sw.js');
+    const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
     await navigator.serviceWorker.ready;
 
     let subscription = await registration.pushManager.getSubscription();
@@ -46,6 +72,7 @@ export async function registerAdminWebPush(
 
     const subRes = await fetch('/api/push/subscribe', {
       method: 'POST',
+      cache: 'no-store',
       headers: {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -54,6 +81,7 @@ export async function registerAdminWebPush(
         subscription: subscription.toJSON(),
         app_origin: 'admvapp',
         role,
+        admin_id: adminId,
       }),
     });
 
@@ -68,6 +96,32 @@ export async function registerAdminWebPush(
   }
 }
 
+export async function sendTestAdminPush(): Promise<{
+  success: boolean;
+  sent?: number;
+  error?: string;
+}> {
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    const res = await fetch('/api/push/test', {
+      method: 'POST',
+      cache: 'no-store',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+    const json = await res.json();
+    if (!res.ok || !json.success) {
+      return { success: false, error: json.error || 'Falha ao enviar push de teste.' };
+    }
+    return { success: true, sent: json.sent };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Erro de conexão ao testar push.' };
+  }
+}
+
 export async function unregisterAdminWebPush(): Promise<void> {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
   try {
@@ -79,6 +133,7 @@ export async function unregisterAdminWebPush(): Promise<void> {
     await subscription.unsubscribe();
     await fetch('/api/push/unsubscribe', {
       method: 'POST',
+      cache: 'no-store',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ endpoint }),
     }).catch(() => {});

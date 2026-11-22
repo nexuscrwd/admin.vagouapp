@@ -1,8 +1,6 @@
-const CACHE_NAME = 'admin-vapp-cache-v9';
+const CACHE_NAME = 'admin-vapp-cache-v10';
 
 const PRECACHE_ASSETS = [
-  '/',
-  '/index.html',
   '/icon.svg',
   '/icon-192.png',
   '/icon-512.png',
@@ -15,11 +13,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(CACHE_NAME)
-      .then((cache) => {
-        return cache.addAll(PRECACHE_ASSETS).catch((err) => {
-          console.warn('[SW] Aviso no pré-cache de alguns assets:', err);
-        });
-      })
+      .then((cache) => cache.addAll(PRECACHE_ASSETS).catch(() => {}))
       .then(() => self.skipWaiting())
   );
 });
@@ -28,15 +22,15 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((cacheNames) => {
-        return Promise.all(
+      .then((cacheNames) =>
+        Promise.all(
           cacheNames.map((cacheName) => {
             if (cacheName !== CACHE_NAME) {
               return caches.delete(cacheName);
             }
           })
-        );
-      })
+        )
+      )
       .then(() => self.clients.claim())
   );
 });
@@ -61,42 +55,38 @@ self.addEventListener('fetch', (event) => {
     url.pathname.includes('node_modules') ||
     url.pathname.includes('hot-update') ||
     url.pathname.startsWith('/api/') ||
+    url.pathname === '/manifest.json' ||
+    url.pathname === '/sw.js' ||
     url.origin.includes('supabase.co') ||
-    url.origin.includes('run.app') && url.pathname.includes('socket')
+    (url.origin.includes('run.app') && url.pathname.includes('socket'))
   ) {
     return;
   }
 
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request)
+      fetch(new Request(event.request, { cache: 'no-cache' }))
         .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             const copy = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+            caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', copy));
           }
           return networkResponse;
         })
-        .catch(() => {
-          return caches.match(event.request).then((cached) => cached || caches.match('/index.html'));
-        })
+        .catch(() => caches.match('/index.html'))
     );
     return;
   }
 
-  const isBrandAsset =
+  const isStaticIcon =
     PRECACHE_ASSETS.includes(url.pathname) ||
-    url.pathname.endsWith('.png') ||
-    url.pathname.endsWith('.svg') ||
-    url.pathname.endsWith('.jpg') ||
     url.hostname.includes('fonts.googleapis.com') ||
     url.hostname.includes('fonts.gstatic.com');
 
-  if (isBrandAsset) {
+  if (isStaticIcon) {
     event.respondWith(
       caches.match(event.request).then((cachedResponse) => {
         if (cachedResponse) {
-
           fetch(event.request)
             .then((networkResponse) => {
               if (networkResponse && networkResponse.status === 200) {
@@ -121,71 +111,33 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith(
-    fetch(event.request)
-      .then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200) {
-          const copy = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-        }
-        return networkResponse;
-      })
-      .catch(() => {
-        return caches.match(event.request);
-      })
+    fetch(event.request).catch(() => caches.match(event.request))
   );
 });
 
 self.addEventListener('push', (event) => {
   let notificationData = {
     title: 'Admin-Vapp - Notificação',
-    body: 'Você tem uma nova atualização no Admin-Vapp.',
+    body: 'Nova atualização registrada no Admin-Vapp.',
     icon: '/icon-192.png',
     badge: '/icon-192.png',
-    data: { url: '/' },
+    data: { url: '/', eventType: 'admin_event' },
   };
 
   if (event.data) {
     try {
       const payload = event.data.json();
-      const type = payload.type || 'generic';
-
-      if (type === 'booking_confirmation') {
-        notificationData = {
-          title: payload.title || '🎉 Agendamento Confirmado!',
-          body:
-            payload.body ||
-            `Seu horário para ${payload.serviceTitle || 'seu serviço'} no ${payload.salonName || 'salão'} foi confirmado com sucesso.`,
-          icon: '/icon-192.png',
-          badge: '/icon-192.png',
-          data: {
-            url: payload.url || '/agenda',
-            protocolCode: payload.protocolCode,
-            type: 'booking_confirmation',
-          },
-        };
-      } else if (type === 'flash_offer') {
-        notificationData = {
-          title: payload.title || '⚡ Nova Vaga Relâmpago no Radar!',
-          body:
-            payload.body ||
-            `Uma vaga imperdível para ${payload.serviceTitle || 'beleza'} acabou de abrir perto de você com desconto especial.`,
-          icon: '/icon-192.png',
-          badge: '/icon-192.png',
-          data: {
-            url: payload.url || '/ofertas',
-            offerId: payload.offerId,
-            type: 'flash_offer',
-          },
-        };
-      } else {
-        notificationData = {
-          title: payload.title || notificationData.title,
-          body: payload.body || notificationData.body,
-          icon: payload.icon || '/icon-192.png',
-          badge: payload.badge || '/icon-192.png',
-          data: payload.data || { url: '/' },
-        };
-      }
+      notificationData = {
+        title: payload.title || notificationData.title,
+        body: payload.body || notificationData.body,
+        icon: payload.icon || '/icon-192.png',
+        badge: payload.badge || '/icon-192.png',
+        data: {
+          url: payload.url || payload.data?.url || '/',
+          eventType: payload.eventType || payload.type || 'admin_event',
+          ...(payload.data && typeof payload.data === 'object' ? payload.data : {}),
+        },
+      };
     } catch {
       notificationData.body = event.data.text();
     }
@@ -197,7 +149,8 @@ self.addEventListener('push', (event) => {
     badge: notificationData.badge,
     data: notificationData.data,
     vibrate: [200, 100, 200],
-    tag: notificationData.data?.type || 'vagou-notification',
+    tag: `${notificationData.data?.eventType || 'admin-vapp'}-${Date.now()}`,
+    renotify: true,
   };
 
   event.waitUntil(
@@ -213,7 +166,6 @@ self.addEventListener('notificationclick', (event) => {
     self.clients
       .matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
-
         for (const client of clientList) {
           if ('focus' in client) {
             client.postMessage({
@@ -223,7 +175,6 @@ self.addEventListener('notificationclick', (event) => {
             return client.focus();
           }
         }
-
         if (self.clients.openWindow) {
           return self.clients.openWindow(targetUrl);
         }

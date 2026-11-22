@@ -6,6 +6,7 @@ import { TriadeAdminLoginForm } from './triade-forms/TriadeAdminLoginForm';
 import { TriadeAdminRecoveryForm } from './triade-forms/TriadeAdminRecoveryForm';
 import { TriadeAdminRegisterForm } from './triade-forms/TriadeAdminRegisterForm';
 import { AdminBootstrapForm } from './AdminBootstrapForm';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface AdminAuthModalProps {
   isOpen: boolean;
@@ -50,6 +51,11 @@ export const AdminAuthModal: React.FC<AdminAuthModalProps> = ({
       style={isGate ? { backgroundColor: 'var(--admin-app-bg)' } : undefined}
     >
       <div className="relative w-full max-w-md my-auto transition-all duration-200">
+        {isGate && (
+          <div className="mb-3">
+            <PWAInstallButton variant="banner" />
+          </div>
+        )}
 
         {!isGate && typeof onClose === 'function' && (
           <button

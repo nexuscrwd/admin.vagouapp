@@ -41,7 +41,14 @@ interface AdminMasterAppProps {
 }
 
 export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway }) => {
-  const [currentScreen, setCurrentScreen] = useState<AdminScreenId>('dashboard');
+  const [currentScreen, setCurrentScreen] = useState<AdminScreenId>(() => {
+    if (typeof window !== 'undefined') {
+      const screenParam = new URLSearchParams(window.location.search).get('screen') as AdminScreenId | null;
+      const valid: AdminScreenId[] = ['dashboard', 'users', 'salons', 'portal', 'appointments', 'settings', 'preferences', 'forms'];
+      if (screenParam && valid.includes(screenParam)) return screenParam;
+    }
+    return 'dashboard';
+  });
   const [salons, setSalons] = useState<AdminSalonItem[]>([]);
   const [metrics, setMetrics] = useState<AdminDashboardMetrics>({
     totalSalons: 0,
@@ -55,6 +62,7 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshNonce, setRefreshNonce] = useState(0);
 
   const [adminUser, setAdminUser] = useState<SystemAdminUser | null>(() => getStoredAdmin());
   const [needsBootstrap, setNeedsBootstrap] = useState(false);
@@ -75,6 +83,7 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
 
   const loadData = async () => {
     setIsRefreshing(true);
+    setRefreshNonce((prev) => prev + 1);
     try {
       const [fetchedSalons, fetchedMetrics, freshAdmin] = await Promise.all([
         fetchAdminSalons(),
@@ -110,7 +119,7 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
           setAdminUser(stored);
           loadData();
           if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-            registerAdminWebPush(stored.role || 'super_admin').catch(() => {});
+            registerAdminWebPush(stored.role || 'super_admin', stored.id).catch(() => {});
           }
           return;
         }
@@ -147,7 +156,7 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
         setAdminUser(verifiedAdmin);
         loadData();
         if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-          registerAdminWebPush(verifiedAdmin.role || 'super_admin').catch(() => {});
+          registerAdminWebPush(verifiedAdmin.role || 'super_admin', verifiedAdmin.id).catch(() => {});
         }
       } catch {
         const fallbackStored = getStoredAdmin();
@@ -157,6 +166,28 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
 
     checkActiveSession();
 
+    const handleResumeSync = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      loadData();
+    };
+
+    const handleSwMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'NOTIFICATION_CLICKED') {
+        const url = String(event.data?.data?.url || '');
+        if (url.includes('screen=users')) setCurrentScreen('users');
+        else if (url.includes('screen=salons')) setCurrentScreen('salons');
+        else if (url.includes('screen=appointments')) setCurrentScreen('appointments');
+        loadData();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleResumeSync);
+    window.addEventListener('focus', handleResumeSync);
+    window.addEventListener('online', handleResumeSync);
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleSwMessage);
+    }
+
     const unsubscribeHub = subscribeAdminRealtimeHub({
       onSalonsChange: () => {
         fetchAdminSalons().then(setSalons).catch(() => {});
@@ -164,15 +195,25 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
       },
       onAppointmentsChange: () => {
         fetchAdminDashboardMetrics().then(setMetrics).catch(() => {});
+        setRefreshNonce((prev) => prev + 1);
       },
       onAdminChange: () => {
         refreshStoredAdmin().then((fresh) => {
           if (fresh) setAdminUser(fresh);
         }).catch(() => {});
       },
+      onUsersChange: () => {
+        setRefreshNonce((prev) => prev + 1);
+      },
     });
 
     return () => {
+      document.removeEventListener('visibilitychange', handleResumeSync);
+      window.removeEventListener('focus', handleResumeSync);
+      window.removeEventListener('online', handleResumeSync);
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleSwMessage);
+      }
       unsubscribeHub();
     };
   }, []);
@@ -353,10 +394,13 @@ export const AdminMasterApp: React.FC<AdminMasterAppProps> = ({ onOpenGateway })
             <AdminUsersManager
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
+              refreshSignal={refreshNonce}
             />
           )}
 
-          {currentScreen === 'appointments' && <AdminAppointmentsMonitor />}
+          {currentScreen === 'appointments' && (
+            <AdminAppointmentsMonitor refreshSignal={refreshNonce} />
+          )}
 
           {currentScreen === 'settings' && (
             <AdminSettingsPanel

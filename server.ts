@@ -118,6 +118,212 @@ if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
   }
 }
 
+function getAdminDbClient(req?: express.Request) {
+  if (SUPABASE_SERVICE_ROLE_KEY) {
+    return supabaseAdmin;
+  }
+  const authHeader = String(req?.headers?.authorization || '');
+  if (authHeader.startsWith('Bearer ')) {
+    const token = authHeader.slice(7).trim();
+    if (token) {
+      return createClient(SUPABASE_URL, getSafeSupabaseKey(), {
+        global: { headers: { Authorization: `Bearer ${token}` } },
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+    }
+  }
+  return supabaseAdmin;
+}
+
+const RECENT_PUSH_DEDUPE = new Map<string, number>();
+
+async function notifyAdminsOnEvent(params: {
+  eventType: string;
+  title: string;
+  body: string;
+  url?: string;
+  payload?: Record<string, any>;
+  dedupeKey?: string;
+}): Promise<{ queued: boolean; sent: number; failed: number; subscriptions: number }> {
+  const now = Date.now();
+  for (const [key, ts] of RECENT_PUSH_DEDUPE.entries()) {
+    if (now - ts > 15000) RECENT_PUSH_DEDUPE.delete(key);
+  }
+  if (params.dedupeKey) {
+    const prev = RECENT_PUSH_DEDUPE.get(params.dedupeKey);
+    if (prev && now - prev < 10000) {
+      return { queued: false, sent: 0, failed: 0, subscriptions: 0 };
+    }
+    RECENT_PUSH_DEDUPE.set(params.dedupeKey, now);
+  }
+
+  let outboxId: string | null = null;
+  try {
+    const { data: inserted } = await supabaseAdmin
+      .from('notification_outbox')
+      .insert([
+        {
+          event_type: params.eventType,
+          target_role: 'super_admin',
+          title: params.title,
+          body: params.body,
+          url: params.url || '/',
+          payload: params.payload || {},
+          status: 'pending',
+          attempts: 0,
+        },
+      ])
+      .select('id')
+      .maybeSingle();
+    outboxId = inserted?.id || null;
+  } catch {}
+
+  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+    return { queued: Boolean(outboxId), sent: 0, failed: 0, subscriptions: 0 };
+  }
+
+  try {
+    const { data: subs } = await supabaseAdmin
+      .from('push_subscriptions')
+      .select('id, endpoint, p256dh, auth')
+      .eq('is_active', true)
+      .eq('app_origin', 'admvapp');
+
+    const activeSubs = subs || [];
+    if (activeSubs.length === 0) {
+      if (outboxId) {
+        await supabaseAdmin
+          .from('notification_outbox')
+          .update({ status: 'skipped', attempts: 1, sent_at: new Date().toISOString() })
+          .eq('id', outboxId);
+      }
+      return { queued: Boolean(outboxId), sent: 0, failed: 0, subscriptions: 0 };
+    }
+
+    const pushPayload = JSON.stringify({
+      title: params.title,
+      body: params.body,
+      url: params.url || '/',
+      eventType: params.eventType,
+      data: params.payload || {},
+    });
+
+    let sent = 0;
+    let failed = 0;
+    let lastError: string | null = null;
+
+    for (const sub of activeSubs) {
+      try {
+        await webpush.sendNotification(
+          {
+            endpoint: sub.endpoint,
+            keys: { p256dh: sub.p256dh, auth: sub.auth },
+          },
+          pushPayload
+        );
+        sent++;
+      } catch (pushErr: any) {
+        failed++;
+        lastError = pushErr?.message || 'Push delivery error';
+        const statusCode = Number(pushErr?.statusCode);
+        if (statusCode === 404 || statusCode === 410) {
+          await supabaseAdmin
+            .from('push_subscriptions')
+            .update({ is_active: false })
+            .eq('id', sub.id);
+        }
+      }
+    }
+
+    if (outboxId) {
+      await supabaseAdmin
+        .from('notification_outbox')
+        .update({
+          status: sent > 0 ? 'sent' : 'failed',
+          attempts: 1,
+          last_error: sent > 0 ? null : lastError,
+          sent_at: sent > 0 ? new Date().toISOString() : null,
+        })
+        .eq('id', outboxId);
+    }
+
+    return { queued: Boolean(outboxId), sent, failed, subscriptions: activeSubs.length };
+  } catch {
+    return { queued: Boolean(outboxId), sent: 0, failed: 1, subscriptions: 0 };
+  }
+}
+
+function startAdminRealtimePushWatcher() {
+  if (!SUPABASE_SERVICE_ROLE_KEY || !VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return;
+  try {
+    supabaseAdmin
+      .channel('admvapp-server-push-watcher')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'clients' }, (payload: any) => {
+        const row = payload?.new || {};
+        const name = row.full_name || row.email || 'Novo usuário';
+        notifyAdminsOnEvent({
+          eventType: 'client_created',
+          title: 'Admin-Vapp • Novo Usuário',
+          body: `${name} acabou de se cadastrar (${row.created_via || 'portal'}).`,
+          url: '/?screen=users',
+          payload: { table: 'clients', id: row.id },
+          dedupeKey: `client_insert_${row.id || row.email}`,
+        }).catch(() => {});
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'clients' }, (payload: any) => {
+        const row = payload?.new || {};
+        const name = row.full_name || row.email || 'Usuário';
+        notifyAdminsOnEvent({
+          eventType: 'client_updated',
+          title: 'Admin-Vapp • Cadastro Alterado',
+          body: `Os dados do usuário ${name} foram atualizados.`,
+          url: '/?screen=users',
+          payload: { table: 'clients', id: row.id },
+          dedupeKey: `client_update_${row.id}`,
+        }).catch(() => {});
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'salons' }, (payload: any) => {
+        const row = payload?.new || {};
+        const name = row.trade_name || row.slug || 'Novo estabelecimento';
+        notifyAdminsOnEvent({
+          eventType: 'salon_created',
+          title: 'Admin-Vapp • Novo Estabelecimento',
+          body: `${name} foi cadastrado no ecossistema.`,
+          url: '/?screen=salons',
+          payload: { table: 'salons', id: row.id },
+          dedupeKey: `salon_insert_${row.id || row.slug}`,
+        }).catch(() => {});
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'salons' }, (payload: any) => {
+        const row = payload?.new || {};
+        const name = row.trade_name || row.slug || 'Estabelecimento';
+        notifyAdminsOnEvent({
+          eventType: 'salon_updated',
+          title: 'Admin-Vapp • Estabelecimento Alterado',
+          body: `O estabelecimento ${name} teve o cadastro atualizado.`,
+          url: '/?screen=salons',
+          payload: { table: 'salons', id: row.id },
+          dedupeKey: `salon_update_${row.id}`,
+        }).catch(() => {});
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'professionals' }, (payload: any) => {
+        const row = payload?.new || {};
+        const name = row.full_name || 'Novo profissional';
+        notifyAdminsOnEvent({
+          eventType: 'professional_created',
+          title: 'Admin-Vapp • Novo Profissional',
+          body: `${name} foi adicionado à equipe.`,
+          url: '/?screen=users',
+          payload: { table: 'professionals', id: row.id },
+          dedupeKey: `prof_insert_${row.id}`,
+        }).catch(() => {});
+      })
+      .subscribe();
+  } catch (err) {
+    console.warn('[WebPush Watcher] Aviso ao assinar Realtime:', err);
+  }
+}
+
 const ALLOWED_MEDIA_BUCKETS = new Set(['avatars', 'branding', 'services', 'salon-media']);
 const ALLOWED_OWNER_TYPES = new Set([
   'profile',
@@ -785,6 +991,13 @@ async function startServer() {
 
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+  app.use('/api', (_req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    next();
+  });
 
   const apiKey = process.env.GEMINI_API_KEY;
 
@@ -2459,10 +2672,11 @@ async function startServer() {
     }
   });
 
-  app.get('/api/admin/system-admins', async (_req, res) => {
+  app.get('/api/admin/system-admins', async (req, res) => {
     try {
       await consolidateDuplicateUsersInSupabase();
-      const { data, error } = await supabaseAdmin
+      const db = getAdminDbClient(req);
+      const { data, error } = await db
         .from('system_admins')
         .select('*')
         .order('created_at', { ascending: false });
@@ -2525,6 +2739,15 @@ async function startServer() {
         ...data,
         password: data.password_hash || payload.password || '',
       };
+
+      notifyAdminsOnEvent({
+        eventType: 'admin_updated',
+        title: 'Admin-Vapp • Admin Alterado',
+        body: `Os dados de ${data.full_name || data.username || 'Administrador'} foram atualizados.`,
+        url: '/?screen=users',
+        payload: { table: 'system_admins', id: data.id },
+        dedupeKey: `admin_update_${data.id}`,
+      }).catch(() => {});
 
       return res.json({ success: true, admin: adminWithPassword });
     } catch (err: any) {
@@ -2983,6 +3206,15 @@ async function startServer() {
         });
       }
 
+      notifyAdminsOnEvent({
+        eventType: 'user_updated',
+        title: 'Admin-Vapp • Cadastro Alterado',
+        body: `O cadastro de ${updatePayload.full_name || data?.full_name || data?.email || 'usuário'} foi atualizado.`,
+        url: '/?screen=users',
+        payload: { kind: targetKind, id },
+        dedupeKey: `client_update_${id}`,
+      }).catch(() => {});
+
       return res.json({
         success: true,
         migratedFrom: sourceTable !== targetTable ? sourceKind : undefined,
@@ -3141,14 +3373,15 @@ async function startServer() {
     }
   });
 
-  app.get('/api/admin/clients', async (_req, res) => {
+  app.get('/api/admin/clients', async (req, res) => {
     try {
       await consolidateDuplicateUsersInSupabase();
+      const db = getAdminDbClient(req);
 
       const [{ data, error }, { data: sysAdmins }, { data: profileRows }] = await Promise.all([
-        supabaseAdmin.from('clients').select('*').order('created_at', { ascending: false }),
-        supabaseAdmin.from('system_admins').select('id, email, username, cpf'),
-        supabaseAdmin.from('profiles').select('id, username, email'),
+        db.from('clients').select('*').order('created_at', { ascending: false }),
+        db.from('system_admins').select('id, email, username, cpf'),
+        db.from('profiles').select('id, username, email'),
       ]);
 
       const profileUsernameById = new Map<string, string>();
@@ -4125,6 +4358,15 @@ async function startServer() {
         }
       }
 
+      notifyAdminsOnEvent({
+        eventType: 'salon_created',
+        title: 'Admin-Vapp • Novo Estabelecimento',
+        body: `${data?.trade_name || resolvedTradeName} foi cadastrado.`,
+        url: '/?screen=salons',
+        payload: { table: 'salons', id: data?.id },
+        dedupeKey: `salon_insert_${data?.id || cleanSlug}`,
+      }).catch(() => {});
+
       return res.json({
         success: true,
         salon: {
@@ -4435,6 +4677,15 @@ async function startServer() {
           syncSalons: false,
         });
       }
+
+      notifyAdminsOnEvent({
+        eventType: 'salon_updated',
+        title: 'Admin-Vapp • Estabelecimento Alterado',
+        body: `${data?.trade_name || currentSalon?.trade_name || 'Estabelecimento'} teve o cadastro atualizado.`,
+        url: '/?screen=salons',
+        payload: { table: 'salons', id },
+        dedupeKey: `salon_update_${id}`,
+      }).catch(() => {});
 
       return res.json({
         success: true,
@@ -5314,6 +5565,25 @@ async function startServer() {
         }
       }
 
+      notifyAdminsOnEvent({
+        eventType: type === 'professional' ? 'salon_and_user_created' : 'client_created',
+        title:
+          type === 'professional'
+            ? 'Admin-Vapp • Novo Estabelecimento'
+            : 'Admin-Vapp • Novo Usuário',
+        body:
+          type === 'professional'
+            ? `${tradeName || cleanName} foi cadastrado via ${resolvedCreatedVia}.`
+            : `${cleanName} (@${cleanUsername}) foi cadastrado via ${resolvedCreatedVia}.`,
+        url: type === 'professional' ? '/?screen=salons' : '/?screen=users',
+        payload: {
+          clientId: savedClient?.id || effectiveClientId,
+          salonId: createdSalon?.id || null,
+          origin: resolvedCreatedVia,
+        },
+        dedupeKey: `client_insert_${savedClient?.id || cleanEmail}`,
+      }).catch(() => {});
+
       return res.json({
         success: true,
         message:
@@ -6069,6 +6339,15 @@ async function startServer() {
         savedPro = data;
       }
 
+      notifyAdminsOnEvent({
+        eventType: action === 'update' ? 'professional_updated' : 'professional_created',
+        title: action === 'update' ? 'Admin-Vapp • Profissional Alterado' : 'Admin-Vapp • Novo Profissional',
+        body: `${rowPayload.full_name} foi ${action === 'update' ? 'atualizado' : 'cadastrado'}.`,
+        url: '/?screen=users',
+        payload: { table: 'professionals', id: savedPro?.id || professional.id },
+        dedupeKey: `prof_${action || 'insert'}_${savedPro?.id || professional.id || rowPayload.full_name}`,
+      }).catch(() => {});
+
       return res.json({ success: true, professional: savedPro || { ...rowPayload, id: professional.id || `pro-${Date.now()}` } });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
@@ -6359,7 +6638,7 @@ async function startServer() {
 
   app.post('/api/push/subscribe', async (req, res) => {
     try {
-      const { subscription, app_origin = 'admvapp', role = 'super_admin' } = req.body || {};
+      const { subscription, app_origin = 'admvapp', role = 'super_admin', admin_id } = req.body || {};
       const endpoint = String(subscription?.endpoint || '').trim();
       const p256dh = String(subscription?.keys?.p256dh || '').trim();
       const authKey = String(subscription?.keys?.auth || '').trim();
@@ -6369,11 +6648,40 @@ async function startServer() {
       }
 
       const authCheck = await verifyAdminAccess(req);
+      let resolvedUserId = authCheck.userId || null;
+
+      if (!resolvedUserId && admin_id) {
+        const { data: admRow } = await supabaseAdmin
+          .from('system_admins')
+          .select('user_id')
+          .eq('id', String(admin_id))
+          .maybeSingle();
+        if (admRow?.user_id) resolvedUserId = admRow.user_id;
+      }
+
+      if (!resolvedUserId) {
+        const { data: activeAdm } = await supabaseAdmin
+          .from('system_admins')
+          .select('user_id')
+          .eq('is_active', true)
+          .not('user_id', 'is', null)
+          .limit(1)
+          .maybeSingle();
+        if (activeAdm?.user_id) resolvedUserId = activeAdm.user_id;
+      }
+
+      if (!resolvedUserId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Sessão de administrador sem vínculo em auth.users para assinar notificações Push.',
+        });
+      }
+
       const validOrigin = ['admvapp', 'mnvapp', 'pvapp'].includes(app_origin) ? app_origin : 'admvapp';
 
       const { error } = await supabaseAdmin.from('push_subscriptions').upsert(
         {
-          user_id: authCheck.userId || null,
+          user_id: resolvedUserId,
           app_origin: validOrigin,
           role: String(role || 'super_admin'),
           endpoint,
@@ -6381,7 +6689,8 @@ async function startServer() {
           auth: authKey,
           user_agent: String(req.headers['user-agent'] || '').slice(0, 250),
           is_active: true,
-          last_seen_at: new Date().toISOString(),
+          last_used_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         },
         { onConflict: 'endpoint' }
       );
@@ -6405,10 +6714,46 @@ async function startServer() {
 
       await supabaseAdmin
         .from('push_subscriptions')
-        .update({ is_active: false })
+        .update({ is_active: false, updated_at: new Date().toISOString() })
         .eq('endpoint', endpoint);
 
       return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/push/test', async (_req, res) => {
+    try {
+      if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+        return res.status(503).json({
+          success: false,
+          error: 'Chaves VAPID não configuradas no ambiente do servidor.',
+        });
+      }
+
+      const result = await notifyAdminsOnEvent({
+        eventType: 'admin_push_test',
+        title: 'Admin-Vapp • Push Ativo!',
+        body: 'Você receberá alertas automáticos sempre que um cadastro for criado ou alterado.',
+        url: '/',
+        payload: { test: true, timestamp: new Date().toISOString() },
+      });
+
+      if (result.subscriptions === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Nenhum dispositivo Admin inscrito ainda. Ative as notificações primeiro.',
+        });
+      }
+
+      return res.json({
+        success: result.sent > 0,
+        sent: result.sent,
+        failed: result.failed,
+        subscriptions: result.subscriptions,
+        error: result.sent === 0 ? 'Falha ao entregar push para o navegador.' : undefined,
+      });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
@@ -6449,10 +6794,10 @@ async function startServer() {
           .select('id, endpoint, p256dh, auth')
           .eq('is_active', true);
 
-        if (notif.recipient_user_id) {
-          query = query.eq('user_id', notif.recipient_user_id);
-        } else if (notif.recipient_role) {
-          query = query.eq('role', notif.recipient_role);
+        if (notif.target_user_id) {
+          query = query.eq('user_id', notif.target_user_id);
+        } else if (notif.target_role) {
+          query = query.eq('app_origin', 'admvapp');
         }
 
         const { data: subs } = await query;
@@ -6460,15 +6805,15 @@ async function startServer() {
           skippedCount++;
           await supabaseAdmin
             .from('notification_outbox')
-            .update({ status: 'skipped', sent_at: new Date().toISOString() })
+            .update({ status: 'skipped', attempts: (notif.attempts || 0) + 1, sent_at: new Date().toISOString() })
             .eq('id', notif.id);
           continue;
         }
 
         const payload = JSON.stringify({
-          title: notif.title || 'VagouApp',
+          title: notif.title || 'Admin-Vapp',
           body: notif.body || '',
-          url: notif.action_url || '/',
+          url: notif.url || '/',
           eventType: notif.event_type,
           data: notif.payload || {},
         });
@@ -6502,13 +6847,13 @@ async function startServer() {
           sentCount++;
           await supabaseAdmin
             .from('notification_outbox')
-            .update({ status: 'sent', sent_at: new Date().toISOString() })
+            .update({ status: 'sent', attempts: (notif.attempts || 0) + 1, last_error: null, sent_at: new Date().toISOString() })
             .eq('id', notif.id);
         } else {
           failedCount++;
           await supabaseAdmin
             .from('notification_outbox')
-            .update({ status: 'failed', error_message: lastError })
+            .update({ status: 'failed', attempts: (notif.attempts || 0) + 1, last_error: lastError })
             .eq('id', notif.id);
         }
       }
@@ -6536,8 +6881,9 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, { index: false }));
     app.get('*', (_req, res) => {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
@@ -6545,6 +6891,7 @@ async function startServer() {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[Admin Master admvapp] Server running on http://localhost:${PORT}`);
     console.log(`[Admin Master admvapp] Service Role: ${SUPABASE_SERVICE_ROLE_KEY ? 'ACTIVE (Server-Only)' : 'NOT SET (Anon Fallback)'} | SQL Contract: v6.0 (Zero Base64 & Zero Mirror Tables)`);
+    startAdminRealtimePushWatcher();
   });
 }
 

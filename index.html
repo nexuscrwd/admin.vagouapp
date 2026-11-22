@@ -30,7 +30,15 @@
     <meta property="og:image" content="/icon.svg" />
 
     <script>
-      // Se for embed com fundo transparente, limpa o background sólido do body imediatamente
+      window.__vagouDeferredInstallPrompt = null;
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        window.__vagouDeferredInstallPrompt = e;
+        window.dispatchEvent(new CustomEvent('vagou-pwa-prompt-ready'));
+      });
+      window.addEventListener('appinstalled', function () {
+        window.__vagouDeferredInstallPrompt = null;
+      });
       if (window.location.search.includes('bg=transparent') || window.location.search.includes('embed=true')) {
         document.documentElement.style.backgroundColor = 'transparent';
         window.addEventListener('DOMContentLoaded', () => {
@@ -48,14 +56,18 @@
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js', { scope: '/' })
             .then((reg) => {
-              // Safely handle updates without throwing unhandled promise rejections
-              if (typeof reg.update === 'function') {
-                reg.update().catch(() => {
-                  // Silent catch: network or sandbox iframe constraints
-                });
-              }
+              const checkUpdate = () => {
+                if (typeof reg.update === 'function') {
+                  reg.update().catch(() => {});
+                }
+              };
+              checkUpdate();
+              document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') {
+                  checkUpdate();
+                }
+              });
 
-              // Detecta quando um novo Service Worker está pronto
               reg.addEventListener('updatefound', () => {
                 const newWorker = reg.installing;
                 if (newWorker) {
@@ -68,11 +80,9 @@
               });
             })
             .catch((err) => {
-              // Graceful fallback if Service Workers are restricted in sandbox environment
               console.warn('[SW] Registration skipped or restricted:', err?.message || err);
             });
 
-          // Quando o novo Service Worker assumir o controle, recarrega para aplicar os estilos novos
           let refreshing = false;
           navigator.serviceWorker.addEventListener('controllerchange', () => {
             if (!refreshing) {

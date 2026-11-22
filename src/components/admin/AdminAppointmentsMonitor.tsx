@@ -27,7 +27,9 @@ import { VagouOfficialLogo } from '../common/VagouOfficialLogo';
 import { PixCheckoutModal } from './PixCheckoutModal';
 import { LiveAppointmentTrackingHub } from './LiveAppointmentTrackingHub';
 
-export const AdminAppointmentsMonitor: React.FC = () => {
+export const AdminAppointmentsMonitor: React.FC<{ refreshSignal?: number }> = ({
+  refreshSignal = 0,
+}) => {
   const [appointments, setAppointments] = useState<AdminAppointmentItem[]>([]);
   const [salons, setSalons] = useState<AdminSalonItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -74,7 +76,7 @@ export const AdminAppointmentsMonitor: React.FC = () => {
       }
     };
     load();
-  }, [currentCompetence]);
+  }, [currentCompetence, refreshSignal]);
 
   const formatCompetenceLabel = (ym: string) => {
     if (ym === 'all') return 'Todos os Períodos';

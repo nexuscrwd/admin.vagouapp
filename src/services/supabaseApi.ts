@@ -10,6 +10,28 @@ import {
   PixKeyType,
 } from '../types/admin';
 
+let lastAdminSyncError: string | null = null;
+
+export function getLastAdminSyncError(): string | null {
+  return lastAdminSyncError;
+}
+
+async function adminApiFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers || {});
+  try {
+    const { data } = await supabase.auth.getSession();
+    const token = data?.session?.access_token;
+    if (token && !headers.has('Authorization')) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+  } catch {}
+  return fetch(url, {
+    ...init,
+    cache: 'no-store',
+    headers,
+  });
+}
+
 export async function safeSupabaseClientWrite(
   table: string,
   mode: 'insert' | 'update' | 'upsert',
@@ -199,7 +221,7 @@ export async function fetchAdminSalons(): Promise<AdminSalonItem[]> {
     } catch {}
 
     try {
-      const resp = await fetch('/api/admin/salons');
+      const resp = await adminApiFetch('/api/admin/salons');
       if (resp.ok) {
         const json = await resp.json();
         if (json.success && Array.isArray(json.salons)) {
@@ -1521,7 +1543,7 @@ export async function deleteAdminSalon(salonId: string): Promise<{ success: bool
 export async function fetchAdminDashboardMetrics(): Promise<AdminDashboardMetrics> {
   try {
     try {
-      const resp = await fetch('/api/admin/metrics');
+      const resp = await adminApiFetch('/api/admin/metrics');
       if (resp.ok) {
         const json = await resp.json();
         if (json.success && json.metrics) {
@@ -1543,7 +1565,7 @@ export async function fetchAdminDashboardMetrics(): Promise<AdminDashboardMetric
       const { count, error } = await supabase
         .from('appointments')
         .select('*', { count: 'exact', head: true })
-        .gte('scheduled_date', todayStr);
+        .gte('date_str', todayStr);
 
       if (!error && count !== null) {
         todayAppointments = count;
@@ -2055,11 +2077,11 @@ export async function logoutAdmin(): Promise<void> {
 
 export async function fetchSystemAdmins(): Promise<SystemAdminUser[]> {
   try {
-    const resp = await fetch('/api/admin/system-admins');
+    const resp = await adminApiFetch('/api/admin/system-admins');
     const text = await resp.text();
     if (text && text.trim().startsWith('{')) {
       const json = JSON.parse(text);
-      if (resp.ok && json.success && Array.isArray(json.admins)) {
+      if (resp.ok && json.success && Array.isArray(json.admins) && json.admins.length > 0) {
         return json.admins.map((a: any) => ({
           ...a,
           password: a.password_hash || a.password || '',
@@ -2074,7 +2096,7 @@ export async function fetchSystemAdmins(): Promise<SystemAdminUser[]> {
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (!error && Array.isArray(data)) {
+    if (!error && Array.isArray(data) && data.length > 0) {
       return data.map((a: any) => ({
         ...a,
         password: a.password_hash || a.password || '',
@@ -2195,7 +2217,7 @@ export async function fetchAdminAppointments(): Promise<AdminAppointmentItem[]> 
 
   try {
     try {
-      const resp = await fetch('/api/admin/appointments');
+      const resp = await adminApiFetch('/api/admin/appointments');
       if (resp.ok) {
         const json = await resp.json();
         if (json.success && Array.isArray(json.appointments)) {
@@ -2222,23 +2244,46 @@ export async function fetchAdminAppointments(): Promise<AdminAppointmentItem[]> 
 }
 
 export async function fetchAdminClients(): Promise<UserClientItem[]> {
+  let apiErrorMessage: string | null = null;
   try {
-    const resp = await fetch('/api/admin/clients');
+    const resp = await adminApiFetch('/api/admin/clients');
     const text = await resp.text();
     if (text && text.trim().startsWith('{')) {
       const json = JSON.parse(text);
       if (resp.ok && json.success && Array.isArray(json.clients)) {
+        lastAdminSyncError = null;
         return json.clients;
       }
+      if (json.error) {
+        apiErrorMessage = String(json.error);
+      }
     }
-  } catch {}
+  } catch (err: any) {
+    apiErrorMessage = err?.message || 'API indisponível';
+  }
 
   try {
-    const [{ data, error }, { data: secAnswers }, { data: sysAdmins }] = await Promise.all([
+    const [{ data, error }, { data: secAnswers }, { data: sysAdmins }, { data: profilesRows }] = await Promise.all([
       supabaseAdmin.from('clients').select('*').order('created_at', { ascending: false }),
       supabaseAdmin.from('user_security_answers').select('client_id, question_code'),
       supabaseAdmin.from('system_admins').select('id, email, username'),
+      supabaseAdmin.from('profiles').select('id, username, email'),
     ]);
+
+    if (error) {
+      lastAdminSyncError = error.message || apiErrorMessage || 'Erro ao sincronizar clientes com o Supabase.';
+      return [];
+    }
+
+    lastAdminSyncError = null;
+    const profileUsernameById = new Map<string, string>();
+    const profileUsernameByEmail = new Map<string, string>();
+    (profilesRows || []).forEach((pr: any) => {
+      if (pr?.username) {
+        if (pr.id) profileUsernameById.set(String(pr.id), String(pr.username).trim());
+        if (pr.email) profileUsernameByEmail.set(String(pr.email).trim().toLowerCase(), String(pr.username).trim());
+      }
+    });
 
     const adminEmails = new Set(
       (sysAdmins || []).map((a: any) => String(a.email || '').trim().toLowerCase()).filter(Boolean)
@@ -2256,7 +2301,7 @@ export async function fetchAdminClients(): Promise<UserClientItem[]> {
       }
     });
 
-    if (!error && Array.isArray(data)) {
+    if (Array.isArray(data)) {
       const seenEmails = new Set<string>();
       const seenUsers = new Set<string>();
       return data
@@ -2271,10 +2316,15 @@ export async function fetchAdminClients(): Promise<UserClientItem[]> {
         })
         .map((c: any) => {
           const configuredCodes = secMap.get(String(c.id)) || (c.security_question_code ? [c.security_question_code] : []);
+          const resolvedUsername =
+            c.username ||
+            (c.user_id ? profileUsernameById.get(String(c.user_id)) : undefined) ||
+            (c.email ? profileUsernameByEmail.get(String(c.email).trim().toLowerCase()) : undefined) ||
+            (c.email ? c.email.split('@')[0] : (c.full_name || 'cliente').toLowerCase().replace(/\s+/g, ''));
           return {
             ...c,
             full_name: c.name || c.full_name || 'Cliente',
-            username: (c.username || (c.email ? c.email.split('@')[0] : (c.name || 'cliente').toLowerCase().replace(/\s+/g, ''))).replace(/^@+/, ''),
+            username: String(resolvedUsername).replace(/^@+/, ''),
             phone: c.phone || c.phone_whatsapp || '—',
             phone_secondary: c.phone_secondary || '',
             password: c.password_hash || c.password || '',
@@ -2286,7 +2336,8 @@ export async function fetchAdminClients(): Promise<UserClientItem[]> {
           };
         }) as UserClientItem[];
     }
-  } catch (err) {
+  } catch (err: any) {
+    lastAdminSyncError = err?.message || apiErrorMessage || 'Erro ao listar clientes.';
     console.warn('[Supabase Admin] Falha ao listar clientes reais:', err);
   }
 
@@ -2342,7 +2393,7 @@ export async function unlinkClientDependent(dependentId: string): Promise<{ succ
 
 export async function fetchAdminSalonUsers(): Promise<UserSalonAccessItem[]> {
   try {
-    const resp = await fetch('/api/admin/salon-users');
+    const resp = await adminApiFetch('/api/admin/salon-users');
     const text = await resp.text();
     if (text && text.trim().startsWith('{')) {
       const json = JSON.parse(text);
@@ -2411,7 +2462,7 @@ export async function fetchAdminSalonUsers(): Promise<UserSalonAccessItem[]> {
 
 export async function fetchAdminProfessionals(): Promise<UserProfessionalItem[]> {
   try {
-    const resp = await fetch('/api/admin/professionals');
+    const resp = await adminApiFetch('/api/admin/professionals');
     const text = await resp.text();
     if (text && text.trim().startsWith('{')) {
       const json = JSON.parse(text);

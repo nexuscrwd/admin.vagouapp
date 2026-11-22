@@ -15,6 +15,27 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-11-22] — 🚀 Sincronização Total PWA ⇄ Supabase, Instalação PWA Nativa (`Admin-Vapp`) & Web Push Automático (`bol-184`)
+- **Tipo:** `[Feat / Fix / PWA / Push]`
+- **Motivo / Solicitação:**
+  - Correção definitiva da falha de sincronização no PWA instalado (que exibia `Todas as contas (0)` por cache antigo do Service Worker, falta de `no-store` nas APIs, falta de propagação de refresh/resume e erro RLS `42P17` silencioso), implementação da oferta nativa de instalação PWA (`Admin-Vapp`) ao abrir no navegador e ativação de notificações Web Push reais para toda criação/alteração de cadastros.
+- **Arquivos Impactados:**
+  - `/index.html`, `/public/sw.js`
+  - `/src/hooks/usePWAInstall.ts` (novo)
+  - `/src/components/admin/PWAInstallButton.tsx` (novo)
+  - `/src/components/admin/AdminPushToggle.tsx` (novo)
+  - `/src/services/webPushClient.ts`
+  - `/src/services/supabaseApi.ts`, `/src/services/realtimeHub.ts`
+  - `/src/components/admin/AdminHeader.tsx`, `/src/components/admin/AdminAuthModal.tsx`
+  - `/src/components/admin/AdminMasterApp.tsx`, `/src/components/admin/AdminUsersManager.tsx`, `/src/components/admin/AdminAppointmentsMonitor.tsx`
+  - `/server.ts`, `/CHANGELOG.md`
+- **Resumo Técnico:**
+  - **Oferta de Instalação PWA (`Admin-Vapp`):** Captura antecipada de `beforeinstallprompt` no `index.html` + `usePWAInstall` + `PWAInstallButton` exibido tanto na tela de acesso (`AdminAuthModal`) quanto no cabeçalho (`AdminHeader`), ocultando-se automaticamente dentro do app instalado (`standalone`) e exibindo guia de 2 toques no iOS/Safari.
+  - **Sincronização Blindada PWA ⇄ Banco:** Service Worker atualizado para `admin-vapp-cache-v10` (network-first estrito para navegação e zero cache em `/api/*`), middleware `Cache-Control: no-store` em `/api/*` e `index.html` de produção, `adminApiFetch` com `cache: 'no-store'` + `Authorization: Bearer <jwt>`, fallback de JWT no servidor (`getAdminDbClient`), propagação de `refreshSignal` no botão Refresh + retomada de segundo plano (`visibilitychange`/`focus`/`online`), correção das tabelas Realtime (`salon_members` e `profiles` no lugar da inexistente `salon_users`) e alerta explícito caso ocorra falha real de sincronização com o banco.
+  - **Web Push Automático em Cadastros (v6.0):** Botão `AdminPushToggle` no cabeçalho com ativação por toque explícito e botão **"Testar Push Agora"** (`POST /api/push/test`), alinhamento de `push_subscriptions` (`last_used_at`, resolução garantida de `user_id`) e `notification_outbox` (`target_user_id`, `target_role`, `url`, `last_error`, `attempts`), disparo automático em todas as rotas de criação/edição (`register-user`, `salons`, `users`, `professionals`, `system-admins`) e monitor Supabase Realtime no servidor para notificar também cadastros feitos via `pvapp` (`vagouapp.com`) e `mnvapp` (`meunegocio.vagouapp.com`).
+
+---
+
 ### [2026-11-22] — 📱 Identidade PWA Exclusiva do Admin Master: `Admin-Vapp` (`bol-183`)
 - **Tipo:** `[Fix / PWA]`
 - **Motivo / Solicitação:**

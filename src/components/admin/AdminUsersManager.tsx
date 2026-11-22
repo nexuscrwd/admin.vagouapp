@@ -41,6 +41,7 @@ import {
   deleteUnifiedUserData,
   batchDeleteUnifiedUsers,
   toggleUnifiedUserStatus,
+  getLastAdminSyncError,
 } from '../../services/supabaseApi';
 import { AdminCreateAdminModal } from './AdminCreateAdminModal';
 import { UserAvatar } from '../common/UserAvatar';
@@ -93,10 +94,12 @@ export interface UnifiedUserRow {
 interface AdminUsersManagerProps {
   searchQuery?: string;
   onSearchChange?: (q: string) => void;
+  refreshSignal?: number;
 }
 
 export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
   searchQuery = '',
+  refreshSignal = 0,
 }) => {
 
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
@@ -111,6 +114,7 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
   const [salonUsers, setSalonUsers] = useState<UserSalonAccessItem[]>([]);
   const [professionals, setProfessionals] = useState<UserProfessionalItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
 
   const [isGeneralModalOpen, setIsGeneralModalOpen] = useState(false);
@@ -138,7 +142,9 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
       setClients(Array.isArray(cliList) ? cliList : []);
       setSalonUsers(Array.isArray(slnUsrList) ? slnUsrList : []);
       setProfessionals(Array.isArray(profList) ? profList : []);
-    } catch (err) {
+      setSyncError(getLastAdminSyncError());
+    } catch (err: any) {
+      setSyncError(err?.message || 'Falha ao sincronizar usuários com o banco de dados.');
       console.warn('Erro ao carregar usuários:', err);
     } finally {
       setIsLoading(false);
@@ -147,7 +153,9 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
 
   useEffect(() => {
     loadAll();
+  }, [refreshSignal]);
 
+  useEffect(() => {
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const scheduleLoadAll = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
@@ -159,9 +167,10 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
     const channel = supabase
       .channel('admvapp-users-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, scheduleLoadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, scheduleLoadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'dependents' }, scheduleLoadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'professionals' }, scheduleLoadAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'salon_users' }, scheduleLoadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'salon_members' }, scheduleLoadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'system_admins' }, scheduleLoadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'user_security_answers' }, scheduleLoadAll)
       .subscribe();
@@ -955,6 +964,21 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
 
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden">
+      {syncError && (
+        <div className="shrink-0 bg-rose-500/15 border-b border-rose-500/30 px-4 py-2 flex items-center justify-between gap-3 text-xs text-rose-700 dark:text-rose-300">
+          <span className="flex items-center gap-2 font-semibold truncate">
+            <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+            <span className="truncate">Falha de sincronização com o banco: {syncError}</span>
+          </span>
+          <button
+            type="button"
+            onClick={loadAll}
+            className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-[11px] shrink-0 cursor-pointer"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      )}
 
       <div className="shrink-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 lg:px-6 py-2.5 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5 z-10 transition-colors shadow-2xs dark:shadow-none">
 

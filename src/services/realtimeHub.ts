@@ -3,6 +3,7 @@ import { supabase } from './supabase';
 type TriadeRealtimeTable =
   | 'salons'
   | 'salon_ui_settings'
+  | 'salon_members'
   | 'system_admins'
   | 'admin_preferences'
   | 'billing_invoices'
@@ -11,12 +12,15 @@ type TriadeRealtimeTable =
   | 'notification_outbox'
   | 'professionals'
   | 'clients'
+  | 'profiles'
+  | 'dependents'
   | 'services'
   | 'service_offers';
 
 interface RealtimeHubHandlers {
   onSalonsChange?: () => void;
   onAdminChange?: () => void;
+  onUsersChange?: () => void;
   onAppointmentsChange?: () => void;
   onBillingChange?: () => void;
   onMediaChange?: () => void;
@@ -26,6 +30,7 @@ interface RealtimeHubHandlers {
 
 const ADMIN_MONITORED_TABLES: TriadeRealtimeTable[] = [
   'salons',
+  'salon_members',
   'system_admins',
   'admin_preferences',
   'billing_invoices',
@@ -34,6 +39,8 @@ const ADMIN_MONITORED_TABLES: TriadeRealtimeTable[] = [
   'notification_outbox',
   'professionals',
   'clients',
+  'profiles',
+  'dependents',
 ];
 
 export function subscribeAdminRealtimeHub(handlers: RealtimeHubHandlers): () => void {
@@ -63,8 +70,16 @@ export function subscribeAdminRealtimeHub(handlers: RealtimeHubHandlers): () => 
 
         if (table === 'salons') {
           debounce('salons', handlers.onSalonsChange);
-        } else if (table === 'system_admins' || table === 'professionals' || table === 'clients') {
+        } else if (
+          table === 'system_admins' ||
+          table === 'professionals' ||
+          table === 'clients' ||
+          table === 'profiles' ||
+          table === 'salon_members' ||
+          table === 'dependents'
+        ) {
           debounce('admin', handlers.onAdminChange);
+          debounce('users', handlers.onUsersChange);
         } else if (table === 'appointments') {
           debounce('appointments', handlers.onAppointmentsChange);
         } else if (table === 'billing_invoices') {
