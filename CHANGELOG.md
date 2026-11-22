@@ -15,6 +15,39 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-11-22] — 📱 Identidade PWA Exclusiva do Admin Master: `Admin-Vapp` (`bol-183`)
+- **Tipo:** `[Fix / PWA]`
+- **Motivo / Solicitação:**
+  - Diferenciar o aplicativo instalado do painel administrativo (`admvapp`) do aplicativo consumidor (`Vagou` / `pvapp`) na tela inicial e gaveta de apps do celular, corrigindo o nome PWA exibido para **`Admin-Vapp`**.
+- **Arquivos Impactados:**
+  - `/public/manifest.json`
+  - `/index.html`
+  - `/public/sw.js`
+  - `/server.ts`
+  - `/CHANGELOG.md`
+- **Resumo Técnico:**
+  - Atualizados `id` (`"/admin-vapp"`), `name` (`"Admin-Vapp"`), `short_name` (`"Admin-Vapp"`), `description` e `purpose` dos ícones em `/public/manifest.json`.
+  - Sincronizados `<title>`, `application-name`, `apple-mobile-web-app-title` e tags OpenGraph em `/index.html` para `"Admin-Vapp"`.
+  - Atualizado `CACHE_NAME` em `/public/sw.js` para `admin-vapp-cache-v9` (removendo `/manifest.json` do pré-cache estático para leitura network-first) e ajustado `Cache-Control: no-cache, must-revalidate` em `GET /manifest.json` no `/server.ts` para atualização imediata nos dispositivos.
+
+---
+
+### [2026-11-22] — 🛡️ Hotfix Emergencial RLS v6.1 (`42P17 infinite recursion` em `clients`/`salon_clients`) & CORS Público (`bol-182`)
+- **Tipo:** `[Fix / Security / SQL]`
+- **Motivo / Solicitação:**
+  - Erro `infinite recursion detected in policy for relation "clients"` (`42P17`) no passo final de cadastro de usuários em produção (`vagouapp.com`), bloqueando leitura/gravação via `anon`/JWT nas tabelas `clients`, `salon_clients`, `appointments`, `dependents` e `user_security_answers` em toda a Tríade.
+- **Arquivos Impactados:**
+  - `/supabase/migrations/20261122_fix_rls_clients_recursion_v6_1.sql` (novo hotfix idempotente sem perda de dados)
+  - `/supabase/migrations/20261121_vagou_v6_0_clean_reset.sql` (espelhamento definitivo no script mestre v6.0)
+  - `/server.ts`
+  - `/CHANGELOG.md`
+- **Resumo Técnico:**
+  - **Quebra do Ciclo Mútuo de RLS (`clients` ⇄ `salon_clients`):** Criadas funções `SECURITY DEFINER` `public.is_client_owner(UUID)` e `public.is_member_of_client_salon(UUID)`, substituindo subqueries recursivas diretas nas políticas de `clients`, `salon_clients`, `dependents`, `user_security_answers` e `appointments`.
+  - **Cobertura de `INSERT` em `profiles` & `username` no Trigger Auth:** Adicionada política `profiles_insert_self_or_admin`, liberado vínculo `salon_clients` também para o próprio cliente (`is_client_owner(client_id)`) e atualizado `fn_handle_new_auth_user()` para gravar `username` de `raw_user_meta_data` em `public.profiles` com proteção contra colisão.
+  - **CORS Preflight & Diagnóstico (`server.ts`):** Adicionados handlers `OPTIONS` e cabeçalhos `Access-Control-Allow-Headers` nas rotas `/api/public/register-user` e `/api/public/check-user-availability` para chamadas cross-origin da Tríade (`vagouapp.com` / `meunegocio.vagouapp.com` ➔ `adm.vagouapp.com`), além de alerta de boot caso `SUPABASE_SERVICE_ROLE_KEY` não esteja configurada em produção.
+
+---
+
 ### [2026-11-22] — 🚨 Correção Emergencial de Cadastro de Usuários & Salões v6.0 + Remoção do Fluxo OTP (`bol-181`)
 - **Tipo:** `[Fix / Refactor]`
 - **Motivo / Solicitação:**

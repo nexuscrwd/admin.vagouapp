@@ -1,9 +1,8 @@
-const CACHE_NAME = 'vagou-portal-cache-v8';
+const CACHE_NAME = 'admin-vapp-cache-v9';
 
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
-  '/manifest.json',
   '/icon.svg',
   '/icon-192.png',
   '/icon-512.png',
@@ -138,8 +137,8 @@ self.addEventListener('fetch', (event) => {
 
 self.addEventListener('push', (event) => {
   let notificationData = {
-    title: 'Vagou - Notificação',
-    body: 'Você tem uma nova atualização no Vagou.',
+    title: 'Admin-Vapp - Notificação',
+    body: 'Você tem uma nova atualização no Admin-Vapp.',
     icon: '/icon-192.png',
     badge: '/icon-192.png',
     data: { url: '/' },

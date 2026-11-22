@@ -102,6 +102,10 @@ const supabaseAdmin = createClient(
   }
 );
 
+if (!SUPABASE_SERVICE_ROLE_KEY) {
+  console.warn('[Supabase Admin] SUPABASE_SERVICE_ROLE_KEY ausente; rotas backend ficarão sujeitas às políticas RLS.');
+}
+
 const VAPID_PUBLIC_KEY = (process.env.VAPID_PUBLIC_KEY || '').trim();
 const VAPID_PRIVATE_KEY = (process.env.VAPID_PRIVATE_KEY || '').trim();
 const VAPID_SUBJECT = (process.env.VAPID_SUBJECT || 'mailto:contato@vagouapp.com').trim();
@@ -795,7 +799,7 @@ async function startServer() {
 
   app.get('/manifest.json', (_req, res) => {
     res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
-    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
     res.setHeader('Access-Control-Allow-Origin', '*');
     const manifestPath = path.join(process.cwd(), 'public', 'manifest.json');
     return res.sendFile(manifestPath);
@@ -4877,8 +4881,16 @@ async function startServer() {
     return res.json({ success: true, categories: SYSTEM_CATEGORIES });
   });
 
+  app.options('/api/public/check-user-availability', (_req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return res.status(204).end();
+  });
+
   app.post('/api/public/check-user-availability', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     try {
       const { username, email, phone, cpf } = req.body || {};
       const conflict = await checkUserConflictInSupabase({ username, email, phone, cpf });
@@ -4892,8 +4904,16 @@ async function startServer() {
     }
   });
 
+  app.options('/api/public/register-user', (_req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return res.status(204).end();
+  });
+
   app.post('/api/public/register-user', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     try {
       const body = req.body || {};
       const {

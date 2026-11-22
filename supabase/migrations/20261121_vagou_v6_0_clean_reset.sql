@@ -731,6 +731,36 @@ AS $$
       );
 $$;
 
+CREATE OR REPLACE FUNCTION public.is_client_owner(p_client_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.clients c
+    WHERE c.id = p_client_id
+      AND c.user_id = auth.uid()
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_member_of_client_salon(p_client_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.salon_clients sc
+    WHERE sc.client_id = p_client_id
+      AND public.is_salon_member(sc.salon_id)
+  );
+$$;
+
 -- =====================================================================================================
 -- 5. TRIGGERS NATIVOS DO NÚCLEO VAGOU v6.0
 -- =====================================================================================================
@@ -779,6 +809,7 @@ DECLARE
   v_origin TEXT;
   v_phone TEXT;
   v_cpf TEXT;
+  v_username TEXT;
 BEGIN
   v_name := COALESCE(
     NULLIF(btrim(NEW.raw_user_meta_data ->> 'full_name'), ''),
@@ -798,12 +829,22 @@ BEGIN
   END IF;
   v_phone := NULLIF(btrim(NEW.raw_user_meta_data ->> 'phone'), '');
   v_cpf := NULLIF(btrim(NEW.raw_user_meta_data ->> 'cpf'), '');
+  v_username := NULLIF(btrim(NEW.raw_user_meta_data ->> 'username'), '');
 
-  INSERT INTO public.profiles (id, email, full_name, cpf, phone, role, created_via)
-  VALUES (NEW.id, lower(btrim(NEW.email)), v_name, v_cpf, v_phone, v_role, v_origin)
+  IF v_username IS NOT NULL AND EXISTS (
+    SELECT 1 FROM public.profiles p
+    WHERE lower(btrim(p.username)) = lower(v_username)
+      AND p.id <> NEW.id
+  ) THEN
+    v_username := NULL;
+  END IF;
+
+  INSERT INTO public.profiles (id, email, full_name, username, cpf, phone, role, created_via)
+  VALUES (NEW.id, lower(btrim(NEW.email)), v_name, v_username, v_cpf, v_phone, v_role, v_origin)
   ON CONFLICT (id) DO UPDATE SET
     email = EXCLUDED.email,
     full_name = COALESCE(NULLIF(public.profiles.full_name, ''), EXCLUDED.full_name),
+    username = COALESCE(public.profiles.username, EXCLUDED.username),
     updated_at = NOW();
 
   -- Cria ou vincula registro de cliente consumidor automaticamente (exceto se já existir pelo e-mail/CPF)
@@ -1558,6 +1599,8 @@ $$;
 -- PROFILES
 CREATE POLICY "profiles_select_self_or_admin" ON public.profiles
   FOR SELECT USING (id = auth.uid() OR public.is_super_admin());
+CREATE POLICY "profiles_insert_self_or_admin" ON public.profiles
+  FOR INSERT WITH CHECK (id = auth.uid() OR public.is_super_admin());
 CREATE POLICY "profiles_update_self_or_admin" ON public.profiles
   FOR UPDATE USING (id = auth.uid() OR public.is_super_admin())
   WITH CHECK (id = auth.uid() OR public.is_super_admin());
@@ -1580,11 +1623,11 @@ CREATE POLICY "security_questions_public_read" ON public.security_questions
 CREATE POLICY "user_security_answers_owner_or_admin" ON public.user_security_answers
   FOR ALL USING (
     public.is_super_admin()
-    OR EXISTS (SELECT 1 FROM public.clients c WHERE c.id = client_id AND c.user_id = auth.uid())
+    OR public.is_client_owner(client_id)
   )
   WITH CHECK (
     public.is_super_admin()
-    OR EXISTS (SELECT 1 FROM public.clients c WHERE c.id = client_id AND c.user_id = auth.uid())
+    OR public.is_client_owner(client_id)
   );
 
 -- SALONS & UI SETTINGS (vitrine ativa legível publicamente; mutações restritas a gestor/admin)
@@ -1629,10 +1672,7 @@ CREATE POLICY "clients_self_salon_or_admin" ON public.clients
   FOR SELECT USING (
     user_id = auth.uid()
     OR public.is_super_admin()
-    OR EXISTS (
-      SELECT 1 FROM public.salon_clients sc
-      WHERE sc.client_id = clients.id AND public.is_salon_member(sc.salon_id)
-    )
+    OR public.is_member_of_client_salon(id)
   );
 CREATE POLICY "clients_self_or_admin_write" ON public.clients
   FOR ALL USING (user_id = auth.uid() OR public.is_super_admin())
@@ -1641,18 +1681,21 @@ CREATE POLICY "clients_self_or_admin_write" ON public.clients
 CREATE POLICY "salon_clients_member_access" ON public.salon_clients
   FOR ALL USING (
     public.is_salon_member(salon_id)
-    OR EXISTS (SELECT 1 FROM public.clients c WHERE c.id = client_id AND c.user_id = auth.uid())
+    OR public.is_client_owner(client_id)
   )
-  WITH CHECK (public.is_salon_member(salon_id));
+  WITH CHECK (
+    public.is_salon_member(salon_id)
+    OR public.is_client_owner(client_id)
+  );
 
 CREATE POLICY "dependents_owner_or_admin" ON public.dependents
   FOR ALL USING (
     public.is_super_admin()
-    OR EXISTS (SELECT 1 FROM public.clients c WHERE c.id = parent_client_id AND c.user_id = auth.uid())
+    OR public.is_client_owner(parent_client_id)
   )
   WITH CHECK (
     public.is_super_admin()
-    OR EXISTS (SELECT 1 FROM public.clients c WHERE c.id = parent_client_id AND c.user_id = auth.uid())
+    OR public.is_client_owner(parent_client_id)
   );
 
 -- APPOINTMENTS
@@ -1660,7 +1703,7 @@ CREATE POLICY "appointments_tenant_or_owner_select" ON public.appointments
   FOR SELECT USING (
     client_user_id = auth.uid()
     OR public.is_salon_member(salon_id)
-    OR EXISTS (SELECT 1 FROM public.clients c WHERE c.id = client_id AND c.user_id = auth.uid())
+    OR public.is_client_owner(client_id)
   );
 CREATE POLICY "appointments_authenticated_insert" ON public.appointments
   FOR INSERT WITH CHECK (
