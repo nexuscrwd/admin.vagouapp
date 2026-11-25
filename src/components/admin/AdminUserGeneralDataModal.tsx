@@ -457,9 +457,9 @@ export const AdminUserGeneralDataModal: React.FC<AdminUserGeneralDataModalProps>
   };
 
   const formatQuestionCodeLabel = (code: string): string => {
-    if (code === 'first_pet') return '1º Pet';
-    if (code === 'city_at_10') return 'Cidade aos 10 anos';
-    if (code === 'childhood_friend') return 'Amigo de Infância';
+    if (code === 'sq_1' || code === 'first_pet') return '1º Animal de Estimação';
+    if (code === 'sq_2' || code === 'city_at_10') return 'Cidade dos Pais';
+    if (code === 'sq_3' || code === 'first_school' || code === 'childhood_friend') return '1ª Escola';
     return code;
   };
 

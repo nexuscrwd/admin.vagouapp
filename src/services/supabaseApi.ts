@@ -377,8 +377,11 @@ export async function checkTriadeUserConflict(params: {
     typeof val === 'string' ? val.trim().toLowerCase() : '';
   const normPhone = (val?: string) => {
     if (typeof val !== 'string') return '';
-    const digits = val.replace(/\D/g, '');
-    return digits.length >= 10 ? digits.slice(-9) : '';
+    let digits = val.replace(/\D/g, '');
+    if (digits.length >= 12 && digits.startsWith('55')) {
+      digits = digits.slice(2);
+    }
+    return digits.length >= 10 ? digits.slice(-11) : '';
   };
   const normCpf = (val?: string) => {
     if (typeof val !== 'string') return '';
@@ -544,6 +547,8 @@ export async function registerTriadeUser(userData: {
   origin?: 'portal' | 'establishment' | 'admin';
   salonId?: string;
   salonName?: string;
+  securityQuestionCode?: 'sq_1' | 'sq_2' | 'sq_3';
+  securityAnswer?: string;
 }): Promise<{ success: boolean; client?: any; userId?: string; session?: any; error?: string }> {
   const cleanName = userData.fullName.trim();
   const cleanEmail = userData.email.trim().toLowerCase();
@@ -551,6 +556,12 @@ export async function registerTriadeUser(userData: {
   const cleanPhone = userData.phone.trim();
   const cleanCpf = (userData.cpf || '').trim();
   const pass = (userData.password || '').trim();
+  const validSecCodes = new Set(['sq_1', 'sq_2', 'sq_3']);
+  const cleanSecCode =
+    userData.securityQuestionCode && validSecCodes.has(userData.securityQuestionCode)
+      ? userData.securityQuestionCode
+      : undefined;
+  const cleanSecAnswer = (userData.securityAnswer || '').trim();
   const addr = userData.address || {
     cep: '',
     street: '',
@@ -618,6 +629,12 @@ export async function registerTriadeUser(userData: {
         neighborhood: addr.neighborhood,
         city: addr.city || 'São Paulo',
         state: addr.state || 'SP',
+        ...(cleanSecCode && cleanSecAnswer
+          ? {
+              securityQuestionCode: cleanSecCode,
+              securityAnswer: cleanSecAnswer,
+            }
+          : {}),
       }),
     });
 
@@ -734,6 +751,7 @@ export async function registerTriadeUser(userData: {
       state: addr.state || 'SP',
       ...(addr.latitude !== undefined && addr.latitude !== null ? { latitude: addr.latitude } : {}),
       ...(addr.longitude !== undefined && addr.longitude !== null ? { longitude: addr.longitude } : {}),
+      ...(cleanSecCode && cleanSecAnswer ? { security_question_code: cleanSecCode } : {}),
       is_active: true,
       created_via: resolvedCreatedVia,
       updated_at: nowIso,
@@ -750,6 +768,31 @@ export async function registerTriadeUser(userData: {
 
     if (writeRes.error) {
       return { success: false, error: writeRes.error.message };
+    }
+
+    if (cleanSecCode && cleanSecAnswer && writeRes.data?.id && typeof crypto !== 'undefined' && crypto.subtle) {
+      try {
+        const normalizedAnswer = cleanSecAnswer
+          .trim()
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '');
+        const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(normalizedAnswer));
+        const answerHash = Array.from(new Uint8Array(hashBuffer))
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join('');
+        await safeSupabaseClientWrite(
+          'user_security_answers',
+          'upsert',
+          {
+            client_id: writeRes.data.id,
+            question_code: cleanSecCode,
+            answer_hash: answerHash,
+            updated_at: nowIso,
+          },
+          { onConflict: 'client_id,question_code' }
+        );
+      } catch {}
     }
 
     if (isUuid(userData.salonId) && writeRes.data?.id) {
@@ -1277,6 +1320,7 @@ export async function createAdminSalon(
           secondary_color: resolvedSecondaryColor,
           brand_font: salonData.brand_font || 'Poppins',
           pwa_name: resolvedTradeName,
+          logo_text_fallback: (salonData.logo_text_fallback || '').trim() || resolvedTradeName,
           section_header_bg_color: salonData.section_header_bg_color || '#ECFDF5',
           section_header_text_color: salonData.section_header_text_color || '#065F46',
           section_header_icon_color: salonData.section_header_icon_color || '#059669',

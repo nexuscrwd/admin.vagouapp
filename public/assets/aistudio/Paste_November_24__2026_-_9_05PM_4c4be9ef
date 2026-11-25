@@ -1,0 +1,2056 @@
+# 🚀 ORDEM DE SUBSTITUIÇÃO COMPLETA — FORMULÁRIO ÚNICO DE CADASTRO DE USUÁRIO DA TRÍADE VAGOU (v6.2)
+
+## 🎯 INSTRUÇÃO IMPERATIVA
+Você deve **REMOVER COMPLETAMENTE** o formulário antigo de cadastro de usuários deste projeto (aquele que inicia pedindo `Nome Completo *` e `Nome de Usuário *`, ou qualquer variação antiga fora do padrão v6.2) e **SUBSTITUÍ-LO 100%** pelo formulário oficial padronizado da Tríade Vagou fornecido integralmente abaixo.
+
+### Regras obrigatórias de execução:
+1. **Localizar e excluir o formulário antigo:** encontre todos os componentes, modais, embeds ou wizards antigos usados para cadastrar **usuários/clientes** (ex.: formulários que começam com *Nome Completo* + *Nome de Usuário*) e remova-os completamente, eliminando também imports, estados, rotas mortas e referências não utilizadas.
+   - **Atenção (`admvapp`):** NÃO exclua o cadastro de **estabelecimento/salão** (`?form=estabelecimento`) — substitua apenas o formulário/etapa de cadastro de **usuário** para seguir este novo fluxo de 5 fases começando por **Celular / WhatsApp**.
+2. **NÃO usar iframe para cadastro de usuário:** este formulário roda **nativamente** neste projeto falando diretamente com o Supabase compartilhado (`v6.2`) — zero ponto único de falha (SPOF).
+3. **Criar os 2 arquivos completos abaixo** (ajustando apenas o caminho do import do cliente `supabase` caso seja diferente neste projeto):
+   - `src/utils/deviceFingerprint.ts`
+   - `src/components/auth/TriadeUserRegisterForm.tsx`
+4. **Configurar a prop `origin` no projeto receptor:**
+   - No **`admvapp`**: passar `origin="admvapp"` (e `bypassAntifraud={true}` **apenas** quando o operador logado for **Superadmin** cadastrando manualmente via suporte).
+   - No **`pvapp`**: passar `origin="pvapp"` e `bypassAntifraud={false}`.
+5. **Regras visuais inegociáveis:**
+   - Tema escuro isolado via classe `.vagou-cinematic-auth` (nunca inverter para branco em modo claro).
+   - Todo botão verde (`bg-[#20C933]` / `bg-emerald-500` / `bg-emerald-600`) DEVE ter texto e ícones **brancos (`text-white`)**.
+   - 100% dos ícones vindos de `lucide-react` (zero SVG manual inline).
+   - Rodapé de ação fixo (`sticky bottom-0 z-20`).
+6. **Validação final obrigatória:** rodar `tsc --noEmit` e `npm run build` garantindo **0 erros** e **0 imports/arquivos mortos**.
+
+---
+
+## 🗺️ FLUXO COMPLETO DO FORMULÁRIO OFICIAL (5 FASES — v6.2)
+
+```text
+[FASE 1: CONTATO — Celular / WhatsApp]
+  ├─ Campos: Celular/WhatsApp + Confirmação (máscara BR, 10 ou 11 dígitos)
+  ├─ Tempo real (320ms + onBlur + Avançar): consulta `check_triade_user_conflict` (ou `/api/public/check-user-conflict`)
+  ├─ Se já existe conta concluída ➔ bloqueia e oferece link "Ir para o login"
+  ├─ Ao clicar em Avançar (telefone livre):
+  │   ├─ 1) Chama `get_registration_lead_resume_rpc(phone, deviceHash)`
+  │   │     └─ Se mesmo aparelho + lead `in_progress` nos últimos 7 dias ➔ restaura dados já digitados (LGPD-safe, zero exposição p/ outros aparelhos)
+  │   └─ 2) Chama silenciosamente `upsert_registration_lead_rpc(..., last_step='contact')`
+  │         └─ Garante captura do WhatsApp mesmo se internet/bateria cair depois!
+  ▼
+[FASE 2: IDENTIDADE & ANTIFRAUDE — Nome Completo + Nome de Usuário]
+  ├─ Campos: Nome Completo (≥2 chars) + Nome de Usuário + Confirmar Nome de Usuário
+  ├─ Regras estritas de Usuário: ≥3 chars + 1 Maiúscula (A-Z) + 1 Minúscula (a-z) + 1 Especial (@,#,$,!,&)
+  │   └─ Jamais remover o caractere especial na comparação exata!
+  ├─ Tempo real: consulta unicidade do username no banco
+  ├─ Motor Antifraude (quando `!bypassAntifraud`):
+  │   ├─ Chama `check_registration_risk_rpc(fullName, deviceHash, cep)` (ou `/api/public/check-registration-risk`)
+  │   ├─ Risco Baixo (<40): avança livremente
+  │   ├─ Risco Médio (40–69): alerta LGPD-safe + botão "Entrar / Adicionar Dependente" + checkbox obrigatório de confirmação individual
+  │   └─ Risco Alto (≥70 / blocked=true): bloqueia criações abusivas em massa (≥3 contas/24h)
+  ├─ Ao clicar em Avançar: `upsert_registration_lead_rpc(..., last_step='name', full_name, username)`
+  ▼
+[FASE 3: E-MAIL]
+  ├─ Campos: E-mail + Confirmar E-mail (lowercase, regex válida, comparação exata)
+  ├─ Tempo real: consulta unicidade do e-mail no banco
+  ├─ Ao clicar em Avançar: `upsert_registration_lead_rpc(..., last_step='email', email)`
+  ▼
+[FASE 4: ENDEREÇO INTELIGENTE — 3 Caminhos]
+  ├─ Caminho 1 (Google Places API New): busca rua/bairro via `/api/maps/places-autocomplete` + `/api/maps/place-details` com `sessionToken` UUID + FieldMask Essentials (`addressComponents,formattedAddress,location`) ➔ preenche tudo + `latitude`/`longitude`
+  ├─ Caminho 2 (CEP Gratuito): digita 8 dígitos ➔ consulta ViaCEP (fallback BrasilAPI) ➔ vai para Número + Complemento
+  ├─ Caminho 3 ("Não sei meu CEP"): informa Rua, Bairro, Cidade e UF ➔ busca reversa automática de CEP (ViaCEP reverso)
+  ├─ Tela de Resumo (`address_summary`): valida todos os campos obrigatórios e lista exatamente os faltantes
+  ├─ Ao clicar em Confirmar: `upsert_registration_lead_rpc(..., last_step='address_summary', cep, street, number, complement, neighborhood, city, state, lat, lng)`
+  ▼
+[FASE 5: SEGURANÇA, PERGUNTA SECRETA & CONCLUSÃO ATÔMICA]
+  ├─ Campos: Senha (≥6 chars, 1 Maiúscula, 1 Especial) + Confirmação + Pergunta Secreta (`sq_1`/`sq_2`/`sq_3` de `public.security_questions`) + Resposta Secreta (≥2 chars)
+  ├─ NUNCA enviar senha ou resposta secreta para `registration_leads`!
+  ├─ Gravação definitiva:
+  │   ├─ Tenta `POST /api/public/register-user` (grava `auth.users` + `profiles` + `clients` + `user_security_answers` + `registration_risk_logs` com rollback atômico)
+  │   └─ Fallback direto no Supabase (`supabase.auth.signUp`)
+  ├─ Marca lead como concluído: `complete_registration_lead_rpc(phone, userId, clientId)`
+  ▼
+[TELA DE BOAS-VINDAS (`welcome`)]
+  └─ Exibe confirmação da conta criada e botão "Continuar"
+```
+
+---
+
+## 💻 ARQUIVO 1 DE 2: `src/utils/deviceFingerprint.ts`
+
+```ts
+const DEVICE_TOKEN_STORAGE_KEY = 'vagou_device_fp_token';
+const DEVICE_HASH_CACHE_KEY = 'vagou_device_fp_hash';
+
+function fnv1aHex(input: string): string {
+  let h1 = 0x811c9dc5;
+  let h2 = 0x01000193;
+  for (let i = 0; i < input.length; i += 1) {
+    const ch = input.charCodeAt(i);
+    h1 ^= ch;
+    h1 = Math.imul(h1, 0x01000193);
+    h2 ^= ch + i;
+    h2 = Math.imul(h2, 0x85ebca6b);
+  }
+  const partA = (h1 >>> 0).toString(16).padStart(8, '0');
+  const partB = (h2 >>> 0).toString(16).padStart(8, '0');
+  return `${partA}${partB}${partA}${partB}`;
+}
+
+function getOrCreatePersistentToken(): string {
+  if (typeof window === 'undefined') return 'ssr-device';
+  try {
+    const existing = localStorage.getItem(DEVICE_TOKEN_STORAGE_KEY);
+    if (existing && existing.length >= 16) return existing;
+    const nextToken =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `dev-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`;
+    localStorage.setItem(DEVICE_TOKEN_STORAGE_KEY, nextToken);
+    return nextToken;
+  } catch {
+    return 'ephemeral-device';
+  }
+}
+
+export function createPlacesSessionToken(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `gmp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+export async function getOrCreateDeviceFingerprint(): Promise<string> {
+  if (typeof window === 'undefined') return 'ssr-device-hash';
+
+  try {
+    const cached = sessionStorage.getItem(DEVICE_HASH_CACHE_KEY);
+    if (cached && cached.length >= 16) return cached;
+  } catch {}
+
+  const token = getOrCreatePersistentToken();
+  const tz = (() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    } catch {
+      return '';
+    }
+  })();
+
+  const rawSignals = [
+    token,
+    navigator.userAgent || '',
+    navigator.language || '',
+    tz,
+    String(window.screen?.width || 0),
+    String(window.screen?.height || 0),
+    String(window.screen?.colorDepth || 0),
+    String(navigator.hardwareConcurrency || 0),
+  ].join('|');
+
+  let digestHex = '';
+  try {
+    if (typeof crypto !== 'undefined' && crypto.subtle && typeof TextEncoder !== 'undefined') {
+      const encoded = new TextEncoder().encode(rawSignals);
+      const buffer = await crypto.subtle.digest('SHA-256', encoded);
+      digestHex = Array.from(new Uint8Array(buffer))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('')
+        .slice(0, 32);
+    }
+  } catch {}
+
+  if (!digestHex) {
+    digestHex = fnv1aHex(rawSignals);
+  }
+
+  try {
+    sessionStorage.setItem(DEVICE_HASH_CACHE_KEY, digestHex);
+  } catch {}
+
+  return digestHex;
+}
+```
+
+---
+
+## 💻 ARQUIVO 2 DE 2: `src/components/auth/TriadeUserRegisterForm.tsx`
+
+```tsx
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  User,
+  AtSign,
+  Mail,
+  Phone,
+  Lock,
+  Eye,
+  EyeOff,
+  CheckCircle2,
+  AlertCircle,
+  ArrowRight,
+  ArrowLeft,
+  MapPin,
+  Hash,
+  Building2,
+  Loader2,
+  HelpCircle,
+  Sparkles,
+  ChevronDown,
+  Search,
+  ShieldAlert,
+  Users,
+  X,
+} from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import {
+  getOrCreateDeviceFingerprint,
+  createPlacesSessionToken,
+} from '../../utils/deviceFingerprint';
+
+const BRAZIL_UF_LIST = [
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO',
+  'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI',
+  'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
+] as const;
+
+export interface SecurityQuestionItem {
+  id: string;
+  code: string;
+  categoryLabel: string;
+  questionText: string;
+}
+
+export const OFFICIAL_SECURITY_QUESTIONS: SecurityQuestionItem[] = [
+  {
+    id: 'sq-1',
+    code: 'sq_1',
+    categoryLabel: 'Animal de estimação',
+    questionText: 'Qual é o nome do seu primeiro animal de estimação?',
+  },
+  {
+    id: 'sq-2',
+    code: 'sq_2',
+    categoryLabel: 'Cidade dos pais',
+    questionText: 'Em qual cidade seus pais se conheceram?',
+  },
+  {
+    id: 'sq-3',
+    code: 'sq_3',
+    categoryLabel: 'Primeira escola',
+    questionText: 'Qual era o nome da sua primeira escola?',
+  },
+];
+
+const LEGACY_SECURITY_QUESTION_MAP: Record<string, string> = {
+  first_pet: 'sq_1',
+  pet: 'sq_1',
+  city_at_10: 'sq_2',
+  parents_city: 'sq_2',
+  childhood_friend: 'sq_3',
+  first_school: 'sq_3',
+};
+
+function normalizeSecurityQuestionCode(rawCode?: string | null): string {
+  const clean = String(rawCode || '').trim().toLowerCase();
+  if (!clean) return 'sq_1';
+  return LEGACY_SECURITY_QUESTION_MAP[clean] || clean;
+}
+
+function normalizeText(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function stripStreetPrefix(value: string): string {
+  return normalizeText(value)
+    .replace(
+      /^(rua|r\.|r|avenida|av\.|av|alameda|al\.|al|travessa|tv\.|tv|praca|pca\.|pca|estrada|est\.|est|rodovia|rod\.|rod|viela|largo|beco)\s+/i,
+      ''
+    )
+    .replace(/[,#-].*$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeBrazilPhoneDigits(value: string): string {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (digits.length >= 12 && digits.startsWith('55')) return digits.slice(2);
+  return digits;
+}
+
+function formatPhoneBR(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+  if (digits.length === 0) return '';
+  if (digits.length <= 2) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
+function formatCEP(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 5) return digits;
+  return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+}
+
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+interface GoogleAddressSuggestion {
+  placeId: string;
+  mainText: string;
+  secondaryText: string;
+  description: string;
+}
+
+export interface TriadeUserAddressData {
+  cep: string;
+  street: string;
+  number: string;
+  complement: string;
+  neighborhood: string;
+  city: string;
+  uf: string;
+}
+
+export interface TriadeUserData {
+  id?: string;
+  name: string;
+  username?: string;
+  email: string;
+  phone: string;
+  address?: TriadeUserAddressData;
+  accountType?: 'client' | 'professional' | 'owner';
+}
+
+export interface TriadeUserRegisterFormProps {
+  onSuccess?: (data: TriadeUserData, options?: { keepModalOpen?: boolean }) => void;
+  onSwitchToLogin?: () => void;
+  onClose?: () => void;
+  origin?: 'mnvapp' | 'admvapp' | 'pvapp';
+  bypassAntifraud?: boolean;
+  salonId?: string;
+  salonName?: string;
+  salonSlug?: string;
+  salonLogoUrl?: string;
+  initialPhone?: string;
+  initialFullName?: string;
+  initialEmail?: string;
+  variant?: 'card' | 'flat';
+}
+
+type RegisterWizardStep =
+  | 'contact'
+  | 'name'
+  | 'email'
+  | 'address_cep'
+  | 'address_num'
+  | 'address_summary'
+  | 'password'
+  | 'welcome';
+
+type FieldCheckStatus = 'idle' | 'checking' | 'available' | 'taken' | 'error';
+
+interface FieldCheckState {
+  status: FieldCheckStatus;
+  message: string;
+  checkedValue: string;
+}
+
+const INITIAL_CHECK: FieldCheckState = { status: 'idle', message: '', checkedValue: '' };
+
+const STEP_META: Record<RegisterWizardStep, { index: number; total: number; label: string }> = {
+  contact: { index: 1, total: 5, label: 'CONTATO' },
+  name: { index: 2, total: 5, label: 'IDENTIDADE' },
+  email: { index: 3, total: 5, label: 'E-MAIL' },
+  address_cep: { index: 4, total: 5, label: 'ENDEREÇO' },
+  address_num: { index: 4, total: 5, label: 'ENDEREÇO' },
+  address_summary: { index: 4, total: 5, label: 'ENDEREÇO' },
+  password: { index: 5, total: 5, label: 'SEGURANÇA' },
+  welcome: { index: 5, total: 5, label: 'CONCLUÍDO' },
+};
+
+export const TriadeUserRegisterForm: React.FC<TriadeUserRegisterFormProps> = ({
+  onSuccess,
+  onSwitchToLogin,
+  onClose,
+  origin = 'admvapp',
+  bypassAntifraud = false,
+  salonId,
+  salonName,
+  salonSlug,
+  salonLogoUrl,
+  initialPhone = '',
+  initialFullName = '',
+  initialEmail = '',
+  variant = 'card',
+}) => {
+  const [step, setStep] = useState<RegisterWizardStep>('contact');
+  const [phone, setPhone] = useState(() => formatPhoneBR(initialPhone));
+  const [confirmPhone, setConfirmPhone] = useState(() => formatPhoneBR(initialPhone));
+  const [phoneCheck, setPhoneCheck] = useState<FieldCheckState>(INITIAL_CHECK);
+
+  const [name, setName] = useState(initialFullName);
+  const [username, setUsername] = useState('');
+  const [confirmUsername, setConfirmUsername] = useState('');
+  const [usernameCheck, setUsernameCheck] = useState<FieldCheckState>(INITIAL_CHECK);
+
+  const [deviceHash, setDeviceHash] = useState('');
+  const [riskCheck, setRiskCheck] = useState({
+    status: 'idle' as 'idle' | 'checking' | 'done',
+    riskLevel: 'low' as 'low' | 'medium' | 'high',
+    riskScore: 0,
+    requiresConfirmation: false,
+    blocked: false,
+    message: '',
+    checkedName: '',
+  });
+  const [riskAcknowledged, setRiskAcknowledged] = useState(false);
+
+  const [email, setEmail] = useState(initialEmail);
+  const [confirmEmail, setConfirmEmail] = useState(initialEmail);
+  const [emailCheck, setEmailCheck] = useState<FieldCheckState>(INITIAL_CHECK);
+
+  const [cep, setCep] = useState('');
+  const [street, setStreet] = useState('');
+  const [addressNumber, setAddressNumber] = useState('');
+  const [complement, setComplement] = useState('');
+  const [neighborhood, setNeighborhood] = useState('');
+  const [city, setCity] = useState('');
+  const [uf, setUf] = useState('');
+  const [addressCoords, setAddressCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [isLookingUpCep, setIsLookingUpCep] = useState(false);
+  const [cepNotFound, setCepNotFound] = useState(false);
+  const [cameFromManualCep, setCameFromManualCep] = useState(false);
+  const [isReverseLookingUpCep, setIsReverseLookingUpCep] = useState(false);
+
+  const [addressSearchQuery, setAddressSearchQuery] = useState('');
+  const [addressSuggestions, setAddressSuggestions] = useState<GoogleAddressSuggestion[]>([]);
+  const [isSearchingPlaces, setIsSearchingPlaces] = useState(false);
+  const [isResolvingPlace, setIsResolvingPlace] = useState(false);
+  const placesSessionTokenRef = useRef<string>(createPlacesSessionToken());
+
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const [securityQuestions, setSecurityQuestions] = useState<SecurityQuestionItem[]>(
+    OFFICIAL_SECURITY_QUESTIONS
+  );
+  const [securityQuestionCode, setSecurityQuestionCode] = useState('sq_1');
+  const [securityAnswer, setSecurityAnswer] = useState('');
+  const [isQuestionOpen, setIsQuestionOpen] = useState(false);
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(
+    null
+  );
+
+  useEffect(() => {
+    let active = true;
+    getOrCreateDeviceFingerprint().then((hash) => {
+      if (active && hash) setDeviceHash(hash);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!supabase) return;
+    let active = true;
+    (async () => {
+      try {
+        const { data } = await (supabase.from('security_questions' as any) as any)
+          .select('id, code, category_label, question_text, is_active')
+          .eq('is_active', true)
+          .order('code', { ascending: true });
+        if (active && Array.isArray(data) && data.length > 0) {
+          const mapped: SecurityQuestionItem[] = data.map((row: any) => ({
+            id: String(row.id || row.code),
+            code: String(row.code),
+            categoryLabel: String(row.category_label || row.code),
+            questionText: String(row.question_text || ''),
+          }));
+          setSecurityQuestions(mapped);
+          if (!mapped.some((q) => q.code === securityQuestionCode)) {
+            setSecurityQuestionCode(mapped[0].code);
+          }
+        }
+      } catch {}
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const phoneDigits = normalizeBrazilPhoneDigits(phone);
+  const confirmPhoneDigits = normalizeBrazilPhoneDigits(confirmPhone);
+  const isPhoneFormatValid = phoneDigits.length === 10 || phoneDigits.length === 11;
+
+  const cleanName = name.trim();
+  const cleanUsername = username.trim();
+  const cleanConfirmUsername = confirmUsername.trim();
+  const userRules = {
+    hasUpper: /[A-ZÀ-Ý]/.test(cleanUsername),
+    hasLower: /[a-zà-ÿ]/.test(cleanUsername),
+    hasSpecial: /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(cleanUsername),
+    hasMinLen: cleanUsername.length >= 3,
+  };
+  const isUsernameFormatValid =
+    userRules.hasMinLen && userRules.hasUpper && userRules.hasLower && userRules.hasSpecial;
+  const isUsernameConfirmed = cleanUsername.length > 0 && cleanUsername === cleanConfirmUsername;
+
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanConfirmEmail = confirmEmail.trim().toLowerCase();
+  const isEmailFormatValid = isValidEmail(cleanEmail);
+
+  const missingAddressFields: string[] = [];
+  if (street.trim().length < 2) missingAddressFields.push('Rua');
+  if (addressNumber.trim().length < 1) missingAddressFields.push('Número');
+  if (neighborhood.trim().length < 2) missingAddressFields.push('Bairro');
+  if (city.trim().length < 2) missingAddressFields.push('Cidade');
+  if (uf.trim().length !== 2) missingAddressFields.push('UF');
+  const isAddressSummaryValid = missingAddressFields.length === 0;
+
+  const hasMinLength = password.length >= 6;
+  const hasUpperCase = /[A-Z]/.test(password);
+  const hasSpecialChar = /[^A-Za-z0-9\s]/.test(password);
+  const passwordsMatch = password.length > 0 && password === confirmPassword;
+  const isSecurityAnswerValid = normalizeText(securityAnswer).length >= 2;
+
+  const checkConflict = useCallback(
+    async (params: { phone?: string; username?: string; email?: string }) => {
+      try {
+        const res = await fetch('/api/public/check-user-conflict', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(params),
+        });
+        const ct = res.headers.get('content-type') || '';
+        if (res.ok && ct.includes('application/json')) {
+          const data = await res.json();
+          if (data?.conflict || data?.hasConflict) {
+            return {
+              conflict: true,
+              field: data.field || data.conflictField,
+              message: data.message || 'Já cadastrado no sistema.',
+            };
+          }
+          return { conflict: false };
+        }
+      } catch {}
+
+      if (supabase) {
+        try {
+          const { data } = await (supabase.rpc as any)('check_triade_user_conflict', {
+            p_username: params.username || null,
+            p_email: params.email || null,
+            p_phone: params.phone || null,
+          });
+          if (data?.hasConflict || data?.conflict) {
+            return {
+              conflict: true,
+              field: data.conflictField || data.field,
+              message: data.message || 'Já cadastrado no sistema.',
+            };
+          }
+        } catch {}
+      }
+      return { conflict: false };
+    },
+    []
+  );
+
+  const verifyPhoneNow = useCallback(
+    async (val: string) => {
+      const digits = normalizeBrazilPhoneDigits(val);
+      if (digits.length < 10 || digits.length > 11) {
+        setPhoneCheck(INITIAL_CHECK);
+        return false;
+      }
+      setPhoneCheck({ status: 'checking', message: 'Verificando celular...', checkedValue: digits });
+      const res = await checkConflict({ phone: val.trim() });
+      if (res.conflict) {
+        setPhoneCheck({
+          status: 'taken',
+          message: res.message || 'Este celular já possui conta cadastrada.',
+          checkedValue: digits,
+        });
+        return false;
+      }
+      setPhoneCheck({ status: 'available', message: 'Celular disponível.', checkedValue: digits });
+      return true;
+    },
+    [checkConflict]
+  );
+
+  const verifyUsernameNow = useCallback(
+    async (val: string) => {
+      const clean = val.trim();
+      if (
+        clean.length < 3 ||
+        !/[A-ZÀ-Ý]/.test(clean) ||
+        !/[a-zà-ÿ]/.test(clean) ||
+        !/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(clean)
+      ) {
+        setUsernameCheck(INITIAL_CHECK);
+        return false;
+      }
+      setUsernameCheck({
+        status: 'checking',
+        message: 'Verificando disponibilidade...',
+        checkedValue: clean.toLowerCase(),
+      });
+      const res = await checkConflict({ username: clean });
+      if (res.conflict) {
+        setUsernameCheck({
+          status: 'taken',
+          message: res.message || 'Este nome de usuário já está em uso.',
+          checkedValue: clean.toLowerCase(),
+        });
+        return false;
+      }
+      setUsernameCheck({
+        status: 'available',
+        message: 'Nome de usuário disponível.',
+        checkedValue: clean.toLowerCase(),
+      });
+      return true;
+    },
+    [checkConflict]
+  );
+
+  const verifyEmailNow = useCallback(
+    async (val: string) => {
+      const clean = val.trim().toLowerCase();
+      if (!isValidEmail(clean)) {
+        setEmailCheck(INITIAL_CHECK);
+        return false;
+      }
+      setEmailCheck({ status: 'checking', message: 'Verificando e-mail...', checkedValue: clean });
+      const res = await checkConflict({ email: clean });
+      if (res.conflict) {
+        setEmailCheck({
+          status: 'taken',
+          message: res.message || 'Este e-mail já está cadastrado.',
+          checkedValue: clean,
+        });
+        return false;
+      }
+      setEmailCheck({ status: 'available', message: 'E-mail disponível.', checkedValue: clean });
+      return true;
+    },
+    [checkConflict]
+  );
+
+  const verifyRiskNow = useCallback(
+    async (fullNameValue: string) => {
+      if (bypassAntifraud) {
+        return { blocked: false, requiresConfirmation: false, message: '' };
+      }
+      const norm = normalizeText(fullNameValue);
+      const parts = norm.split(' ').filter((p) => p.length >= 2);
+      if (parts.length < 2) {
+        return { blocked: false, requiresConfirmation: false, message: '' };
+      }
+
+      const activeHash = deviceHash || (await getOrCreateDeviceFingerprint());
+      setRiskCheck((prev) => ({ ...prev, status: 'checking' }));
+
+      let evaluated: any = null;
+      try {
+        const res = await fetch('/api/public/check-registration-risk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fullName: fullNameValue.trim(),
+            deviceHash: activeHash,
+            cep: cep.replace(/\D/g, ''),
+          }),
+        });
+        const ct = res.headers.get('content-type') || '';
+        if (res.ok && ct.includes('application/json')) {
+          evaluated = await res.json();
+        }
+      } catch {}
+
+      if (!evaluated && supabase) {
+        try {
+          const { data } = await (supabase.rpc as any)('check_registration_risk_rpc', {
+            p_full_name: fullNameValue.trim(),
+            p_device_hash: activeHash || null,
+            p_cep: cep.replace(/\D/g, '') || null,
+          });
+          if (data) evaluated = data;
+        } catch {}
+      }
+
+      const result = {
+        status: 'done' as const,
+        riskLevel: (evaluated?.riskLevel || 'low') as 'low' | 'medium' | 'high',
+        riskScore: Number(evaluated?.riskScore || 0),
+        requiresConfirmation: Boolean(evaluated?.requiresConfirmation),
+        blocked: Boolean(evaluated?.blocked),
+        message: String(evaluated?.message || ''),
+        checkedName: norm,
+      };
+      setRiskCheck(result);
+      return result;
+    },
+    [bypassAntifraud, cep, deviceHash]
+  );
+
+  useEffect(() => {
+    if (step !== 'contact' || !isPhoneFormatValid) return;
+    if (phoneCheck.checkedValue === phoneDigits && phoneCheck.status !== 'idle') return;
+    const t = setTimeout(() => void verifyPhoneNow(phone), 320);
+    return () => clearTimeout(t);
+  }, [step, phone, phoneDigits, isPhoneFormatValid, phoneCheck.checkedValue, phoneCheck.status, verifyPhoneNow]);
+
+  useEffect(() => {
+    if (step !== 'name' || !isUsernameFormatValid) return;
+    if (usernameCheck.checkedValue === cleanUsername.toLowerCase() && usernameCheck.status !== 'idle') {
+      return;
+    }
+    const t = setTimeout(() => void verifyUsernameNow(cleanUsername), 320);
+    return () => clearTimeout(t);
+  }, [step, cleanUsername, isUsernameFormatValid, usernameCheck.checkedValue, usernameCheck.status, verifyUsernameNow]);
+
+  useEffect(() => {
+    if (step !== 'name' || bypassAntifraud) return;
+    const norm = normalizeText(cleanName);
+    if (norm.split(' ').filter((p) => p.length >= 2).length < 2) return;
+    if (riskCheck.checkedName === norm && riskCheck.status === 'done') return;
+    setRiskAcknowledged(false);
+    const t = setTimeout(() => void verifyRiskNow(cleanName), 450);
+    return () => clearTimeout(t);
+  }, [step, cleanName, bypassAntifraud, riskCheck.checkedName, riskCheck.status, verifyRiskNow]);
+
+  useEffect(() => {
+    if (step !== 'email' || !isEmailFormatValid) return;
+    if (emailCheck.checkedValue === cleanEmail && emailCheck.status !== 'idle') return;
+    const t = setTimeout(() => void verifyEmailNow(cleanEmail), 320);
+    return () => clearTimeout(t);
+  }, [step, cleanEmail, isEmailFormatValid, emailCheck.checkedValue, emailCheck.status, verifyEmailNow]);
+
+  useEffect(() => {
+    if (step !== 'address_cep') return;
+    const q = addressSearchQuery.trim();
+    if (q.length < 3) {
+      setAddressSuggestions([]);
+      setIsSearchingPlaces(false);
+      return;
+    }
+    let cancelled = false;
+    setIsSearchingPlaces(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/maps/places-autocomplete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ input: q, sessionToken: placesSessionTokenRef.current }),
+        });
+        const ct = res.headers.get('content-type') || '';
+        if (!cancelled && res.ok && ct.includes('application/json')) {
+          const data = await res.json();
+          setAddressSuggestions(Array.isArray(data?.suggestions) ? data.suggestions : []);
+        }
+      } catch {}
+      if (!cancelled) setIsSearchingPlaces(false);
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [step, addressSearchQuery]);
+
+  useEffect(() => {
+    if (step !== 'address_summary') return;
+    if (cep.replace(/\D/g, '').length === 8) return;
+    const cleanStreet = street.trim();
+    const cleanCity = city.trim();
+    const cleanUf = uf.trim().toUpperCase();
+    if (cleanStreet.length < 3 || cleanCity.length < 2 || cleanUf.length !== 2) return;
+
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      setIsReverseLookingUpCep(true);
+      try {
+        const streetCore = stripStreetPrefix(cleanStreet);
+        const url = `https://viacep.com.br/ws/${encodeURIComponent(cleanUf)}/${encodeURIComponent(cleanCity)}/${encodeURIComponent(streetCore)}/json/`;
+        const res = await fetch(url);
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            const rawCep = String(data[0]?.cep || '').replace(/\D/g, '');
+            if (rawCep.length === 8) setCep(formatCEP(rawCep));
+          }
+        }
+      } catch {}
+      if (!cancelled) setIsReverseLookingUpCep(false);
+    }, 450);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [step, street, city, uf, cep]);
+
+  const persistLeadProgress = async (
+    targetStep: 'contact' | 'name' | 'email' | 'address_summary'
+  ) => {
+    if (!isPhoneFormatValid) return;
+    const activeHash = deviceHash || (await getOrCreateDeviceFingerprint());
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const validSalonId = salonId && uuidPattern.test(salonId) ? salonId : null;
+
+    if (supabase) {
+      try {
+        const { error } = await (supabase.rpc as any)('upsert_registration_lead_rpc', {
+          p_phone: phone.trim(),
+          p_last_step: targetStep,
+          p_origin: origin,
+          p_salon_id: validSalonId,
+          p_salon_slug: salonSlug?.trim() || null,
+          p_device_hash: activeHash || null,
+          p_full_name: cleanName || null,
+          p_username: cleanUsername || null,
+          p_email: cleanEmail || null,
+          p_cep: cep.trim() || null,
+          p_street: street.trim() || null,
+          p_street_number: addressNumber.trim() || null,
+          p_complement: complement.trim() || null,
+          p_neighborhood: neighborhood.trim() || null,
+          p_city: city.trim() || null,
+          p_state: uf.trim().toUpperCase() || null,
+          p_latitude: addressCoords?.lat ?? null,
+          p_longitude: addressCoords?.lng ?? null,
+        });
+        if (!error) return;
+      } catch {}
+    }
+
+    try {
+      await fetch('/api/public/registration-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: phone.trim(),
+          lastStep: targetStep,
+          origin,
+          salonId: validSalonId,
+          salonSlug: salonSlug?.trim() || null,
+          deviceHash: activeHash || null,
+          fullName: cleanName || null,
+          username: cleanUsername || null,
+          email: cleanEmail || null,
+          cep: cep.trim() || null,
+          street: street.trim() || null,
+          number: addressNumber.trim() || null,
+          complement: complement.trim() || null,
+          neighborhood: neighborhood.trim() || null,
+          city: city.trim() || null,
+          uf: uf.trim().toUpperCase() || null,
+          lat: addressCoords?.lat ?? null,
+          lng: addressCoords?.lng ?? null,
+        }),
+      });
+    } catch {}
+  };
+
+  const tryResumeLead = async (phoneValue: string): Promise<boolean> => {
+    const activeHash = deviceHash || (await getOrCreateDeviceFingerprint());
+    if (!activeHash || activeHash.length < 12) return false;
+
+    let lead: Record<string, any> | null = null;
+    if (supabase) {
+      try {
+        const { data, error } = await (supabase.rpc as any)('get_registration_lead_resume_rpc', {
+          p_phone: phoneValue.trim(),
+          p_device_hash: activeHash,
+        });
+        if (!error && data?.found && data?.lead) lead = data.lead;
+      } catch {}
+    }
+
+    if (!lead) return false;
+    let hydrated = false;
+    if (!name.trim() && lead.fullName) { setName(lead.fullName); hydrated = true; }
+    if (!username.trim() && lead.username) {
+      setUsername(lead.username);
+      setConfirmUsername(lead.username);
+      hydrated = true;
+    }
+    if (!email.trim() && lead.email) {
+      setEmail(lead.email);
+      setConfirmEmail(lead.email);
+      hydrated = true;
+    }
+    if (!cep.trim() && lead.cep) { setCep(formatCEP(lead.cep)); hydrated = true; }
+    if (!street.trim() && lead.street) { setStreet(lead.street); hydrated = true; }
+    if (!addressNumber.trim() && lead.number) { setAddressNumber(lead.number); hydrated = true; }
+    if (!complement.trim() && lead.complement) setComplement(lead.complement);
+    if (!neighborhood.trim() && lead.neighborhood) setNeighborhood(lead.neighborhood);
+    if (!city.trim() && lead.city) setCity(lead.city);
+    if (!uf.trim() && lead.uf) setUf(String(lead.uf).toUpperCase());
+    if (!addressCoords && typeof lead.lat === 'number' && typeof lead.lng === 'number') {
+      setAddressCoords({ lat: lead.lat, lng: lead.lng });
+    }
+    return hydrated;
+  };
+
+  const handleSelectGooglePlace = async (item: GoogleAddressSuggestion) => {
+    setFeedback(null);
+    setCepNotFound(false);
+    setIsResolvingPlace(true);
+    try {
+      const res = await fetch('/api/maps/place-details', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          placeId: item.placeId,
+          sessionToken: placesSessionTokenRef.current,
+        }),
+      });
+      placesSessionTokenRef.current = createPlacesSessionToken();
+      const ct = res.headers.get('content-type') || '';
+      if (!res.ok || !ct.includes('application/json')) {
+        setFeedback({ type: 'error', message: 'Não foi possível detalhar este endereço. Use o CEP.' });
+        return;
+      }
+      const d = await res.json();
+      setStreet(d.street || '');
+      if (d.number) setAddressNumber(d.number);
+      setNeighborhood(d.neighborhood || '');
+      setCity(d.city || '');
+      setUf(String(d.uf || '').toUpperCase());
+      if (d.cep) setCep(formatCEP(d.cep));
+      if (typeof d.lat === 'number' && typeof d.lng === 'number') {
+        setAddressCoords({ lat: d.lat, lng: d.lng });
+      }
+      setAddressSearchQuery('');
+      setAddressSuggestions([]);
+      setCameFromManualCep(false);
+      setStep(d.number ? 'address_summary' : 'address_num');
+    } catch {
+      setFeedback({ type: 'error', message: 'Falha ao buscar endereço. Digite o CEP abaixo.' });
+    } finally {
+      setIsResolvingPlace(false);
+    }
+  };
+
+  const lookupCep = async (rawCep: string) => {
+    const digits = rawCep.replace(/\D/g, '');
+    if (digits.length !== 8) return;
+    setIsLookingUpCep(true);
+    setCepNotFound(false);
+    try {
+      let found: any = null;
+      try {
+        const r = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+        if (r.ok) {
+          const j = await r.json();
+          if (j && !j.erro) {
+            found = { street: j.logradouro, neighborhood: j.bairro, city: j.localidade, uf: j.uf };
+          }
+        }
+      } catch {}
+
+      if (!found) {
+        try {
+          const r2 = await fetch(`https://brasilapi.com.br/api/cep/v2/${digits}`);
+          if (r2.ok) {
+            const j2 = await r2.json();
+            if (j2?.city) {
+              found = { street: j2.street, neighborhood: j2.neighborhood, city: j2.city, uf: j2.state };
+            }
+          }
+        } catch {}
+      }
+
+      if (!found) {
+        setCepNotFound(true);
+        return;
+      }
+      setStreet(found.street || '');
+      setNeighborhood(found.neighborhood || '');
+      setCity(found.city || '');
+      setUf(String(found.uf || '').toUpperCase());
+      setCameFromManualCep(false);
+      setStep('address_num');
+    } finally {
+      setIsLookingUpCep(false);
+    }
+  };
+
+  const handleAdvanceContact = async () => {
+    if (isLoading) return;
+    setFeedback(null);
+    if (!isPhoneFormatValid) {
+      setFeedback({ type: 'error', message: 'Digite um celular / WhatsApp válido com DDD.' });
+      return;
+    }
+    if (phoneDigits !== confirmPhoneDigits) {
+      setFeedback({ type: 'error', message: 'Os números de celular digitados não coincidem.' });
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const ok =
+        phoneCheck.status === 'available' && phoneCheck.checkedValue === phoneDigits
+          ? true
+          : await verifyPhoneNow(phone);
+      if (!ok) return;
+      const resumed = await tryResumeLead(phone);
+      void persistLeadProgress('contact');
+      if (resumed) {
+        setFeedback({
+          type: 'success',
+          message: 'Retomamos os dados que você já havia preenchido neste aparelho.',
+        });
+      }
+      setStep('name');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAdvanceName = async () => {
+    if (isLoading) return;
+    setFeedback(null);
+    if (cleanName.length < 2) {
+      setFeedback({ type: 'error', message: 'Informe seu nome completo.' });
+      return;
+    }
+    if (!isUsernameFormatValid) {
+      setFeedback({
+        type: 'error',
+        message: 'Mínimo 3 caracteres, 1 maiúscula, 1 minúscula e 1 especial (Ex: João@).',
+      });
+      return;
+    }
+    if (!isUsernameConfirmed) {
+      setFeedback({ type: 'error', message: 'Os nomes de usuário digitados não coincidem.' });
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const ok =
+        usernameCheck.status === 'available' &&
+        usernameCheck.checkedValue === cleanUsername.toLowerCase()
+          ? true
+          : await verifyUsernameNow(cleanUsername);
+      if (!ok) return;
+
+      const norm = normalizeText(cleanName);
+      const riskRes =
+        bypassAntifraud
+          ? { blocked: false, requiresConfirmation: false, message: '' }
+          : riskCheck.status === 'done' && riskCheck.checkedName === norm
+            ? riskCheck
+            : await verifyRiskNow(cleanName);
+
+      if (riskRes.blocked) {
+        setFeedback({
+          type: 'error',
+          message: riskRes.message || 'Limite temporário de cadastros neste dispositivo atingido.',
+        });
+        return;
+      }
+      if (riskRes.requiresConfirmation && !riskAcknowledged) {
+        setFeedback({
+          type: 'error',
+          message: 'Confirme abaixo que se trata de um cadastro individual ou entre na conta existente.',
+        });
+        return;
+      }
+      void persistLeadProgress('name');
+      setStep('email');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAdvanceEmail = async () => {
+    if (isLoading) return;
+    setFeedback(null);
+    if (!isEmailFormatValid) {
+      setFeedback({ type: 'error', message: 'Informe um e-mail válido.' });
+      return;
+    }
+    if (cleanEmail !== cleanConfirmEmail) {
+      setFeedback({ type: 'error', message: 'Os e-mails informados não coincidem.' });
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const ok =
+        emailCheck.status === 'available' && emailCheck.checkedValue === cleanEmail
+          ? true
+          : await verifyEmailNow(cleanEmail);
+      if (!ok) return;
+      void persistLeadProgress('email');
+      setStep('address_cep');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFinalize = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFeedback(null);
+    if (!hasMinLength || !hasUpperCase || !hasSpecialChar || !passwordsMatch) {
+      setFeedback({
+        type: 'error',
+        message: 'A senha deve ter mínimo 6 caracteres, 1 maiúscula, 1 especial e confirmação idêntica.',
+      });
+      return;
+    }
+    if (!isSecurityAnswerValid) {
+      setFeedback({ type: 'error', message: 'Informe uma resposta secreta (mínimo 2 caracteres).' });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const effectiveNum = addressNumber.trim() || 'S/N';
+      const addressObj: TriadeUserAddressData = {
+        cep: formatCEP(cep),
+        street: street.trim(),
+        number: effectiveNum,
+        complement: complement.trim(),
+        neighborhood: neighborhood.trim(),
+        city: city.trim(),
+        uf: uf.trim().toUpperCase(),
+      };
+      const fullAddressString = `${addressObj.street}, ${addressObj.number}${
+        addressObj.complement ? ` (${addressObj.complement})` : ''
+      } - ${addressObj.neighborhood}, ${addressObj.city} - ${addressObj.uf}${
+        addressObj.cep ? `, ${addressObj.cep}` : ''
+      }`;
+      const canonicalSecCode = normalizeSecurityQuestionCode(securityQuestionCode);
+      const normalizedSecAnswer = normalizeText(securityAnswer);
+      const activeHash = deviceHash || (await getOrCreateDeviceFingerprint());
+
+      let persistedUserId = '';
+      let persistedClientId = '';
+      let apiJsonHandled = false;
+
+      try {
+        const res = await fetch('/api/public/register-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            full_name: cleanName,
+            username: cleanUsername,
+            email: cleanEmail,
+            phone: phone.trim(),
+            password: password.trim(),
+            address: addressObj.street,
+            street: addressObj.street,
+            number: addressObj.number,
+            complement: addressObj.complement,
+            neighborhood: addressObj.neighborhood,
+            city: addressObj.city,
+            uf: addressObj.uf,
+            cep: addressObj.cep,
+            formatted_address: fullAddressString,
+            lat: addressCoords?.lat ?? null,
+            lng: addressCoords?.lng ?? null,
+            deviceHash: activeHash,
+            riskAcknowledged: riskAcknowledged || bypassAntifraud,
+            security_question_code: canonicalSecCode,
+            security_answer: normalizedSecAnswer,
+            account_type: 'client',
+            origin,
+          }),
+        });
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('application/json')) {
+          apiJsonHandled = true;
+          const json = await res.json();
+          if (!res.ok || json?.success === false || json?.conflict) {
+            throw new Error(json?.error || 'Não foi possível concluir o cadastro.');
+          }
+          persistedUserId = String(json.userId || '');
+          persistedClientId = String(json.clientId || json.client?.id || '');
+        }
+      } catch (apiErr: any) {
+        if (apiJsonHandled) throw apiErr;
+      }
+
+      if (!persistedUserId && !apiJsonHandled && supabase) {
+        const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+          email: cleanEmail,
+          password: password.trim(),
+          options: {
+            data: {
+              full_name: cleanName,
+              name: cleanName,
+              username: cleanUsername,
+              phone: phone.trim(),
+              address: fullAddressString,
+              formatted_address: fullAddressString,
+              cep: addressObj.cep,
+              street: addressObj.street,
+              number: addressObj.number,
+              complement: addressObj.complement,
+              neighborhood: addressObj.neighborhood,
+              city: addressObj.city,
+              uf: addressObj.uf,
+              latitude: addressCoords?.lat ?? null,
+              longitude: addressCoords?.lng ?? null,
+              device_hash: activeHash || null,
+              security_question_code: canonicalSecCode,
+              security_answer: normalizedSecAnswer,
+              created_via: origin,
+            },
+          },
+        });
+        if (signUpErr) throw new Error(signUpErr.message);
+        if (!signUpData?.user?.id) throw new Error('Falha ao confirmar criação da conta.');
+        persistedUserId = String(signUpData.user.id);
+      }
+
+      if (!persistedUserId) {
+        throw new Error('Não foi possível gravar o usuário no banco de dados.');
+      }
+
+      if (supabase) {
+        try {
+          await (supabase.rpc as any)('complete_registration_lead_rpc', {
+            p_phone: phone.trim(),
+            p_user_id: persistedUserId,
+            p_client_id: persistedClientId || null,
+          });
+        } catch {}
+      }
+
+      onSuccess?.(
+        {
+          id: persistedUserId,
+          name: cleanName,
+          username: cleanUsername,
+          email: cleanEmail,
+          phone: phone.trim(),
+          address: addressObj,
+          accountType: 'client',
+        },
+        { keepModalOpen: true }
+      );
+      setStep('welcome');
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: err?.message || 'Erro ao finalizar cadastro.' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const currentMeta = STEP_META[step];
+  const selectedQuestion =
+    securityQuestions.find((q) => q.code === securityQuestionCode) || securityQuestions[0];
+
+  return (
+    <div
+      className={`vagou-cinematic-auth w-full max-w-md mx-auto text-white ${
+        variant === 'card'
+          ? 'bg-slate-950/95 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden'
+          : ''
+      }`}
+    >
+      <div className="relative px-6 pt-5 pb-3 border-b border-slate-800/80 text-center">
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fechar"
+            className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+        {salonLogoUrl ? (
+          <img
+            src={salonLogoUrl}
+            alt={salonName || 'VagouApp'}
+            className="h-9 max-w-[180px] object-contain mx-auto mb-1.5"
+          />
+        ) : (
+          <h2 className="text-lg font-extrabold tracking-tight text-white">
+            {salonName || 'VagouApp'}
+          </h2>
+        )}
+        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+          CRIAR CONTA • {currentMeta.label}
+        </p>
+      </div>
+
+      <div className="px-6 pb-6 pt-4">
+        {step !== 'welcome' && (
+          <div className="mb-4">
+            <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 mb-1.5">
+              <span className="text-emerald-400 uppercase tracking-wider">{currentMeta.label}</span>
+              <span>
+                Fase {currentMeta.index} de {currentMeta.total}
+              </span>
+            </div>
+            <div className="grid grid-cols-5 gap-1">
+              {[1, 2, 3, 4, 5].map((idx) => (
+                <div
+                  key={idx}
+                  className={`h-1 rounded-[4px] transition-all ${
+                    idx <= currentMeta.index ? 'bg-[#20C933]' : 'bg-slate-800'
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {feedback && (
+          <div
+            className={`p-3 rounded-[4px] mb-4 text-xs font-semibold flex items-center gap-2 border ${
+              feedback.type === 'success'
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+            }`}
+          >
+            {feedback.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+            ) : (
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+            )}
+            <span>{feedback.message}</span>
+          </div>
+        )}
+
+        {step === 'contact' && (
+          <div className="space-y-3.5">
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                Digite seu Celular / WhatsApp
+              </label>
+              <div className="flex items-center bg-slate-950 border border-slate-800 focus-within:border-emerald-500 rounded-[4px] px-3 py-2.5">
+                <Phone className="w-4 h-4 text-emerald-400 mr-2 shrink-0" />
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => {
+                    setPhone(formatPhoneBR(e.target.value));
+                    setFeedback(null);
+                  }}
+                  onBlur={() => isPhoneFormatValid && void verifyPhoneNow(phone)}
+                  placeholder="(11) 99999-9999"
+                  autoFocus
+                  className="bg-transparent text-sm text-white outline-none w-full placeholder:text-slate-500"
+                />
+                {phoneCheck.status === 'checking' && <Loader2 className="w-4 h-4 animate-spin text-emerald-400 ml-2" />}
+                {phoneCheck.status === 'available' && <CheckCircle2 className="w-4 h-4 text-emerald-400 ml-2" />}
+                {phoneCheck.status === 'taken' && <AlertCircle className="w-4 h-4 text-rose-400 ml-2" />}
+              </div>
+              {phoneCheck.message && (
+                <p
+                  className={`text-[11px] font-medium mt-1 ${
+                    phoneCheck.status === 'taken'
+                      ? 'text-rose-400'
+                      : phoneCheck.status === 'available'
+                        ? 'text-emerald-400'
+                        : 'text-slate-400'
+                  }`}
+                >
+                  {phoneCheck.message}
+                </p>
+              )}
+              {phoneCheck.status === 'taken' && onSwitchToLogin && (
+                <button
+                  type="button"
+                  onClick={onSwitchToLogin}
+                  className="text-[11px] font-bold text-emerald-400 hover:underline mt-1 cursor-pointer"
+                >
+                  Já tem conta? Ir para o login
+                </button>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                Confirme seu Celular / WhatsApp
+              </label>
+              <div className="flex items-center bg-slate-950 border border-slate-800 focus-within:border-emerald-500 rounded-[4px] px-3 py-2.5">
+                <Phone className="w-4 h-4 text-emerald-400 mr-2 shrink-0" />
+                <input
+                  type="tel"
+                  value={confirmPhone}
+                  onChange={(e) => setConfirmPhone(formatPhoneBR(e.target.value))}
+                  placeholder="Repita seu (11) 99999-9999"
+                  className="bg-transparent text-sm text-white outline-none w-full placeholder:text-slate-500"
+                />
+                {isPhoneFormatValid && phoneDigits === confirmPhoneDigits && (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 ml-2" />
+                )}
+              </div>
+            </div>
+
+            <div className="sticky bottom-0 z-20 pt-2 bg-slate-950/90">
+              <button
+                type="button"
+                disabled={
+                  isLoading ||
+                  !isPhoneFormatValid ||
+                  phoneDigits !== confirmPhoneDigits ||
+                  phoneCheck.status === 'checking' ||
+                  phoneCheck.status === 'taken'
+                }
+                onClick={handleAdvanceContact}
+                className="w-full py-3 px-4 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] disabled:opacity-40 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer whitespace-nowrap"
+              >
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                ) : (
+                  <>
+                    <span className="text-white">Avançar</span>
+                    <ArrowRight className="w-4 h-4 text-white" />
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 'name' && (
+          <div className="space-y-3.5">
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Nome Completo</label>
+              <div className="flex items-center bg-slate-950 border border-slate-800 focus-within:border-emerald-500 rounded-[4px] px-3 py-2.5">
+                <User className="w-4 h-4 text-emerald-400 mr-2 shrink-0" />
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    setRiskAcknowledged(false);
+                  }}
+                  placeholder="Ex: Carlos Eduardo Silva"
+                  autoFocus
+                  className="bg-transparent text-sm text-white outline-none w-full placeholder:text-slate-500"
+                />
+              </div>
+
+              {riskCheck.status === 'done' && riskCheck.riskLevel === 'medium' && (
+                <div className="mt-2 p-3 rounded-[4px] bg-amber-500/10 border border-amber-500/30 space-y-2">
+                  <div className="flex items-start gap-2 text-xs text-amber-300">
+                    <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <span>{riskCheck.message}</span>
+                  </div>
+                  {onSwitchToLogin && (
+                    <button
+                      type="button"
+                      onClick={onSwitchToLogin}
+                      className="px-2.5 py-1.5 rounded-[4px] bg-emerald-600 text-white text-[11px] font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                    >
+                      <Users className="w-3.5 h-3.5 text-white" />
+                      <span className="text-white">Entrar / Adicionar Dependente</span>
+                    </button>
+                  )}
+                  <label className="flex items-center gap-2 text-[11px] text-slate-200 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={riskAcknowledged}
+                      onChange={(e) => setRiskAcknowledged(e.target.checked)}
+                      className="w-4 h-4 accent-emerald-500"
+                    />
+                    <span>Confirmo que é outra pessoa com cadastro individual</span>
+                  </label>
+                </div>
+              )}
+
+              {riskCheck.status === 'done' && riskCheck.riskLevel === 'high' && (
+                <div className="mt-2 p-3 rounded-[4px] bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  <span>{riskCheck.message}</span>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Nome de Usuário</label>
+              <div className="flex items-center bg-slate-950 border border-slate-800 focus-within:border-emerald-500 rounded-[4px] px-3 py-2.5">
+                <AtSign className="w-4 h-4 text-emerald-400 mr-2 shrink-0" />
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.replace(/\s+/g, ''))}
+                  onBlur={() => isUsernameFormatValid && void verifyUsernameNow(cleanUsername)}
+                  placeholder="Ex: Carlos@1"
+                  className="bg-transparent text-sm text-white outline-none w-full placeholder:text-slate-500"
+                />
+                {usernameCheck.status === 'checking' && <Loader2 className="w-4 h-4 animate-spin text-emerald-400 ml-2" />}
+                {usernameCheck.status === 'available' && <CheckCircle2 className="w-4 h-4 text-emerald-400 ml-2" />}
+                {usernameCheck.status === 'taken' && <AlertCircle className="w-4 h-4 text-rose-400 ml-2" />}
+              </div>
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                <span className={`text-[10px] px-2 py-0.5 rounded-[4px] whitespace-nowrap ${userRules.hasUpper ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-400'}`}>
+                  • 1 Maiúscula (A-Z)
+                </span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-[4px] whitespace-nowrap ${userRules.hasLower ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-400'}`}>
+                  • 1 Minúscula (a-z)
+                </span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-[4px] whitespace-nowrap ${userRules.hasSpecial ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-400'}`}>
+                  • 1 Especial (@, #, $, !)
+                </span>
+              </div>
+              {usernameCheck.message && (
+                <p className={`text-[11px] font-medium mt-1 ${usernameCheck.status === 'taken' ? 'text-rose-400' : 'text-emerald-400'}`}>
+                  {usernameCheck.message}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                Confirme seu Nome de Usuário
+              </label>
+              <div className="flex items-center bg-slate-950 border border-slate-800 focus-within:border-emerald-500 rounded-[4px] px-3 py-2.5">
+                <AtSign className="w-4 h-4 text-emerald-400 mr-2 shrink-0" />
+                <input
+                  type="text"
+                  value={confirmUsername}
+                  onChange={(e) => setConfirmUsername(e.target.value.replace(/\s+/g, ''))}
+                  placeholder="Repita exatamente"
+                  className="bg-transparent text-sm text-white outline-none w-full placeholder:text-slate-500"
+                />
+                {isUsernameConfirmed && <CheckCircle2 className="w-4 h-4 text-emerald-400 ml-2" />}
+              </div>
+            </div>
+
+            <div className="sticky bottom-0 z-20 pt-2 bg-slate-950/90 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setStep('contact')}
+                className="py-3 px-4 rounded-[4px] bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Voltar</span>
+              </button>
+              <button
+                type="button"
+                disabled={
+                  isLoading ||
+                  cleanName.length < 2 ||
+                  !isUsernameFormatValid ||
+                  !isUsernameConfirmed ||
+                  usernameCheck.status === 'taken' ||
+                  riskCheck.blocked ||
+                  (riskCheck.requiresConfirmation && !riskAcknowledged)
+                }
+                onClick={handleAdvanceName}
+                className="py-3 px-4 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] disabled:opacity-40 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+              >
+                <span className="text-white">Avançar</span>
+                <ArrowRight className="w-4 h-4 text-white" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 'email' && (
+          <div className="space-y-3.5">
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Seu E-mail</label>
+              <div className="flex items-center bg-slate-950 border border-slate-800 focus-within:border-emerald-500 rounded-[4px] px-3 py-2.5">
+                <Mail className="w-4 h-4 text-emerald-400 mr-2 shrink-0" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onBlur={() => isEmailFormatValid && void verifyEmailNow(cleanEmail)}
+                  placeholder="seuemail@exemplo.com"
+                  autoFocus
+                  className="bg-transparent text-sm text-white outline-none w-full placeholder:text-slate-500"
+                />
+                {emailCheck.status === 'checking' && <Loader2 className="w-4 h-4 animate-spin text-emerald-400 ml-2" />}
+                {emailCheck.status === 'available' && <CheckCircle2 className="w-4 h-4 text-emerald-400 ml-2" />}
+                {emailCheck.status === 'taken' && <AlertCircle className="w-4 h-4 text-rose-400 ml-2" />}
+              </div>
+              {emailCheck.message && (
+                <p className={`text-[11px] font-medium mt-1 ${emailCheck.status === 'taken' ? 'text-rose-400' : 'text-emerald-400'}`}>
+                  {emailCheck.message}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Confirme seu E-mail</label>
+              <div className="flex items-center bg-slate-950 border border-slate-800 focus-within:border-emerald-500 rounded-[4px] px-3 py-2.5">
+                <Mail className="w-4 h-4 text-emerald-400 mr-2 shrink-0" />
+                <input
+                  type="email"
+                  value={confirmEmail}
+                  onChange={(e) => setConfirmEmail(e.target.value)}
+                  placeholder="Repita seu e-mail"
+                  className="bg-transparent text-sm text-white outline-none w-full placeholder:text-slate-500"
+                />
+                {isEmailFormatValid && cleanEmail === cleanConfirmEmail && (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 ml-2" />
+                )}
+              </div>
+            </div>
+
+            <div className="sticky bottom-0 z-20 pt-2 bg-slate-950/90 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setStep('name')}
+                className="py-3 px-4 rounded-[4px] bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Voltar</span>
+              </button>
+              <button
+                type="button"
+                disabled={
+                  isLoading ||
+                  !isEmailFormatValid ||
+                  cleanEmail !== cleanConfirmEmail ||
+                  emailCheck.status === 'taken'
+                }
+                onClick={handleAdvanceEmail}
+                className="py-3 px-4 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] disabled:opacity-40 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+              >
+                <span className="text-white">Avançar</span>
+                <ArrowRight className="w-4 h-4 text-white" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 'address_cep' && (
+          <div className="space-y-3.5">
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                Buscar endereço (Rua, Bairro ou Cidade)
+              </label>
+              <div className="flex items-center bg-slate-950 border border-slate-800 focus-within:border-emerald-500 rounded-[4px] px-3 py-2.5">
+                <Search className="w-4 h-4 text-emerald-400 mr-2 shrink-0" />
+                <input
+                  type="text"
+                  value={addressSearchQuery}
+                  onChange={(e) => setAddressSearchQuery(e.target.value)}
+                  placeholder="Ex: Av. Paulista, 1000, São Paulo"
+                  className="bg-transparent text-sm text-white outline-none w-full placeholder:text-slate-500"
+                />
+                {(isSearchingPlaces || isResolvingPlace) && (
+                  <Loader2 className="w-4 h-4 animate-spin text-emerald-400 ml-2" />
+                )}
+              </div>
+              {addressSuggestions.length > 0 && (
+                <div className="mt-1 bg-slate-950 border border-slate-700 rounded-[4px] divide-y divide-slate-800 max-h-44 overflow-y-auto">
+                  {addressSuggestions.map((item) => (
+                    <button
+                      key={item.placeId}
+                      type="button"
+                      onClick={() => handleSelectGooglePlace(item)}
+                      className="w-full px-3 py-2 text-left hover:bg-slate-800 flex items-start gap-2 cursor-pointer"
+                    >
+                      <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-white truncate">{item.mainText}</p>
+                        {item.secondaryText && (
+                          <p className="text-[11px] text-slate-400 truncate">{item.secondaryText}</p>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 text-[10px] text-slate-500 font-semibold uppercase">
+              <span className="h-px flex-1 bg-slate-800" />
+              <span>ou informe seu CEP</span>
+              <span className="h-px flex-1 bg-slate-800" />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">CEP</label>
+              <div className="flex items-center bg-slate-950 border border-slate-800 focus-within:border-emerald-500 rounded-[4px] px-3 py-2.5">
+                <MapPin className="w-4 h-4 text-emerald-400 mr-2 shrink-0" />
+                <input
+                  type="text"
+                  value={cep}
+                  onChange={(e) => {
+                    const fmt = formatCEP(e.target.value);
+                    setCep(fmt);
+                    if (fmt.replace(/\D/g, '').length === 8) void lookupCep(fmt);
+                  }}
+                  placeholder="00000-000"
+                  className="bg-transparent text-sm text-white outline-none w-full placeholder:text-slate-500"
+                />
+                {isLookingUpCep && <Loader2 className="w-4 h-4 animate-spin text-emerald-400 ml-2" />}
+              </div>
+              {cepNotFound && (
+                <p className="text-[11px] text-amber-400 mt-1">
+                  CEP não localizado. Preencha manualmente abaixo.
+                </p>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setCameFromManualCep(true);
+                setStep('address_summary');
+              }}
+              className="w-full py-2.5 px-4 rounded-[4px] bg-slate-950 hover:bg-slate-800 border border-slate-700 text-emerald-400 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
+            >
+              <HelpCircle className="w-4 h-4" />
+              <span>Não sei meu CEP</span>
+            </button>
+
+            <div className="sticky bottom-0 z-20 pt-2 bg-slate-950/90 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setStep('email')}
+                className="py-3 px-4 rounded-[4px] bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Voltar</span>
+              </button>
+              <button
+                type="button"
+                disabled={cep.replace(/\D/g, '').length !== 8 || isLookingUpCep}
+                onClick={() => void lookupCep(cep)}
+                className="py-3 px-4 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] disabled:opacity-40 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+              >
+                <span className="text-white">Avançar</span>
+                <ArrowRight className="w-4 h-4 text-white" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 'address_num' && (
+          <div className="space-y-3.5">
+            <div className="p-2.5 rounded-[4px] bg-slate-950 border border-slate-800 text-xs text-slate-300">
+              <strong className="text-white">{street || 'Logradouro'}</strong>
+              <p className="text-slate-400 text-[11px] mt-0.5">
+                {[neighborhood, city, uf].filter(Boolean).join(' • ')}
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Número *</label>
+                <div className="flex items-center bg-slate-950 border border-slate-800 focus-within:border-emerald-500 rounded-[4px] px-2.5 py-2.5">
+                  <Hash className="w-3.5 h-3.5 text-emerald-400 mr-1.5 shrink-0" />
+                  <input
+                    type="text"
+                    value={addressNumber}
+                    onChange={(e) => setAddressNumber(e.target.value)}
+                    placeholder="Ex: 150"
+                    autoFocus
+                    className="bg-transparent text-sm text-white outline-none w-full"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Complemento</label>
+                <div className="flex items-center bg-slate-950 border border-slate-800 focus-within:border-emerald-500 rounded-[4px] px-2.5 py-2.5">
+                  <Building2 className="w-3.5 h-3.5 text-emerald-400 mr-1.5 shrink-0" />
+                  <input
+                    type="text"
+                    value={complement}
+                    onChange={(e) => setComplement(e.target.value)}
+                    placeholder="Apto, Bloco"
+                    className="bg-transparent text-sm text-white outline-none w-full"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="sticky bottom-0 z-20 pt-2 bg-slate-950/90 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setStep('address_cep')}
+                className="py-3 px-4 rounded-[4px] bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Voltar</span>
+              </button>
+              <button
+                type="button"
+                disabled={addressNumber.trim().length < 1}
+                onClick={() => setStep('address_summary')}
+                className="py-3 px-4 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] disabled:opacity-40 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+              >
+                <span className="text-white">Avançar</span>
+                <ArrowRight className="w-4 h-4 text-white" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 'address_summary' && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-12 gap-2">
+              <div className="col-span-9">
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">Rua *</label>
+                <input
+                  type="text"
+                  value={street}
+                  onChange={(e) => setStreet(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-[4px] px-2.5 py-2 text-xs text-white outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div className="col-span-3">
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">Nº *</label>
+                <input
+                  type="text"
+                  value={addressNumber}
+                  onChange={(e) => setAddressNumber(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-[4px] px-2 py-2 text-xs text-white text-center outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div className="col-span-6">
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">Bairro *</label>
+                <input
+                  type="text"
+                  value={neighborhood}
+                  onChange={(e) => setNeighborhood(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-[4px] px-2.5 py-2 text-xs text-white outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div className="col-span-6">
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">Complemento</label>
+                <input
+                  type="text"
+                  value={complement}
+                  onChange={(e) => setComplement(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-[4px] px-2.5 py-2 text-xs text-white outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div className="col-span-6">
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">Cidade *</label>
+                <input
+                  type="text"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-[4px] px-2.5 py-2 text-xs text-white outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">UF *</label>
+                <select
+                  value={uf}
+                  onChange={(e) => setUf(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-[4px] px-1 py-2 text-xs text-white outline-none focus:border-emerald-500"
+                >
+                  <option value="">UF</option>
+                  {BRAZIL_UF_LIST.map((u) => (
+                    <option key={u} value={u}>{u}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="col-span-4">
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                  CEP {isReverseLookingUpCep ? '...' : ''}
+                </label>
+                <input
+                  type="text"
+                  value={cep}
+                  onChange={(e) => setCep(formatCEP(e.target.value))}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-[4px] px-2 py-2 text-xs text-emerald-400 font-semibold text-center outline-none focus:border-emerald-500"
+                />
+              </div>
+            </div>
+
+            {!isAddressSummaryValid && (
+              <p className="text-[11px] text-amber-400 font-medium">
+                Falta preencher: {missingAddressFields.join(', ')}.
+              </p>
+            )}
+
+            <div className="sticky bottom-0 z-20 pt-2 bg-slate-950/90 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setStep(cameFromManualCep ? 'address_cep' : 'address_num')}
+                className="py-3 px-4 rounded-[4px] bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Voltar</span>
+              </button>
+              <button
+                type="button"
+                disabled={!isAddressSummaryValid}
+                onClick={() => {
+                  setFeedback(null);
+                  void persistLeadProgress('address_summary');
+                  setStep('password');
+                }}
+                className="py-3 px-4 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] disabled:opacity-40 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+              >
+                <CheckCircle2 className="w-4 h-4 text-white" />
+                <span className="text-white">Confirmar</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 'password' && (
+          <form onSubmit={handleFinalize} className="space-y-3.5">
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Crie uma Senha</label>
+              <div className="flex items-center bg-slate-950 border border-slate-800 focus-within:border-emerald-500 rounded-[4px] px-3 py-2.5">
+                <Lock className="w-4 h-4 text-emerald-400 mr-2 shrink-0" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Mín. 6 chars, 1 maiúscula e 1 especial"
+                  className="bg-transparent text-sm text-white outline-none w-full placeholder:text-slate-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="text-slate-400 hover:text-white ml-2 cursor-pointer"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Confirme a Senha</label>
+              <div className="flex items-center bg-slate-950 border border-slate-800 focus-within:border-emerald-500 rounded-[4px] px-3 py-2.5">
+                <Lock className="w-4 h-4 text-emerald-400 mr-2 shrink-0" />
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Repita sua senha"
+                  className="bg-transparent text-sm text-white outline-none w-full placeholder:text-slate-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((v) => !v)}
+                  className="text-slate-400 hover:text-white ml-2 cursor-pointer"
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="p-2.5 rounded-[4px] bg-slate-950 border border-slate-800 space-y-1 text-[11px]">
+              <p className={hasMinLength ? 'text-emerald-400' : 'text-slate-400'}>• Mínimo de 6 caracteres</p>
+              <p className={hasUpperCase ? 'text-emerald-400' : 'text-slate-400'}>• Ao menos 1 letra maiúscula</p>
+              <p className={hasSpecialChar ? 'text-emerald-400' : 'text-slate-400'}>• Ao menos 1 caractere especial</p>
+              <p className={passwordsMatch ? 'text-emerald-400' : 'text-slate-400'}>• Confirmação idêntica</p>
+            </div>
+
+            <div className="pt-2 border-t border-slate-800 space-y-2">
+              <label className="block text-xs font-semibold text-slate-300">
+                Pergunta Secreta (Recuperação de Conta)
+              </label>
+              <button
+                type="button"
+                onClick={() => setIsQuestionOpen((o) => !o)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-[4px] px-3 py-2.5 text-xs text-white text-left flex items-center justify-between gap-2 cursor-pointer"
+              >
+                <span className="truncate">{selectedQuestion?.questionText}</span>
+                <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+              </button>
+              {isQuestionOpen && (
+                <div className="bg-slate-950 border border-slate-700 rounded-[4px] divide-y divide-slate-800">
+                  {securityQuestions.map((q) => (
+                    <button
+                      key={q.code}
+                      type="button"
+                      onClick={() => {
+                        setSecurityQuestionCode(q.code);
+                        setIsQuestionOpen(false);
+                      }}
+                      className="w-full px-3 py-2 text-left text-xs text-slate-200 hover:bg-slate-800 cursor-pointer"
+                    >
+                      {q.questionText}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <input
+                type="text"
+                value={securityAnswer}
+                onChange={(e) => setSecurityAnswer(e.target.value)}
+                placeholder="Sua resposta secreta"
+                className="w-full bg-slate-950 border border-slate-800 rounded-[4px] px-3 py-2 text-xs text-white outline-none focus:border-emerald-500 placeholder:text-slate-500"
+              />
+            </div>
+
+            <div className="sticky bottom-0 z-20 pt-2 bg-slate-950/90 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setStep('address_summary')}
+                className="py-3 px-4 rounded-[4px] bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Voltar</span>
+              </button>
+              <button
+                type="submit"
+                disabled={
+                  isLoading ||
+                  !hasMinLength ||
+                  !hasUpperCase ||
+                  !hasSpecialChar ||
+                  !passwordsMatch ||
+                  !isSecurityAnswerValid
+                }
+                className="py-3 px-4 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] disabled:opacity-40 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+              >
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-white" />
+                    <span className="text-white">Finalizar</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {step === 'welcome' && (
+          <div className="text-center space-y-4 py-2">
+            <div className="w-12 h-12 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center mx-auto">
+              <Sparkles className="w-6 h-6 text-emerald-400" />
+            </div>
+            <div>
+              <h3 className="text-base font-extrabold text-white">Cadastro concluído!</h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Bem-vindo(a), <strong className="text-white">{cleanName}</strong> ({cleanUsername}).
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onClose?.()}
+              className="w-full py-3 px-4 rounded-[4px] bg-[#20C933] hover:bg-[#1bb32d] text-white font-bold text-xs cursor-pointer whitespace-nowrap"
+            >
+              <span className="text-white">Continuar</span>
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+```
+
+---
+
+## ✅ CHECKLIST FINAL PARA O GEMINI RECEPTOR CONFIRMAR
+- [ ] Formulário antigo (que começava com *Nome Completo + Nome de Usuário*) **100% excluído**, sem arquivos ou imports órfãos.
+- [ ] Novo `TriadeUserRegisterForm` conectado em todos os pontos de cadastro de usuário (começando pela **Fase 1: Celular / WhatsApp**).
+- [ ] Captura progressiva (`upsert_registration_lead_rpc`), retomada segura (`get_registration_lead_resume_rpc`), conclusão (`complete_registration_lead_rpc`) e antifraude (`check_registration_risk_rpc`) ativos no Supabase v6.2.
+- [ ] `tsc --noEmit` e `npm run build` passando com **0 erros**.

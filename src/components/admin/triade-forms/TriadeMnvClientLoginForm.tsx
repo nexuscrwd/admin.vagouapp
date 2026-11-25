@@ -4,7 +4,7 @@ import {
   type UserLoginPhase,
   type TriadeUserLoginPayload,
 } from './TriadeUserLoginForm';
-import { TriadeUserRegisterForm } from './TriadeUserRegisterForm';
+import { TriadeUserRegisterForm } from '../../auth/TriadeUserRegisterForm';
 import { supabaseAdmin } from '../../../services/supabase';
 
 import slideSalonInterior from '../../../assets/images/mnv_slide_salon_interior_1794764499578.jpg';
@@ -42,7 +42,6 @@ export const TriadeMnvClientLoginForm: React.FC<TriadeMnvClientLoginFormProps> =
   salonName = 'VagouApp',
   salonLogoUrl,
   salonSlogan,
-  salonColor = '#20C933',
   salonSlides,
   stageMode = 'slideshow',
   onSuccess,
@@ -250,19 +249,20 @@ export const TriadeMnvClientLoginForm: React.FC<TriadeMnvClientLoginFormProps> =
         ) : (
           <div className="w-full max-w-md mx-auto bg-slate-950/75 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.85)] overflow-hidden">
             <TriadeUserRegisterForm
-              origin="establishment"
+              origin="admvapp"
+              bypassAntifraud={false}
               salonId={resolvedSalon.id}
               salonName={displayName}
+              salonSlug={resolvedSalon.slug}
               salonLogoUrl={resolvedSalon.logoUrl}
-              salonAccentColor={salonColor}
               variant="flat"
-              showHeader={true}
+              onClose={() => setViewMode('login')}
               onSwitchToLogin={() => setViewMode('login')}
               onSuccess={(regPayload) => {
                 onSuccess?.({
-                  identifier: regPayload.email || regPayload.username,
-                  name: regPayload.fullName,
-                  username: regPayload.username,
+                  identifier: regPayload.email || regPayload.username || '',
+                  name: regPayload.name,
+                  username: regPayload.username || '',
                   email: regPayload.email,
                   phone: regPayload.phone,
                   accountType: 'client',

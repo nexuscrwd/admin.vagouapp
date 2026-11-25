@@ -1,0 +1,557 @@
+Pacote completo implementado, validado e compilado sem erros! O mnvapp agora grava silenciosamente o pré-cadastro fase a fase (public.registration_leads), retoma automaticamente os dados caso o cliente volte após queda de sinal/bateria no mesmo aparelho e marca o lead como completed ao finalizar a Fase 5.
+Principais proteções verificadas:
+Privacidade na retomada: a recuperação automática exige telefone e a mesma assinatura do aparelho (deviceHash) dentro de 7 dias, evitando que terceiros consultem dados digitando um número alheio.
+Acesso restrito no banco: a tabela public.registration_leads usa RLS estrito (leitura/edição apenas para Superadmin e gerente do salão de origem) e gravação pré-login exclusivamente via RPCs parametrizadas.
+Zero exposição de credenciais: senhas e respostas secretas jamais são gravadas na tabela de leads, e registros abandonados expiram automaticamente em 30 dias.
+1. Script SQL v6.2 (Rodar no SQL Editor do Supabase)
+Salvo também em supabase/migrations/20261124_vagou_v6_2_registration_leads.sql e espelhado em supabase/schema.sql:
+SQL
+BEGIN;
+
+CREATE TABLE IF NOT EXISTS public.registration_leads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  phone TEXT NOT NULL,
+  phone_digits TEXT NOT NULL,
+  salon_id UUID REFERENCES public.salons(id) ON DELETE SET NULL,
+  salon_slug TEXT,
+  origin TEXT NOT NULL DEFAULT 'mnvapp',
+  device_hash TEXT,
+  full_name TEXT,
+  username TEXT,
+  email TEXT,
+  cep TEXT,
+  street TEXT,
+  street_number TEXT,
+  complement TEXT,
+  neighborhood TEXT,
+  city TEXT,
+  state TEXT,
+  latitude DOUBLE PRECISION,
+  longitude DOUBLE PRECISION,
+  last_step TEXT NOT NULL DEFAULT 'contact',
+  status TEXT NOT NULL DEFAULT 'in_progress',
+  converted_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  converted_client_id UUID REFERENCES public.clients(id) ON DELETE SET NULL,
+  completed_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '30 days'),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT chk_registration_leads_status
+    CHECK (status IN ('in_progress', 'completed', 'abandoned', 'contacted')),
+  CONSTRAINT chk_registration_leads_step
+    CHECK (last_step IN ('contact', 'name', 'email', 'address_cep', 'address_num', 'address_summary', 'security', 'completed'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_registration_leads_active_phone
+  ON public.registration_leads (phone_digits)
+  WHERE status = 'in_progress';
+
+CREATE INDEX IF NOT EXISTS idx_registration_leads_salon_status
+  ON public.registration_leads (salon_id, status, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_registration_leads_device_phone
+  ON public.registration_leads (phone_digits, device_hash, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_registration_leads_expires
+  ON public.registration_leads (expires_at)
+  WHERE status IN ('in_progress', 'abandoned');
+
+ALTER TABLE public.registration_leads ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "registration_leads_select_restricted" ON public.registration_leads;
+CREATE POLICY "registration_leads_select_restricted"
+  ON public.registration_leads
+  FOR SELECT
+  USING (
+    public.is_super_admin()
+    OR (salon_id IS NOT NULL AND public.is_salon_manager(salon_id))
+  );
+
+DROP POLICY IF EXISTS "registration_leads_update_restricted" ON public.registration_leads;
+CREATE POLICY "registration_leads_update_restricted"
+  ON public.registration_leads
+  FOR UPDATE
+  USING (
+    public.is_super_admin()
+    OR (salon_id IS NOT NULL AND public.is_salon_manager(salon_id))
+  )
+  WITH CHECK (
+    public.is_super_admin()
+    OR (salon_id IS NOT NULL AND public.is_salon_manager(salon_id))
+  );
+
+DROP POLICY IF EXISTS "registration_leads_delete_superadmin" ON public.registration_leads;
+CREATE POLICY "registration_leads_delete_superadmin"
+  ON public.registration_leads
+  FOR DELETE
+  USING (public.is_super_admin());
+
+CREATE OR REPLACE FUNCTION public.upsert_registration_lead_rpc(
+  p_phone TEXT,
+  p_last_step TEXT DEFAULT 'contact',
+  p_origin TEXT DEFAULT 'mnvapp',
+  p_salon_id UUID DEFAULT NULL,
+  p_salon_slug TEXT DEFAULT NULL,
+  p_device_hash TEXT DEFAULT NULL,
+  p_full_name TEXT DEFAULT NULL,
+  p_username TEXT DEFAULT NULL,
+  p_email TEXT DEFAULT NULL,
+  p_cep TEXT DEFAULT NULL,
+  p_street TEXT DEFAULT NULL,
+  p_street_number TEXT DEFAULT NULL,
+  p_complement TEXT DEFAULT NULL,
+  p_neighborhood TEXT DEFAULT NULL,
+  p_city TEXT DEFAULT NULL,
+  p_state TEXT DEFAULT NULL,
+  p_latitude DOUBLE PRECISION DEFAULT NULL,
+  p_longitude DOUBLE PRECISION DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_raw_digits TEXT := regexp_replace(COALESCE(p_phone, ''), '\D', '', 'g');
+  v_phone_digits TEXT;
+  v_step TEXT := lower(btrim(COALESCE(p_last_step, 'contact')));
+  v_origin TEXT := left(lower(btrim(COALESCE(p_origin, 'mnvapp'))), 32);
+  v_resolved_salon_id UUID := NULL;
+  v_clean_slug TEXT := NULLIF(left(lower(btrim(COALESCE(p_salon_slug, ''))), 120), '');
+  v_device TEXT := NULLIF(left(btrim(COALESCE(p_device_hash, '')), 64), '');
+  v_full_name TEXT := NULLIF(left(btrim(COALESCE(p_full_name, '')), 140), '');
+  v_username TEXT := NULLIF(left(btrim(COALESCE(p_username, '')), 60), '');
+  v_email TEXT := NULLIF(left(lower(btrim(COALESCE(p_email, ''))), 160), '');
+  v_cep TEXT := NULLIF(left(btrim(COALESCE(p_cep, '')), 12), '');
+  v_street TEXT := NULLIF(left(btrim(COALESCE(p_street, '')), 180), '');
+  v_number TEXT := NULLIF(left(btrim(COALESCE(p_street_number, '')), 24), '');
+  v_complement TEXT := NULLIF(left(btrim(COALESCE(p_complement, '')), 100), '');
+  v_neighborhood TEXT := NULLIF(left(btrim(COALESCE(p_neighborhood, '')), 120), '');
+  v_city TEXT := NULLIF(left(btrim(COALESCE(p_city, '')), 120), '');
+  v_state TEXT := NULLIF(left(upper(btrim(COALESCE(p_state, ''))), 4), '');
+  v_lead_id UUID;
+BEGIN
+  IF length(v_raw_digits) >= 12 AND left(v_raw_digits, 2) = '55' THEN
+    v_phone_digits := substr(v_raw_digits, 3);
+  ELSE
+    v_phone_digits := v_raw_digits;
+  END IF;
+
+  IF length(v_phone_digits) < 10 OR length(v_phone_digits) > 11 THEN
+    RETURN jsonb_build_object('ok', FALSE, 'error', 'invalid_phone');
+  END IF;
+
+  IF v_step NOT IN ('contact', 'name', 'email', 'address_cep', 'address_num', 'address_summary', 'security') THEN
+    v_step := 'contact';
+  END IF;
+
+  IF v_origin = '' THEN
+    v_origin := 'mnvapp';
+  END IF;
+
+  IF p_salon_id IS NOT NULL THEN
+    SELECT s.id INTO v_resolved_salon_id
+    FROM public.salons s
+    WHERE s.id = p_salon_id
+    LIMIT 1;
+  END IF;
+
+  IF v_resolved_salon_id IS NULL AND v_clean_slug IS NOT NULL THEN
+    SELECT s.id INTO v_resolved_salon_id
+    FROM public.salons s
+    WHERE lower(s.slug) = v_clean_slug
+    LIMIT 1;
+  END IF;
+
+  SELECT rl.id INTO v_lead_id
+  FROM public.registration_leads rl
+  WHERE rl.phone_digits = v_phone_digits
+    AND rl.status = 'in_progress'
+  LIMIT 1;
+
+  IF v_lead_id IS NOT NULL THEN
+    UPDATE public.registration_leads
+    SET
+      phone = left(btrim(p_phone), 32),
+      salon_id = COALESCE(v_resolved_salon_id, salon_id),
+      salon_slug = COALESCE(v_clean_slug, salon_slug),
+      origin = COALESCE(NULLIF(v_origin, ''), origin),
+      device_hash = COALESCE(v_device, device_hash),
+      full_name = COALESCE(v_full_name, full_name),
+      username = COALESCE(v_username, username),
+      email = COALESCE(v_email, email),
+      cep = COALESCE(v_cep, cep),
+      street = COALESCE(v_street, street),
+      street_number = COALESCE(v_number, street_number),
+      complement = COALESCE(v_complement, complement),
+      neighborhood = COALESCE(v_neighborhood, neighborhood),
+      city = COALESCE(v_city, city),
+      state = COALESCE(v_state, state),
+      latitude = COALESCE(p_latitude, latitude),
+      longitude = COALESCE(p_longitude, longitude),
+      last_step = v_step,
+      expires_at = NOW() + INTERVAL '30 days',
+      updated_at = NOW()
+    WHERE id = v_lead_id;
+  ELSE
+    INSERT INTO public.registration_leads (
+      phone, phone_digits, salon_id, salon_slug, origin, device_hash,
+      full_name, username, email, cep, street, street_number, complement,
+      neighborhood, city, state, latitude, longitude, last_step, status, expires_at
+    )
+    VALUES (
+      left(btrim(p_phone), 32), v_phone_digits, v_resolved_salon_id, v_clean_slug, v_origin, v_device,
+      v_full_name, v_username, v_email, v_cep, v_street, v_number, v_complement,
+      v_neighborhood, v_city, v_state, p_latitude, p_longitude, v_step, 'in_progress', NOW() + INTERVAL '30 days'
+    )
+    RETURNING id INTO v_lead_id;
+  END IF;
+
+  RETURN jsonb_build_object('ok', TRUE, 'leadId', v_lead_id, 'lastStep', v_step);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.upsert_registration_lead_rpc(
+  TEXT, TEXT, TEXT, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, DOUBLE PRECISION, DOUBLE PRECISION
+) TO anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.get_registration_lead_resume_rpc(
+  p_phone TEXT,
+  p_device_hash TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_raw_digits TEXT := regexp_replace(COALESCE(p_phone, ''), '\D', '', 'g');
+  v_phone_digits TEXT;
+  v_device TEXT := left(btrim(COALESCE(p_device_hash, '')), 64);
+  v_row public.registration_leads%ROWTYPE;
+BEGIN
+  IF length(v_raw_digits) >= 12 AND left(v_raw_digits, 2) = '55' THEN
+    v_phone_digits := substr(v_raw_digits, 3);
+  ELSE
+    v_phone_digits := v_raw_digits;
+  END IF;
+
+  IF length(v_phone_digits) < 10 OR length(v_phone_digits) > 11 OR length(v_device) < 12 THEN
+    RETURN jsonb_build_object('found', FALSE);
+  END IF;
+
+  SELECT * INTO v_row
+  FROM public.registration_leads rl
+  WHERE rl.phone_digits = v_phone_digits
+    AND rl.device_hash = v_device
+    AND rl.status = 'in_progress'
+    AND rl.updated_at >= NOW() - INTERVAL '7 days'
+  ORDER BY rl.updated_at DESC
+  LIMIT 1;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('found', FALSE);
+  END IF;
+
+  RETURN jsonb_build_object(
+    'found', TRUE,
+    'lead', jsonb_build_object(
+      'id', v_row.id,
+      'fullName', COALESCE(v_row.full_name, ''),
+      'username', COALESCE(v_row.username, ''),
+      'email', COALESCE(v_row.email, ''),
+      'cep', COALESCE(v_row.cep, ''),
+      'street', COALESCE(v_row.street, ''),
+      'number', COALESCE(v_row.street_number, ''),
+      'complement', COALESCE(v_row.complement, ''),
+      'neighborhood', COALESCE(v_row.neighborhood, ''),
+      'city', COALESCE(v_row.city, ''),
+      'uf', COALESCE(v_row.state, ''),
+      'lat', v_row.latitude,
+      'lng', v_row.longitude,
+      'lastStep', v_row.last_step,
+      'updatedAt', v_row.updated_at
+    )
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_registration_lead_resume_rpc(TEXT, TEXT) TO anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.complete_registration_lead_rpc(
+  p_phone TEXT,
+  p_user_id UUID DEFAULT NULL,
+  p_client_id UUID DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_raw_digits TEXT := regexp_replace(COALESCE(p_phone, ''), '\D', '', 'g');
+  v_phone_digits TEXT;
+  v_valid_user_id UUID := NULL;
+  v_valid_client_id UUID := NULL;
+  v_updated_count INTEGER := 0;
+BEGIN
+  IF length(v_raw_digits) >= 12 AND left(v_raw_digits, 2) = '55' THEN
+    v_phone_digits := substr(v_raw_digits, 3);
+  ELSE
+    v_phone_digits := v_raw_digits;
+  END IF;
+
+  IF length(v_phone_digits) < 10 OR length(v_phone_digits) > 11 THEN
+    RETURN jsonb_build_object('ok', FALSE, 'updated', 0);
+  END IF;
+
+  IF p_user_id IS NOT NULL THEN
+    SELECT u.id INTO v_valid_user_id FROM auth.users u WHERE u.id = p_user_id LIMIT 1;
+  END IF;
+
+  IF p_client_id IS NOT NULL THEN
+    SELECT c.id INTO v_valid_client_id FROM public.clients c WHERE c.id = p_client_id LIMIT 1;
+  END IF;
+
+  UPDATE public.registration_leads
+  SET
+    status = 'completed',
+    last_step = 'completed',
+    converted_user_id = COALESCE(v_valid_user_id, converted_user_id),
+    converted_client_id = COALESCE(v_valid_client_id, converted_client_id),
+    completed_at = NOW(),
+    updated_at = NOW()
+  WHERE phone_digits = v_phone_digits
+    AND status IN ('in_progress', 'abandoned');
+
+  GET DIAGNOSTICS v_updated_count = ROW_COUNT;
+
+  RETURN jsonb_build_object('ok', TRUE, 'updated', v_updated_count);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.complete_registration_lead_rpc(TEXT, UUID, UUID) TO anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.purge_expired_registration_leads()
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_deleted INTEGER := 0;
+BEGIN
+  UPDATE public.registration_leads
+  SET status = 'abandoned', updated_at = NOW()
+  WHERE status = 'in_progress'
+    AND updated_at < NOW() - INTERVAL '24 hours';
+
+  DELETE FROM public.registration_leads
+  WHERE status IN ('in_progress', 'abandoned')
+    AND expires_at < NOW();
+
+  GET DIAGNOSTICS v_deleted = ROW_COUNT;
+  RETURN v_deleted;
+END;
+$$;
+
+COMMIT;
+2. Comunicado Completo da Tríade (.md pronto para colar no admvapp e pvapp)
+Este documento também foi salvo no repositório em COMUNICADO_TRIADE_CADASTRO_UNIFICADO_v6_2.md:
+Markdown
+# 🏛️ COMUNICADO TÉCNICO INTER-PROJETOS (TRÍADE SYNC v6.1 + v6.2): Padronização do Cadastro de Usuários, Captura Progressiva de Leads, Antifraude Inteligente, Subdomínios Reservados & Google Places API (New)
+
+- **Projeto Emissor:** `mnvapp` (`meunegocio.vagouapp.com` / `*.vagouapp.com` — App dos Estabelecimentos & Vitrines White-Label)
+- **Projetos Receptores:**
+  1. **`admvapp`** (`adm.vagouapp.com` / `admin.vagouapp.com` — Backoffice Executivo, Gestão de Salões, Suporte & Embed de Cadastro de Estabelecimento)
+  2. **`pvapp`** (`portal.vagouapp.com` — Portal do Usuário & Radar Marketplace)
+- **Versão do Schema Supabase:** `v6.2` (incremental sobre `v6.0` + `v6.1`, 100% compatível e idempotente)
+- **Data de Emissão:** 2026-11-24
+- **Prioridade:** **ALTA (Obrigatória para Consistência da Tríade)**
+
+---
+
+## 🎯 1. Decisão Arquitetural Oficial da Tríade (Zero SPOF)
+
+Fica estabelecida a arquitetura **Descentralizada Resiliente com Banco Compartilhado (Single Source of Truth no Supabase)**:
+
+1. **Formulários independentes em cada app (`mnvapp`, `admvapp`, `pvapp`):**
+   - **NÃO** puxar o formulário de cadastro de usuário via iframe único do `admvapp`.
+   - **Motivo (Alta Disponibilidade / Zero Ponto Único de Falha):** Se o `admvapp` entrar em manutenção ou instabilidade, nenhum salão do `mnvapp` para de cadastrar clientes; se algum erro ocorrer na vitrine de um salão, a equipe de suporte consegue cadastrar o cliente normalmente via `admvapp`.
+   - **Performance Mobile & White-Label:** No `mnvapp`, o formulário abre instantaneamente sem peso de iframe e herda a marca do estabelecimento (logo do salão, nome fantasia e cor primária).
+   - **Exceção mantida:** O cadastro de **novo estabelecimento/parceiro** continua unificado via embed oficial `https://adm.vagouapp.com/embed?form=estabelecimento&slug=<slug>`.
+2. **Regras de negócio blindadas no Supabase (RPCs):**
+   - Toda a inteligência crítica — unicidade de telefone/usuário/e-mail, antifraude de nome + dispositivo, captura progressiva de abandono (`registration_leads`), retomada segura por dispositivo, bloqueio de subdomínios reservados e validação de perguntas secretas — fica centralizada em **RPCs PostgreSQL (`SECURITY DEFINER`)**, garantindo comportamento 100% idêntico nos 3 projetos.
+
+---
+
+## 📋 2. Contrato Único Oficial do Cadastro de Usuários (5 Fases)
+
+Todos os projetos da Tríade (`mnvapp`, `admvapp` e `pvapp`) **DEVEM** seguir rigorosamente esta mesma ordem e estas mesmas regras de validação:
+
+### Fase 1 — Contato (`contact`) — **SEMPRE PRIMEIRA FASE**
+- **Campos:**
+  - `Celular / WhatsApp` (obrigatório, máscara brasileira `(DD) 99999-9999`, 10 ou 11 dígitos após remover `+55`/`55`).
+  - `Confirmar Celular / WhatsApp` (obrigatório, comparação exata de dígitos).
+- **Validação em Tempo Real:**
+  - Debounce `320ms` + `onBlur` + trava no botão **Avançar** consultando `check_triade_user_conflict` (ou `/api/public/check-user-conflict`).
+  - Se o telefone já pertence a uma conta concluída (`profiles`/`clients`), bloqueia e exibe atalho *"Já tem conta? Ir para o login"*.
+  - **Importante:** Um registro `in_progress` em `public.registration_leads` **NUNCA** bloqueia o cadastro!
+- **Captura Progressiva + Retomada Segura (ao clicar em Avançar):**
+  1. Chama `get_registration_lead_resume_rpc(p_phone, p_device_hash)`: se existir pré-cadastro `in_progress` dos últimos 7 dias criado **neste mesmo aparelho** (`device_hash` idêntico), preenche automaticamente os campos já digitados nas próximas fases e exibe aviso discreto de retomada.
+  2. Chama silenciosamente (non-blocking) `upsert_registration_lead_rpc(p_phone, p_last_step='contact', p_origin='<mnvapp|admvapp|pvapp>', p_salon_id, p_salon_slug, p_device_hash)`.
+  - **Valor comercial:** Mesmo se a internet cair ou a bateria acabar após a Fase 1, o WhatsApp do lead já está salvo para resgate.
+
+### Fase 2 — Identidade & Antifraude (`name`)
+- **Campos:**
+  - `Nome Completo` (obrigatório, mínimo 2 caracteres).
+  - `Nome de Usuário` (obrigatório) + `Confirmar Nome de Usuário` (obrigatório, comparação exata preservando maiúsculas/minúsculas e caractere especial — **jamais remover sufixo `@`/`#`/`&`**).
+- **Regras Estritas de Formato do Nome de Usuário:**
+  - Mínimo **3 caracteres**;
+  - Ao menos **1 letra maiúscula (`A-Z`)**;
+  - Ao menos **1 letra minúscula (`a-z`)**;
+  - Ao menos **1 caractere especial (`@`, `#`, `$`, `!`, `&`, etc.)** — Ex: `Carlos@1`, `Ana#`.
+  - Exibir os 3 indicadores em tempo real (`• 1 Maiúscula (A-Z)`, `• 1 Minúscula (a-z)`, `• 1 Especial (@, #, $, !)`).
+- **Validação de Unicidade em Tempo Real:**
+  - Consulta imediata de `username` no banco (`check_triade_user_conflict`).
+- **Motor Antifraude de Nome Completo + Dispositivo + CEP (LGPD-Safe):**
+  - Gera/lê `deviceHash` determinístico em SHA-256 (armazenado no dispositivo, sem expor dados de terceiros).
+  - Ao digitar nome completo (mínimo 2 palavras) e ao clicar em **Avançar**, chama `check_registration_risk_rpc(p_full_name, p_device_hash, p_cep)` (ou `POST /api/public/check-registration-risk` no backend com `ip_hash` adicional):
+    - **`riskLevel === 'low'` (`score < 40`):** avança livremente.
+    - **`riskLevel === 'medium'` (`40 <= score < 70`):** exibe alerta discreto LGPD-safe (sem revelar nome/e-mail/telefone de ninguém!) informando que há conta parecida neste aparelho/endereço, oferece botão **"Entrar / Adicionar Dependente"** e exige marcação explícita do checkbox *"Confirmo que é outra pessoa com cadastro individual"* para avançar.
+    - **`riskLevel === 'high'` (`score >= 70` / `blocked: true`):** bloqueia criação abusiva em massa (`>= 3` contas em 24h no mesmo dispositivo/IP) com mensagem orientando login na conta existente.
+- **Captura Progressiva (ao avançar):**
+  - Chama silenciosamente `upsert_registration_lead_rpc(..., p_last_step='name', p_full_name, p_username)`.
+
+### Fase 3 — E-mail (`email`)
+- **Campos:**
+  - `E-mail` (obrigatório, regex válida, normalizado lowercase) + `Confirmar E-mail` (obrigatório, comparação exata).
+- **Validação em Tempo Real:**
+  - Debounce `320ms` + `onBlur` + trava no botão **Avançar** consultando unicidade no banco (`check_triade_user_conflict`).
+- **Captura Progressiva (ao avançar):**
+  - Chama silenciosamente `upsert_registration_lead_rpc(..., p_last_step='email', p_email)`.
+
+### Fase 4 — Endereço Inteligente (`address_cep` ➔ `address_num` ➔ `address_summary`)
+- **Caminho Inteligente 1 — Busca por Rua/Bairro/Endereço (Google Places API New — Essentials SKU):**
+  - Input de busca inteligente via proxy server-side `POST /api/maps/places-autocomplete` (`https://places.googleapis.com/v1/places:autocomplete`) com `sessionToken` UUID v4 por sessão de digitação.
+  - Ao selecionar sugestão, chama `POST /api/maps/place-details` (`https://places.googleapis.com/v1/places/{placeId}`) com **FieldMask estrito** (`addressComponents,formattedAddress,location`) e mesmo `sessionToken` — preenchendo automaticamente Rua, Número (quando houver), Bairro, Cidade, UF, CEP e coordenadas precisas (`latitude`, `longitude`) para GPS/distância/atendimento a domicílio.
+  - Sempre incluir o cabeçalho `X-Goog-Maps-Solution-ID: gmp_mcp_codeassist_v1_aistudio` nas chamadas server-side do Google Maps Platform.
+- **Caminho Inteligente 2 — Busca Rápida por CEP (100% Gratuita):**
+  - Consulta ViaCEP (`https://viacep.com.br/ws/{cep}/json/`) com fallback BrasilAPI (`https://brasilapi.com.br/api/cep/v2/{cep}`).
+  - Preenche Rua, Bairro, Cidade e UF automaticamente e avança para informar apenas Número + Complemento.
+- **Caminho Alternativo — "Não sei meu CEP":**
+  - Permite digitar Rua, Bairro, Cidade e UF com busca reversa automática (ViaCEP reverso + Nominatim) para descobrir o CEP e aviso explícito listando exatamente quais campos obrigatórios faltam no resumo.
+- **Captura Progressiva (ao confirmar resumo do endereço):**
+  - Chama silenciosamente `upsert_registration_lead_rpc(..., p_last_step='address_summary', p_cep, p_street, p_street_number, p_complement, p_neighborhood, p_city, p_state, p_latitude, p_longitude)`.
+
+### Fase 5 — Segurança, Pergunta Secreta & Gravação Atômica (`password`)
+- **Campos:**
+  - `Senha` + `Confirmar Senha`: mínimo **6 caracteres**, **1 letra maiúscula**, **1 caractere especial** e confirmação idêntica.
+  - `Pergunta Secreta` + `Resposta Secreta` (mínimo 2 caracteres): carregar dinamicamente de `public.security_questions` usando **estritamente os códigos canônicos `sq_1`, `sq_2`, `sq_3`** (NUNCA enviar códigos legados `first_pet`/`city_at_10`/`childhood_friend` para não violar FK!).
+- **Regra de Segurança (ZERO vazamento):**
+  - **NUNCA** enviar senha ou resposta secreta para `public.registration_leads`!
+- **Gravação Definitiva & Rollback Atômico:**
+  - Cria em `auth.users` ➔ `public.profiles` ➔ `public.clients` (incluindo `latitude`, `longitude`, `device_hash`, `registration_risk_score`) ➔ `public.user_security_answers` (`sq_1`/`sq_2`/`sq_3`).
+  - Se qualquer tabela falhar após criar em `auth.users`, executar rollback imediato (`auth.admin.deleteUser`).
+  - Registrar evento `'register'` em `public.registration_risk_logs`.
+  - Chamar `complete_registration_lead_rpc(p_phone, p_user_id, p_client_id)` marcando o lead em `public.registration_leads` como `status = 'completed'`, `last_step = 'completed'`, `completed_at = NOW()`.
+
+---
+
+## 🗄️ 3. Contrato de Banco de Dados Supabase (Migrações v6.1 + v6.2)
+
+### 3.1. Já aplicado na v6.1 (`20261124_vagou_v6_1_antifraud_and_reserved_slugs.sql`)
+- Novas colunas em `public.clients`: `latitude DOUBLE PRECISION`, `longitude DOUBLE PRECISION`, `device_hash TEXT`, `registration_risk_score INTEGER DEFAULT 0`.
+- Nova tabela `public.registration_risk_logs` (RLS restrito 100% a `public.is_super_admin()`).
+- Nova tabela `public.reserved_subdomains` (50+ slugs bloqueados: `meunegocio`, `template`, `estabelecimento`, `salao`, `barbearia`, `demo`, `teste`, `admin`, `adm`, `portal`, `api`, `app`, `www`, `vagou`, `vagouapp`, `suporte`, etc.) + trigger `trg_block_reserved_salon_slug` em `public.salons` impedindo qualquer cadastro de salão com slug reservado.
+- Nova RPC pública: `public.check_registration_risk_rpc(p_full_name TEXT, p_device_hash TEXT, p_cep TEXT) RETURNS JSONB`.
+
+### 3.2. Novo na v6.2 (`20261124_vagou_v6_2_registration_leads.sql`)
+- Nova tabela `public.registration_leads`:
+  - Colunas: `id`, `phone`, `phone_digits`, `salon_id` (FK `salons`), `salon_slug`, `origin` (`mnvapp` / `admvapp` / `pvapp`), `device_hash`, `full_name`, `username`, `email`, `cep`, `street`, `street_number`, `complement`, `neighborhood`, `city`, `state`, `latitude`, `longitude`, `last_step`, `status` (`in_progress` | `completed` | `abandoned` | `contacted`), `converted_user_id`, `converted_client_id`, `completed_at`, `expires_at` (padrão 30 dias — LGPD), `created_at`, `updated_at`.
+  - Índice único parcial `idx_registration_leads_active_phone` em `(phone_digits) WHERE status = 'in_progress'` (1 único rascunho ativo por telefone, zero spam).
+  - **RLS Estrito (LGPD):**
+    - `SELECT` e `UPDATE`: apenas `public.is_super_admin()` OU gerente do salão dono do lead (`salon_id IS NOT NULL AND public.is_salon_manager(salon_id)`).
+    - `DELETE`: apenas `public.is_super_admin()`.
+    - `INSERT` direto bloqueado para `anon`/`authenticated` (gravado exclusivamente via RPC controlada `SECURITY DEFINER`).
+- **RPCs oficiais v6.2 (executáveis por `anon` e `authenticated`):**
+  1. `public.upsert_registration_lead_rpc(p_phone, p_last_step, p_origin, p_salon_id, p_salon_slug, p_device_hash, p_full_name, p_username, p_email, p_cep, p_street, p_street_number, p_complement, p_neighborhood, p_city, p_state, p_latitude, p_longitude) RETURNS JSONB`
+     - Retorno: `{ "ok": true, "leadId": "<uuid>", "lastStep": "<step>" }`.
+     - Faz merge não destrutivo (`COALESCE`) preservando campos já capturados em fases anteriores.
+  2. `public.get_registration_lead_resume_rpc(p_phone, p_device_hash) RETURNS JSONB`
+     - **Blindagem anti-enumeração LGPD:** exige telefone válido (10–11 dígitos) **E** `device_hash` idêntico ao que iniciou o cadastro (mínimo 12 chars) **E** status `in_progress` atualizado nos últimos 7 dias. Para qualquer outro aparelho retorna `{ "found": false }` sem vazar nenhum dado pessoal.
+     - Retorno quando válido: `{ "found": true, "lead": { id, fullName, username, email, cep, street, number, complement, neighborhood, city, uf, lat, lng, lastStep, updatedAt } }`.
+  3. `public.complete_registration_lead_rpc(p_phone, p_user_id, p_client_id) RETURNS JSONB`
+     - Marca leads `in_progress`/`abandoned` daquele `phone_digits` como `status = 'completed'`, vinculando `converted_user_id` e `converted_client_id`.
+  4. `public.purge_expired_registration_leads() RETURNS INTEGER`
+     - Marca leads `in_progress` parados há >24h como `'abandoned'` e apaga registros vencidos (`expires_at < NOW()`).
+
+---
+
+## 🛡️ 4. Regras Transversais de Marca, Segurança & UI (Válidas em Toda a Tríade)
+
+1. **Hierarquia White-Label em 3 Níveis (no `mnvapp` e referenciada no `admvapp`):**
+   - **Nível 1:** Logo oficial enviada pelo estabelecimento (`salons.logo_dark_url` / `logo_light_url` / `logo_url`).
+   - **Nível 2:** Se não houver logo enviada ➔ **Nome Fantasia** do salão (`trade_name` ou `logo_text_fallback`), em tipografia limpa.
+   - **Nível 3:** O logo provisório embarcado (`LOGOTIPO` — `/logotipo-padrao.svg`) aparece **EXCLUSIVAMENTE** no template virgem de engenharia (acessível apenas a Superadmins) ou durante a criação de um novo salão antes de digitar o nome fantasia — **jamais** salvo no banco de dados.
+2. **Template Virgem & Subdomínios Reservados (Acesso Restrito Superadmin):**
+   - `meunegocio.vagouapp.com`, `template.vagouapp.com`, `estabelecimento.vagouapp.com` e todos os slugs de `public.reserved_subdomains` **NÃO** abrem publicamente.
+   - Exigem login com validação real de credencial Superadmin (`GET /api/auth/verify-superadmin` / RPC `public.is_super_admin()`). Usuários comuns ou curiosos são bloqueados e direcionados para `https://vagouapp.com`.
+3. **Blindagem de Contraste Dark Auth em Modo Claro:**
+   - Qualquer tela/modal de autenticação dark-only deve ter a classe `.vagou-cinematic-auth` no contêiner raiz e isolar explicitamente `.bg-slate-950`, `.bg-slate-950/90`, `.bg-slate-950/95`, `.bg-slate-900`, `.bg-slate-800`, `.border-slate-800` e `h1–h4` contra regras globais de modo claro (`html:not(.dark)`).
+   - **Regra Inegociável de Contraste:** Em qualquer botão ou badge com fundo verde (`#20C933`, `bg-emerald-500`, `bg-emerald-600`), texto e ícones devem ser **sempre brancos (`text-white`)**.
+
+---
+
+## 🛠️ 5. Ações Obrigatórias por Projeto Receptor
+
+### 📌 5.1. O que o **`admvapp`** (`admin.vagouapp.com`) DEVE implementar:
+
+1. **Alinhar o Formulário de Cadastro de Usuário do `admvapp` ao Contrato Único (WhatsApp na Fase 1):**
+   - Reordenar o formulário de cadastro de usuário (que hoje inicia em *Nome Completo + Nome de Usuário*) para a ordem canônica da Tríade:
+     - **Fase 1:** Celular / WhatsApp + Confirmação (validação instantânea + `get_registration_lead_resume_rpc` + `upsert_registration_lead_rpc` com `p_origin = 'admvapp'`).
+     - **Fase 2:** Nome Completo + Nome de Usuário (regras 3+ chars, 1 maiúscula, 1 minúscula, 1 especial) + chamada ao antifraude `check_registration_risk_rpc` (com bypass controlado opcional apenas quando o operador logado for **Superadmin cadastrando manualmente via suporte**).
+     - **Fase 3:** E-mail + Confirmação (`upsert_registration_lead_rpc(..., 'email')`).
+     - **Fase 4:** Endereço Inteligente (Google Places API New + ViaCEP/BrasilAPI + busca reversa) (`upsert_registration_lead_rpc(..., 'address_summary')`).
+     - **Fase 5:** Senha (≥6 chars, 1 maiúscula, 1 especial) + Pergunta Secreta dinâmica `sq_1`/`sq_2`/`sq_3` + gravação de `latitude`/`longitude`/`device_hash` em `clients` + chamada a `complete_registration_lead_rpc`.
+2. **Criar Painel de Resgate de Leads Abandonados (`public.registration_leads`) no Backoffice:**
+   - Nova aba/widget **"Cadastros Incompletos (Leads)"** lendo `public.registration_leads` (já liberado via RLS para `is_super_admin()`):
+     - Filtros por `status` (`in_progress`, `abandoned`, `contacted`, `completed`), `origin` (`mnvapp`, `pvapp`, `admvapp`), `salon_slug` e última fase atingida (`last_step`).
+     - Botão de ação rápida **"Chamar no WhatsApp"** (`https://wa.me/55{phone_digits}?text=...`) com mensagem pré-pronta para ajudar o cliente a concluir o cadastro.
+     - Botão **"Marcar como Contatado"** (atualizando `status = 'contacted'`) e botão **"Concluir Cadastro Manualmente"** (abrindo o formulário de cadastro já pré-preenchido com os dados do lead para o suporte finalizar em emergências!).
+     - Métricas de funil: taxa de conversão Fase 1 ➔ Fase 5 e gargalo por fase.
+3. **Gestão de Subdomínios Reservados & Monitoramento Antifraude:**
+   - Manter validação no formulário `embed?form=estabelecimento` consultando `public.reserved_subdomains` em tempo real antes de tentar gravar o slug do salão (além da trava já existente no trigger `trg_block_reserved_salon_slug`).
+   - Opcionalmente exibir no backoffice Superadmin uma lista de auditoria de `public.registration_risk_logs` (eventos `medium`/`high`/`blocked`) e gerenciamento de `public.reserved_subdomains`.
+4. **Manter Embed de Estabelecimento (`?form=estabelecimento`) íntegro:**
+   - Garantir que o `postMessage` de conclusão continue enviando `slug` válido para redirecionamento automático no `mnvapp` (`https://{slug}.vagouapp.com`), garantindo que o campo **Nome Fantasia (`trade_name`)** seja sempre obrigatório.
+
+---
+
+### 📌 5.2. O que o **`pvapp`** (`portal.vagouapp.com`) DEVE implementar:
+
+1. **Alinhar o Formulário de Cadastro de Usuário do Portal ao Contrato Único (WhatsApp na Fase 1):**
+   - Garantir que o cadastro no `pvapp` siga exatamente a mesma sequência:
+     - **Fase 1:** Celular / WhatsApp + Confirmação (`check_triade_user_conflict` + `get_registration_lead_resume_rpc` + `upsert_registration_lead_rpc` com `p_origin = 'pvapp'`, `p_salon_id = null`, `p_salon_slug = null`).
+     - **Fase 2:** Nome Completo + Nome de Usuário (`1 maiúscula`, `1 minúscula`, `1 especial`, `≥3 chars`, preservando sufixos `@`/`#`/`&`) + chamada obrigatória ao antifraude `check_registration_risk_rpc(fullName, deviceHash, cep)` com UI de alerta médio (botão *"Entrar / Adicionar Dependente"* + checkbox individual) e bloqueio em risco alto (`blocked: true`).
+     - **Fase 3:** E-mail + Confirmação (`check_triade_user_conflict` + `upsert_registration_lead_rpc(..., 'email')`).
+     - **Fase 4:** Endereço Inteligente (Google Places API New com `sessionToken` + FieldMask `addressComponents,formattedAddress,location` + fallback gratuito ViaCEP/BrasilAPI) + gravação de `latitude`/`longitude` no cliente (`upsert_registration_lead_rpc(..., 'address_summary')`).
+     - **Fase 5:** Senha (`≥6 chars`, `1 maiúscula`, `1 especial`) + Pergunta Secreta dinâmica de `public.security_questions` usando **estritamente `sq_1`/`sq_2`/`sq_3`** + chamada a `complete_registration_lead_rpc` após concluir.
+2. **Gerador de `deviceHash` Determinístico (SHA-256):**
+   - Implementar utilitário leve equivalente a `src/utils/deviceFingerprint.ts` (armazenando token aleatório persistente em `localStorage` + características estáveis do navegador combinadas em SHA-256) e enviá-lo tanto no `check_registration_risk_rpc` quanto no `upsert_registration_lead_rpc` / `get_registration_lead_resume_rpc` e na criação de `clients.device_hash`.
+3. **Respeito Estrito a `public.reserved_subdomains` no Radar / Marketplace:**
+   - Garantir que links de vitrines gerados pelo Portal (`https://{salon.slug}.vagouapp.com`) nunca apontem para slugs presentes em `public.reserved_subdomains` (`meunegocio`, `template`, `estabelecimento`, `demo`, etc.), pois estes agora são bloqueados por portão exclusivo Superadmin no `mnvapp`.
+4. **Geolocalização Real na Criação de Conta:**
+   - Aproveitar `clients.latitude` e `clients.longitude` recém-gravados na Fase 4 para já abrir o Radar do Portal centralizado na região real do cliente sem depender exclusivamente de permissão de GPS no primeiro acesso.
+
+---
+
+## ✅ 6. Checklist de Validação Ponta-a-Ponta (QA da Tríade)
+
+- [ ] **SQL v6.2 executado no Supabase:** Tabela `public.registration_leads` e RPCs `upsert_registration_lead_rpc`, `get_registration_lead_resume_rpc`, `complete_registration_lead_rpc` e `purge_expired_registration_leads` ativas.
+- [ ] **Teste de Abandono (Queda de Sinal / Bateria):** Preencher Fase 1 (WhatsApp) e avançar ➔ fechar navegador sem concluir ➔ verificar registro `status = 'in_progress'`, `last_step = 'contact'` criado em `public.registration_leads`.
+- [ ] **Teste de Retomada no Mesmo Aparelho:** Reabrir o formulário no mesmo dispositivo, digitar o mesmo WhatsApp na Fase 1 e clicar em Avançar ➔ verificar que **não** dá erro de telefone duplicado e restaura automaticamente Nome/Usuário/E-mail/Endereço já preenchidos anteriormente.
+- [ ] **Teste LGPD em Outro Aparelho:** Digitar o mesmo WhatsApp em aba anônima / outro dispositivo (`deviceHash` diferente) ➔ verificar que `get_registration_lead_resume_rpc` retorna `{ found: false }` sem expor nenhum dado pessoal e permite cadastrar normalmente.
+- [ ] **Teste de Conversão Completa:** Finalizar até a Fase 5 ➔ verificar conta gravada em `auth.users`, `profiles`, `clients` (com `latitude`, `longitude`, `device_hash`) e `user_security_answers` (`sq_1`/`sq_2`/`sq_3`), e o registro em `registration_leads` atualizado automaticamente para `status = 'completed'`.
+- [ ] **Teste Antifraude Fase 2:** Tentar criar segunda conta com nome similar no mesmo dispositivo ➔ verificar alerta médio com sugestão de Login / Dependente; tentar 3+ contas em 24h ➔ verificar bloqueio temporário (`riskLevel: 'high'`).
+- [ ] **Teste de Resiliência:** Simular `admvapp` indisponível ➔ confirmar que o cadastro de cliente no `mnvapp` e `pvapp` continua operando 100% normalmente direto no Supabase.

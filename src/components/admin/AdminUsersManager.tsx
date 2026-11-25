@@ -42,10 +42,11 @@ import {
   batchDeleteUnifiedUsers,
   toggleUnifiedUserStatus,
   getLastAdminSyncError,
+  getStoredAdmin,
 } from '../../services/supabaseApi';
 import { AdminCreateAdminModal } from './AdminCreateAdminModal';
 import { UserAvatar } from '../common/UserAvatar';
-import { TriadeUserRegisterForm } from './triade-forms/TriadeUserRegisterForm';
+import { TriadeUserRegisterForm } from '../auth/TriadeUserRegisterForm';
 import { AdminUserDetailView, UnifiedUserDetailType } from './AdminUserDetailView';
 import { AdminUserGeneralDataModal } from './AdminUserGeneralDataModal';
 import { formatCreatedAtParts, resolveRecordOriginInfo } from '../../utils/dateTimeFormat';
@@ -1584,13 +1585,24 @@ export const AdminUsersManager: React.FC<AdminUsersManagerProps> = ({
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-slate-950/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
             <div className="w-full max-w-md relative my-auto max-h-[92vh] overflow-y-auto">
               <TriadeUserRegisterForm
-                origin="admin"
+                origin="admvapp"
+                bypassAntifraud={(() => {
+                  const adm = getStoredAdmin();
+                  const role = String(adm?.role || '').toLowerCase();
+                  return (
+                    role === 'superadmin' ||
+                    role === 'super_admin' ||
+                    Number((adm as any)?.access_level || 0) >= 100
+                  );
+                })()}
                 variant="card"
                 onClose={() => setIsRegistrationModalOpen(false)}
-                onSuccess={() => {
-                  setIsRegistrationModalOpen(false);
+                onSuccess={(_data, opts) => {
                   loadAll();
                   triggerFeedback('Novo usuário cadastrado com sucesso!');
+                  if (!opts?.keepModalOpen) {
+                    setIsRegistrationModalOpen(false);
+                  }
                 }}
               />
             </div>

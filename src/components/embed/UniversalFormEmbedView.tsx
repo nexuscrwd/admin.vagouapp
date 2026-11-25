@@ -4,9 +4,10 @@ import { TriadeMnvClientLoginForm } from '../admin/triade-forms/TriadeMnvClientL
 import { TriadeEstablishmentMasterForm } from '../admin/triade-forms/TriadeEstablishmentMasterForm';
 import { TriadeAdminLoginForm } from '../admin/triade-forms/TriadeAdminLoginForm';
 import { TriadeAdminRecoveryForm } from '../admin/triade-forms/TriadeAdminRecoveryForm';
-import { TriadeUserRegisterForm } from '../admin/triade-forms/TriadeUserRegisterForm';
+import { TriadeUserRegisterForm } from '../auth/TriadeUserRegisterForm';
 import { TriadeUserLoginForm } from '../admin/triade-forms/TriadeUserLoginForm';
 import { supabaseAdmin } from '../../services/supabase';
+import { sanitizeSalonSlug } from '../../services/supabaseApi';
 import { useDeviceViewport } from '../../hooks/useDeviceViewport';
 
 export type EmbedFormType =
@@ -79,6 +80,11 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
   const [salonName, setSalonName] = useState('VagouApp');
   const [salonLogoUrl, setSalonLogoUrl] = useState<string | undefined>(undefined);
   const [salonAccentColor, setSalonAccentColor] = useState<string>('#20C933');
+  const [requestedSlug] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    const params = new URLSearchParams(window.location.search);
+    return sanitizeSalonSlug(params.get('slug') || '');
+  });
   const [isTransparent, setIsTransparent] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     const search = window.location.search.toLowerCase();
@@ -325,13 +331,14 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
         {formType === 'usuario' && (
           <div className="w-full">
             <TriadeUserRegisterForm
-              origin={salonId ? 'establishment' : 'portal'}
+              origin="admvapp"
+              bypassAntifraud={false}
               salonId={salonId}
               salonName={salonName}
+              salonSlug={requestedSlug || undefined}
               salonLogoUrl={salonLogoUrl}
-              salonAccentColor={salonAccentColor}
               variant="flat"
-              showHeader={true}
+              onClose={handleClose}
               onSuccess={(data) => {
                 dispatchPostMessage('USER_REGISTER_SUCCESS', data);
               }}
@@ -374,7 +381,14 @@ export const UniversalFormEmbedView: React.FC<UniversalFormEmbedViewProps> = ({
         {formType === 'estabelecimento' && (
           <div className="w-full">
             <TriadeEstablishmentMasterForm
-              initialData={salonName && salonName !== 'VagouApp' ? { tradeName: salonName } : undefined}
+              initialData={
+                (salonName && salonName !== 'VagouApp') || requestedSlug
+                  ? {
+                      ...(salonName && salonName !== 'VagouApp' ? { tradeName: salonName } : {}),
+                      ...(requestedSlug ? { slug: requestedSlug } : {}),
+                    }
+                  : undefined
+              }
               isStandalonePreview
               initialStep={skipUserCheck ? 'establishment_details' : 'user_check'}
               onSuccess={(data) => {

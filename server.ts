@@ -1563,6 +1563,139 @@ async function startServer() {
     }
   });
 
+  app.post('/api/maps/places-autocomplete', async (req, res) => {
+    try {
+      const input = String(req.body?.input || '').trim();
+      const sessionToken = String(req.body?.sessionToken || '').trim().slice(0, 128);
+      if (input.length < 3) {
+        return res.json({ success: true, suggestions: [] });
+      }
+      if (!GOOGLE_MAPS_API_KEY) {
+        return res.json({ success: true, suggestions: [] });
+      }
+
+      const payload: Record<string, any> = {
+        input,
+        includedRegionCodes: ['br'],
+        languageCode: 'pt-BR',
+        regionCode: 'br',
+      };
+      if (sessionToken) {
+        payload.sessionToken = sessionToken;
+      }
+
+      const gRes = await fetch('https://places.googleapis.com/v1/places:autocomplete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': GOOGLE_MAPS_API_KEY,
+          'X-Goog-Maps-Solution-ID': 'gmp_mcp_codeassist_v1_aistudio',
+          'X-Goog-FieldMask':
+            'suggestions.placePrediction.placeId,suggestions.placePrediction.text.text,suggestions.placePrediction.structuredFormat',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!gRes.ok) {
+        return res.json({ success: false, suggestions: [] });
+      }
+
+      const data: any = await gRes.json();
+      const rawList = Array.isArray(data?.suggestions) ? data.suggestions : [];
+      const suggestions = rawList
+        .map((entry: any) => entry?.placePrediction)
+        .filter((pred: any) => pred && typeof pred.placeId === 'string' && pred.placeId.length > 0)
+        .map((pred: any) => {
+          const description = String(pred.text?.text || '').trim();
+          const mainText = String(pred.structuredFormat?.mainText?.text || description).trim();
+          const secondaryText = String(pred.structuredFormat?.secondaryText?.text || '').trim();
+          return {
+            placeId: String(pred.placeId),
+            mainText,
+            secondaryText,
+            description: description || [mainText, secondaryText].filter(Boolean).join(', '),
+          };
+        });
+
+      return res.json({ success: true, suggestions });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, suggestions: [], error: err?.message });
+    }
+  });
+
+  app.post('/api/maps/place-details', async (req, res) => {
+    try {
+      const cleanPlaceId = String(req.body?.placeId || '').trim();
+      const sessionToken = String(req.body?.sessionToken || '').trim().slice(0, 128);
+      if (!/^[A-Za-z0-9_-]{8,256}$/.test(cleanPlaceId)) {
+        return res.status(400).json({ success: false, error: 'placeId inválido.' });
+      }
+      if (!GOOGLE_MAPS_API_KEY) {
+        return res.status(503).json({ success: false, error: 'Serviço de endereços indisponível.' });
+      }
+
+      const url = new URL(`https://places.googleapis.com/v1/places/${encodeURIComponent(cleanPlaceId)}`);
+      url.searchParams.set('languageCode', 'pt-BR');
+      url.searchParams.set('regionCode', 'br');
+      if (sessionToken) {
+        url.searchParams.set('sessionToken', sessionToken);
+      }
+
+      const gRes = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': GOOGLE_MAPS_API_KEY,
+          'X-Goog-Maps-Solution-ID': 'gmp_mcp_codeassist_v1_aistudio',
+          'X-Goog-FieldMask': 'addressComponents,formattedAddress,location',
+        },
+      });
+
+      if (!gRes.ok) {
+        return res.status(gRes.status).json({ success: false, error: 'Não foi possível detalhar o endereço.' });
+      }
+
+      const detail: any = await gRes.json();
+      const comps: any[] = Array.isArray(detail?.addressComponents) ? detail.addressComponents : [];
+      const findComp = (types: string[], useShort = false): string => {
+        for (const t of types) {
+          const hit = comps.find((c: any) => Array.isArray(c?.types) && c.types.includes(t));
+          if (hit) {
+            return String(
+              useShort ? hit.shortText || hit.short_name || hit.longText || '' : hit.longText || hit.long_name || hit.shortText || ''
+            ).trim();
+          }
+        }
+        return '';
+      };
+
+      const street = findComp(['route']);
+      const number = findComp(['street_number']);
+      const neighborhood = findComp(['sublocality_level_1', 'sublocality', 'neighborhood']);
+      const city = findComp(['administrative_area_level_2', 'locality']);
+      const uf = findComp(['administrative_area_level_1'], true).toUpperCase().slice(0, 2);
+      const cep = findComp(['postal_code']).replace(/\D/g, '');
+      const lat = typeof detail?.location?.latitude === 'number' ? Number(detail.location.latitude) : null;
+      const lng = typeof detail?.location?.longitude === 'number' ? Number(detail.location.longitude) : null;
+
+      return res.json({
+        success: true,
+        placeId: cleanPlaceId,
+        street,
+        number,
+        neighborhood,
+        city,
+        uf,
+        cep,
+        formattedAddress: String(detail?.formattedAddress || ''),
+        lat,
+        lng,
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message });
+    }
+  });
+
   app.post('/api/geo/route', async (req, res) => {
     try {
       const { originLat, originLng, destLat, destLng, travelMode = 'DRIVE' } = req.body || {};
@@ -1943,7 +2076,7 @@ async function startServer() {
     typeof val === 'string' ? val.trim().toLowerCase() : '';
 
   const normalizeUsernameKey = (val: any): string =>
-    typeof val === 'string' ? val.trim().replace(/^@+|@+$/g, '').trim().toLowerCase() : '';
+    typeof val === 'string' ? val.trim().toLowerCase() : '';
 
   const normalizeCpfKey = (val: any): string => {
     if (typeof val !== 'string') return '';
@@ -1954,9 +2087,12 @@ async function startServer() {
 
   const normalizePhoneKey = (val: any): string => {
     if (typeof val !== 'string') return '';
-    const digits = val.replace(/\D/g, '');
+    let digits = val.replace(/\D/g, '');
+    if (digits.length >= 12 && digits.startsWith('55')) {
+      digits = digits.slice(2);
+    }
     if (digits.length < 10) return '';
-    return digits.slice(-9);
+    return digits.slice(-11);
   };
 
   const checkUserConflictInSupabase = async (params: {
@@ -3811,16 +3947,36 @@ async function startServer() {
 
   app.get('/api/admin/salons', async (_req, res) => {
     try {
-      const { data, error } = await supabaseAdmin
-        .from('salons')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const [{ data, error }, { data: uiRows }] = await Promise.all([
+        supabaseAdmin.from('salons').select('*').order('created_at', { ascending: false }),
+        supabaseAdmin.from('salon_ui_settings').select('*'),
+      ]);
 
       if (error) {
         return res.status(400).json({ success: false, error: error.message });
       }
 
-      return res.json({ success: true, salons: data || [] });
+      const uiMap = new Map<string, any>();
+      for (const ui of uiRows || []) {
+        if (ui?.salon_id) uiMap.set(String(ui.salon_id), ui);
+      }
+
+      const mergedSalons = (data || []).map((salon: any) => {
+        const ui = uiMap.get(String(salon.id));
+        if (!ui) return salon;
+        return {
+          ...ui,
+          ...salon,
+          logo_text_fallback: ui.logo_text_fallback || salon.logo_text_fallback || '',
+          primary_color: ui.primary_color || salon.primary_color || '#10B981',
+          secondary_color: ui.secondary_color || salon.secondary_color || '#065F46',
+          brand_font: ui.brand_font || salon.brand_font || 'Poppins',
+          default_theme: ui.default_theme || salon.default_theme || 'light',
+          pwa_name: ui.pwa_name || salon.pwa_name || salon.trade_name || '',
+        };
+      });
+
+      return res.json({ success: true, salons: mergedSalons });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
@@ -4157,6 +4313,7 @@ async function startServer() {
               secondary_color: resolvedSecondaryColor,
               brand_font: resolvedBrandFont,
               pwa_name: resolvedTradeName,
+              logo_text_fallback: String(payload.logo_text_fallback || payload.logoTextFallback || '').trim() || resolvedTradeName,
               section_header_bg_color: payload.section_header_bg_color || '#ECFDF5',
               section_header_text_color: payload.section_header_text_color || '#065F46',
               section_header_icon_color: payload.section_header_icon_color || '#059669',
@@ -5148,10 +5305,135 @@ async function startServer() {
       return res.json({
         success: true,
         available: !conflict.hasConflict,
+        conflict: conflict.hasConflict,
+        field: conflict.conflictField,
         ...conflict,
       });
     } catch (err: any) {
       return res.status(500).json({ success: false, available: true, error: err?.message });
+    }
+  });
+
+  app.options('/api/public/check-user-conflict', (_req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return res.status(204).end();
+  });
+
+  app.post('/api/public/check-user-conflict', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    try {
+      const { username, email, phone, cpf } = req.body || {};
+      const conflict = await checkUserConflictInSupabase({ username, email, phone, cpf });
+      return res.json({
+        success: true,
+        available: !conflict.hasConflict,
+        conflict: conflict.hasConflict,
+        hasConflict: conflict.hasConflict,
+        field: conflict.conflictField,
+        conflictField: conflict.conflictField,
+        message: conflict.message || '',
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, conflict: false, hasConflict: false, error: err?.message });
+    }
+  });
+
+  app.options('/api/public/check-registration-risk', (_req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return res.status(204).end();
+  });
+
+  app.post('/api/public/check-registration-risk', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    try {
+      const fullName = String(req.body?.fullName || req.body?.full_name || '').trim();
+      const deviceHash = String(req.body?.deviceHash || req.body?.device_hash || '').trim();
+      const cep = String(req.body?.cep || '').replace(/\D/g, '').trim();
+
+      const { data, error } = await (supabaseAdmin.rpc as any)('check_registration_risk_rpc', {
+        p_full_name: fullName || null,
+        p_device_hash: deviceHash || null,
+        p_cep: cep || null,
+      });
+
+      if (error || !data) {
+        return res.json({
+          riskLevel: 'low',
+          riskScore: 0,
+          requiresConfirmation: false,
+          blocked: false,
+          suggestDependent: false,
+          reasons: [],
+          message: '',
+        });
+      }
+
+      return res.json(data);
+    } catch {
+      return res.json({
+        riskLevel: 'low',
+        riskScore: 0,
+        requiresConfirmation: false,
+        blocked: false,
+        suggestDependent: false,
+        reasons: [],
+        message: '',
+      });
+    }
+  });
+
+  app.options('/api/public/registration-lead', (_req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return res.status(204).end();
+  });
+
+  app.post('/api/public/registration-lead', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    try {
+      const b = req.body || {};
+      const phone = String(b.phone || '').trim();
+      if (!phone) {
+        return res.status(400).json({ success: false, error: 'Telefone obrigatório.' });
+      }
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const validSalonId = typeof b.salonId === 'string' && uuidPattern.test(b.salonId) ? b.salonId : null;
+
+      const { data, error } = await (supabaseAdmin.rpc as any)('upsert_registration_lead_rpc', {
+        p_phone: phone,
+        p_last_step: String(b.lastStep || b.last_step || 'contact'),
+        p_origin: String(b.origin || 'admvapp'),
+        p_salon_id: validSalonId,
+        p_salon_slug: b.salonSlug ? String(b.salonSlug).trim() : null,
+        p_device_hash: b.deviceHash ? String(b.deviceHash).trim() : null,
+        p_full_name: b.fullName ? String(b.fullName).trim() : null,
+        p_username: b.username ? String(b.username).trim() : null,
+        p_email: b.email ? String(b.email).trim().toLowerCase() : null,
+        p_cep: b.cep ? String(b.cep).trim() : null,
+        p_street: b.street ? String(b.street).trim() : null,
+        p_street_number: b.number ? String(b.number).trim() : null,
+        p_complement: b.complement ? String(b.complement).trim() : null,
+        p_neighborhood: b.neighborhood ? String(b.neighborhood).trim() : null,
+        p_city: b.city ? String(b.city).trim() : null,
+        p_state: b.uf ? String(b.uf).trim().toUpperCase() : null,
+        p_latitude: typeof b.lat === 'number' ? b.lat : null,
+        p_longitude: typeof b.lng === 'number' ? b.lng : null,
+      });
+
+      if (error) {
+        return res.status(400).json({ success: false, error: error.message });
+      }
+      return res.json({ success: true, lead: data });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err?.message });
     }
   });
 
@@ -5196,17 +5478,35 @@ async function startServer() {
         salonPhoneLandline = '',
         salonEmail = '',
         redirectUrl = '',
+        securityQuestionCode = '',
+        securityAnswer = '',
       } = body;
 
-      const resolvedName = (body.fullName || body.name || '').trim();
+      const CANONICAL_SEC_CODES = new Set(['sq_1', 'sq_2', 'sq_3']);
+      const rawSecCode = String(securityQuestionCode || body.security_question_code || '').trim().toLowerCase();
+      const canonicalSecCode = CANONICAL_SEC_CODES.has(rawSecCode)
+        ? rawSecCode
+        : rawSecCode === 'first_pet'
+          ? 'sq_1'
+          : rawSecCode === 'city_at_10'
+            ? 'sq_2'
+            : rawSecCode === 'first_school' || rawSecCode === 'childhood_friend'
+              ? 'sq_3'
+              : null;
+      const cleanSecAnswer = String(securityAnswer || body.security_answer || '').trim();
+
+      const resolvedName = (body.full_name || body.fullName || body.name || '').trim();
       const addrObj = body.address && typeof body.address === 'object' ? body.address : {};
       const cep = (addrObj.cep || body.cep || '').trim();
-      const street = (addrObj.street || body.street || '').trim();
+      const street = (addrObj.street || body.street || (typeof body.address === 'string' ? body.address : '') || '').trim();
       const number = (addrObj.number || body.number || '').trim();
       const complement = (addrObj.complement || body.complement || '').trim();
       const neighborhood = (addrObj.neighborhood || body.neighborhood || '').trim();
       const city = (addrObj.city || body.city || 'São Paulo').trim();
-      const state = (addrObj.state || body.state || 'SP').trim().toUpperCase();
+      const state = (addrObj.uf || addrObj.state || body.uf || body.state || 'SP').trim().toUpperCase();
+      const deviceHash = String(body.deviceHash || body.device_hash || '').trim() || null;
+      const riskAcknowledged = Boolean(body.riskAcknowledged);
+      const bodyFormattedAddress = String(body.formatted_address || body.formattedAddress || '').trim() || null;
 
       if (!resolvedName || !email || !password) {
         return res.status(400).json({ success: false, error: 'Nome, E-mail e Senha são obrigatórios.' });
@@ -5220,11 +5520,11 @@ async function startServer() {
       const cleanName = resolvedName;
       const cleanCpf = String(documentCpf || body.cpf || '').trim() || null;
       const cleanPhone = String(phone || '').trim() || null;
-      const cleanUsername = (username || cleanEmail.split('@')[0] || 'usuario').trim().replace(/^@+/, '');
+      const cleanUsername = String(username || cleanEmail.split('@')[0] || 'usuario').trim();
       if (
         username &&
-        (!/[A-Z]/.test(cleanUsername) ||
-          !/[a-z]/.test(cleanUsername) ||
+        (!/[A-ZÀ-Ý]/.test(cleanUsername) ||
+          !/[a-zà-ÿ]/.test(cleanUsername) ||
           !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(cleanUsername))
       ) {
         return res.status(400).json({
@@ -5278,6 +5578,7 @@ async function startServer() {
       const resolvedCreatedVia = normalizeV6CreatedVia(origin || 'pvapp');
 
       let authUserId: string | null = null;
+      let createdNewAuthUser = false;
       const { data: authUserResp, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: cleanEmail,
         password: String(password),
@@ -5288,12 +5589,14 @@ async function startServer() {
           avatar_url: avatarUrl || undefined,
           username: cleanUsername || undefined,
           cpf: cleanCpf || undefined,
+          device_hash: deviceHash || undefined,
           created_via: resolvedCreatedVia,
         },
       });
 
       if (!authError && authUserResp?.user?.id) {
         authUserId = authUserResp.user.id;
+        createdNewAuthUser = true;
       } else {
         try {
           const { data: usersList } = await supabaseAdmin.auth.admin.listUsers();
@@ -5311,12 +5614,21 @@ async function startServer() {
                 avatar_url: avatarUrl || undefined,
                 username: cleanUsername || undefined,
                 cpf: cleanCpf || undefined,
+                device_hash: deviceHash || undefined,
                 created_via: resolvedCreatedVia,
               },
             });
           }
         } catch {}
       }
+
+      const rollbackNewAuthUser = async () => {
+        if (createdNewAuthUser && authUserId) {
+          try {
+            await supabaseAdmin.auth.admin.deleteUser(authUserId);
+          } catch {}
+        }
+      };
 
       const referer = String(req.headers.referer || process.env.APP_URL || 'https://adm.vagouapp.com/');
       const userGeo = await resolveAddressCoordinatesServerSide(
@@ -5327,14 +5639,15 @@ async function startServer() {
           neighborhood,
           city,
           state,
-          latitude: addrObj.latitude ?? body.latitude,
-          longitude: addrObj.longitude ?? body.longitude,
+          latitude: addrObj.latitude ?? body.lat ?? body.latitude,
+          longitude: addrObj.longitude ?? body.lng ?? body.longitude,
         },
         referer
       );
+      const finalFormattedAddress = userGeo.formatted_address || bodyFormattedAddress || null;
 
       if (authUserId) {
-        await safeSupabaseWrite(
+        const profileRes = await safeSupabaseWrite(
           'profiles',
           'upsert',
           {
@@ -5355,14 +5668,19 @@ async function startServer() {
             state: state || 'SP',
             latitude: userGeo.latitude,
             longitude: userGeo.longitude,
-            formatted_address: userGeo.formatted_address,
+            formatted_address: finalFormattedAddress,
             google_place_id: userGeo.google_place_id,
+            ...(deviceHash ? { device_hash: deviceHash } : {}),
             is_active: true,
             created_via: resolvedCreatedVia,
             updated_at: nowUserIso,
           },
           { onConflict: 'id' }
         );
+        if (profileRes.error) {
+          await rollbackNewAuthUser();
+          return res.status(400).json({ success: false, error: profileRes.error.message });
+        }
       }
 
       const isUuid = (val: any) =>
@@ -5384,8 +5702,10 @@ async function startServer() {
         state: state || 'SP',
         latitude: userGeo.latitude,
         longitude: userGeo.longitude,
-        formatted_address: userGeo.formatted_address,
+        formatted_address: finalFormattedAddress,
         google_place_id: userGeo.google_place_id,
+        ...(deviceHash ? { device_hash: deviceHash } : {}),
+        ...(canonicalSecCode && cleanSecAnswer ? { security_question_code: canonicalSecCode } : {}),
         is_active: true,
         created_via: resolvedCreatedVia,
         updated_at: nowUserIso,
@@ -5401,6 +5721,7 @@ async function startServer() {
         );
         if (upsertRes.error) {
           console.error('[register-user] Erro ao salvar client via upsert(user_id):', upsertRes.error);
+          await rollbackNewAuthUser();
           return res.status(400).json({ success: false, error: upsertRes.error.message });
         }
         savedClient = upsertRes.data;
@@ -5408,9 +5729,47 @@ async function startServer() {
         const insRes = await safeSupabaseWrite('clients', 'insert', clientPayload);
         if (insRes.error) {
           console.error('[register-user] Erro ao inserir client:', insRes.error);
+          await rollbackNewAuthUser();
           return res.status(400).json({ success: false, error: insRes.error.message });
         }
         savedClient = insRes.data;
+      }
+
+      if (deviceHash && authUserId) {
+        safeSupabaseWrite('registration_risk_logs', 'insert', {
+          user_id: authUserId,
+          client_id: savedClient?.id || null,
+          device_hash: deviceHash,
+          full_name: cleanName,
+          cep: cep || null,
+          risk_acknowledged: riskAcknowledged,
+          origin: resolvedCreatedVia,
+          created_at: nowUserIso,
+        }).catch(() => {});
+      }
+
+      if (canonicalSecCode && cleanSecAnswer && isUuid(savedClient?.id)) {
+        try {
+          const normalizedAnswer = cleanSecAnswer
+            .trim()
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '');
+          const answerHash = crypto.createHash('sha256').update(normalizedAnswer).digest('hex');
+          await safeSupabaseWrite(
+            'user_security_answers',
+            'upsert',
+            {
+              client_id: savedClient.id,
+              question_code: canonicalSecCode,
+              answer_hash: answerHash,
+              updated_at: nowUserIso,
+            },
+            { onConflict: 'client_id,question_code' }
+          );
+        } catch (secErr) {
+          console.warn('[register-user] Aviso ao gravar user_security_answers:', secErr);
+        }
       }
 
       if (isUuid(salonId) && savedClient?.id) {
@@ -5586,6 +5945,8 @@ async function startServer() {
 
       return res.json({
         success: true,
+        userId: authUserId || effectiveClientId,
+        clientId: savedClient?.id || effectiveClientId,
         message:
           type === 'professional'
             ? 'Estabelecimento e conta criados com sucesso!'

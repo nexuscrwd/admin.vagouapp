@@ -15,6 +15,48 @@ Este arquivo registra cronologicamente todas as modificações relevantes realiz
 
 ## 📜 Registros de Alterações
 
+### [2026-11-24] — 🚀 Substituição Completa do Formulário Único de Cadastro de Usuário v6.2 (`bol-186`)
+- **Tipo:** `[Feat / Refactor / Sync]`
+- **Motivo / Solicitação:**
+  - Cumprimento integral da **Ordem de Substituição Completa v6.2** da Tríade Vagou: remoção definitiva do formulário antigo de cadastro de usuário (que iniciava por Nome Completo + Nome de Usuário) e adoção 100% nativa do novo `TriadeUserRegisterForm` de 5 fases começando por **Celular / WhatsApp**, com captura progressiva de leads, retomada LGPD-safe, motor antifraude, Google Places API (New) + ViaCEP/BrasilAPI + busca reversa, perguntas canônicas `sq_1`/`sq_2`/`sq_3` e conclusão atômica, mantendo `?form=estabelecimento` intacto.
+- **Arquivos Impactados:**
+  - `/src/components/admin/triade-forms/TriadeUserRegisterForm.tsx` (**excluído**)
+  - `/src/utils/deviceFingerprint.ts` (**criado**)
+  - `/src/components/auth/TriadeUserRegisterForm.tsx` (**criado**)
+  - `/src/components/admin/AdminUsersManager.tsx`
+  - `/src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`
+  - `/src/components/admin/AdminSalonDetailView.tsx`
+  - `/src/components/admin/triade-forms/TriadeMnvClientLoginForm.tsx`
+  - `/src/components/embed/UniversalFormEmbedView.tsx`
+  - `/src/index.css`
+  - `/server.ts`
+  - `/CHANGELOG.md`
+- **Resumo Técnico:**
+  - **Formulário Nativo v6.2 (`src/components/auth/TriadeUserRegisterForm.tsx` + `src/utils/deviceFingerprint.ts`):** Fluxo de 5 fases (`contact` ➔ `name` ➔ `email` ➔ `address_cep`/`address_num`/`address_summary` ➔ `password` ➔ `welcome`), integrado nativamente às RPCs `check_triade_user_conflict`, `get_registration_lead_resume_rpc`, `upsert_registration_lead_rpc`, `check_registration_risk_rpc` e `complete_registration_lead_rpc`.
+  - **Conexão nos 5 Pontos do `admvapp`:** Todos os consumidores reconectados com `origin="admvapp"`, aplicando `bypassAntifraud={true}` exclusivamente quando o operador logado no backoffice for Superadmin (`AdminUsersManager` e `TriadeEstablishmentMasterForm` fora de `isStandalonePreview`) e `false` nos fluxos públicos/embed/simulador. Preservação integral de `TriadeEstablishmentMasterForm` (`/embed?form=estabelecimento`).
+  - **Suporte Backend (`server.ts`) & Isolamento Dark (`src/index.css`):** Adicionadas rotas `POST /api/maps/places-autocomplete` e `POST /api/maps/place-details` (Places API New com `sessionToken`, `X-Goog-FieldMask` Essentials e `X-Goog-Maps-Solution-ID: gmp_mcp_codeassist_v1_aistudio`), `POST /api/public/check-user-conflict`, `POST /api/public/check-registration-risk`, `POST /api/public/registration-lead`; preservação integral de caracteres especiais no `username` (`normalizeUsernameKey`), registro em `registration_risk_logs` e rollback atômico em `auth.users` dentro de `POST /api/public/register-user`; regra `.vagou-cinematic-auth` em `src/index.css`.
+
+---
+
+### [2026-11-24] — 🤝 Alinhamento Inter-Projetos `bol-216` & `bol-215`: `?slug` no Embed, Hierarquia White-Label & Perguntas Canônicas `sq_1`/`sq_2`/`sq_3` (`bol-185`)
+- **Tipo:** `[Feat / Fix / Sync]`
+- **Motivo / Solicitação:**
+  - Cumprimento integral das ações destinadas ao `admvapp` no Comunicado Técnico Inter-Projetos **`bol-216`** (origem `mnvapp`), garantindo pré-preenchimento de `?slug=<subdomínio>` em `/embed?form=estabelecimento`, alinhamento white-label na etapa de Identidade Visual e revisão final (Nome Fantasia / Nome Fantasia Resumido no cabeçalho quando sem logo; iniciais reservadas exclusivamente ao Ícone 1:1 PWA/Favicon) e paridade `bol-215` no subfluxo de cadastro de usuário (validação em tempo real de telefone/usuário/e-mail + códigos canônicos `sq_1`/`sq_2`/`sq_3`).
+- **Arquivos Impactados:**
+  - `/src/components/embed/UniversalFormEmbedView.tsx`
+  - `/src/components/admin/triade-forms/TriadeEstablishmentMasterForm.tsx`
+  - `/src/components/admin/triade-forms/TriadeUserRegisterForm.tsx`
+  - `/src/components/admin/AdminUserGeneralDataModal.tsx`
+  - `/src/services/supabaseApi.ts`
+  - `/server.ts`
+  - `/CHANGELOG.md`
+- **Resumo Técnico:**
+  - **Pré-preenchimento `?slug=<subdomínio>` no Embed:** `UniversalFormEmbedView` captura `?slug=` sanitizado e injeta em `TriadeEstablishmentMasterForm.initialData.slug`; o formulário inicializa `slug` + `isCustomSlug` e preserva o `preselectedSlug` após login ou cadastro do proprietário (em vez de limpar o campo).
+  - **Hierarquia White-Label na Identidade Visual & Revisão:** Adicionado campo opcional `logoTextFallback` ("Nome Fantasia Resumido") persistido em `salon_ui_settings.logo_text_fallback` via `POST /api/admin/salons` e fallback direto. Quando não há logotipo, o preview e o resumo final exibem o Nome Fantasia / Nome Fantasia Resumido no **Cabeçalho do App** (removido `"Iniciais automáticas"`), reservando as iniciais exclusivamente para o **Ícone 1:1 (PWA / Favicon)**.
+  - **Paridade `bol-215` no Cadastro de Usuário:** `TriadeUserRegisterForm` (usado também no subfluxo do proprietário) passou a exibir validação em tempo real independente (`Verificando...` / `Disponível` / `Já cadastrado`) para **Usuário**, **WhatsApp** e **E-mail**, com normalização DDD+número sem falso positivo entre DDDs diferentes, além de seleção e persistência obrigatória das perguntas de segurança canônicas **`sq_1` / `sq_2` / `sq_3`** (`clients.security_question_code` + hash SHA-256 em `user_security_answers`) e rótulos canônicos no modal `AdminUserGeneralDataModal`.
+
+---
+
 ### [2026-11-22] — 🚀 Sincronização Total PWA ⇄ Supabase, Instalação PWA Nativa (`Admin-Vapp`) & Web Push Automático (`bol-184`)
 - **Tipo:** `[Feat / Fix / PWA / Push]`
 - **Motivo / Solicitação:**

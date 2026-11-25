@@ -43,13 +43,14 @@ import {
   detectPixKeyType,
   lookupPixKeyHolder,
   uploadBinaryMediaFile,
+  getStoredAdmin,
 } from '../../../services/supabaseApi';
 import { AdminSalonItem, PixKeyType, SalonPixKeyItem } from '../../../types/admin';
 import { getPixQrCodeUrl } from '../../../services/pixGenerator';
 import { SalonPixPrintModal } from '../SalonPixPrintModal';
 import { PixCheckoutModal } from '../PixCheckoutModal';
 import { VagouOfficialLogo } from '../../common/VagouOfficialLogo';
-import { TriadeUserRegisterForm, TriadeUserData } from './TriadeUserRegisterForm';
+import { TriadeUserRegisterForm, TriadeUserData } from '../../auth/TriadeUserRegisterForm';
 import { TriadeUserLoginForm, TriadeUserLoginPayload } from './TriadeUserLoginForm';
 import { SalonWelcomeModal } from '../SalonWelcomeModal';
 import { GoogleAddressPinPicker } from '../GoogleAddressPinPicker';
@@ -89,6 +90,7 @@ export interface EstablishmentMasterPayload {
   };
 
   logoUrl: string;
+  logoTextFallback?: string;
   faviconUrl: string;
   primaryColor: string;
   slogan: string;
@@ -252,12 +254,19 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
       (initialData?.documentType === 'CPF' ? initialData?.documentNumber || '' : '')
   );
 
+  const preselectedSlug = (() => {
+    if (initialData?.slug) return sanitizeSalonSlug(initialData.slug);
+    if (isStandalonePreview && typeof window !== 'undefined') {
+      const urlSlug = new URLSearchParams(window.location.search).get('slug');
+      if (urlSlug) return sanitizeSalonSlug(urlSlug);
+    }
+    return '';
+  })();
+
   const [tradeName, setTradeName] = useState(initialData?.tradeName || '');
   const [category, setCategory] = useState(initialData?.category || 'Barbearia');
-  const [slug, setSlug] = useState(
-    initialData?.slug ? sanitizeSalonSlug(initialData.slug) : ''
-  );
-  const [isCustomSlug, setIsCustomSlug] = useState(false);
+  const [slug, setSlug] = useState(preselectedSlug);
+  const [isCustomSlug, setIsCustomSlug] = useState(Boolean(preselectedSlug));
   const [slugCheckStatus, setSlugCheckStatus] = useState<
     'idle' | 'checking' | 'available' | 'taken' | 'reserved' | 'too_short'
   >('idle');
@@ -478,11 +487,15 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
   };
 
   const [logoUrl, setLogoUrl] = useState(initialData?.logoUrl || '');
+  const [logoTextFallback, setLogoTextFallback] = useState(initialData?.logoTextFallback || '');
   const [faviconUrl, setFaviconUrl] = useState(initialData?.faviconUrl || '');
   const [useLogoAsFavicon, setUseLogoAsFavicon] = useState(true);
   const [primaryColor, setPrimaryColor] = useState(initialData?.primaryColor || '#10B981');
   const [slogan, setSlogan] = useState(initialData?.slogan || '');
   const [brandFont, setBrandFont] = useState<string>(initialData?.brandFont || 'Poppins');
+
+  const effectiveHeaderBrandName = logoTextFallback.trim() || tradeName.trim() || 'Meu Espaço';
+  const effectiveFaviconPreview = useLogoAsFavicon ? logoUrl : faviconUrl;
 
   const BRAND_FONT_PRESETS = [
     {
@@ -833,8 +846,8 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
       setIsAuthenticatedOwner(true);
 
       setTradeName('');
-      setSlug('');
-      setIsCustomSlug(false);
+      setSlug(preselectedSlug);
+      setIsCustomSlug(Boolean(preselectedSlug));
       setHasCnpj(false);
       setCnpjNumber('');
       setLegalName('');
@@ -1010,6 +1023,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         longitude,
       },
       logoUrl,
+      logoTextFallback: logoTextFallback.trim() || tradeName.trim(),
       faviconUrl: effectiveFavicon,
       primaryColor,
       slogan,
@@ -1052,6 +1066,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
         latitude,
         longitude,
         logo_url: logoUrl,
+        logo_text_fallback: logoTextFallback.trim() || tradeName.trim(),
         favicon_url: effectiveFavicon,
         slogan: slogan.trim(),
         brand_font: brandFont,
@@ -1291,59 +1306,56 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
           </div>
 
           <TriadeUserRegisterForm
-            showHeader={false}
+            origin="admvapp"
+            bypassAntifraud={
+              !isStandalonePreview &&
+              (() => {
+                const adm = getStoredAdmin();
+                const role = String(adm?.role || '').toLowerCase();
+                return (
+                  role === 'superadmin' ||
+                  role === 'super_admin' ||
+                  Number((adm as any)?.access_level || 0) >= 100
+                );
+              })()
+            }
             variant="flat"
-            title="Cadastro do Proprietário"
-            subtitle="Crie sua conta pessoal para vincular ao estabelecimento"
-            suppressParentPostMessage={true}
-            requireCpf={true}
+            onSwitchToLogin={() => setUserAuthSubFlow('login')}
             onSuccess={(userData: TriadeUserData) => {
               const newUser = {
                 id: userData.id || `usr-${Date.now()}`,
-                name: userData.fullName,
+                name: userData.name,
                 email: userData.email,
                 phone: userData.phone,
-                username: userData.username.replace(/^@+/, ''),
+                username: (userData.username || '').trim(),
               };
 
               setSelectedUser(newUser);
               setOwnerName(newUser.name);
               setOwnerEmail(newUser.email);
               setOwnerWhatsapp(newUser.phone);
-              const formattedCpf = userData.cpf ? formatFiscalDocument(userData.cpf, 'CPF') : '';
-              setOwnerCpf(formattedCpf);
+              setOwnerCpf('');
               setIsAuthenticatedOwner(true);
 
               const newOwnerAddr = {
-                cep: userData.address.cep || '',
-                street: userData.address.street || '',
-                number: userData.address.number || '',
-                complement: userData.address.complement || '',
-                neighborhood: userData.address.neighborhood || '',
-                city: userData.address.city || '',
-                state: userData.address.state || '',
+                cep: userData.address?.cep || '',
+                street: userData.address?.street || '',
+                number: userData.address?.number || '',
+                complement: userData.address?.complement || '',
+                neighborhood: userData.address?.neighborhood || '',
+                city: userData.address?.city || '',
+                state: userData.address?.uf || '',
               };
               setOwnerAddressData(newOwnerAddr);
 
               setTradeName('');
-              setSlug('');
-              setIsCustomSlug(false);
+              setSlug(preselectedSlug);
+              setIsCustomSlug(Boolean(preselectedSlug));
               setHasCnpj(false);
               setCnpjNumber('');
               setLegalName('');
 
               const initialPixList: SalonPixKeyItem[] = [];
-              if (formattedCpf) {
-                initialPixList.push({
-                  id: 'pix-cpf',
-                  type: 'cpf',
-                  key: formattedCpf,
-                  holderName: newUser.name,
-                  institution: 'Titular Proprietário Verificado',
-                  isPrimary: true,
-                  verified: true,
-                });
-              }
               if (newUser.phone) {
                 initialPixList.push({
                   id: 'pix-phone',
@@ -2334,8 +2346,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                         className="hidden"
                       />
                       <div
-                        className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 overflow-hidden border border-slate-700"
-                        style={{ backgroundColor: logoUrl ? '#0f172a' : primaryColor }}
+                        className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 overflow-hidden border border-slate-700 bg-slate-950 px-1"
                       >
                         {logoUrl ? (
                           <img
@@ -2344,8 +2355,11 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                             className="w-full h-full object-contain"
                           />
                         ) : (
-                          <span className="text-sm font-black text-white uppercase">
-                            {(tradeName || 'VA').slice(0, 2)}
+                          <span
+                            style={{ fontFamily: activeBrandFontFamily }}
+                            className="text-[10px] font-bold text-white text-center leading-tight line-clamp-2"
+                          >
+                            {effectiveHeaderBrandName}
                           </span>
                         )}
                       </div>
@@ -2355,7 +2369,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                           <span>{logoUrl ? 'Trocar Logotipo' : 'Enviar Logotipo'}</span>
                         </span>
                         <span className="text-[10px] text-slate-400 block truncate">
-                          PNG, JPG ou SVG
+                          {logoUrl ? 'PNG, JPG ou SVG' : 'Sem logo: exibe Nome Fantasia'}
                         </span>
                       </div>
                     </label>
@@ -2364,7 +2378,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between gap-1">
                       <label className="block text-[11px] font-semibold text-slate-200">
-                        2. Ícone do App (1:1)
+                        2. Ícone 1:1 (PWA / Favicon)
                       </label>
                       <button
                         type="button"
@@ -2394,19 +2408,18 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                       <div
                         className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 overflow-hidden border border-slate-700 shadow-sm"
                         style={{
-                          backgroundColor:
-                            (useLogoAsFavicon ? logoUrl : faviconUrl) ? '#0f172a' : primaryColor,
+                          backgroundColor: effectiveFaviconPreview ? '#0f172a' : primaryColor,
                         }}
                       >
-                        {(useLogoAsFavicon ? logoUrl : faviconUrl) ? (
+                        {effectiveFaviconPreview ? (
                           <img
-                            src={useLogoAsFavicon ? logoUrl : faviconUrl}
+                            src={effectiveFaviconPreview}
                             alt="Favicon"
                             className="w-full h-full object-cover"
                           />
                         ) : (
                           <span className="text-sm font-black text-white uppercase">
-                            {(tradeName || 'V').slice(0, 1)}
+                            {(effectiveHeaderBrandName || 'V').slice(0, 2)}
                           </span>
                         )}
                       </div>
@@ -2414,18 +2427,37 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                         <span className="text-xs font-bold text-white group-hover:text-emerald-400 transition flex items-center gap-1">
                           <Smartphone className="w-3 h-3 text-emerald-400 shrink-0" />
                           <span>
-                            {(useLogoAsFavicon ? logoUrl : faviconUrl)
-                              ? 'Trocar Ícone'
-                              : 'Enviar Ícone'}
+                            {effectiveFaviconPreview ? 'Trocar Ícone 1:1' : 'Enviar Ícone 1:1'}
                           </span>
                         </span>
                         <span className="text-[10px] text-slate-400 block truncate">
-                          Tela inicial do celular
+                          {effectiveFaviconPreview ? 'Tela inicial e aba' : 'Iniciais exclusivas no ícone 1:1'}
                         </span>
                       </div>
                     </label>
                   </div>
                 </div>
+
+                {!logoUrl && (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-[11px] font-semibold text-slate-200">
+                        Nome Fantasia Resumido (Cabeçalho sem logo)
+                      </label>
+                      <span className="text-[10px] font-mono text-slate-500">
+                        {logoTextFallback.length}/32
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      value={logoTextFallback}
+                      maxLength={32}
+                      onChange={(e) => setLogoTextFallback(e.target.value)}
+                      placeholder={tradeName || 'Ex: Barbearia Central'}
+                      className="w-full min-h-[42px] bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-600 outline-none focus:border-emerald-500 transition"
+                    />
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-0.5">
                   <div className="sm:col-span-5 space-y-1.5">
@@ -2537,32 +2569,24 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                 </div>
 
                 <div className="pt-2.5 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <div className="flex items-center gap-2 bg-slate-900/90 px-3 py-2.5 rounded-xl">
-                    <Globe className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                    <div
-                      className="w-4 h-4 rounded flex items-center justify-center shrink-0 overflow-hidden"
-                      style={{
-                        backgroundColor:
-                          (useLogoAsFavicon ? logoUrl : faviconUrl) ? '#0f172a' : primaryColor,
-                      }}
-                    >
-                      {(useLogoAsFavicon ? logoUrl : faviconUrl) ? (
+                  <div className="flex items-center gap-2.5 bg-slate-900/90 px-3 py-2.5 rounded-xl">
+                    <Globe className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[9px] text-slate-500 block">Cabeçalho do App</span>
+                      {logoUrl ? (
                         <img
-                          src={useLogoAsFavicon ? logoUrl : faviconUrl}
-                          alt="Favicon"
-                          className="w-full h-full object-cover"
+                          src={logoUrl}
+                          alt={effectiveHeaderBrandName}
+                          className="h-5 max-w-[140px] object-contain mt-0.5"
                         />
                       ) : (
-                        <span className="text-[9px] font-black text-white uppercase">
-                          {(tradeName || 'V').slice(0, 1)}
-                        </span>
+                        <p
+                          style={{ fontFamily: activeBrandFontFamily }}
+                          className="text-xs font-bold text-white truncate"
+                        >
+                          {effectiveHeaderBrandName}
+                        </p>
                       )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <span className="text-[9px] text-slate-500 block">Aba do Navegador</span>
-                      <p className="text-[11px] font-semibold text-white truncate">
-                        {tradeName || 'Meu Salão'} {slogan ? `— ${slogan}` : ''}
-                      </p>
                     </div>
                   </div>
 
@@ -2570,13 +2594,12 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                     <div
                       className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 overflow-hidden shadow-sm"
                       style={{
-                        backgroundColor:
-                          (useLogoAsFavicon ? logoUrl : faviconUrl) ? '#0f172a' : primaryColor,
+                        backgroundColor: effectiveFaviconPreview ? '#0f172a' : primaryColor,
                       }}
                     >
-                      {(useLogoAsFavicon ? logoUrl : faviconUrl) ? (
+                      {effectiveFaviconPreview ? (
                         <img
-                          src={useLogoAsFavicon ? logoUrl : faviconUrl}
+                          src={effectiveFaviconPreview}
                           alt="App Icon"
                           className="w-full h-full object-cover"
                         />
@@ -2585,19 +2608,19 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                           style={{ fontFamily: activeBrandFontFamily }}
                           className="text-[11px] font-black text-white uppercase"
                         >
-                          {(tradeName || 'VA').slice(0, 2)}
+                          {(effectiveHeaderBrandName || 'VA').slice(0, 2)}
                         </span>
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <span className="text-[9px] text-slate-500 block">
-                        App no Celular ({brandFont})
+                        Ícone 1:1 (PWA / Favicon)
                       </span>
                       <p
                         style={{ fontFamily: activeBrandFontFamily }}
                         className="text-xs font-bold text-white truncate"
                       >
-                        {tradeName || 'Meu Salão'}
+                        {effectiveHeaderBrandName}
                       </p>
                     </div>
                   </div>
@@ -2925,9 +2948,18 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                         </div>
                       </div>
                       <div>
-                        <span className="text-slate-500 block text-[11px]">Logotipo & Favicon</span>
+                        <span className="text-slate-500 block text-[11px]">Cabeçalho do App</span>
+                        <strong
+                          style={!logoUrl ? { fontFamily: activeBrandFontFamily } : undefined}
+                          className="text-white font-semibold truncate block"
+                        >
+                          {logoUrl ? 'Logotipo enviado' : effectiveHeaderBrandName}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[11px]">Ícone 1:1 (PWA / Favicon)</span>
                         <strong className="text-white font-semibold">
-                          {logoUrl ? 'Imagem enviada' : 'Iniciais automáticas'}
+                          {effectiveFaviconPreview ? 'Imagem enviada' : 'Iniciais no ícone 1:1'}
                         </strong>
                       </div>
                       <div>
@@ -2939,7 +2971,7 @@ export const TriadeEstablishmentMasterForm: React.FC<TriadeEstablishmentMasterFo
                           {brandFont}
                         </strong>
                       </div>
-                      <div className="sm:col-span-3">
+                      <div className="sm:col-span-2">
                         <span className="text-slate-500 block text-[11px]">Slogan</span>
                         <p className="text-slate-200 font-medium">{slogan || '—'}</p>
                       </div>

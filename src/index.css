@@ -153,3 +153,21 @@ body,
   }
 }
 
+html:not(.dark) .vagou-cinematic-auth,
+.vagou-cinematic-auth {
+  color-scheme: dark;
+  color: #ffffff;
+}
+
+html:not(.dark) .vagou-cinematic-auth input,
+html:not(.dark) .vagou-cinematic-auth select,
+html:not(.dark) .vagou-cinematic-auth textarea {
+  color: #ffffff;
+}
+
+html:not(.dark) .vagou-cinematic-auth option {
+  background-color: #020617;
+  color: #ffffff;
+}
+
+

@@ -74,7 +74,7 @@ import { UserAvatar } from '../common/UserAvatar';
 import { supabase, supabaseAdmin } from '../../services/supabase';
 import { safeSupabaseClientWrite } from '../../services/supabaseApi';
 import { TriadeMnvClientLoginForm } from './triade-forms/TriadeMnvClientLoginForm';
-import { TriadeUserRegisterForm } from './triade-forms/TriadeUserRegisterForm';
+import { TriadeUserRegisterForm } from '../auth/TriadeUserRegisterForm';
 import { SalonWelcomeModal } from './SalonWelcomeModal';
 import { AdminSalonUtilitiesAndSyncPanel, SalonUtilitiesData } from './AdminSalonUtilitiesAndSyncPanel';
 import { formatCreatedAtParts, resolveRecordOriginInfo } from '../../utils/dateTimeFormat';
@@ -3859,14 +3859,12 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
               <div className="p-4 sm:p-5 bg-slate-950 flex flex-col justify-center min-h-[520px]">
                 <div className="w-full max-w-md mx-auto">
                   <TriadeUserRegisterForm
-                    origin="establishment"
+                    origin="admvapp"
+                    bypassAntifraud={false}
                     salonId={salon.id}
                     salonName={salon.trade_name}
+                    salonSlug={salon.slug}
                     salonLogoUrl={salon.logo_url}
-                    salonAccentColor={salon.primary_color || '#20C933'}
-                    onSuccess={() => {
-                      alert(`✅ Cadastro concluído com sucesso para o estabelecimento ${salon.trade_name}!`);
-                    }}
                   />
                 </div>
               </div>
@@ -3960,17 +3958,13 @@ export const AdminSalonDetailView: React.FC<AdminSalonDetailViewProps> = ({
                 />
               ) : (
                 <TriadeUserRegisterForm
-                  origin="establishment"
+                  origin="admvapp"
+                  bypassAntifraud={false}
                   salonId={salon.id}
                   salonName={salon.trade_name}
+                  salonSlug={salon.slug}
                   salonLogoUrl={salon.logo_url}
-                  salonAccentColor={salon.primary_color || '#20C933'}
                   onClose={() => setIsSimulatorOpen(false)}
-                  showCloseButton={true}
-                  onSuccess={() => {
-                    alert(`✅ Sucesso! O cliente foi cadastrado no estabelecimento ${salon.trade_name}!`);
-                    setIsSimulatorOpen(false);
-                  }}
                 />
               )}
             </div>
